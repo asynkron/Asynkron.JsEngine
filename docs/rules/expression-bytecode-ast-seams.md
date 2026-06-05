@@ -157,6 +157,15 @@ fallback or cleanup.
     awaited with-object evaluation, until the VM owns active dynamic-scope
     suspension state explicitly. Do not repair this boundary with an AST
     fallback or by rolling back sync `with` admission.
+27. Keep standalone `ExpressionProgram` runner calls centralized behind the
+    expression-program bridge. Production routing code must not call
+    `ExecutionPlanRunner.EvaluateStandaloneExpressionProgram(...)` or
+    `ExecutionPlanRunner.ProfileEvaluateExpressionProgramLoop(...)` directly.
+    New `EvaluateLoweredExpressionProgram(...)` callers must be source-gated
+    and classified as class-definition/class-field, bridge/profiling,
+    dynamic-boundary, or fallback-only surfaces. If the fallback-only
+    `SyncFunctionInvoker` caller is deleted, change its guard from classified
+    allowlist to tombstone instead of leaving stale permission. See ADR 0345.
 
 ## Dynamic Boundary Classification (#1405 Retry)
 
@@ -355,6 +364,16 @@ ordinary non-dynamic path before and after the dynamic seam. The durable lesson
 is that dynamic-boundary approval is not enough by itself: tests must prove the
 ordinary path still fails loudly if it regresses to legacy AST evaluation and
 that exercising the dynamic seam does not hide later ordinary-path re-entry.
+
+Issue
+`planitem-planmanual1780639098493226000-full-unified-bytecode-execution-burndown-b-37fc1c9650`
+/ PR #3271 closed E4 as a fallback-boundary guardrail. The issue was not that
+lowered `ExpressionProgram` execution is AST evaluation; it was that direct
+standalone runner calls outside the bridge made production-route scans unable
+to distinguish VM-owned routing from fallback-only lowered expression
+execution. Future E4 work must keep direct runner calls centralized, classify
+every lowered expression-program caller, and preserve `newTarget` through the
+bridge. See ADR 0345.
 
 PR #2729 completed full deletion of `EvaluateLegacyAstExpression` and its
 sibling methods from `Ast/Legacy/ExpressionNodeExtensions.cs`. The build-stage

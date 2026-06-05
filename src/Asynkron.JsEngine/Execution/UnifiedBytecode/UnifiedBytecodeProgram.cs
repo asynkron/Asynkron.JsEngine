@@ -240,6 +240,17 @@ internal readonly record struct UnifiedBytecodePendingAbruptCompletion(
             false);
 }
 
+internal sealed class UnifiedBytecodeResumableTryFrame(int descriptorIndex)
+{
+    public int DescriptorIndex { get; } = descriptorIndex;
+    public bool CatchUsed { get; set; }
+    public bool FinallyScheduled { get; set; }
+    public JsTypes.JsValue ThrownValue { get; set; } = JsTypes.JsValue.Undefined;
+    public UnifiedBytecodeCatchDescriptor? ActiveCatchDescriptor { get; set; }
+    public UnifiedBytecodePendingAbruptCompletion PendingCompletion { get; set; } =
+        UnifiedBytecodePendingAbruptCompletion.None;
+}
+
 internal readonly record struct UnifiedBytecodeStepResult(
     UnifiedBytecodeStepKind Kind,
     JsTypes.JsValue Value,
@@ -436,8 +447,8 @@ internal sealed class UnifiedBytecodeResumeState
     public int ProgramCounter { get; set; }
     public int StackPointer { get; set; }
     public int NextActiveDriverOrdinal;
-    public Stack<int>? ResumableTryDescriptorIndices;
-    public Stack<int>? ResumableTryResumeTargets;
+    public Stack<UnifiedBytecodeResumableTryFrame>? ResumableTryFrames;
+    public bool[]? ResumableInactiveCatchBindingSlots;
     public AssignmentReference[]? DynamicIdentifierReferences;
     public int DynamicIdentifierReferenceCount;
     public bool IsCompleted { get; set; }

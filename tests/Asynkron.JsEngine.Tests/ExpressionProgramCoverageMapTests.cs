@@ -71,13 +71,11 @@ public sealed class ExpressionProgramCoverageMapTests
         "DeclareDynamicLexical",
         "DeclareDynamicVar",
         "DeclareFunction",
-        "EnterCatch",
         "EnterWith",
         "GetComputedPropertyForCompoundSet",
         "GetNamedPropertyForCompoundSet",
         "InitializeDynamicLexical",
         "LeaveWith",
-        "PopEnvironment",
         "PushEnvironment",
         "StoreDynamicIdentifier",
         "SuperConstructInvocationBoundary",
@@ -87,10 +85,8 @@ public sealed class ExpressionProgramCoverageMapTests
     private static readonly string[] UnifiedBytecodeResumableInstructionAllowListGapNames =
     [
         "ClassDeclarationInstruction",
-        "EnterCatchInstruction",
         "EnterWithInstruction",
         "LeaveWithInstruction",
-        "PopEnvironmentInstruction",
         "PushEnvironmentInstruction",
         "SetCompletionValueInstruction"
     ];

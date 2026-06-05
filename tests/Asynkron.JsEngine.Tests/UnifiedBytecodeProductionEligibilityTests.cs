@@ -946,6 +946,30 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
+    public void EvaluateResumable_TryCatchPlan_AcceptsOwnedCatchOpcode()
+    {
+        var plan = GetFunctionPlan("""
+            function* recover() {
+                try {
+                    throw 40;
+                } catch (e) {
+                    yield e + 2;
+                }
+            }
+            """,
+            "recover");
+
+        var result = UnifiedBytecodeProductionEligibility.EvaluateResumable(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor(IsGenerator: true));
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction => instruction.OpCode == UnifiedBytecodeOpCode.EnterTry);
+        Assert.Contains(result.Program.Instructions, instruction => instruction.OpCode == UnifiedBytecodeOpCode.EnterCatch);
+    }
+
+    [Fact]
     public void Evaluate_TryFinallyPlan_AcceptsOwnedFinallyOpcodes()
     {
         var plan = GetFunctionPlan("""

@@ -387,13 +387,11 @@ the admitted subset stays 1:1 with `UnifiedBytecodeVirtualMachine.ExecuteResumab
 - `DeclareDynamicLexical`
 - `DeclareDynamicVar`
 - `DeclareFunction`
-- `EnterCatch`
 - `EnterWith`
 - `GetComputedPropertyForCompoundSet`
 - `GetNamedPropertyForCompoundSet`
 - `InitializeDynamicLexical`
 - `LeaveWith`
-- `PopEnvironment`
 - `PushEnvironment`
 - `StoreDynamicIdentifier`
 - `SuperConstructInvocationBoundary`
@@ -410,10 +408,8 @@ resumable invoker's activation proof before the conditional allowlist arm admits
 them.
 
 - `ClassDeclarationInstruction`
-- `EnterCatchInstruction`
 - `EnterWithInstruction`
 - `LeaveWithInstruction`
-- `PopEnvironmentInstruction`
 - `PushEnvironmentInstruction`
 - `SetCompletionValueInstruction`
 

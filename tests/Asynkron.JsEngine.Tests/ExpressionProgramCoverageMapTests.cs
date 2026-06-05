@@ -104,7 +104,6 @@ public sealed class ExpressionProgramCoverageMapTests
         "ContinueInstruction",
         "EnterCatchInstruction",
         "EnterWithInstruction",
-        "FunctionDeclarationInstruction",
         "LeaveWithInstruction",
         "PopEnvironmentInstruction",
         "PushEnvironmentInstruction",

@@ -401,14 +401,16 @@ the admitted subset stays 1:1 with `UnifiedBytecodeVirtualMachine.ExecuteResumab
 These are declared `ExecutionInstruction` records not admitted by
 `IsSupportedResumableInstruction`. Some compile to opcode families that already
 exist on the sync VM, but the plan-level resumable setup or suspension state is
-not yet proven for them.
+not yet proven for them. `FunctionDeclarationInstruction` is no longer in this
+gap inventory, but direct root function-scoped declarations still require the
+resumable invoker's activation proof before the conditional allowlist arm admits
+them.
 
 - `BreakInstruction`
 - `ClassDeclarationInstruction`
 - `ContinueInstruction`
 - `EnterCatchInstruction`
 - `EnterWithInstruction`
-- `FunctionDeclarationInstruction`
 - `LeaveWithInstruction`
 - `PopEnvironmentInstruction`
 - `PushEnvironmentInstruction`
@@ -756,12 +758,17 @@ predicates and proof tests.
     the resume state owns a materialized body environment.
   - HOISTED NESTED FUNCTION DECLARATIONS (`function helper(){...}`;
     `FunctionDeclarationInstruction` / `DeclareFunction`) inside a generator/async
-    body remain investigated-declined (B36). Hoisted declarations are materialised
-    by FunctionDeclarationInstantiation at call time, which the resumable setup
-    does not run, so the declared name's slot stays `undefined` on a naive route.
-    `DeclareFunction` remains OFF the resumable opcode allowlist and
-    `FunctionDeclarationInstruction` OFF the resumable instruction allowlist; the
-    boundary is pinned by `UnifiedBytecodeResumableNestedFunctionTests`.
+    body are now partially admitted (B36): direct root function-scoped
+    declarations route when the declared helper is non-capturing and the
+    resumable invoker pre-populates the helper's compiled VM flat slot before
+    `ExecuteResumable` starts. Capturing helpers, recursive/sibling helper
+    dependencies, dynamic/eval helpers, descriptor-backed block/Annex B
+    declarations, and class declarations remain declined until resumable
+    activation owns a materialized body environment and block-declaration
+    semantics. `DeclareFunction` remains OFF the resumable opcode allowlist and
+    `FunctionDeclarationInstruction` remains conditionally guarded by the
+    invoker-proof activation flag; the boundary is pinned by
+    `UnifiedBytecodeResumableNestedFunctionTests`.
 - Captured function scopes outside the simple-return captured-closure route,
   unresolved non-with dynamic activation, arrow lexical `this` / `new.target`,
   and class-constructor activation outside the bounded constructor routes.

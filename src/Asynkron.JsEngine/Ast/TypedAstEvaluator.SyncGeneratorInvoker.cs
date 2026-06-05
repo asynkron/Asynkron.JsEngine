@@ -72,11 +72,20 @@ public static partial class TypedAstEvaluator
                 return false;
             }
 
+            if (!TryCollectResumableRootHoistedFunctionDeclarations(
+                    _function,
+                    plan,
+                    out var hoistedFunctionDeclarations))
+            {
+                return false;
+            }
+
             var activation = new UnifiedBytecodeProductionActivationDescriptor(
                 IsAsyncLike: false,
                 IsGenerator: true,
                 HasCapturedOrDynamicActivation: !AllowsIdentifierCaching(_function) || _closure.HasWithObjectInChain(),
-                HasArgumentsObjectDependency: NeedsArgumentsBinding(_function));
+                HasArgumentsObjectDependency: NeedsArgumentsBinding(_function),
+                AllowsRootFunctionDeclarationInstructions: !hoistedFunctionDeclarations.IsEmpty);
             var eligibility = UnifiedBytecodeProductionEligibility.EvaluateResumable(plan, activation);
             if (!eligibility.IsEligible)
             {
@@ -84,10 +93,19 @@ public static partial class TypedAstEvaluator
             }
 
             var program = eligibility.Program;
-            var slots = new JsValue[program.SlotCount];
-            Array.Fill(slots, JsValue.Undefined);
-            InitializeLexicalSlots(slots, program);
-            PopulateParameterSlots(arguments, slots, program);
+            var context = RealmState.CreateContext();
+            if (!TryInitializeResumableSlots(
+                    plan,
+                    program,
+                    arguments,
+                    hoistedFunctionDeclarations,
+                    _closure,
+                    context,
+                    out var slots))
+            {
+                return false;
+            }
+
             var isStrict = _function.Body.IsStrict || _closure.IsStrict || _isLexicallyStrict;
             var boundThis = isStrict
                 ? thisValue
@@ -101,8 +119,6 @@ public static partial class TypedAstEvaluator
                 // `#name in obj` correctly. Empty for generators that close over no private names.
                 PrivateNameScopes = UnifiedBytecodeResumeState.CombinePrivateNameScopes(_capturedPrivateNameScopes, PrivateNameScope),
             };
-            var context = RealmState.CreateContext();
-
             RealmState.Logger?.LogInformation(
                 "unified-bytecode-resumable-generator-fast-path func={Function} argc={ArgumentCount}",
                 _function.Name?.Name ?? "<anonymous>",
@@ -171,41 +187,6 @@ public static partial class TypedAstEvaluator
                 _ => throw new NotSupportedException(
                     $"Unified bytecode generator step '{step.Kind}' is not supported by synchronous generators.")
             };
-        }
-
-        private static void InitializeLexicalSlots(JsValue[] slots, UnifiedBytecodeProgram program)
-        {
-            var lexicalSlotIndices = program.LexicalSlotIndices;
-            if (lexicalSlotIndices.IsDefaultOrEmpty)
-            {
-                return;
-            }
-
-            for (var i = 0; i < lexicalSlotIndices.Length; i++)
-            {
-                slots[lexicalSlotIndices[i]] = JsValue.Uninitialized;
-            }
-        }
-
-        private static void PopulateParameterSlots(
-            IReadOnlyList<JsValue> arguments,
-            JsValue[] slots,
-            UnifiedBytecodeProgram program)
-        {
-            var parameterSlotIndices = program.ParameterSlotIndices;
-            if (parameterSlotIndices.IsDefaultOrEmpty)
-            {
-                return;
-            }
-
-            for (var i = 0; i < parameterSlotIndices.Length; i++)
-            {
-                var parameterSlotIndex = parameterSlotIndices[i];
-                if (parameterSlotIndex >= 0)
-                {
-                    slots[parameterSlotIndex] = i < arguments.Count ? arguments[i] : JsValue.Undefined;
-                }
-            }
         }
 
         protected override void EnsureIntrinsics()

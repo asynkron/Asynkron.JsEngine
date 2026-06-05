@@ -139,11 +139,20 @@ public static partial class TypedAstEvaluator
                 return false;
             }
 
+            if (!TryCollectResumableRootHoistedFunctionDeclarations(
+                    function,
+                    plan,
+                    out var hoistedFunctionDeclarations))
+            {
+                return false;
+            }
+
             var activation = new UnifiedBytecodeProductionActivationDescriptor(
                 IsAsyncLike: true,
                 IsGenerator: true,
                 HasCapturedOrDynamicActivation: !AllowsIdentifierCaching(function) || closure.HasWithObjectInChain(),
-                HasArgumentsObjectDependency: !function.IsArrow && NeedsArgumentsBinding(function));
+                HasArgumentsObjectDependency: !function.IsArrow && NeedsArgumentsBinding(function),
+                AllowsRootFunctionDeclarationInstructions: !hoistedFunctionDeclarations.IsEmpty);
             var eligibility = UnifiedBytecodeProductionEligibility.EvaluateResumable(plan, activation);
             if (!eligibility.IsEligible)
             {
@@ -151,10 +160,18 @@ public static partial class TypedAstEvaluator
             }
 
             var program = eligibility.Program;
-            var slots = new JsValue[program.SlotCount];
-            Array.Fill(slots, JsValue.Undefined);
-            InitializeLexicalSlots(slots, program);
-            PopulateParameterSlots(arguments, slots, program);
+            var context = realmState.CreateContext();
+            if (!TryInitializeResumableSlots(
+                    plan,
+                    program,
+                    arguments,
+                    hoistedFunctionDeclarations,
+                    closure,
+                    context,
+                    out var slots))
+            {
+                return false;
+            }
 
             var isStrict = function.Body.IsStrict || closure.IsStrict || isLexicallyStrict;
             var boundThis = isStrict
@@ -268,41 +285,6 @@ public static partial class TypedAstEvaluator
                 ExecutionPlanRunner.ResumeMode.Return => UnifiedBytecodeResumeMode.Return,
                 _ => UnifiedBytecodeResumeMode.Next
             };
-
-        private static void InitializeLexicalSlots(JsValue[] slots, UnifiedBytecodeProgram program)
-        {
-            var lexicalSlotIndices = program.LexicalSlotIndices;
-            if (lexicalSlotIndices.IsDefaultOrEmpty)
-            {
-                return;
-            }
-
-            for (var i = 0; i < lexicalSlotIndices.Length; i++)
-            {
-                slots[lexicalSlotIndices[i]] = JsValue.Uninitialized;
-            }
-        }
-
-        private static void PopulateParameterSlots(
-            IReadOnlyList<JsValue> sourceArguments,
-            JsValue[] slots,
-            UnifiedBytecodeProgram program)
-        {
-            var parameterSlotIndices = program.ParameterSlotIndices;
-            if (parameterSlotIndices.IsDefaultOrEmpty)
-            {
-                return;
-            }
-
-            for (var i = 0; i < parameterSlotIndices.Length; i++)
-            {
-                var parameterSlotIndex = parameterSlotIndices[i];
-                if (parameterSlotIndex >= 0)
-                {
-                    slots[parameterSlotIndex] = i < sourceArguments.Count ? sourceArguments[i] : JsValue.Undefined;
-                }
-            }
-        }
 
         private static JsValue CreateAsyncIteratorResult(JsValue value, bool done)
         {

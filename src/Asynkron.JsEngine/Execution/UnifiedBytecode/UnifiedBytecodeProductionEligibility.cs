@@ -39,6 +39,7 @@ internal readonly record struct UnifiedBytecodeProductionActivationDescriptor(
     bool HasDynamicLookupDependency = false,
     bool AllowsOrdinaryDynamicIdentifierEnvironmentOperations = false,
     bool AllowsImplicitArgumentsObjectPropertyReadOperands = false,
+    bool AllowsRootFunctionDeclarationInstructions = false,
     bool IsStrict = false);
 
 internal readonly record struct UnifiedBytecodeProductionEligibilityResult(
@@ -321,6 +322,7 @@ internal static class UnifiedBytecodeProductionEligibility
         if (TryFindResumablePlanDecline(
                 plan,
                 activationSlots,
+                activation,
                 activation.IsAsyncLike && activation.IsGenerator,
                 out var declineCode,
                 out var declineReason))
@@ -1091,6 +1093,7 @@ internal static class UnifiedBytecodeProductionEligibility
     private static bool TryFindResumablePlanDecline(
         ExecutionPlan plan,
         ActivationSlotShape activationSlots,
+        UnifiedBytecodeProductionActivationDescriptor activation,
         bool isAsyncGenerator,
         out UnifiedBytecodeProductionDeclineCode declineCode,
         out string declineReason)
@@ -1136,7 +1139,7 @@ internal static class UnifiedBytecodeProductionEligibility
             // Dynamic declarations remain declined by their instruction/opcode gates until their own semantics
             // are proven.
             const bool allowsDynamicIdentifiers = true;
-            if (!IsSupportedResumableInstruction(instruction, activationSlots, out declineReason))
+            if (!IsSupportedResumableInstruction(instruction, activationSlots, activation, out declineReason))
             {
                 declineCode = UnifiedBytecodeProductionDeclineCode.UnsupportedPlanShape;
                 return true;
@@ -1244,10 +1247,16 @@ internal static class UnifiedBytecodeProductionEligibility
     private static bool IsSupportedResumableInstruction(
         ExecutionInstruction instruction,
         ActivationSlotShape activationSlots,
+        UnifiedBytecodeProductionActivationDescriptor activation,
         out string declineReason)
     {
         switch (instruction)
         {
+            // B36 narrow slice: function-scoped declarations lower as no-op IR records because the
+            // resumable invoker has already populated their flat slots during activation setup. The
+            // activation flag is set only after the invoker proves every direct root declaration is
+            // non-capturing and slot-mapped; descriptor-backed block declarations remain declined by A43.
+            case FunctionDeclarationInstruction { Descriptor: null } when activation.AllowsRootFunctionDeclarationInstructions:
             case SimpleVariableDeclarationInstruction { AwaitedProgram: null, InitializerProgram: { } }:
             case SimpleVariableDeclarationInstruction { AwaitedProgram: null, InitializerProgram: null }:
             // `var x = await p` / `let y = await p` (B1): bind an AWAITED value into a flat slot and read it
@@ -1372,7 +1381,7 @@ internal static class UnifiedBytecodeProductionEligibility
         return false;
     }
 
-    private static bool FunctionCapturesActivationSlot(
+    internal static bool FunctionCapturesActivationSlot(
         FunctionExpression function,
         ActivationSlotShape activationSlots,
         out string capturedName)

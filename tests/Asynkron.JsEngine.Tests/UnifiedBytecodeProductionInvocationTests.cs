@@ -9083,32 +9083,39 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     public void SourceGate_ProductionUnifiedBytecodeScriptAndResumableAcceptedPaths_DoNotDelegateToAstOrExecutionPlanRunner()
     {
         var repositoryRoot = FindRepositoryRootForSourceGate();
-        var checkedExecutionSections = new (string RelativePath, string StartMarker, string EndMarker, string SectionName)[]
+        var checkedExecutionSections = new (string RelativePath, string StartMarker, string EndMarker, string SectionName, string[] AllowedTypeMarkers)[]
         {
             (
                 Path.Combine("src", "Asynkron.JsEngine", "Ast", "Legacy", "StatementNodeExtensions.cs"),
                 "private static bool TryRunScriptViaProductionUnifiedBytecode(",
                 "    }\n}",
-                "script accepted path"),
+                "script accepted path",
+                []),
             (
                 Path.Combine("src", "Asynkron.JsEngine", "Ast", "TypedAstEvaluator.AsyncFunctionInvoker.cs"),
                 "private void DriveUnifiedBytecodeToCompletion(",
                 "private void DriveToCompletion(",
-                "async-function resumable accepted path"),
+                "async-function resumable accepted path",
+                []),
             (
                 Path.Combine("src", "Asynkron.JsEngine", "Ast", "TypedAstEvaluator.SyncGeneratorInvoker.cs"),
                 "private static JsValue ExecuteUnifiedBytecodeGeneratorStep(",
                 "protected override void EnsureIntrinsics()",
-                "sync-generator resumable accepted path"),
+                "sync-generator resumable accepted path",
+                []),
             (
                 Path.Combine("src", "Asynkron.JsEngine", "Ast", "TypedAstEvaluator.AsyncGeneratorInvoker.cs"),
                 "private ExecutionPlanRunner.AsyncGeneratorStepResult ExecuteUnifiedBytecodeStep(",
                 "private static UnifiedBytecodeResumeMode ToUnifiedResumeMode(",
-                "async-generator resumable accepted path")
+                "async-generator resumable accepted path",
+                [
+                    "ExecutionPlanRunner.AsyncGeneratorStepResult",
+                    "ExecutionPlanRunner.AsyncGeneratorStepKind"
+                ])
         };
 
         Assert.NotEmpty(checkedExecutionSections);
-        foreach (var (relativePath, startMarker, endMarker, sectionName) in checkedExecutionSections)
+        foreach (var (relativePath, startMarker, endMarker, sectionName, allowedTypeMarkers) in checkedExecutionSections)
         {
             var sourcePath = Path.Combine(repositoryRoot.FullName, relativePath);
             Assert.True(File.Exists(sourcePath), $"Expected accepted-route source at '{sourcePath}'.");
@@ -9116,7 +9123,7 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
             var section = ExtractRequiredSourceSection(source, startMarker, endMarker, sectionName);
 
             Assert.Contains("UnifiedBytecodeVirtualMachine.Execute", section, StringComparison.Ordinal);
-            AssertUnifiedBytecodeAcceptedSectionDoesNotDelegate(section, sectionName);
+            AssertUnifiedBytecodeAcceptedSectionDoesNotDelegate(section, sectionName, allowedTypeMarkers);
         }
 
         var checkedSetupSections = new (string RelativePath, string StartMarker, string EndMarker, string SectionName, string[] AllowedRunnerSetupMarkers)[]
@@ -9238,13 +9245,28 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
         return source;
     }
 
-    private static void AssertUnifiedBytecodeAcceptedSectionDoesNotDelegate(string source, string sectionName)
+    private static void AssertUnifiedBytecodeAcceptedSectionDoesNotDelegate(
+        string source,
+        string sectionName,
+        IReadOnlyList<string>? allowedTypeMarkers = null)
     {
+        var classifiedSource = source;
+        if (allowedTypeMarkers is not null)
+        {
+            foreach (var allowedTypeMarker in allowedTypeMarkers)
+            {
+                Assert.Contains(allowedTypeMarker, classifiedSource, StringComparison.Ordinal);
+                classifiedSource = classifiedSource.Replace(allowedTypeMarker, string.Empty, StringComparison.Ordinal);
+            }
+        }
+
         var forbiddenDelegationMarkers = new[]
         {
+            "ExecutionPlanRunner",
             "new ExecutionPlanRunner(",
             "ExecutionPlanRunner.RunScript(",
             "ExecutionPlanRunner.RunSync(",
+            "ExpressionProgram",
             ".ExecuteAsyncStep(",
             ".RunScriptInternal(",
             "EvaluateExpression(",
@@ -9257,11 +9279,11 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
             "EvaluateLegacyAstExpressionSlow("
         };
 
-        Assert.NotEmpty(source);
+        Assert.NotEmpty(classifiedSource);
         foreach (var marker in forbiddenDelegationMarkers)
         {
             Assert.False(
-                source.Contains(marker, StringComparison.Ordinal),
+                classifiedSource.Contains(marker, StringComparison.Ordinal),
                 $"{sectionName} must not delegate through forbidden marker '{marker}'.");
         }
     }

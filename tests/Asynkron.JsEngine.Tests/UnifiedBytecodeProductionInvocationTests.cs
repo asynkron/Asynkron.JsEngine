@@ -9031,6 +9031,9 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
             "InvokeOrdinarySyncRunnerResidue(",
             StringComparison.Ordinal);
 
+        Assert.Equal(
+            1,
+            CountOrdinalOccurrences(routeSource, "InvokeOrdinarySyncRunnerResidue("));
         Assert.True(
             unifiedBytecodeIndex >= 0,
             "Production unified bytecode is missing from the ordinary sync route.");
@@ -9062,12 +9065,24 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
             "TypedAstEvaluator.SyncFunctionInvoker.cs");
 
         var invokerSource = File.ReadAllText(invokerPath);
+        const string residueReferenceMarker = "InvokeOrdinarySyncRunnerResidue(";
+        const string residueCallMarker = "result = InvokeOrdinarySyncRunnerResidue(";
+        const string residueDefinitionMarker = "private JsValue InvokeOrdinarySyncRunnerResidue(";
+        var routeSource = ExtractRequiredSourceSection(
+            invokerSource,
+            "private bool TryInvokeIrFast<TArgs>(",
+            residueDefinitionMarker,
+            "TryInvokeIrFast ordinary sync route");
         var residueSource = ExtractRequiredSourceSection(
             invokerSource,
-            "private JsValue InvokeOrdinarySyncRunnerResidue(",
+            residueDefinitionMarker,
             "        [MethodImpl(JsEngineConstants.Inlining)]\n        private bool ShouldDeferSimpleIrFastPathToProductionUnifiedBytecode(",
             "ordinary sync runner residue helper");
 
+        Assert.Equal(2, CountOrdinalOccurrences(invokerSource, residueReferenceMarker));
+        Assert.Equal(1, CountOrdinalOccurrences(routeSource, residueReferenceMarker));
+        Assert.Contains(residueCallMarker, routeSource, StringComparison.Ordinal);
+        Assert.Contains(residueDefinitionMarker, invokerSource, StringComparison.Ordinal);
         Assert.Contains("ordinary-sync-runner-residue", residueSource, StringComparison.Ordinal);
         Assert.Contains("new ExecutionPlanRunner(", residueSource, StringComparison.Ordinal);
         Assert.Contains("runner.RunSync()", residueSource, StringComparison.Ordinal);
@@ -9238,6 +9253,20 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
         }
 
         throw new DirectoryNotFoundException("Could not locate repository root for unified-bytecode source gate.");
+    }
+
+    private static int CountOrdinalOccurrences(string source, string marker)
+    {
+        Assert.NotEmpty(marker);
+        var count = 0;
+        var index = 0;
+        while ((index = source.IndexOf(marker, index, StringComparison.Ordinal)) >= 0)
+        {
+            count++;
+            index += marker.Length;
+        }
+
+        return count;
     }
 
     private static string ExtractRequiredSourceSection(

@@ -383,8 +383,6 @@ These are the declared `UnifiedBytecodeOpCode` names not admitted by
 the admitted subset stays 1:1 with `UnifiedBytecodeVirtualMachine.ExecuteResumable`.
 
 - `ApplyBindingTarget`
-- `Break`
-- `Continue`
 - `DeclareClass`
 - `DeclareDynamicLexical`
 - `DeclareDynamicVar`
@@ -394,7 +392,6 @@ the admitted subset stays 1:1 with `UnifiedBytecodeVirtualMachine.ExecuteResumab
 - `GetComputedPropertyForCompoundSet`
 - `GetNamedPropertyForCompoundSet`
 - `InitializeDynamicLexical`
-- `JumpWithDriverCleanup`
 - `LeaveWith`
 - `PopEnvironment`
 - `PushEnvironment`

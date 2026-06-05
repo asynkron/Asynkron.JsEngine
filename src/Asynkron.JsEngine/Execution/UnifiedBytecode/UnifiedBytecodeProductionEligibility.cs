@@ -1854,10 +1854,15 @@ internal static class UnifiedBytecodeProductionEligibility
                 UnifiedBytecodeOpCode.SwapTopTwo or
                 UnifiedBytecodeOpCode.RotateTopThreeRight or
                 UnifiedBytecodeOpCode.Jump or
+                // Resumable control-flow opcodes are admitted only because ExecuteResumable owns the
+                // same driver-cleanup topology as the sync VM for the currently compiled B41 loop shapes.
+                UnifiedBytecodeOpCode.JumpWithDriverCleanup or
                 UnifiedBytecodeOpCode.JumpIfFalse or
                 UnifiedBytecodeOpCode.JumpIfShortCircuitFalse or
                 UnifiedBytecodeOpCode.JumpIfShortCircuitTrue or
                 UnifiedBytecodeOpCode.JumpIfShortCircuitNotNullish or
+                UnifiedBytecodeOpCode.Break or
+                UnifiedBytecodeOpCode.Continue or
                 UnifiedBytecodeOpCode.EnterTry or
                 UnifiedBytecodeOpCode.LeaveTry or
                 UnifiedBytecodeOpCode.EndFinally or

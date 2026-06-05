@@ -67,8 +67,6 @@ public sealed class ExpressionProgramCoverageMapTests
     private static readonly string[] UnifiedBytecodeResumableOpcodeAllowListGapNames =
     [
         "ApplyBindingTarget",
-        "Break",
-        "Continue",
         "DeclareClass",
         "DeclareDynamicLexical",
         "DeclareDynamicVar",
@@ -78,7 +76,6 @@ public sealed class ExpressionProgramCoverageMapTests
         "GetComputedPropertyForCompoundSet",
         "GetNamedPropertyForCompoundSet",
         "InitializeDynamicLexical",
-        "JumpWithDriverCleanup",
         "LeaveWith",
         "PopEnvironment",
         "PushEnvironment",

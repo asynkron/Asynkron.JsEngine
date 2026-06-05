@@ -2090,24 +2090,10 @@ internal static class UnifiedBytecodeProductionEligibility
             return false;
         }
 
-        if (FunctionCapturesActivationSlot(definition.Constructor, activationSlots, out var constructorCapturedName))
-        {
-            declineReason =
-                $"Class literal is outside B24f: constructor body captures activation binding '{constructorCapturedName}' and needs the materialized body environment route.";
-            return false;
-        }
-
         foreach (var member in definition.Members)
         {
             if (!member.IsPrivate || member.IsStatic || member.IsComputed)
             {
-                return false;
-            }
-
-            if (FunctionCapturesActivationSlot(member.Function, activationSlots, out var capturedName))
-            {
-                declineReason =
-                    $"Class literal is outside B24f: private member body captures activation binding '{capturedName}' and needs the materialized body environment route.";
                 return false;
             }
         }

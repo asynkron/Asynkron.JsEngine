@@ -2171,6 +2171,32 @@ internal static class UnifiedBytecodeProductionEligibility
             _found = true;
             ShouldStop = true;
         }
+
+        protected override void VisitObjectExpression(ObjectExpression node)
+        {
+            foreach (var member in node.Members)
+            {
+                if (ShouldStop)
+                {
+                    break;
+                }
+
+                if (member.Key is ExpressionNode keyExpression)
+                {
+                    Visit(keyExpression);
+                }
+
+                if (!ShouldStop && member.Value is not null)
+                {
+                    Visit(member.Value);
+                }
+
+                if (!ShouldStop && member.Function is not null)
+                {
+                    VisitFunctionExpression(member.Function);
+                }
+            }
+        }
     }
 
     private static bool IsB24fPrivateInstanceMemberClassLiteral(ClassDefinition definition)

@@ -281,6 +281,24 @@ public sealed class UnifiedBytecodeResumableClassExpressionTests(ITestOutputHelp
         function* g(seed) {
             yield 1;
             var C = class {
+                static value = { read() { return seed; } };
+            };
+            return C.value.read();
+        }
+        """)]
+    [InlineData("""
+        function* g(seed) {
+            yield 1;
+            var C = class {
+                static value = { get read() { return seed; } };
+            };
+            return C.value.read;
+        }
+        """)]
+    [InlineData("""
+        function* g(seed) {
+            yield 1;
+            var C = class {
                 static value = class {
                     static read() { return seed; }
                 };
@@ -320,6 +338,34 @@ public sealed class UnifiedBytecodeResumableClassExpressionTests(ITestOutputHelp
                 };
                 current = seed + 1;
                 return C.read();
+            }
+
+            var iterator = g(41);
+            var first = iterator.next();
+            var second = iterator.next();
+            first.value + ":" + first.done + "|" + second.value + ":" + second.done;
+            """);
+
+        Assert.Equal("ready:false|42:true", result);
+        Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                $"{ResumableGeneratorFastPathLog} func=g argc=1",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task GeneratorStaticFieldObjectMethodInitializer_FallsBackAndObservesLaterActivationMutation()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function* g(seed) {
+                yield "ready";
+                var current = seed;
+                var C = class {
+                    static bag = { read() { return current; } };
+                };
+                current = seed + 1;
+                return C.bag.read();
             }
 
             var iterator = g(41);

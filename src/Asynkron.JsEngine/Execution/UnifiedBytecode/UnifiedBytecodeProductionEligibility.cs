@@ -2045,7 +2045,7 @@ internal static class UnifiedBytecodeProductionEligibility
             if (definition.Extends is not null)
             {
                 declineReason =
-                    "Class literals with extends are not eligible for the B24f resumable private-member route.";
+                    "Class literal is outside B24a and B24f: class literals with extends are not eligible for the B24f resumable private-member route.";
                 return false;
             }
 

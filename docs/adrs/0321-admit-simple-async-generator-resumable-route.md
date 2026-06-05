@@ -4,6 +4,14 @@
 
 Accepted
 
+Supersession note: Faktorial issue
+`planitem-planmanual1780639098493226000-full-unified-bytecode-execution-burndown-b-1747a4b32a`
+and PR #3221 later widened this route to admit non-awaited async-generator
+`yield*` over delegated async iterables after the VM owned delegated
+`next`/`return`/`throw` settlement through the existing async-generator
+`PendingAwait` bridge. The `yield* await ...` awaited delegated-source shape
+still stays on the IR runner until that source-await settlement is VM-owned.
+
 ## Context
 
 Faktorial issue #3135 and PR #3142 burned down the largest remaining
@@ -38,8 +46,10 @@ bytecode VM.
   async-generator promise settlement path.
 - Non-simple parameter lists stay on the IR runner until the VM owns the eager
   parameter-initialization effects required before iterator creation.
-- Async-generator `yield*` and `yield* await ...` stay explicit pre-VM declines
-  until delegated async iterator settlement is VM-owned.
+- Non-awaited async-generator `yield*` may route after delegated async iterator
+  settlement is VM-owned by the resumable VM. Async-generator
+  `yield* await ...` stays an explicit pre-VM decline until awaited
+  delegated-source settlement is VM-owned.
 - The VM route must remain fallback-free for accepted programs: no callback
   into `ExecutionPlanRunner`, `ExpressionProgram`, or AST evaluation after the
   route is selected.
@@ -48,9 +58,9 @@ bytecode VM.
 
 - Simple direct-yield async generators can now avoid constructing the IR runner
   when they are otherwise resumable-eligible.
-- The remaining async-generator fallback is narrower and named: delegation,
-  non-simple parameters, and any body shape that the resumable VM still does
-  not own.
+- The remaining async-generator fallback is narrower and named: awaited
+  delegated sources, non-simple parameters, and any body shape that the
+  resumable VM still does not own.
 - Future widening has a clear proof shape: selector/eligibility acceptance,
   public async iterator route logging, promise settlement parity, and adjacent
   no-route coverage for delegation or activation shapes still outside the VM.
@@ -75,6 +85,10 @@ bytecode VM.
   - `docs/unified-bytecode-expansion-contract.md`
   - `docs/bytecode-progress.md`
   - `docs/plans/bytecode-burndown-checklist.md`
+- PR #3221 / commit `4961c4e71131d0d3290db97c577ba8e85314fa04` later
+  admitted the non-awaited async-generator `yield*` lane, added route/runtime
+  proof for delegated async iterator `next`/`return`/`throw` settlement, and
+  kept `yield* await ...` as a focused pre-VM decline.
 
 ## Related
 

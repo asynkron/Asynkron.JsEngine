@@ -1798,12 +1798,14 @@ the final post-compile production subset check before VM entry.
   iterator/destructuring drivers, unsupported expression payloads, and unmodeled
   statement families still decline before VM execution. (Non-optional synchronous
   call dispatch is now admitted — see the call-dispatch entry above.)
-- Async-generator `yield*`, awaited delegated sources, and unsupported
-  delegated expression payloads remain outside production resumable routing
-  until their promise/async-iterator settlement semantics are modeled by the VM.
-  Focused issue #2955 coverage pins delegated async-generator `.return(value)`
-  and `.throw(value)` on the existing IR async-generator path with no
-  `unified-bytecode-resumable-*` route log.
+- Non-awaited async-generator `yield*` now routes after B39 because the VM owns
+  delegated async iterator `.next(value)`, `.return(value)`, and `.throw(value)`
+  settlement through the resumable async-generator `PendingAwait` bridge.
+  Awaited delegated sources (`yield* await ...`) and unsupported delegated
+  expression payloads remain outside production resumable routing until their
+  source-await settlement semantics are modeled by the VM. Focused issue #2955
+  coverage pinned the earlier decline boundary; B39 / PR #3221 supersedes only
+  the non-awaited async-generator lane.
 
 ## Reserved Ownership Lanes (planned, not implemented)
 - Compiler-owned control-flow widening lanes

@@ -148,16 +148,24 @@ all-or-nothing until a separate routing issue proves production readiness.
      may route through `UnifiedBytecodeVirtualMachine.ExecuteResumable` when
      `EvaluateResumable` accepts the lowered plan, and `AsyncGeneratorInvoker`
      must map `Yield`, `Completed`, `Throw`, and `PendingAwait` back through the
-     same promise settlement path used by the IR runner. Non-simple parameter
-     lists must stay on the IR runner until the VM owns their eager
-     parameter-initialization effects before iterator creation. Async-generator
-     `yield*` and `yield* await ...` must stay explicit pre-VM declines until
-     delegated async iterator settlement is VM-owned. Do not treat this first
-     direct-yield route as broad async-generator support or add VM fallback into
+     same promise settlement path used by the IR runner. Non-awaited
+     async-generator `yield*` may also route once the VM owns delegated async
+     iterator `.next(value)`, `.return(value)`, and `.throw(value)` settlement
+     through that same `PendingAwait` bridge. Non-simple parameter lists must
+     stay on the IR runner until the VM owns their eager parameter-initialization
+     effects before iterator creation, and async-generator `yield* await ...`
+     must stay an explicit pre-VM decline until awaited delegated-source
+     settlement is VM-owned. Do not treat direct-yield or non-awaited
+     `yield*` admission as broad async-generator support or add VM fallback into
      `ExecutionPlanRunner`, `ExpressionProgram`, or AST evaluation. WHY: issue
      #3135 / PR #3142 added the first async-generator resumable route and kept
-     delegated async-generator `yield*` as an explicit decline so future
-     widening does not accidentally route unowned delegation semantics.
+     delegated async-generator `yield*` declined until a later slice owned
+     delegation semantics. Faktorial issue
+     `planitem-planmanual1780639098493226000-full-unified-bytecode-execution-burndown-b-1747a4b32a`
+     / PR #3221 then admitted the non-awaited async-generator `yield*` lane by
+     settling delegated async iterator `next`/`return`/`throw` results through
+     the existing resumable `PendingAwait` async-generator bridge while keeping
+     `yield* await ...` declined.
 10e. When admitting resumable generator or async shapes that contain nested
      function literals or `try/finally` cleanup, prove the surrounding
      suspension context, not only the direct opcode allowlist. A nested function
@@ -1804,10 +1812,12 @@ positive route-log proof and adjacent no-route/fallback proof. Do not treat
 `.return(value)`, and `.throw(value)` behavior end to end, including missing
 delegate methods, iterator-close/error propagation, iterator-result object
 validation, yielded-vs-completed results, resume-state preservation, positive
-resumable route-log proof, and adjacent async-generator/awaited-delegate
-declines. Async-generator `yield*`, awaited delegated sources, and unsupported
-delegated expression payloads must still decline before VM execution until
-their promise/async-iterator settlement semantics are modeled. WHY: the
+resumable route-log proof, and adjacent still-unowned delegate declines.
+Async-generator non-awaited `yield*` follows the same ownership bar plus
+promise/async-iterator settlement through the resumable async-generator
+`PendingAwait` bridge. Awaited delegated sources (`yield* await ...`) and
+unsupported delegated expression payloads must still decline before VM execution
+until their delegated-source settlement semantics are modeled. WHY: the
 build-stage repair for PR #2613 had to decline `yield*` after the first slice
 exposed delegated abrupt resume as a separate protocol boundary from simple
 `yield` and awaited return. Faktorial issue
@@ -1817,9 +1827,12 @@ abrupt resume through the underlying iterator and proved `.return()`/`.throw()`
 on the resumable fast path. Issue #2955 / PR #2958 kept the async-generator
 lane declined with explicit tests for delegated `.return(value)` and
 `.throw(value)` staying on the IR async-generator path and producing no
-resumable unified-bytecode route log; future widening needs an async-generator
-VM bridge that owns promise queueing, async-iterator settlement, and delegated
-abrupt resume together.
+resumable unified-bytecode route log. Faktorial issue
+`planitem-planmanual1780639098493226000-full-unified-bytecode-execution-burndown-b-1747a4b32a`
+/ PR #3221 then reopened the non-awaited async-generator lane after the VM
+owned delegated async iterator settlement across `PendingAwait`; future widening
+for `yield* await ...` still needs source-await settlement proof, not just
+`YieldStar` opcode reachability.
 
 Faktorial issue
 `planitem-planmanual1780157100924814000-baseline-batch-2-object-literal-shorthand-ebbe2ff1ae`

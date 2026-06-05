@@ -154,6 +154,24 @@ all-or-nothing until a separate routing issue proves production readiness.
     declining only that body before the sync production unified-bytecode route.
     Related ADR:
     `docs/adrs/0343-keep-dynamic-function-produced-bodies-quarantined-from-production-bytecode.md`.
+9d. Treat script-route union gates as shared-production-gate proof, not as a
+    license to duplicate every A/B source row at top level. A closure slice
+    should prove representative composed scripts that exercise admitted
+    property reads/calls, control flow, dynamic global reads/calls,
+    completion-slot execution, and script-scope dynamic-target forms such as
+    `var` destructuring through `EvaluateScript`, then pin public execution
+    with a `unified-bytecode-production-fast-path script` route-hit. Keep
+    script-specific safety declines, such as top-level lexical destructuring
+    whose TDZ/lexical-environment semantics are not VM-owned, explicit in the
+    non-residue ratchet. Keep eval-injected script bindings in dynamic residue.
+    Do not silently close a script union gate by inheriting function/resumable
+    proof only, and do not broaden dynamic-residue exceptions into ordinary
+    script admission. WHY: Faktorial issue
+    `planitem-planmanual1780639098493226000-full-unified-bytecode-execution-burndown-b-f1e9d4f56f`
+    / PR #3269 closed C3 with representative script eligibility rows, a
+    composed top-level runtime route test, and ratchet rows that distinguish the
+    remaining lexical-destructuring safety decline from eval-injected dynamic
+    residue.
 10. When invoking production unified bytecode from sync calls, keep the bridge
     slot-layout owned and fast-path ordered. Direct specialized simple-return
     binary/chain shortcuts stay ahead of unified bytecode. The production

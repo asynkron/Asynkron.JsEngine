@@ -4478,10 +4478,10 @@ internal static class UnifiedBytecodeVirtualMachine
                     break;
 
                 case UnifiedBytecodeOpCode.EnsureSuperReference:
-                    // `super[...]` reference validation inside a resumable body. The live method
-                    // environment is threaded onto the resume state; validate it before any computed-key
-                    // side effects, matching the expression bytecode ordering rule and sync VM handler.
-                    if (!EnsureSuperReference(RequireDynamicEnvironment(state.CallingEnvironment), context))
+                    // `super[...]` reference validation inside a resumable body. The invoker snapshots
+                    // method super state onto the resume state; validate it before any computed-key side
+                    // effects, matching the expression bytecode ordering rule and sync VM handler.
+                    if (!EnsureSuperReference(state.ResumableSuperBinding, context))
                     {
                         state.IsCompleted = true;
                         return UnifiedBytecodeStepResult.Throw(context.FlowValue);
@@ -4493,7 +4493,7 @@ internal static class UnifiedBytecodeVirtualMachine
                 case UnifiedBytecodeOpCode.GetNamedSuperProperty:
                     PushResumableValue(GetNamedSuperPropertyValue(
                         program.StringConstants[instruction.Operand],
-                        RequireDynamicEnvironment(state.CallingEnvironment),
+                        state.ResumableSuperBinding,
                         context));
                     if (context.ShouldStopEvaluation)
                     {
@@ -4508,7 +4508,7 @@ internal static class UnifiedBytecodeVirtualMachine
                     var resumableComputedSuperKey = stack[--stackPointer];
                     PushResumableValue(GetComputedSuperPropertyValue(
                         resumableComputedSuperKey,
-                        RequireDynamicEnvironment(state.CallingEnvironment),
+                        state.ResumableSuperBinding,
                         context));
                     if (context.ShouldStopEvaluation)
                     {
@@ -4525,7 +4525,7 @@ internal static class UnifiedBytecodeVirtualMachine
                         program.StringConstants[DecodeDynamicStoreNameOperand(instruction.Operand)],
                         DecodeDynamicStoreAllowsNameInference(instruction.Operand),
                         resumableNamedSuperPropertyValue,
-                        RequireDynamicEnvironment(state.CallingEnvironment),
+                        state.ResumableSuperBinding,
                         context,
                         state.IsStrict));
                     if (context.ShouldStopEvaluation)
@@ -4544,7 +4544,7 @@ internal static class UnifiedBytecodeVirtualMachine
                         resumableComputedSuperSetKey,
                         DecodeDynamicStoreAllowsNameInference(instruction.Operand),
                         resumableComputedSuperPropertyValue,
-                        RequireDynamicEnvironment(state.CallingEnvironment),
+                        state.ResumableSuperBinding,
                         context,
                         state.IsStrict));
                     if (context.ShouldStopEvaluation)
@@ -4561,7 +4561,7 @@ internal static class UnifiedBytecodeVirtualMachine
                         program.StringConstants[DecodeStringOperand(instruction.Operand)],
                         DecodeIsIncrement(instruction.Operand),
                         DecodeIsPrefix(instruction.Operand),
-                        RequireDynamicEnvironment(state.CallingEnvironment),
+                        state.ResumableSuperBinding,
                         context,
                         state.IsStrict));
                     if (context.ShouldStopEvaluation)
@@ -4579,7 +4579,7 @@ internal static class UnifiedBytecodeVirtualMachine
                         resumableComputedSuperUpdateKey,
                         DecodeIsIncrement(instruction.Operand),
                         DecodeIsPrefix(instruction.Operand),
-                        RequireDynamicEnvironment(state.CallingEnvironment),
+                        state.ResumableSuperBinding,
                         context,
                         state.IsStrict));
                     if (context.ShouldStopEvaluation)
@@ -6398,7 +6398,7 @@ internal static class UnifiedBytecodeVirtualMachine
                         PrepareNamedSuperCallTarget(
                             program,
                             instruction.Operand,
-                            RequireDynamicEnvironment(state.CallingEnvironment),
+                            state.ResumableSuperBinding,
                             stack,
                             ref stackPointer,
                             context);
@@ -6421,7 +6421,7 @@ internal static class UnifiedBytecodeVirtualMachine
                         PrepareComputedSuperCallTarget(
                             program,
                             instruction.Operand,
-                            RequireDynamicEnvironment(state.CallingEnvironment),
+                            state.ResumableSuperBinding,
                             stack,
                             ref stackPointer,
                             context);
@@ -10855,6 +10855,32 @@ internal static class UnifiedBytecodeVirtualMachine
         stack[stackPointer++] = callee;
     }
 
+    private static void PrepareNamedSuperCallTarget(
+        UnifiedBytecodeProgram program,
+        int callTargetIndex,
+        SuperBinding? binding,
+        Span<JsValue> stack,
+        ref int stackPointer,
+        EvaluationContext context)
+    {
+        var callTarget = program.CallTargetConstants[callTargetIndex];
+        if (callTarget.Kind != UnifiedBytecodeCallTargetKind.NamedSuperMember ||
+            (uint)callTarget.NameConstantIndex >= (uint)program.StringConstants.Length)
+        {
+            throw new InvalidOperationException(
+                "Named super call-target preparation requires a named super member call target constant.");
+        }
+
+        LoadNamedSuperCallTarget(
+            program.StringConstants[callTarget.NameConstantIndex],
+            binding,
+            context,
+            out var receiver,
+            out var callee);
+        stack[stackPointer++] = receiver;
+        stack[stackPointer++] = callee;
+    }
+
     private static void PrepareComputedSuperCallTarget(
         UnifiedBytecodeProgram program,
         int callTargetIndex,
@@ -10884,6 +10910,35 @@ internal static class UnifiedBytecodeVirtualMachine
         stack[stackPointer++] = callee;
     }
 
+    private static void PrepareComputedSuperCallTarget(
+        UnifiedBytecodeProgram program,
+        int callTargetIndex,
+        SuperBinding? binding,
+        Span<JsValue> stack,
+        ref int stackPointer,
+        EvaluationContext context)
+    {
+        var callTarget = program.CallTargetConstants[callTargetIndex];
+        if (callTarget.Kind != UnifiedBytecodeCallTargetKind.ComputedSuperMember)
+        {
+            throw new InvalidOperationException(
+                "Computed super call-target preparation requires a computed super member call target constant.");
+        }
+
+        var propertyKey = stack[--stackPointer];
+        var propertyName = JsOps.GetRequiredPropertyName(propertyKey, context);
+        if (context.ShouldStopEvaluation)
+        {
+            stack[stackPointer++] = JsValue.Undefined;
+            stack[stackPointer++] = JsValue.Undefined;
+            return;
+        }
+
+        LoadNamedSuperCallTarget(propertyName, binding, context, out var receiver, out var callee);
+        stack[stackPointer++] = receiver;
+        stack[stackPointer++] = callee;
+    }
+
     private static void LoadNamedSuperCallTarget(
         string propertyName,
         JsEnvironment environment,
@@ -10907,9 +10962,46 @@ internal static class UnifiedBytecodeVirtualMachine
                 : JsValue.Undefined;
     }
 
+    private static void LoadNamedSuperCallTarget(
+        string propertyName,
+        SuperBinding? binding,
+        EvaluationContext context,
+        out JsValue receiver,
+        out JsValue callee)
+    {
+        binding = GetSuperBindingForRead(binding, context);
+        if (binding is null)
+        {
+            receiver = JsValue.Undefined;
+            callee = JsValue.Undefined;
+            return;
+        }
+
+        receiver = binding.ThisValue;
+        callee = context.ShouldStopEvaluation
+            ? JsValue.Undefined
+            : binding.TryGetProperty(propertyName, out var value)
+                ? value
+                : JsValue.Undefined;
+    }
+
     private static bool EnsureSuperReference(JsEnvironment environment, EvaluationContext context)
     {
         if (environment.IsThisInitializationKnownTrue(context))
+        {
+            return true;
+        }
+
+        context.SetThrow(StandardLibrary.CreateReferenceError(
+            "Super is not available in this context.",
+            context,
+            context.RealmState));
+        return false;
+    }
+
+    private static bool EnsureSuperReference(SuperBinding? binding, EvaluationContext context)
+    {
+        if (binding?.IsThisInitialized == true)
         {
             return true;
         }
@@ -10950,12 +11042,56 @@ internal static class UnifiedBytecodeVirtualMachine
         return binding;
     }
 
+    private static SuperBinding? GetSuperBindingForRead(SuperBinding? binding, EvaluationContext context)
+    {
+        if (!EnsureSuperReference(binding, context))
+        {
+            return null;
+        }
+
+        if (binding is null || binding.ThisValue.IsUndefined || binding.ThisValue.IsUninitialized)
+        {
+            context.SetThrow(StandardLibrary.CreateReferenceError(
+                "Super is not available in this context.",
+                context,
+                context.RealmState));
+            return null;
+        }
+
+        if (binding.Prototype is null)
+        {
+            context.SetThrow(StandardLibrary.CreateTypeError(
+                "Cannot read properties of null (reading from super)",
+                context,
+                context.RealmState));
+            return null;
+        }
+
+        return binding;
+    }
+
     private static JsValue GetNamedSuperPropertyValue(
         string propertyName,
         JsEnvironment environment,
         EvaluationContext context)
     {
         var binding = GetSuperBindingForRead(environment, context);
+        if (binding is null || context.ShouldStopEvaluation)
+        {
+            return JsValue.Undefined;
+        }
+
+        return binding.TryGetProperty(propertyName, out var value)
+            ? value
+            : JsValue.Undefined;
+    }
+
+    private static JsValue GetNamedSuperPropertyValue(
+        string propertyName,
+        SuperBinding? binding,
+        EvaluationContext context)
+    {
+        binding = GetSuperBindingForRead(binding, context);
         if (binding is null || context.ShouldStopEvaluation)
         {
             return JsValue.Undefined;
@@ -10980,6 +11116,20 @@ internal static class UnifiedBytecodeVirtualMachine
         return GetNamedSuperPropertyValue(propertyName, environment, context);
     }
 
+    private static JsValue GetComputedSuperPropertyValue(
+        JsValue propertyKey,
+        SuperBinding? binding,
+        EvaluationContext context)
+    {
+        var propertyName = JsOps.GetRequiredPropertyName(propertyKey, context);
+        if (context.ShouldStopEvaluation)
+        {
+            return JsValue.Undefined;
+        }
+
+        return GetNamedSuperPropertyValue(propertyName, binding, context);
+    }
+
     private static JsValue SetNamedSuperPropertyValue(
         string propertyName,
         bool allowNameInference,
@@ -10995,6 +11145,23 @@ internal static class UnifiedBytecodeVirtualMachine
         }
 
         return AssignToSuperBinding(environment, context, propertyName, value, isStrict);
+    }
+
+    private static JsValue SetNamedSuperPropertyValue(
+        string propertyName,
+        bool allowNameInference,
+        JsValue value,
+        SuperBinding? binding,
+        EvaluationContext context,
+        bool isStrict)
+    {
+        if (allowNameInference &&
+            value is { Kind: JsValueKind.Object, ObjectValue: TypedAstEvaluator.IFunctionNameTarget nameTarget })
+        {
+            nameTarget.EnsureHasName(propertyName);
+        }
+
+        return AssignToSuperBinding(binding, context, propertyName, value, isStrict);
     }
 
     private static JsValue SetComputedSuperPropertyValue(
@@ -11016,6 +11183,29 @@ internal static class UnifiedBytecodeVirtualMachine
             allowNameInference,
             value,
             environment,
+            context,
+            isStrict);
+    }
+
+    private static JsValue SetComputedSuperPropertyValue(
+        JsValue propertyKey,
+        bool allowNameInference,
+        JsValue value,
+        SuperBinding? binding,
+        EvaluationContext context,
+        bool isStrict)
+    {
+        var propertyName = JsOps.GetRequiredPropertyName(propertyKey, context);
+        if (context.ShouldStopEvaluation)
+        {
+            return JsValue.Undefined;
+        }
+
+        return SetNamedSuperPropertyValue(
+            propertyName,
+            allowNameInference,
+            value,
+            binding,
             context,
             isStrict);
     }
@@ -11044,6 +11234,30 @@ internal static class UnifiedBytecodeVirtualMachine
         return isPrefix ? newValue : oldNumericValue;
     }
 
+    private static JsValue UpdateNamedSuperPropertyValue(
+        string propertyName,
+        bool isIncrement,
+        bool isPrefix,
+        SuperBinding? binding,
+        EvaluationContext context,
+        bool isStrict)
+    {
+        var currentValue = GetNamedSuperPropertyValue(propertyName, binding, context);
+        if (context.ShouldStopEvaluation)
+        {
+            return JsValue.Undefined;
+        }
+
+        GetUpdatedNumericValue(currentValue, isIncrement, context, out var oldNumericValue, out var newValue);
+        if (context.ShouldStopEvaluation)
+        {
+            return JsValue.Undefined;
+        }
+
+        AssignToSuperBinding(binding, context, propertyName, newValue, isStrict);
+        return isPrefix ? newValue : oldNumericValue;
+    }
+
     private static JsValue UpdateComputedSuperPropertyValue(
         JsValue propertyKey,
         bool isIncrement,
@@ -11067,6 +11281,29 @@ internal static class UnifiedBytecodeVirtualMachine
             isStrict);
     }
 
+    private static JsValue UpdateComputedSuperPropertyValue(
+        JsValue propertyKey,
+        bool isIncrement,
+        bool isPrefix,
+        SuperBinding? binding,
+        EvaluationContext context,
+        bool isStrict)
+    {
+        var propertyName = JsOps.GetRequiredPropertyName(propertyKey, context);
+        if (context.ShouldStopEvaluation)
+        {
+            return JsValue.Undefined;
+        }
+
+        return UpdateNamedSuperPropertyValue(
+            propertyName,
+            isIncrement,
+            isPrefix,
+            binding,
+            context,
+            isStrict);
+    }
+
     private static JsValue AssignToSuperBinding(
         JsEnvironment environment,
         EvaluationContext context,
@@ -11082,6 +11319,31 @@ internal static class UnifiedBytecodeVirtualMachine
 
         if (!binding.TrySetProperty(propertyName, value, out _) &&
             (environment.IsStrict || isStrict))
+        {
+            context.SetThrow(StandardLibrary.CreateTypeError(
+                $"Cannot assign to read only property '{propertyName}' of object",
+                context,
+                context.RealmState));
+            return JsValue.Undefined;
+        }
+
+        return value;
+    }
+
+    private static JsValue AssignToSuperBinding(
+        SuperBinding? binding,
+        EvaluationContext context,
+        string propertyName,
+        JsValue value,
+        bool isStrict)
+    {
+        binding = GetSuperBindingForRead(binding, context);
+        if (binding is null || context.ShouldStopEvaluation)
+        {
+            return JsValue.Undefined;
+        }
+
+        if (!binding.TrySetProperty(propertyName, value, out _) && isStrict)
         {
             context.SetThrow(StandardLibrary.CreateTypeError(
                 $"Cannot assign to read only property '{propertyName}' of object",

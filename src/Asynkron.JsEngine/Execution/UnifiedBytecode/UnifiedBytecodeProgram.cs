@@ -315,6 +315,14 @@ internal sealed class UnifiedBytecodeResumeState
     public JsEnvironment? CallingEnvironment { get; }
 
     /// <summary>
+    ///     VM-owned snapshot of the <c>super</c> binding for resumable method bodies. This lets
+    ///     resumable super read/write/update/call-target opcodes preserve the method receiver and
+    ///     home-object prototype without constructing an <see cref="TypedAstEvaluator.ExecutionPlanRunner" />
+    ///     just to materialize an invocation environment.
+    /// </summary>
+    public SuperBinding? ResumableSuperBinding { get; set; }
+
+    /// <summary>
     ///     The strict/sloppy-coerced <c>this</c> binding for the resumable activation. Captured at
     ///     construction so it survives suspension/resume across <c>yield</c>/<c>await</c> boundaries.
     /// </summary>

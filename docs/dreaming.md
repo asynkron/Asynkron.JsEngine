@@ -11,7 +11,7 @@ Architecture north star for Asynkron.JsEngine as a Node.js-competitive JavaScrip
 
 ## Critique of the current dream state (self-critique)
 
-Rev 6 replaced the stale greenfield/migration label conflict, added startup-cost, host-conversion, and host-error diagrams, grouped the proven-now table by phase, clarified capability-lifecycle back edges, and added the delivery decomposition flow. Rev 7 applied that flow to the current roadmap: optional computed delete chains are the next open property-family slice, and SLO proof remains a separate evidence packet rather than a side effect of route widening. Rev 8 tightened that packet into an acceptance/decline handoff so a future implementation starts from one owner, one receiving contract, and an explicit proof boundary. This rev 9 adds the packet-selection control plane for the current open roadmap queue so maintainers can route gh2934, gh3134, gh3135, gh2935, gh2954, and gh2955 without converting any directional target into a current runtime claim.
+Rev 6 replaced the stale greenfield/migration label conflict, added startup-cost, host-conversion, and host-error diagrams, grouped the proven-now table by phase, clarified capability-lifecycle back edges, and added the delivery decomposition flow. Rev 7 applied that flow to the current roadmap: optional computed delete chains are the next open property-family slice, and SLO proof remains a separate evidence packet rather than a side effect of route widening. Rev 8 tightened that packet into an acceptance/decline handoff so a future implementation starts from one owner, one receiving contract, and an explicit proof boundary. This rev 9 adds the packet-selection control plane for the current open roadmap queue so maintainers can route gh2934, gh2935, gh2954, and gh2955 without converting landed gh3134/gh3135 evidence or any directional target into a current runtime claim.
 
 1. **Delivery decomposition now needs a queue-level control plane.** The map below explains how to route one broad concern into one packet, and gh2934 remains the concrete property-family example. The roadmap now also carries multiple open packets across execution, concurrency, evidence, and performance fabrics, so the dream needs a selector that chooses the next packet without implying that all packets share an owner or proof shape.
 
@@ -1338,7 +1338,7 @@ Decomposition invariants:
 
 ### Roadmap packet-selection control plane
 
-The current roadmap has more than one open packet candidate. The selector below keeps the queue reviewable: choose one lane, name the owner fabric and receiving contract, then carry only that packet to implementation and proof. It is a scheduling aid, not a capability claim.
+The current roadmap has more than one open packet candidate. The selector below keeps the queue reviewable: choose one lane, name the owner fabric and receiving contract, then carry only that packet to implementation and proof. Landed adjacent packets such as gh3134 and gh3135 stay as roadmap evidence, not selectable queue items. It is a scheduling aid, not a capability claim.
 
 ```mermaid
 flowchart TD
@@ -1348,11 +1348,9 @@ flowchart TD
 
     subgraph Execution["Execution fabric candidates"]
         G2934["gh2934\noptional computed delete chains"]
-        G3134["gh3134\ncompiler decline umbrella leaves"]
     end
 
     subgraph Concurrency["Concurrency fabric candidates"]
-        G3135["gh3135\nasync function* EvaluateResumable boundary"]
         G2955["gh2955\nasync-generator yield* delegated resume lane"]
     end
 
@@ -1388,8 +1386,6 @@ flowchart TD
 
 Packet-selection rules:
 - **gh2934 optional computed delete chains:** Execution Engine owns the selector/opcode route. The receiving contract is a descriptor-aware computed delete after nullish short-circuit has proven it may evaluate the key. It does not advance SLO status or broad optional-chain coverage.
-- **gh3134 decline umbrella leaves:** Language Compiler and Execution Engine share the classification boundary, but the delivery must choose one receiving contract at a time: a named decline code, expansion-contract row, and focused proof that the formerly opaque umbrella has one finite leaf.
-- **gh3135 async function* EvaluateResumable boundary:** Concurrency Runtime owns continuation state and resume scheduling; Execution Engine supplies consumed await/yield opcode contracts. The packet may model a first bounded route or keep B3 explicitly declined, but it cannot call the async-generator seam closed.
 - **gh2955 async-generator yield* delegated resume lane:** Concurrency Runtime owns delegated resume state; Execution Engine owns any yielded/awaited value opcode consumed by the lane. The packet must preserve no-mixed-execution and adjacent declines before any route wording advances.
 - **gh2935 SLO target-status proof:** Evidence owns the packet. The receiving contract is a ProfileRunner row with the matching measurement shape: p95 for p95 targets and same-run comparison for parity wording. A green baseline-regression gate alone is not SLO proof.
 - **gh2954 residual mapset gap:** Performance work starts from the documented identity-guarded fast path and must keep method identity and receiver-family guards intact. Any claim stronger than "one measured gap reduced" requires before/after profile or benchmark evidence.

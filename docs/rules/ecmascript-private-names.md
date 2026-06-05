@@ -33,6 +33,13 @@ or IR execution context setup, treat private names as lexical scope state.
    When touching this storage, prove the carrier with a scoped before/after
    search for `PrivateFields`, `Dictionary<string, object?>`, and
    `JsValue.FromObjectUnsafe(slot)`, plus focused private field/accessor tests.
+8. When admitting class literals or class expressions to resumable unified
+   bytecode, materialize the class through the captured calling environment and
+   synchronize VM slots into that environment before class creation. Private
+   field initializers, `this.#field` reads, and `#field in receiver` checks must
+   remain owned by the existing class-definition/private-name machinery, with no
+   VM fallback to AST or IR evaluation. Prove the route with an actual
+   suspension boundary and route-hit assertion, not only opcode eligibility.
 
 ## Why
 
@@ -56,3 +63,14 @@ dead object fallback reads alive and made private-field clone/read/write paths
 carry avoidable object-boxing compatibility code. Private fields and accessors
 must remain descriptor-backed runtime state, while private brands stay separate
 identity state.
+
+Issue
+`planitem-planmanual1780639098493226000-full-unified-bytecode-execution-burndown-b-b314bd0632`
+/ PR #3201 admitted the B24e resumable class-expression private-field slice.
+The reusable decision was to keep `LoadClassLiteral` environment-backed:
+resumable execution uses `state.CallingEnvironment`, syncs unified slots around
+class creation, and delegates private-scope and brand setup to
+`CreateClassValueFromLiteral` / class-definition machinery. The proof covered a
+generator that suspends before returning a class with a private instance field,
+then checks both `this.#value` and `#value in receiver` through the
+`unified-bytecode-resumable-generator-fast-path` route.

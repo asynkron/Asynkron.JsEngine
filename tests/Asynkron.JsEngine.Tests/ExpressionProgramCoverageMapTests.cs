@@ -77,6 +77,7 @@ public sealed class ExpressionProgramCoverageMapTests
         "InitializeDynamicLexical",
         "LeaveWith",
         "PushEnvironment",
+        "RegisterDisposable",
         "StoreDynamicIdentifier",
         "SuperConstructInvocationBoundary",
         "ThrowReferenceError"

@@ -46,6 +46,47 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
+    public void Evaluate_SyncUsingDeclaration_AcceptsWithDisposableRegistration()
+    {
+        var plan = GetFunctionPlan("""
+            function disposeLater(resource) {
+                using value = resource;
+                return 1;
+            }
+            """,
+            "disposeLater");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.RegisterDisposable);
+    }
+
+    [Fact]
+    public void Evaluate_AwaitUsingDeclaration_StaysDeclined()
+    {
+        var plan = GetFunctionPlan("""
+            async function disposeAsyncLater(resource) {
+                await using value = resource;
+                return 1;
+            }
+            """,
+            "disposeAsyncLater");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.False(result.IsEligible);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.UnsupportedPlanShape, result.Code);
+        Assert.Contains("await using", result.Reason, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Execute_LinearSlotLiteralReturnPlan_ReturnsSlotValueInProductionVm()
     {
         var plan = GetFunctionPlan("""
@@ -806,6 +847,73 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
 
         Assert.Equal(1d, result);
         AssertProductionRouted("outer");
+    }
+
+    [Fact]
+    public async Task Execute_BlockScopedUsingDisposeThrow_RoutesThroughCatch()
+    {
+        await using var engine = CreateEngine();
+
+        var result = await engine.Evaluate("""
+            function outer(resource) {
+                try {
+                    {
+                        using value = resource;
+                    }
+
+                    return 'after';
+                } catch (e) {
+                    return e.message;
+                }
+            }
+
+            outer({ [Symbol.dispose]() { throw new Error('dispose'); } });
+            """);
+
+        Assert.Equal("dispose", result);
+        AssertProductionRouted("outer");
+    }
+
+    [Fact]
+    public async Task Execute_BlockScopedUsingBodyThrow_DisposesBeforeCatch()
+    {
+        await using var engine = CreateEngine();
+        var plan = GetFunctionPlan("""
+            function outer(resource, target) {
+                try {
+                    {
+                        using registered = resource;
+                        target.missing();
+                    }
+                } catch (e) {
+                    return 'caught';
+                }
+            }
+            """,
+            "outer");
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+        Assert.True(result.IsEligible, result.Reason);
+
+        await engine.Evaluate("var log = [];");
+        var resource = JsValue.FromObjectUnsafe(Assert.IsAssignableFrom<IAsJsValue>(
+            await engine.Evaluate("({ [Symbol.dispose]() { log.push('disposed'); } })")));
+        var context = engine.RealmState.CreateContext();
+        var slots = new JsValue[Math.Max(result.Program.SlotCount, 1)];
+        slots.AsSpan(0, result.Program.SlotCount).Fill(JsValue.Undefined);
+        SetSlot(result.Program, slots, "resource", resource);
+        SetSlot(result.Program, slots, "target", JsValue.Null);
+
+        _ = UnifiedBytecodeVirtualMachine.Execute(
+            result.Program,
+            slots,
+            context,
+            engine.GlobalEnvironment);
+
+        var log = await engine.Evaluate("log.join(',');");
+        Assert.False(context.IsThrow);
+        Assert.Equal("disposed", log);
     }
 
     [Fact]

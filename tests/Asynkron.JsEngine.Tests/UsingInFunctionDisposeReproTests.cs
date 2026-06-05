@@ -12,6 +12,8 @@ namespace Asynkron.JsEngine.Tests;
 /// </summary>
 public sealed class UsingInFunctionDisposeReproTests(ITestOutputHelper output) : InternalTestBase(output)
 {
+    private const string ProductionFastPathLog = "unified-bytecode-production-fast-path";
+
     [Fact(Timeout = 5000)]
     public async Task TopLevel_Using_Disposes()
     {
@@ -55,6 +57,54 @@ public sealed class UsingInFunctionDisposeReproTests(ITestOutputHelper output) :
     }
 
     [Fact(Timeout = 5000)]
+    public async Task InFunction_Using_Disposes_OnReturnThroughFinally()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate(@"
+            var log=[];
+            function mk(t){ return { [Symbol.dispose](){ log.push(t); } }; }
+            function f(){
+                using a = mk('d');
+                try {
+                    log.push('try');
+                    return 42;
+                } finally {
+                    log.push('finally');
+                }
+            }
+            var r = f();
+            log.push('r' + r);
+            log.join(',');
+        ");
+        Assert.Equal("try,finally,d,r42", result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            record => record.Message.Contains(ProductionFastPathLog, StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task InFunction_NestedBlockUsing_DisposesAllActiveScopes_OnExplicitReturn()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate(@"
+            var log=[];
+            function mk(t){ return { [Symbol.dispose](){ log.push(t); } }; }
+            function f(){
+                using outer = mk('outer');
+                {
+                    using inner = mk('inner');
+                    return 'body';
+                }
+            }
+            var r = f();
+            log.push('return:' + r);
+            log.join(',');
+        ");
+        Assert.Equal("inner,outer,return:body", result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            record => record.Message.Contains(ProductionFastPathLog, StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task InFunction_Using_Disposes_OnThrow()
     {
         await using var engine = CreateEngine();
@@ -66,6 +116,30 @@ public sealed class UsingInFunctionDisposeReproTests(ITestOutputHelper output) :
             log.join(',');
         ");
         Assert.Equal("b,d,caught:boom", result);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task InFunction_Using_Disposes_OnThrowThroughFinally()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate(@"
+            var log=[];
+            function mk(t){ return { [Symbol.dispose](){ log.push(t); } }; }
+            function f(){
+                using a = mk('d');
+                try {
+                    log.push('try');
+                    throw new Error('boom');
+                } finally {
+                    log.push('finally');
+                }
+            }
+            try { f(); } catch (e) { log.push('caught:' + e.message); }
+            log.join(',');
+        ");
+        Assert.Equal("try,finally,d,caught:boom", result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            record => record.Message.Contains(ProductionFastPathLog, StringComparison.Ordinal));
     }
 
     [Fact(Timeout = 5000)]

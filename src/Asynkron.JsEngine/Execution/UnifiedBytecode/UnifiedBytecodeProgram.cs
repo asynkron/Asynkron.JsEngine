@@ -18,6 +18,7 @@ internal enum UnifiedBytecodeOpCode : byte
     StoreSlot,
     UpdateSlot,
     InitializeSlot,
+    RegisterDisposable,
     DeclareDynamicVar,
     DeclareDynamicLexical,
     InitializeDynamicLexical,

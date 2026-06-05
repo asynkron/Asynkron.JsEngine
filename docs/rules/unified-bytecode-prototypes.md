@@ -432,6 +432,21 @@ all-or-nothing until a separate routing issue proves production readiness.
      narrow to catch accepted-route delegation drift. The repair restored broad
      forbidden-token checks while explicitly classifying async-generator
      result/kind type names and setup-only runner environment creation.
+10k. When retiring ordinary sync runner residue, convert the source gate from
+     a classified fallback allowance to a tombstone. `TryInvokeIrFast<TArgs>(...)`
+     must not construct `ExecutionPlanRunner`, call `.RunSync(`, or silently
+     recreate a deleted helper such as `InvokeOrdinarySyncRunnerResidue(...)`.
+     Unsupported ordinary sync shapes can still fall through to the outer
+     `InvokeWithContextSlow` runner, but that fallback boundary must stay
+     outside the fast-route method and remain named as a classified fallback.
+     If a future slice intentionally restores an ordinary-sync runner bridge,
+     add or update a source gate that classifies the exact method and fallback
+     reason instead of weakening the tombstone. WHY: Faktorial issue
+     `planitem-planitem-planmanual1780639098493226000-full-unified-bytecode-execution-b-eff2688ad3`
+     / PR #3278 removed the last ordinary sync `TryInvokeIrFast` runner
+     residue after the delivery branch initially had zero net diff versus
+     `origin/main`; the durable guard is the negative source gate that blocks
+     `RunSync` and the deleted residue helper from re-entering the fast route.
 11. When updating docs, ADRs, roadmap text, or evidence reports for unified
     bytecode production routing, treat ADR 0253 as the current loop-control
     production widening layered on ADR 0210, and keep ADR 0204/#2227

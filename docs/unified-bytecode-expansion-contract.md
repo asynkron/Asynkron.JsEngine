@@ -496,6 +496,23 @@ admission work. Dynamic residue remains separate in the burn-down checklist's
 Dynamic Residue section; direct-eval and Function-constructor residue are not
 counted as compiler-decline work here.
 
+### Current `ExecutionPlanRunner` Owner Inventory
+
+This inventory is the E5 baseline. It names current production reachability so
+future slices can retire one owner surface at a time without deleting a live
+semantic bridge or mis-parking dynamic residue as ordinary fallback work.
+
+| Owner bucket | Current source surface | Current fallback route | Proof command |
+|---|---|---|---|
+| Ordinary sync fallback | `TypedAstEvaluator.SyncFunctionInvoker.TryInvokeIrFast` and adjacent constructor/class invocation bridges | Production unified bytecode is attempted before specialized simple routes, `SyncIrCallTrampoline`, and generic `ExecutionPlanRunner`; any remaining decline falls to the existing sync IR runner | `rtk rg -n "TryInvokeIrFast|new ExecutionPlanRunner|SyncIrCallTrampoline" src/Asynkron.JsEngine/Ast/TypedAstEvaluator.SyncFunctionInvoker.cs` |
+| Script fallback | `TypedAstEvaluator.ExecutionPlanRunner.Core.RunScript` callers from script evaluation | Top-level scripts try the production selector first when eligible, then fall back to `ExecutionPlanRunner.RunScript` for remaining script safety declines such as unowned lexical/dynamic shapes | `rtk rg -n "ExecutionPlanRunner\\.RunScript|EvaluateScript|RunScript" src/Asynkron.JsEngine/Ast/TypedAstEvaluator.ExecutionPlanRunner.Core.cs src/Asynkron.JsEngine/Ast/Legacy/StatementNodeExtensions.cs` |
+| Async function fallback | `TypedAstEvaluator.AsyncFunctionInvoker` | `EvaluateResumable` is attempted for admitted async bodies; declined bodies construct an `ExecutionPlanRunner`, including the super-environment materialization bridge | `rtk rg -n "EvaluateResumable|new ExecutionPlanRunner|callingEnvironment" src/Asynkron.JsEngine/Ast/TypedAstEvaluator.AsyncFunctionInvoker.cs` |
+| Generator fallback | `TypedAstEvaluator.SyncGeneratorInvoker` and `TypedAstEvaluator.GeneratorFunctionBase.CreateRunner` | `EvaluateResumable` is attempted for admitted generator bodies; declined bodies use the existing generator runner factory | `rtk rg -n "EvaluateResumable|CreateRunner|new ExecutionPlanRunner" src/Asynkron.JsEngine/Ast/TypedAstEvaluator.SyncGeneratorInvoker.cs src/Asynkron.JsEngine/Ast/TypedAstEvaluator.GeneratorFunctionBase.cs` |
+| Async-generator fallback | `TypedAstEvaluator.AsyncGeneratorInvoker` | `EvaluateResumable` covers admitted async-generator bodies; declined bodies keep the runner-backed async-generator path, and step-result adaptation is not itself route admission | `rtk rg -n "EvaluateResumable|new ExecutionPlanRunner|AsyncGeneratorStepResult" src/Asynkron.JsEngine/Ast/TypedAstEvaluator.AsyncGeneratorInvoker.cs` |
+| Class/static-block bridge | `ClassDefinitionExtensions.ExecuteStaticBlock` | Class expression creation can route, but static blocks execute their cached static-block plan through `ExecutionPlanRunner.RunScript`; B24d tracks the remaining class/static-block boundary | `rtk rg -n "ExecuteStaticBlock|ExecutionPlanRunner\\.RunScript" src/Asynkron.JsEngine/Ast/ClassDefinitionExtensions.cs docs/plans/bytecode-burndown-checklist.md` |
+| Standalone expression, binding, and profiling bridges | `TypedAstEvaluator.ExpressionPrograms`, `TypedAstEvaluator.BindingTargetPrograms`, and `ExecutionPlanRunner.Core` helper entrypoints | Quarantined helper surfaces construct runners for standalone expression execution, binding-target programs, and profiling loops; these are helper-owned bridges, not normal production route callbacks from the VM | `rtk rg -n "EvaluateStandaloneExpressionProgram|ApplyStandaloneBindingTargetProgram|ProfileEvaluateExpressionProgramLoop" src/Asynkron.JsEngine/Ast` |
+| Dynamic residue boundary | Direct eval, live `with`, eval-injected runtime bindings, and `Function(...)`-produced bodies | Terminal dynamic residue stays out of ordinary E5 fallback retirement until a future issue owns those semantics explicitly | `rtk rg -n "Dynamic Residue|D1|D3|D4|Function\\(" docs/plans/bytecode-burndown-checklist.md docs/rules/unified-bytecode-prototypes.md` |
+
 | Leaf | Owner surface | Current fallback route | Sync / resumable applicability |
 |---|---|---|---|
 | `A51a` | Entrypoint, invalid target, loop-shaped topology, and remaining loop-control diagnostics; switch-style breakable wrappers are sync-admitted | Existing execution-plan runner | both |

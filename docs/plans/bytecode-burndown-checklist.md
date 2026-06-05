@@ -209,7 +209,7 @@ these allowlists — mechanical extensions against existing sync VM handlers.
 - [x] **E2** Promote each wrapped `TryCompile` reason to a named decline *(= P0.2; A51/B47 decomposed and drift-guarded)*
 - [x] **E3** Diff opcode enum vs admit-switch; name every gap *(= P0.3)* ✅
 - [ ] **E4** Remove `ExpressionProgram` (tier-1) from hot path (after A/C admit its coverage)
-- [ ] **E5** Remove `ExecutionPlanRunner` (tier-2 IR) from hot path (after A/B/C parity)
+- [ ] **E5** Remove `ExecutionPlanRunner` (tier-2 IR) from hot path (after A/B/C parity) — current owner inventory is classification-only, not a retirement claim: ordinary sync fallback remains in `SyncFunctionInvoker.TryInvokeIrFast` after production unified bytecode, simple expression routes, `SyncIrCallTrampoline`, and constructor/class invocation bridges decline; script fallback remains in `ExecutionPlanRunner.RunScript` after `EvaluateScript` declines; async functions, sync generators, and async generators still construct runner-backed fallbacks when `EvaluateResumable` declines, with async-generator step result bridging kept separate from route admission; class/static-block bridge remains in `ClassDefinitionExtensions.ExecuteStaticBlock` via `ExecutionPlanRunner.RunScript`; standalone expression, binding-target, and profiling helpers remain helper-owned runner bridges; dynamic residue (direct eval, live `with`, eval-injected runtime bindings, and `Function(...)`-produced bodies) remains outside ordinary E5 work.
 - [ ] **E6** Delete remaining `AsyncGeneratorInvoker` IR fallback after the async-generator route widens past the current #3135 direct-yield boundary.
 
 ---

@@ -72,8 +72,10 @@ checks separate.
 10. When widening the executable `CallInvocationBoundary` to a new ordinary-call
    family, remove descriptor-level `HasCallDependency` or script `FunctionCode`
    seam blockers only for shapes the boundary can already prove end-to-end.
-   For direct eval specifically, admit only the syntactic `eval(source)`
-   identifier shape with exactly one non-spread argument, carry directness in
+   For direct eval specifically, admit only the syntactic `eval(<literal>)`
+   identifier shape with exactly one non-spread, declaration-free literal
+   argument. Identifier-loaded eval source is runtime text whose declaration set
+   is not proven before VM execution, so it must stay on IR. Carry directness in
    boundary-local metadata instead of inferring it from receiver/dynamic lookup
    state, and keep the fast path same-engine guarded.
 10a. If a direct-eval boundary fast path bypasses the generic host-call setup,
@@ -158,11 +160,14 @@ Issue
 `planitem-planmanual1780240661926543000-burn-down-unified-bytecode-production-decl-1707adc0f0`
 / PR #2863 retired the descriptor-level ordinary-call blocker for the proven
 direct-eval invocation-boundary slice. The accepted shape was deliberately
-narrow: syntactic one-argument non-spread `eval(source)` only, compiled through
+narrow: syntactic one-argument non-spread direct eval only, compiled through
 the existing dynamic identifier call-target preparation, tagged by a packed
 direct-eval bit on `CallInvocationBoundary`, and executed through the same-engine
 `EvalHostFunction.InvokeDirectSingleArgumentFast` path with caller slot
-resynchronization afterward. The delivery also hit construct-boundary rebase
+resynchronization afterward. Later review narrowed this further to
+declaration-free literal eval source; identifier-loaded runtime text can inject
+bindings whose names are unknown before VM execution, so it must stay on IR.
+The delivery also hit construct-boundary rebase
 fallout because construct sites reuse the same operand-packing helper. The
 durable lesson is that widening executable call families must move three
 surfaces together — activation gating, boundary-local directness metadata, and

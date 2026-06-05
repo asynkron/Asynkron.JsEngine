@@ -2148,6 +2148,10 @@ avoids the build-back repair cycle that the sibling task (PR #2748) required.
     accessors only after adding activation-capture declines and focused
     route/no-route proof. Related ADR:
     `docs/adrs/0327-admit-resumable-class-literal-private-members-through-shared-class-creation.md`.
+    Issue #gh3237 / PR #3239 admitted B24g public non-computed instance
+    accessors after keeping activation-capturing and `super` accessor bodies as
+    pre-VM declines. Related ADR:
+    `docs/adrs/0336-admit-resumable-class-literal-public-accessors-through-shared-class-creation.md`.
 
 51. When widening production unified-bytecode construct routing beyond the
     identifier-only `new F(...)` lane, keep constructor-target recognition

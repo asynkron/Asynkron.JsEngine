@@ -1343,7 +1343,7 @@ The current roadmap has more than one open packet candidate. The selector below 
 ```mermaid
 flowchart TD
     QUEUE["Open roadmap packet queue\none delivery per slice"]
-    CLASSIFY["Classify by owner fabric\nExecution / Concurrency / Evidence / Performance"]
+    CLASSIFY["Classify by owner fabric\nExecution / Concurrency / Evidence / Resumable layout / Performance"]
     PICK["Pick one bounded packet\nsmallest proofable owner surface"]
 
     subgraph Execution["Execution fabric candidates"]

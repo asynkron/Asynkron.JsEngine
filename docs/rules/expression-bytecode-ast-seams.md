@@ -149,6 +149,14 @@ fallback or cleanup.
     "IsCompletelyRemoved" instead of "FindsNoCallers" so its intent is
     unambiguous. Missing this update causes a build failure on an otherwise
     clean deletion commit.
+26. Keep sync `with` admission and resumable `with` quarantine separate. Sync
+    non-awaited `with` statements can route through production unified bytecode
+    when ADR 0269's activation-hoist and receiver rules hold. Resumable
+    generator, async, and async-generator bodies must still decline any
+    reachable `EnterWithInstruction` or `LeaveWithInstruction`, including
+    awaited with-object evaluation, until the VM owns active dynamic-scope
+    suspension state explicitly. Do not repair this boundary with an AST
+    fallback or by rolling back sync `with` admission.
 
 ## Dynamic Boundary Classification (#1405 Retry)
 
@@ -194,6 +202,14 @@ statements still pass through a per-statement wrapper rather than an explicit
 module-body plan/cache. Future agents need this split so eval/with work does not
 absorb the module-body migration or accidentally remove dynamic-scope
 safeguards.
+
+Issue `planitem-planmanual1780639098493226000-full-unified-bytecode-execution-burndown-b-a97892fc0c`
+/ PR #3264 closed D3 by making reachable resumable `with` markers an explicit
+dynamic-residue decline, including awaited with-object evaluation, while
+preserving sync non-awaited `with` admission. The incident matters because
+nearby B40/B43 rows looked like ordinary resumable parity work, but admitting
+them safely requires VM-owned dynamic-scope suspension state rather than an
+allowlist extension or AST callback. See ADR 0344.
 
 Issue #1408 added execution-plan diagnostics drift gates. Review found the
 runner seam source-gate test could pass vacuously if no

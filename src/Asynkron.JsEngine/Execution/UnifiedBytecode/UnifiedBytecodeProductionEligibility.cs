@@ -1837,13 +1837,19 @@ internal static class UnifiedBytecodeProductionEligibility
                 UnifiedBytecodeOpCode.Return or
                 UnifiedBytecodeOpCode.ReturnUndefined or
                 UnifiedBytecodeOpCode.Throw or
-                // Synchronous call dispatch (non-optional `f()`, `o.m()`, `o[k]()`). The optional
-                // call-target opcodes and super/construct boundaries remain unsupported below because
-                // they require short-circuit-flag persistence / dynamic-environment plumbing the
-                // resumable state does not carry.
+                // Synchronous call dispatch (non-optional `f()`, `o.m()`, `o[k]()` plus `super.m()` /
+                // `super[k]()` in resumable method bodies). The super call-target opcodes resolve through
+                // the live closure environment threaded on UnifiedBytecodeResumeState.CallingEnvironment,
+                // matching the sync VM helpers and preserving the derived receiver as the call `this`.
+                // Super-construct stays declined below: direct async/generator constructors are not legal
+                // source shapes, and async arrows that could lexically inherit constructor state still decline
+                // on the existing lexical-this activation gate before this opcode allowlist.
                 UnifiedBytecodeOpCode.PrepareIdentifierCallTarget or
                 UnifiedBytecodeOpCode.PrepareNamedCallTarget or
                 UnifiedBytecodeOpCode.PrepareComputedCallTarget or
+                UnifiedBytecodeOpCode.EnsureSuperReference or
+                UnifiedBytecodeOpCode.PrepareNamedSuperCallTarget or
+                UnifiedBytecodeOpCode.PrepareComputedSuperCallTarget or
                 // Free/dynamic identifier resolution. A free variable READ (`yield outerVar`) lowers to
                 // LoadDynamicIdentifier and a free function CALL target (`yield helper(x)`) lowers to
                 // PrepareDynamicIdentifierCallTarget. Both resolve by name against the live closure
@@ -2365,7 +2371,8 @@ internal static class UnifiedBytecodeProductionEligibility
 
                 case ExpressionOpKind.LoadNamedSuperCallTarget:
                 case ExpressionOpKind.LoadComputedSuperCallTarget:
-                    if (isCallTargetPreparationCandidate)
+                    if (isCallTargetPreparationCandidate ||
+                        isGeneralNamedMemberCallExpressionCandidate)
                     {
                         break;
                     }
@@ -5700,21 +5707,22 @@ internal static class UnifiedBytecodeProductionEligibility
         var computedSuperCallTargetIndex = FindFirstOperation(program, ExpressionOpKind.LoadComputedSuperCallTarget);
         if (computedSuperCallTargetIndex > 0)
         {
+            var keyStart = program.GetOperation(0).Kind == ExpressionOpKind.EnsureSuperReference ? 1 : 0;
             var keyEnd = computedSuperCallTargetIndex;
             if (program.GetOperation(keyEnd - 1).Kind == ExpressionOpKind.EnsureSuperReference)
             {
                 keyEnd--;
             }
 
-            var hasResolvedKey = keyEnd == 2 &&
-                                 program.GetOperation(1).Kind == ExpressionOpKind.ResolvePropertyKey;
-            if (keyEnd is not 1 && !hasResolvedKey)
+            var hasResolvedKey = keyEnd == keyStart + 2 &&
+                                 program.GetOperation(keyStart + 1).Kind == ExpressionOpKind.ResolvePropertyKey;
+            if (keyEnd != keyStart + 1 && !hasResolvedKey)
             {
                 return false;
             }
 
             return IsSimpleComputedPropertyKey(
-                       program.GetOperation(0),
+                       program.GetOperation(keyStart),
                        identifierConstants,
                        activationSlots) &&
                    HasSimpleCallArguments(
@@ -7096,6 +7104,9 @@ internal static class UnifiedBytecodeProductionEligibility
                 // key -> coerced key, in place: net 0.
                 return depthBefore >= 1;
 
+            case ExpressionOpKind.EnsureSuperReference:
+                return true;
+
             case ExpressionOpKind.Binary:
                 if (depthBefore < 2 || !IsProductionBinaryOperator(op.Operator))
                 {
@@ -7238,6 +7249,24 @@ internal static class UnifiedBytecodeProductionEligibility
                     return false;
                 }
 
+                return true;
+
+            case ExpressionOpKind.LoadNamedSuperCallTarget:
+                if (op.GetString(stringConstants).IsPrivateName())
+                {
+                    return false;
+                }
+
+                depthAfter = depthBefore + 2;
+                return true;
+
+            case ExpressionOpKind.LoadComputedSuperCallTarget:
+                if (depthBefore < 1)
+                {
+                    return false;
+                }
+
+                depthAfter = depthBefore + 1;
                 return true;
 
             case ExpressionOpKind.Call:

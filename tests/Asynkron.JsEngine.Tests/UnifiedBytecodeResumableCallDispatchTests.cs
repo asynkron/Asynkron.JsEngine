@@ -58,6 +58,49 @@ public sealed class UnifiedBytecodeResumableCallDispatchTests(ITestOutputHelper 
             static instruction => instruction.OpCode == UnifiedBytecodeOpCode.CallInvocationBoundary);
     }
 
+    // The super-call gate: class generator methods can legally use `super.m()` / `super[name]()`. These
+    // opcodes now stay on resumable unified bytecode instead of declining after the first suspension.
+    [Fact]
+    public void EvaluateResumable_SuperMemberCallBetweenYields_AdmitsSuperCallOpcodes()
+    {
+        var plan = GetClassMethodPlan("""
+            class Base {
+                read(value) {
+                    return value;
+                }
+            }
+
+            class Derived extends Base {
+                *g(name, value) {
+                    yield 0;
+                    yield super.read(value);
+                    yield super[name](value);
+                }
+            }
+            """,
+            "Derived",
+            "g");
+
+        var result = UnifiedBytecodeProductionEligibility.EvaluateResumable(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor(IsGenerator: true));
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(
+            result.Program.Instructions,
+            static instruction => instruction.OpCode == UnifiedBytecodeOpCode.PrepareNamedSuperCallTarget);
+        Assert.Contains(
+            result.Program.Instructions,
+            static instruction => instruction.OpCode == UnifiedBytecodeOpCode.PrepareComputedSuperCallTarget);
+        Assert.Contains(
+            result.Program.Instructions,
+            static instruction => instruction.OpCode == UnifiedBytecodeOpCode.CallInvocationBoundary);
+        Assert.DoesNotContain(
+            result.Program.Instructions,
+            static instruction => instruction.OpCode == UnifiedBytecodeOpCode.SuperConstructInvocationBoundary);
+    }
+
     // End-to-end generator: an identifier call AND a method call BETWEEN two yields route through the
     // resumable fast path and produce the correct value sequence. The operand stack and slots survive
     // the suspension that precedes each call.
@@ -82,6 +125,43 @@ public sealed class UnifiedBytecodeResumableCallDispatchTests(ITestOutputHelper 
         // helper(o.a) = 10 + 1 = 11, o.compute(2) = 2 * 3 = 6.
         Assert.Equal("11|6", result);
         AssertGeneratorFastPath("g", argc: 2);
+    }
+
+    // End-to-end generator: named and computed super-member calls after an earlier yield route through the
+    // resumable fast path and preserve the derived instance as `this`.
+    [Fact(Timeout = 5000)]
+    public async Task GeneratorSuperMemberCallsBetweenYields_RouteResumableAndPreserveReceiver()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            class Base {
+                read(offset) {
+                    return this.base + offset;
+                }
+            }
+
+            class Derived extends Base {
+                constructor() {
+                    super();
+                    this.base = 10;
+                }
+
+                *g(name) {
+                    yield "ready";
+                    yield super.read(5);
+                    yield super[name](7);
+                }
+            }
+
+            var it = new Derived().g("read");
+            var first = it.next().value;
+            var second = it.next().value;
+            var third = it.next().value;
+            first + "|" + second + "|" + third;
+            """);
+
+        Assert.Equal("ready|15|17", result);
+        AssertGeneratorMethodFastPath(argc: 1);
     }
 
     // Adversarial (b): a callee that throws must surface as a thrown exception on the resumed step,
@@ -182,6 +262,41 @@ public sealed class UnifiedBytecodeResumableCallDispatchTests(ITestOutputHelper 
         AssertAsyncFastPath("run", argc: 2);
     }
 
+    // End-to-end async method: a computed super-member call after await routes through the same resumable
+    // helper path and keeps the derived receiver as `this`.
+    [Fact(Timeout = 5000)]
+    public async Task AsyncSuperMemberCallAfterAwait_RoutesResumableAndPreservesReceiver()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.EvaluateAndAwait("""
+            var asyncResult = undefined;
+            class Base {
+                read(offset) {
+                    return this.base + offset;
+                }
+            }
+
+            class Derived extends Base {
+                constructor() {
+                    super();
+                    this.base = 20;
+                }
+
+                async run(gate, name) {
+                    await gate;
+                    return super[name](3);
+                }
+            }
+
+            new Derived().run(Promise.resolve(0), "read")
+                .then(value => asyncResult = "" + value);
+            asyncResult;
+            """);
+
+        Assert.Equal("23", result);
+        AssertAsyncMethodFastPath(argc: 2);
+    }
+
     private void AssertGeneratorFastPath(string functionName, int argc) =>
         Assert.Contains(CurrentLogger!.Collector.Snapshot(),
             record => record.Message.Contains(
@@ -194,12 +309,35 @@ public sealed class UnifiedBytecodeResumableCallDispatchTests(ITestOutputHelper 
                 $"{ResumableAsyncFastPathLog} func={functionName} argc={argc}",
                 StringComparison.Ordinal));
 
+    private void AssertGeneratorMethodFastPath(int argc) =>
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            record => record.Message.Contains(ResumableGeneratorFastPathLog, StringComparison.Ordinal) &&
+                      record.Message.Contains($"argc={argc}", StringComparison.Ordinal));
+
+    private void AssertAsyncMethodFastPath(int argc) =>
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            record => record.Message.Contains(ResumableAsyncFastPathLog, StringComparison.Ordinal) &&
+                      record.Message.Contains($"argc={argc}", StringComparison.Ordinal));
+
     private static ExecutionPlan GetFunctionPlan(string source, string functionName)
     {
         var pipeline = AstTestHelpers.ParseAndAnalyze(source);
         var declaration = Assert.IsType<FunctionDeclaration>(pipeline.Analyzed.Body
             .Single(node => node is FunctionDeclaration f && f.Name?.Name == functionName));
         var cache = ((IAstCacheable<ExecutionPlanCache>)declaration.Function).GetOrCreateCache();
+        Assert.True(cache.Succeeded, cache.FailureReason);
+        return Assert.IsType<ExecutionPlan>(cache.Plan);
+    }
+
+    private static ExecutionPlan GetClassMethodPlan(string source, string className, string methodName)
+    {
+        var pipeline = AstTestHelpers.ParseAndAnalyze(source);
+        var declaration = Assert.IsType<ClassDeclaration>(
+            pipeline.Analyzed.Body.Single(node =>
+                node is ClassDeclaration classDeclaration &&
+                classDeclaration.Name.Name == className));
+        var method = Assert.Single(declaration.Definition.Members.Where(member => member.Name == methodName));
+        var cache = ((IAstCacheable<ExecutionPlanCache>)method.Function).GetOrCreateCache();
         Assert.True(cache.Succeeded, cache.FailureReason);
         return Assert.IsType<ExecutionPlan>(cache.Plan);
     }

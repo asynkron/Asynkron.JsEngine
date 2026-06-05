@@ -130,6 +130,16 @@ public static partial class TypedAstEvaluator
                 return false;
             }
 
+            var isStrict = function.Body.IsStrict || closure.IsStrict || isLexicallyStrict;
+            var boundThis = isStrict
+                ? thisValue
+                : SyncFunctionInvoker.CoerceThisValueForNonStrict(thisValue, _realmState);
+            var resumableEnvironment = CreateResumableInvocationEnvironment(
+                closure,
+                boundThis,
+                isStrict,
+                function.Source,
+                homeObject);
             var program = eligibility.Program;
             var context = _realmState.CreateContext();
             if (!TryInitializeResumableSlots(
@@ -137,17 +147,13 @@ public static partial class TypedAstEvaluator
                     program,
                     arguments,
                     hoistedFunctionDeclarations,
-                    closure,
+                    resumableEnvironment,
                     context,
                     out var slots))
             {
                 return false;
             }
 
-            var isStrict = function.Body.IsStrict || closure.IsStrict || isLexicallyStrict;
-            var boundThis = isStrict
-                ? thisValue
-                : SyncFunctionInvoker.CoerceThisValueForNonStrict(thisValue, _realmState);
             // new.target: an ordinary async function is never a constructor, so its own new.target is
             // undefined. An async ARROW has no new.target binding of its own and lexically inherits the
             // enclosing function's new.target (resolved once here against the captured closure), so it
@@ -155,7 +161,13 @@ public static partial class TypedAstEvaluator
             var newTarget = function.IsArrow && closure.TryGetJsValue(Symbol.NewTarget, out var inheritedNewTarget)
                 ? inheritedNewTarget
                 : JsValue.Undefined;
-            _unifiedState = new UnifiedBytecodeResumeState(program, slots, boundThis, closure, isStrict, newTarget)
+            _unifiedState = new UnifiedBytecodeResumeState(
+                program,
+                slots,
+                boundThis,
+                resumableEnvironment,
+                isStrict,
+                newTarget)
             {
                 // Thread the private-name scopes lexically active where this async body was defined so the
                 // resumable VM can re-enter them on each per-step continuation and resolve `#name in obj`.

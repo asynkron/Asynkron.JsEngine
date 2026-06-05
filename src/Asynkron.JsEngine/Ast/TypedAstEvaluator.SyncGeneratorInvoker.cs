@@ -92,6 +92,16 @@ public static partial class TypedAstEvaluator
                 return false;
             }
 
+            var isStrict = _function.Body.IsStrict || _closure.IsStrict || _isLexicallyStrict;
+            var boundThis = isStrict
+                ? thisValue
+                : SyncFunctionInvoker.CoerceThisValueForNonStrict(thisValue, RealmState);
+            var resumableEnvironment = CreateResumableInvocationEnvironment(
+                _closure,
+                boundThis,
+                isStrict,
+                _function.Source,
+                _homeObject);
             var program = eligibility.Program;
             var context = RealmState.CreateContext();
             if (!TryInitializeResumableSlots(
@@ -99,19 +109,21 @@ public static partial class TypedAstEvaluator
                     program,
                     arguments,
                     hoistedFunctionDeclarations,
-                    _closure,
+                    resumableEnvironment,
                     context,
                     out var slots))
             {
                 return false;
             }
 
-            var isStrict = _function.Body.IsStrict || _closure.IsStrict || _isLexicallyStrict;
-            var boundThis = isStrict
-                ? thisValue
-                : SyncFunctionInvoker.CoerceThisValueForNonStrict(thisValue, RealmState);
             // A generator is never a constructor and never an arrow, so its own new.target is undefined.
-            var state = new UnifiedBytecodeResumeState(program, slots, boundThis, _closure, isStrict, JsValue.Undefined)
+            var state = new UnifiedBytecodeResumeState(
+                program,
+                slots,
+                boundThis,
+                resumableEnvironment,
+                isStrict,
+                JsValue.Undefined)
             {
                 // Thread the private-name scopes lexically active where this generator method was defined
                 // (captured enclosing scopes plus the class's own brand scope, innermost last) onto the

@@ -1,5 +1,6 @@
 using Asynkron.JsEngine.StdLib;
 using Asynkron.JsEngine.Runtime;
+using Asynkron.JsEngine.Parser;
 using Microsoft.Extensions.Logging;
 
 namespace Asynkron.JsEngine.Ast;
@@ -166,6 +167,44 @@ public static partial class TypedAstEvaluator
             fallbackBinding.Prototype is null,
             fallbackBinding.IsThisInitialized);
         return fallbackBinding;
+    }
+
+    private static JsEnvironment CreateResumableInvocationEnvironment(
+        JsEnvironment closure,
+        JsValue boundThis,
+        bool isStrict,
+        SourceReference? source,
+        IJsObjectLike? homeObject)
+    {
+        if (homeObject is null)
+        {
+            return closure;
+        }
+
+        var environment = JsEnvironment.CreateInstance(
+            closure,
+            isFunctionScope: true,
+            isStrict,
+            creatingSource: source);
+        environment.DefineJsValue(Symbol.This, boundThis);
+        environment.SetThisInitializationStatus(true);
+
+        var superPrototype = (homeObject as IPrototypeAccessorProvider)?.PrototypeAccessor ??
+                             homeObject.Prototype;
+        if (superPrototype is null && boundThis.TryGetObject<JsObject>(out var thisObject))
+        {
+            superPrototype = thisObject.PrototypeAccessor ?? thisObject.Prototype;
+        }
+
+        var superConstructor = superPrototype as IJsEnvironmentAwareCallable;
+        if (superConstructor is not null || superPrototype is not null)
+        {
+            environment.DefineJsValue(
+                Symbol.Super,
+                JsValue.FromObjectUnsafe(new SuperBinding(superConstructor, superPrototype, boundThis, true)));
+        }
+
+        return environment;
     }
 
     private static bool TryCreateSuperBindingFromThis(this JsEnvironment environment, EvaluationContext context,

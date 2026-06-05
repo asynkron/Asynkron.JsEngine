@@ -38,19 +38,17 @@ public static partial class TypedAstEvaluator
         IJsCallable callable,
         RealmState realmState,
         bool isLexicallyStrict,
-        bool hasFunctionNameEnvironment,
         IJsObjectLike? homeObject,
         PrivateNameScope? privateNameScope,
         ImmutableArray<PrivateNameScope> capturedPrivateNameScopes,
         FunctionExecutionPlanSeed planSeed)
     {
-        private ExecutionPlanRunner? _inner;
         private UnifiedBytecodeResumeState? _unifiedState;
 
         // Each .next/.return/.throw call drives one async-generator step and wraps
-        // the step result in a Promise. Narrow admitted bodies are VM-owned through
-        // UnifiedBytecodeVirtualMachine.ExecuteResumable; unsupported bodies keep the
-        // existing ExecutionPlanRunner.ExecuteAsyncStep bridge.
+        // the step result in a Promise. Admitted bodies are VM-owned through
+        // UnifiedBytecodeVirtualMachine.ExecuteResumable; unsupported bodies fail fast
+        // here instead of constructing the retired runner fallback.
         public void Initialize()
         {
             if (TryInitializeUnifiedBytecode())
@@ -58,8 +56,8 @@ public static partial class TypedAstEvaluator
                 return;
             }
 
-            _inner = CreateClassifiedAsyncGeneratorDeclinedBodyRunner();
-            _inner.Initialize();
+            throw new NotSupportedException(
+                "Async generator body is not eligible for the unified bytecode resumable route.");
         }
 
         public JsObject CreateAsyncIteratorObject()
@@ -69,17 +67,17 @@ public static partial class TypedAstEvaluator
                 args =>
                 {
                     var argValue = args.Count > 0 ? args[0] : JsValue.Undefined;
-                    return CreateStepPromise(ExecutionPlanRunner.ResumeMode.Next, argValue);
+                    return CreateStepPromise(AsyncGeneratorResumeMode.Next, argValue);
                 },
                 args =>
                 {
                     var argValue = args.Count > 0 ? args[0] : JsValue.Undefined;
-                    return CreateStepPromise(ExecutionPlanRunner.ResumeMode.Return, argValue);
+                    return CreateStepPromise(AsyncGeneratorResumeMode.Return, argValue);
                 },
                 args =>
                 {
                     var argValue = args.Count > 0 ? args[0] : JsValue.Undefined;
-                    return CreateStepPromise(ExecutionPlanRunner.ResumeMode.Throw, argValue);
+                    return CreateStepPromise(AsyncGeneratorResumeMode.Throw, argValue);
                 },
                 prototype);
 
@@ -90,7 +88,7 @@ public static partial class TypedAstEvaluator
             return asyncIterator;
         }
 
-        private JsValue CreateStepPromise(ExecutionPlanRunner.ResumeMode mode, JsValue argument)
+        private JsValue CreateStepPromise(AsyncGeneratorResumeMode mode, JsValue argument)
         {
             // Look up the global Promise constructor from the closure environment.
             IJsCallable? promiseCtor = null;
@@ -241,39 +239,17 @@ public static partial class TypedAstEvaluator
             return false;
         }
 
-        private ExecutionPlanRunner CreateClassifiedAsyncGeneratorDeclinedBodyRunner()
-        {
-            return CreateExecutionPlanRunner();
-        }
-
-        private ExecutionPlanRunner CreateExecutionPlanRunner()
-        {
-            return new ExecutionPlanRunner(
-                function,
-                closure,
-                arguments,
-                thisValue,
-                callable,
-                realmState,
-                isLexicallyStrict,
-                hasFunctionNameEnvironment,
-                homeObject,
-                privateNameScope,
-                capturedPrivateNameScopes,
-                planOverride: planSeed.Plan,
-                planFailureOverride: planSeed.Failure);
-        }
-
         private ExecutionPlanRunner.AsyncGeneratorStepResult ExecuteStep(
-            ExecutionPlanRunner.ResumeMode mode,
+            AsyncGeneratorResumeMode mode,
             JsValue argument)
         {
-            if (_unifiedState is { } unifiedState)
+            if (_unifiedState is not { } unifiedState)
             {
-                return ExecuteUnifiedBytecodeStep(ToUnifiedResumeMode(mode), argument, unifiedState);
+                throw new InvalidOperationException(
+                    "Async generator unified bytecode state was not initialized.");
             }
 
-            return _inner!.ExecuteAsyncStep(mode, argument);
+            return ExecuteUnifiedBytecodeStep(ToUnifiedResumeMode(mode), argument, unifiedState);
         }
 
         private ExecutionPlanRunner.AsyncGeneratorStepResult ExecuteUnifiedBytecodeStep(
@@ -329,13 +305,20 @@ public static partial class TypedAstEvaluator
             }
         }
 
-        private static UnifiedBytecodeResumeMode ToUnifiedResumeMode(ExecutionPlanRunner.ResumeMode mode) =>
+        private static UnifiedBytecodeResumeMode ToUnifiedResumeMode(AsyncGeneratorResumeMode mode) =>
             mode switch
             {
-                ExecutionPlanRunner.ResumeMode.Throw => UnifiedBytecodeResumeMode.Throw,
-                ExecutionPlanRunner.ResumeMode.Return => UnifiedBytecodeResumeMode.Return,
+                AsyncGeneratorResumeMode.Throw => UnifiedBytecodeResumeMode.Throw,
+                AsyncGeneratorResumeMode.Return => UnifiedBytecodeResumeMode.Return,
                 _ => UnifiedBytecodeResumeMode.Next
             };
+
+        private enum AsyncGeneratorResumeMode : byte
+        {
+            Next,
+            Return,
+            Throw
+        }
 
         private static JsValue CreateAsyncIteratorResult(JsValue value, bool done)
         {
@@ -455,8 +438,8 @@ public static partial class TypedAstEvaluator
 
                 var value = args.Count > 0 ? args[0] : JsValue.Undefined;
                 var mode = isRejection
-                    ? ExecutionPlanRunner.ResumeMode.Throw
-                    : ExecutionPlanRunner.ResumeMode.Next;
+                    ? AsyncGeneratorResumeMode.Throw
+                    : AsyncGeneratorResumeMode.Next;
 
                 try
                 {
@@ -528,7 +511,7 @@ public static partial class TypedAstEvaluator
 
             private AsyncGeneratorInvoker? _executor;
             private JsValue _argument;
-            private ExecutionPlanRunner.ResumeMode _mode;
+            private AsyncGeneratorResumeMode _mode;
 
             public JsValue Invoke(IReadOnlyList<JsValue> args, JsValue thisValue)
             {
@@ -563,7 +546,7 @@ public static partial class TypedAstEvaluator
 
             public static StepExecutor Rent(
                 AsyncGeneratorInvoker executor,
-                ExecutionPlanRunner.ResumeMode mode,
+                AsyncGeneratorResumeMode mode,
                 JsValue argument)
             {
                 var stepExecutor = Pool.Rent();

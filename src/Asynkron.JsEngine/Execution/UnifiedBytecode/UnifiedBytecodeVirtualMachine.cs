@@ -3668,8 +3668,11 @@ internal static class UnifiedBytecodeVirtualMachine
 
                 case UnifiedBytecodeOpCode.LoadClassLiteral:
                     {
-                        var classEnvironment = RequireDynamicEnvironment(state.CallingEnvironment);
-                        SyncUnifiedSlotsToEnvironment(program, slots, slotEnvironments: null, classEnvironment);
+                        var classEnvironment = CreateResumableClassLiteralEnvironment(
+                            program,
+                            slots,
+                            RequireDynamicEnvironment(state.CallingEnvironment),
+                            state.IsStrict);
                         try
                         {
                             PushResumableValue(TypedAstEvaluator.CreateClassValueFromLiteral(
@@ -4853,34 +4856,6 @@ internal static class UnifiedBytecodeVirtualMachine
 
                     programCounter++;
                     break;
-
-                case UnifiedBytecodeOpCode.LoadClassLiteral:
-                    {
-                        var resumableClassLiteralParentEnvironment = state.CallingEnvironment
-                            ?? throw new InvalidOperationException("Cannot create class literal without a calling environment.");
-                        var resumableClassLiteralEnvironment = CreateResumableClassLiteralEnvironment(
-                            program,
-                            slots,
-                            resumableClassLiteralParentEnvironment,
-                            state.IsStrict);
-                        PushResumableValue(TypedAstEvaluator.CreateClassValueFromLiteral(
-                            program.ClassLiteralConstants[instruction.Operand],
-                            resumableClassLiteralEnvironment,
-                            context));
-                        SyncEnvironmentToUnifiedSlots(
-                            program,
-                            slots,
-                            slotEnvironments: null,
-                            resumableClassLiteralEnvironment);
-                        if (context.ShouldStopEvaluation)
-                        {
-                            state.IsCompleted = true;
-                            return UnifiedBytecodeStepResult.Throw(context.FlowValue);
-                        }
-
-                        programCounter++;
-                        break;
-                    }
 
                 case UnifiedBytecodeOpCode.Jump:
                     programCounter = instruction.Operand;

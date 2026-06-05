@@ -1664,8 +1664,13 @@ internal static class UnifiedBytecodeProductionEligibility
         {
             if (instruction.OpCode == UnifiedBytecodeOpCode.LoadClassLiteral)
             {
-                if ((uint)instruction.Operand >= (uint)program.ClassLiteralConstants.Length ||
-                    !IsResumableClassLiteral(
+                if ((uint)instruction.Operand >= (uint)program.ClassLiteralConstants.Length)
+                {
+                    declineReason = "Class literal operand is outside the unified bytecode class literal constants.";
+                    return true;
+                }
+
+                if (!IsResumableClassLiteral(
                         program,
                         activationSlots,
                         program.ClassLiteralConstants[instruction.Operand],

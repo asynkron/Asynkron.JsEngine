@@ -271,9 +271,13 @@ all-or-nothing until a separate routing issue proves production readiness.
      `ExecutionPlanRunner`, `ExpressionProgram`, or AST/expression evaluation
      bridges. Retained `ExecutionPlanRunner.AsyncGeneratorStepResult`
      references are adapter types, and the classified declined-body helper is
-     the only async-generator runner construction surface. Do not treat
-     direct-yield or delegated `yield*` admission as broad async-generator
-     support or add VM fallback into those existing evaluators.
+     the only async-generator runner construction surface. If a source gate
+     scans the whole invoker, remove only the exact classified fallback field,
+     factory, resume-mode mapper, and runner dispatch markers before enforcing
+     accepted-route no-delegation; do not replace the guard with broad
+     `ExecutionPlanRunner` allowances. Do not treat direct-yield or delegated
+     `yield*` admission as broad async-generator support or add VM fallback into
+     those existing evaluators.
      WHY: issue
      #3135 / PR #3142 added the first async-generator resumable route and kept
      delegated async-generator `yield*` declined until a later slice owned
@@ -306,6 +310,11 @@ all-or-nothing until a separate routing issue proves production readiness.
      delegation. Issue #gh3295 / PR #3298 restored the same classified
      declined-body fallback on `main` after PR #3291 made valid
      route-ineligible async generators fail fast during verification.
+     Faktorial issue
+     `planitem-planitem-planmanual1780639098493226000-full-unified-bytecode-execution-b-fd7e71283c`
+     / PR #3297 then hardened the source gate by stripping the exact classified
+     fallback markers before asserting that the remaining accepted-route
+     invoker source stays runner/expression/AST-free.
      Related ADR:
      `docs/adrs/0349-keep-declined-async-generator-bodies-on-classified-runner-fallback.md`.
 10e. When admitting resumable generator or async shapes that contain nested

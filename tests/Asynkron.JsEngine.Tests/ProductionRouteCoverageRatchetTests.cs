@@ -19,6 +19,8 @@ namespace Asynkron.JsEngine.Tests;
 [Category(TestCategories.RuntimeSemantics)]
 public sealed class ProductionRouteCoverageRatchetTests(ITestOutputHelper output) : InternalTestBase(output)
 {
+    private const string ProductionScriptFastPathLog = "unified-bytecode-production-fast-path script";
+
     // Sync function route — `unified-bytecode-production-fast-path func=<name>`.
     [Theory]
     [InlineData("function f(a,b){ return a+b; } f(1,2);", "unified-bytecode-production-fast-path func=f")]
@@ -260,12 +262,50 @@ public sealed class ProductionRouteCoverageRatchetTests(ITestOutputHelper output
     }
 
     // Top-level script route — `unified-bytecode-production-fast-path script`.
+    [Theory]
+    [InlineData("1 + 2;", 3d)]
+    [InlineData(
+        """
+        var source = { head: 2, tail: 3, extra: 5 };
+        var { head, ...rest } = source;
+        let box = { value: head, add(n) { return this.value + n; } };
+        let total = Math.pow(box.add(rest.tail), 2);
+
+        if (rest.extra > 4) {
+            total += Math.sqrt(16);
+        }
+
+        total;
+        """,
+        29d)]
+    public async Task AdmittedScript_StillRoutesThroughProductionScriptRoute(string source, double expected)
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate(source);
+
+        Assert.Equal(expected, result);
+        AssertRouted(ProductionScriptFastPathLog);
+    }
+
+    [Fact]
+    public async Task DynamicResidueScriptEvalInjectedRuntimeBinding_DoesNotRouteThroughProductionScriptRoute()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            eval("var injected = 1");
+            injected;
+            """);
+
+        Assert.Equal(1d, result);
+        AssertNotRouted(ProductionScriptFastPathLog);
+    }
+
     [Fact]
     public async Task ScriptLoop_StillRoutesThroughProductionScriptRoute()
     {
         await using var engine = CreateEngine();
         await engine.Evaluate("var s=0; for (var i=0;i<3;i++){ s+=i; } s;");
-        AssertRouted("unified-bytecode-production-fast-path script");
+        AssertRouted(ProductionScriptFastPathLog);
     }
 
     // A52: a top-level `debugger;` no-op must keep the script on the production script route.
@@ -274,7 +314,7 @@ public sealed class ProductionRouteCoverageRatchetTests(ITestOutputHelper output
     {
         await using var engine = CreateEngine();
         await engine.Evaluate("debugger; var x = 5; x;");
-        AssertRouted("unified-bytecode-production-fast-path script");
+        AssertRouted(ProductionScriptFastPathLog);
     }
 
     // Resumable async route — `unified-bytecode-resumable-async-fast-path func=<name>`.
@@ -315,5 +355,12 @@ public sealed class ProductionRouteCoverageRatchetTests(ITestOutputHelper output
         Assert.Contains(
             CurrentLogger!.Collector.Snapshot(),
             record => record.Message.Contains(expectedLog, StringComparison.Ordinal));
+    }
+
+    private void AssertNotRouted(string unexpectedLog)
+    {
+        Assert.DoesNotContain(
+            CurrentLogger!.Collector.Snapshot(),
+            record => record.Message.Contains(unexpectedLog, StringComparison.Ordinal));
     }
 }

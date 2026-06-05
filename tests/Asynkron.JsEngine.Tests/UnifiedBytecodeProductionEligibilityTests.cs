@@ -4220,6 +4220,31 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
+    public void Evaluate_ClassLiteralStaticBlockPlan_AcceptsAndCompilesClassLiteralOpcode()
+    {
+        var plan = GetFunctionPlan("""
+            function makeClass(seed) {
+                return class Box {
+                    static {
+                        Box.value = seed + 1;
+                    }
+                };
+            }
+            """,
+            "makeClass");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(
+            result.Program.Instructions,
+            instruction => instruction.OpCode == UnifiedBytecodeOpCode.LoadClassLiteral);
+    }
+
+    [Fact]
     public void Evaluate_ClassLiteralWithComputedMemberAndFieldNames_AcceptsAndCompilesClassLiteralOpcode()
     {
         var plan = GetFunctionPlan("""

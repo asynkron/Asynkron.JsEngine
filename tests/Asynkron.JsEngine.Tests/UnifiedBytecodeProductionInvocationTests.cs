@@ -9031,6 +9031,10 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
             "simple-ir-activation-runner-declined",
             StringComparison.Ordinal);
         var genericRunnerIndex = routeSource.IndexOf("new ExecutionPlanRunner(", StringComparison.Ordinal);
+        var runnerRunSyncIndex = routeSource.IndexOf(".RunSync(", StringComparison.Ordinal);
+        var ordinarySyncResidueIndex = invokerSource.IndexOf(
+            "InvokeOrdinarySyncRunnerResidue(",
+            StringComparison.Ordinal);
 
         Assert.True(
             unifiedBytecodeIndex >= 0,
@@ -9050,6 +9054,12 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
         Assert.True(
             genericRunnerIndex < 0,
             "TryInvokeIrFast must not construct ExecutionPlanRunner for the generic simple-IR activation fallback.");
+        Assert.True(
+            runnerRunSyncIndex < 0,
+            "TryInvokeIrFast must not call ExecutionPlanRunner.RunSync for the generic simple-IR activation fallback.");
+        Assert.True(
+            ordinarySyncResidueIndex < 0,
+            "Deleted ordinary sync runner residue helper must stay tombstoned; add a classified source gate if it is intentionally restored.");
     }
 
     [Fact]

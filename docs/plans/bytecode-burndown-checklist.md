@@ -226,7 +226,7 @@ these allowlists — mechanical extensions against existing sync VM handlers.
 | E — Retire tiers | 6 | 3 complete / 3 open; E2/E3 = P0.2/P0.3 |
 | **Total** | **145** | finite current burn-down list after Phase 0 decomposition; future source drift must update audited inventories |
 
-**Status (129 concrete A+B+C checklist items):** 90 complete / 39 open. **Resumable is the bulk of the remaining work; class-expression static blocks, computed/super class members, async-generator delegation, driver state, and fallback-tier retirement remain significant gaps.**
+**Status (129 concrete A+B+C checklist items):** 91 complete / 38 open. **Resumable is the bulk of the remaining work; class-expression static blocks, computed/super class members, async-generator delegation, driver state, and fallback-tier retirement remain significant gaps.**
 
 ## Known soft spots
 1. **Named compiler-decline leaves** (A51a-A51m/B47a) are now source-inventoried in the expansion contract; future `TryCompile` reason drift must update that contract and the focused source gate.

@@ -729,7 +729,7 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
-    public void EvaluateResumable_AsyncGeneratorAwaitedYieldStar_DeclinesBeforeVmExecution()
+    public void EvaluateResumable_AsyncGeneratorAwaitedYieldStar_AdmitsAwaitValueAndYieldStarOpcode()
     {
         var plan = GetFunctionPlan("""
             async function* gen(values) {
@@ -743,10 +743,14 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
             plan,
             new UnifiedBytecodeProductionActivationDescriptor(IsAsyncLike: true, IsGenerator: true));
 
-        Assert.False(result.IsEligible);
-        Assert.Equal(UnifiedBytecodeProductionDeclineCode.UnsupportedPlanShape, result.Code);
-        Assert.Contains("Async-generator yield* await delegation", result.Reason, StringComparison.Ordinal);
-        Assert.Empty(result.Program.Instructions);
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(
+            result.Program.Instructions,
+            static instruction => instruction.OpCode == UnifiedBytecodeOpCode.AwaitValue);
+        Assert.Contains(
+            result.Program.Instructions,
+            static instruction => instruction.OpCode == UnifiedBytecodeOpCode.YieldStar);
     }
 
     [Theory]

@@ -2811,6 +2811,16 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                 return false;
             }
 
+            if (plan.IrCallShape != IrCallShape.SimpleReturnExpression ||
+                plan.SimpleReturnProgram is not { } returnProgram)
+            {
+                RealmState.Logger?.LogInformation(
+                    "simple-ir-activation-runner-declined func={Function} argc={ArgumentCount}",
+                    _function.Name?.Name ?? "<anonymous>",
+                    arguments.Count);
+                return false;
+            }
+
             JsEnvironment? executionEnvironment = null;
             try
             {
@@ -2822,31 +2832,19 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                     _function.Name?.Name ?? "<anonymous>",
                     arguments.Count);
 
-                if (plan.IrCallShape == IrCallShape.SimpleReturnExpression &&
-                    plan.SimpleReturnProgram is { } returnProgram)
-                {
-                    // E4 fallback-only expression-program bridge: production-accepted routes return through
-                    // UnifiedBytecodeVirtualMachine before this simple-IR fallback is considered.
-                    RealmState.Logger?.LogInformation(
-                        "simple-ir-return-fast-path func={Function} argc={ArgumentCount}",
-                        _function.Name?.Name ?? "<anonymous>",
-                        arguments.Count);
-                    result = EvaluateLoweredExpressionProgram(
-                        returnProgram,
-                        executionEnvironment,
-                        context,
-                        newTarget);
-
-                    return TryCompleteIrFastExpressionResult(context, callingContext, ref result);
-                }
-
-                result = InvokeOrdinarySyncRunnerResidue(
-                    thisValue,
-                    newTarget,
-                    plan,
+                // E4 fallback-only expression-program bridge: production-accepted routes return through
+                // UnifiedBytecodeVirtualMachine before this simple-IR fallback is considered.
+                RealmState.Logger?.LogInformation(
+                    "simple-ir-return-fast-path func={Function} argc={ArgumentCount}",
+                    _function.Name?.Name ?? "<anonymous>",
+                    arguments.Count);
+                result = EvaluateLoweredExpressionProgram(
+                    returnProgram,
+                    executionEnvironment,
                     context,
-                    executionEnvironment);
-                return true;
+                    newTarget);
+
+                return TryCompleteIrFastExpressionResult(context, callingContext, ref result);
             }
             catch (ThrowSignal signal) when (callingContext is not null)
             {
@@ -2860,41 +2858,6 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                 // activation environments created above are owned by this fast path.
                 ReturnSimpleIrActivationEnvironment(executionEnvironment);
             }
-        }
-
-        private JsValue InvokeOrdinarySyncRunnerResidue(
-            JsValue thisValue,
-            JsValue newTarget,
-            ExecutionPlan plan,
-            EvaluationContext context,
-            JsEnvironment executionEnvironment)
-        {
-            RealmState.Logger?.LogInformation(
-                "ordinary-sync-runner-residue func={Function}",
-                _function.Name?.Name ?? "<anonymous>");
-
-            var runner = new ExecutionPlanRunner(
-                _function,
-                _closure,
-                Array.Empty<JsValue>(),
-                thisValue,
-                this,
-                RealmState,
-                _isStrict,
-                _hasFunctionNameEnvironment,
-                _homeObject,
-                PrivateNameScope,
-                _capturedPrivateNameScopes,
-                newTarget,
-                _lexicalThisEnvironment,
-                _superConstructor,
-                _superPrototype,
-                context,
-                planOverride: plan,
-                planFailureOverride: _planSeed.Failure,
-                executionEnvironmentOverride: executionEnvironment);
-
-            return runner.RunSync();
         }
 
         [MethodImpl(JsEngineConstants.Inlining)]

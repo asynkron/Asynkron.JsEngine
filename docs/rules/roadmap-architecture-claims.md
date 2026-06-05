@@ -144,6 +144,15 @@ boundary-explicit.
     non-goals. Keep landed adjacent work as evidence, not as a selectable open
     packet, and do not imply that execution, concurrency, evidence, and
     performance packets share the same owner or proof obligations.
+21. When a unified-bytecode route-widening delivery changes an explicit
+    fallback or decline into an admitted route, update every roadmap and Dreamer
+    mention of that exact source shape in the same evidence pass. Preserve
+    unsupported neighboring shapes as bounded non-goals, but do not leave the
+    newly admitted shape described as fallback-only, declined, or future work
+    once focused route proof exists. For async-generator delegated `yield*`,
+    distinguish direct sources, awaited sources (`yield* await ...`), and
+    broader async-generator neighbors instead of carrying one broad
+    "async-generator delegation" status across all of them.
 
 ## Why
 
@@ -292,6 +301,18 @@ a broad capability or scheduling claim if it does not separate owner fabrics,
 receiving contracts, proof shapes, and non-goals. The selector keeps each future
 slice reviewable and keeps landed adjacent evidence such as gh3134/gh3135 out
 of the open-packet queue.
+
+Faktorial issue
+`planitem-planmanual1780639098493226000-full-unified-bytecode-execution-burndown-b-c98550dd55`
+/ PR #3274 admitted async-generator `yield* await ...` by compiling the awaited
+source expression to `AwaitValue` before the existing `YieldStar` driver. Review
+then found stale roadmap and Dreamer prose still described that exact awaited
+source as fallback-only or declined even though focused route proof had landed.
+WHY: roadmap and Dreamer documents are often used as the next agent's source of
+truth for burndown status. If they preserve stale fallback wording after a route
+proof lands, future slices can reopen completed work, misclassify remaining
+neighbors, or claim an inconsistency between code and docs that was only a
+status-sync miss.
 
 Related ADRs:
 - `docs/adrs/0226-keep-node-competitor-roadmap-milestones-evidence-gated.md`

@@ -1590,14 +1590,14 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     }
 
     [Fact(Timeout = 5000)]
-    public async Task AsyncGeneratorYieldStar_ReturnDelegatesThroughResumableUnifiedBytecode()
+    public async Task AsyncGeneratorYieldStarAwait_ReturnDelegatesThroughResumableUnifiedBytecode()
     {
         await using var engine = CreateEngine();
         var result = await engine.EvaluateAndAwait("""
             var asyncResult = undefined;
 
             async function* outer(delegated) {
-                return yield* delegated;
+                return yield* await delegated;
             }
 
             var calls = [];
@@ -1617,7 +1617,7 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
             };
 
             async function run() {
-                var iterator = outer(delegated);
+                var iterator = outer(Promise.resolve(delegated));
                 var first = await iterator.next();
                 var second = await iterator.return("stop");
                 return [first.value, first.done, second.value, second.done, calls.join(",")];
@@ -1640,14 +1640,14 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     }
 
     [Fact(Timeout = 5000)]
-    public async Task AsyncGeneratorYieldStar_ThrowDelegatesThroughResumableUnifiedBytecode()
+    public async Task AsyncGeneratorYieldStarAwait_ThrowDelegatesThroughResumableUnifiedBytecode()
     {
         await using var engine = CreateEngine();
         var result = await engine.EvaluateAndAwait("""
             var asyncResult = undefined;
 
             async function* outer(delegated) {
-                return yield* delegated;
+                return yield* await delegated;
             }
 
             var calls = [];
@@ -1667,7 +1667,7 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
             };
 
             async function run() {
-                var iterator = outer(delegated);
+                var iterator = outer(Promise.resolve(delegated));
                 var first = await iterator.next();
                 var second = await iterator.throw("boom");
                 return [first.value, first.done, second.value, second.done, calls.join(",")];
@@ -9009,7 +9009,7 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
             StringComparison.Ordinal);
         Assert.True(routeStart >= 0, "Could not locate TryInvokeIrFast route method.");
         var routeEnd = invokerSource.IndexOf(
-            "private JsValue InvokeOrdinarySyncRunnerResidue(",
+            "private bool TryInvokeSimpleDerivedClassConstructorFastPath<TArgs>(",
             routeStart,
             StringComparison.Ordinal);
         Assert.True(routeEnd > routeStart, "Could not locate end boundary for TryInvokeIrFast.");
@@ -9027,13 +9027,11 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
         var syncIrTrampolineIndex = routeSource.IndexOf(
             "SyncIrCallTrampoline.TryInvoke(",
             StringComparison.Ordinal);
-        var ordinarySyncResidueIndex = routeSource.IndexOf(
-            "InvokeOrdinarySyncRunnerResidue(",
+        var runnerDeclineIndex = routeSource.IndexOf(
+            "simple-ir-activation-runner-declined",
             StringComparison.Ordinal);
+        var genericRunnerIndex = routeSource.IndexOf("new ExecutionPlanRunner(", StringComparison.Ordinal);
 
-        Assert.Equal(
-            1,
-            CountOrdinalOccurrences(routeSource, "InvokeOrdinarySyncRunnerResidue("));
         Assert.True(
             unifiedBytecodeIndex >= 0,
             "Production unified bytecode is missing from the ordinary sync route.");
@@ -9047,47 +9045,11 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
             syncIrTrampolineIndex > binaryChainFastPathIndex,
             "SyncIrCallTrampoline should stay behind production unified bytecode and simple binary fallbacks.");
         Assert.True(
-            ordinarySyncResidueIndex > syncIrTrampolineIndex,
-            "Ordinary sync runner residue should stay after production unified bytecode and SyncIrCallTrampoline.");
-        Assert.DoesNotContain("new ExecutionPlanRunner(", routeSource, StringComparison.Ordinal);
-        Assert.DoesNotContain(".RunSync(", routeSource, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void SourceGate_OrdinarySyncRunnerResidue_IsIsolatedAndNamed()
-    {
-        var repositoryRoot = FindRepositoryRootForSourceGate();
-        var invokerPath = Path.Combine(
-            repositoryRoot.FullName,
-            "src",
-            "Asynkron.JsEngine",
-            "Ast",
-            "TypedAstEvaluator.SyncFunctionInvoker.cs");
-
-        var invokerSource = File.ReadAllText(invokerPath);
-        const string residueReferenceMarker = "InvokeOrdinarySyncRunnerResidue(";
-        const string residueCallMarker = "result = InvokeOrdinarySyncRunnerResidue(";
-        const string residueDefinitionMarker = "private JsValue InvokeOrdinarySyncRunnerResidue(";
-        var routeSource = ExtractRequiredSourceSection(
-            invokerSource,
-            "private bool TryInvokeIrFast<TArgs>(",
-            residueDefinitionMarker,
-            "TryInvokeIrFast ordinary sync route");
-        var residueSource = ExtractRequiredSourceSection(
-            invokerSource,
-            residueDefinitionMarker,
-            "        [MethodImpl(JsEngineConstants.Inlining)]\n        private bool ShouldDeferSimpleIrFastPathToProductionUnifiedBytecode(",
-            "ordinary sync runner residue helper");
-
-        Assert.Equal(2, CountOrdinalOccurrences(invokerSource, residueReferenceMarker));
-        Assert.Equal(1, CountOrdinalOccurrences(routeSource, residueReferenceMarker));
-        Assert.Contains(residueCallMarker, routeSource, StringComparison.Ordinal);
-        Assert.Contains(residueDefinitionMarker, invokerSource, StringComparison.Ordinal);
-        Assert.Contains("ordinary-sync-runner-residue", residueSource, StringComparison.Ordinal);
-        Assert.Contains("new ExecutionPlanRunner(", residueSource, StringComparison.Ordinal);
-        Assert.Contains("runner.RunSync()", residueSource, StringComparison.Ordinal);
-        Assert.DoesNotContain("TryInvokeProductionUnifiedBytecode(", residueSource, StringComparison.Ordinal);
-        Assert.DoesNotContain("UnifiedBytecodeVirtualMachine.Execute", residueSource, StringComparison.Ordinal);
+            runnerDeclineIndex > syncIrTrampolineIndex,
+            "Generic simple-IR activation runner decline should stay after production unified bytecode and SyncIrCallTrampoline.");
+        Assert.True(
+            genericRunnerIndex < 0,
+            "TryInvokeIrFast must not construct ExecutionPlanRunner for the generic simple-IR activation fallback.");
     }
 
     [Fact]
@@ -9253,20 +9215,6 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
         }
 
         throw new DirectoryNotFoundException("Could not locate repository root for unified-bytecode source gate.");
-    }
-
-    private static int CountOrdinalOccurrences(string source, string marker)
-    {
-        Assert.NotEmpty(marker);
-        var count = 0;
-        var index = 0;
-        while ((index = source.IndexOf(marker, index, StringComparison.Ordinal)) >= 0)
-        {
-            count++;
-            index += marker.Length;
-        }
-
-        return count;
     }
 
     private static string ExtractRequiredSourceSection(

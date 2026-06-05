@@ -173,20 +173,24 @@ all-or-nothing until a separate routing issue proves production readiness.
     remaining lexical-destructuring safety decline from eval-injected dynamic
     residue.
 10. When invoking production unified bytecode from sync calls, keep the bridge
-    slot-layout owned and fast-path ordered. Direct specialized simple-return
-    binary/chain shortcuts stay ahead of unified bytecode. The production
-    unified route intentionally runs ahead of the broader `SyncIrCallTrampoline`
-    so accepted branch, join, and canonical-loop shapes are not swallowed by
-    the trampoline, then the generic simple IR activation runner remains behind
-    both. Populate an invocation-local slot span from `ActivationSlotShape` by
+    slot-layout owned and fast-path ordered. The production unified route runs
+    before direct specialized simple-return binary/chain shortcuts and the
+    broader `SyncIrCallTrampoline` so accepted branch, join, and canonical-loop
+    shapes are not swallowed by older fallback paths. The simple-return
+    shortcuts remain fallback paths only for shapes that do not pass production
+    bytecode eligibility, and any generic simple IR activation shape that is
+    not owned by the expression-program bridge must explicitly decline to the
+    outer invocation fallback. Populate an invocation-local slot span from
+    `ActivationSlotShape` by
     filling `undefined` and writing parameters through `ParameterSlotIndices`;
     do not create a `JsEnvironment`, call `ExecutionPlanRunner`, or add VM
     fallback for accepted programs. Prove selected routing, faster-route
     preservation, and nearby declines through public invocation tests plus the
     activation proof pack. Also keep the ordinary-sync route order itself
-    source-gated inside `TryInvokeIrFast<TArgs>(...)`: specialized binary
-    routes first, accepted production unified bytecode before
-    `SyncIrCallTrampoline`, and generic `ExecutionPlanRunner` last. WHY: issue
+    source-gated inside `TryInvokeIrFast<TArgs>(...)`: accepted production
+    unified bytecode first, specialized binary and binary-chain routes next,
+    `SyncIrCallTrampoline` after those fallbacks, and generic runner-owned
+    activation shapes as an explicit no-route decline. WHY: issue
     `planitem-planmanual1779965179415360000-batch-1-receiver-aware-call-execution-boun-8f4d6fd0f4`
     / PR #2623 found the production code already had the intended order, but
     route logs alone did not guard the whole fallback chain from drifting back
@@ -237,12 +241,14 @@ all-or-nothing until a separate routing issue proves production readiness.
      same promise settlement path used by the IR runner. Non-awaited
      async-generator `yield*` may also route once the VM owns delegated async
      iterator `.next(value)`, `.return(value)`, and `.throw(value)` settlement
-     through that same `PendingAwait` bridge. Non-simple parameter lists must
-     stay on the IR runner until the VM owns their eager parameter-initialization
-     effects before iterator creation, and async-generator `yield* await ...`
-     must stay an explicit pre-VM decline until awaited delegated-source
-     settlement is VM-owned. Do not treat direct-yield or non-awaited
-     `yield*` admission as broad async-generator support or add VM fallback into
+     through that same `PendingAwait` bridge. Awaited delegated sources may route
+     when the source expression lowers to `AwaitValue` before the existing
+     `YieldStar` driver, so `yield* await ...` must use the same resumable
+     async-generator settlement path instead of the IR runner. Non-simple
+     parameter lists must stay on the IR runner until the VM owns their eager
+     parameter-initialization effects before iterator creation. Do not treat
+     direct-yield or delegated `yield*` admission as broad async-generator
+     support or add VM fallback into
      `ExecutionPlanRunner`, `ExpressionProgram`, or AST evaluation. WHY: issue
      #3135 / PR #3142 added the first async-generator resumable route and kept
      delegated async-generator `yield*` declined until a later slice owned
@@ -250,8 +256,11 @@ all-or-nothing until a separate routing issue proves production readiness.
      `planitem-planmanual1780639098493226000-full-unified-bytecode-execution-burndown-b-1747a4b32a`
      / PR #3221 then admitted the non-awaited async-generator `yield*` lane by
      settling delegated async iterator `next`/`return`/`throw` results through
-     the existing resumable `PendingAwait` async-generator bridge while keeping
-     `yield* await ...` declined.
+     the existing resumable `PendingAwait` async-generator bridge. Faktorial
+     issue
+     `planitem-planmanual1780639098493226000-full-unified-bytecode-execution-burndown-b-c98550dd55`
+     then admitted the awaited-source lane by compiling the source expression
+     through `AwaitValue` before `YieldStar`.
 10e. When admitting resumable generator or async shapes that contain nested
      function literals or `try/finally` cleanup, prove the surrounding
      suspension context, not only the direct opcode allowlist. A nested function
@@ -1995,11 +2004,12 @@ positive route-log proof and adjacent no-route/fallback proof. Do not treat
 delegate methods, iterator-close/error propagation, iterator-result object
 validation, yielded-vs-completed results, resume-state preservation, positive
 resumable route-log proof, and adjacent still-unowned delegate declines.
-Async-generator non-awaited `yield*` follows the same ownership bar plus
+Async-generator delegated `yield*` follows the same ownership bar plus
 promise/async-iterator settlement through the resumable async-generator
-`PendingAwait` bridge. Awaited delegated sources (`yield* await ...`) and
-unsupported delegated expression payloads must still decline before VM execution
-until their delegated-source settlement semantics are modeled. WHY: the
+`PendingAwait` bridge. Awaited delegated sources (`yield* await ...`) may route
+only when the source expression is VM-owned as `AwaitValue` before `YieldStar`;
+unsupported delegated expression payloads must still decline before VM
+execution until their delegated-source settlement semantics are modeled. WHY: the
 build-stage repair for PR #2613 had to decline `yield*` after the first slice
 exposed delegated abrupt resume as a separate protocol boundary from simple
 `yield` and awaited return. Faktorial issue
@@ -2012,9 +2022,10 @@ lane declined with explicit tests for delegated `.return(value)` and
 resumable unified-bytecode route log. Faktorial issue
 `planitem-planmanual1780639098493226000-full-unified-bytecode-execution-burndown-b-1747a4b32a`
 / PR #3221 then reopened the non-awaited async-generator lane after the VM
-owned delegated async iterator settlement across `PendingAwait`; future widening
-for `yield* await ...` still needs source-await settlement proof, not just
-`YieldStar` opcode reachability.
+owned delegated async iterator settlement across `PendingAwait`. Faktorial issue
+`planitem-planmanual1780639098493226000-full-unified-bytecode-execution-burndown-b-c98550dd55`
+then reopened the awaited-source lane by proving source-await settlement through
+`AwaitValue` before `YieldStar`, not just `YieldStar` opcode reachability.
 
 Faktorial issue
 `planitem-planmanual1780157100924814000-baseline-batch-2-object-literal-shorthand-ebbe2ff1ae`

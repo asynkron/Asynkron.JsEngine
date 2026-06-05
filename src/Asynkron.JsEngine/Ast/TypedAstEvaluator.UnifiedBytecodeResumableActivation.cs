@@ -1,7 +1,9 @@
 using System.Collections.Immutable;
+using System.Collections.Generic;
 using Asynkron.JsEngine.Execution;
 using Asynkron.JsEngine.Execution.Instructions;
 using Asynkron.JsEngine.Execution.UnifiedBytecode;
+using Asynkron.JsEngine.Parser;
 
 namespace Asynkron.JsEngine.Ast;
 
@@ -9,17 +11,29 @@ public static partial class TypedAstEvaluator
 {
     private readonly record struct ResumableHoistedFunctionDeclaration(
         Symbol Name,
-        FunctionDeclarationDescriptor Descriptor);
+        FunctionDeclarationDescriptor Descriptor,
+        bool CapturesActivationSlot);
 
     private static bool TryCollectResumableRootHoistedFunctionDeclarations(
         FunctionExpression function,
         ExecutionPlan plan,
+        bool allowCapturedActivationSlots,
         out ImmutableArray<ResumableHoistedFunctionDeclaration> declarations)
     {
         declarations = ImmutableArray<ResumableHoistedFunctionDeclaration>.Empty;
         if (plan.ActivationSlots is not { } activationSlots)
         {
             return false;
+        }
+
+        HashSet<Symbol>? rootDeclarationNames = null;
+        foreach (var statement in function.Body.Statements)
+        {
+            if (statement is FunctionDeclaration functionDeclaration)
+            {
+                rootDeclarationNames ??= new HashSet<Symbol>();
+                rootDeclarationNames.Add(functionDeclaration.Name);
+            }
         }
 
         ImmutableArray<ResumableHoistedFunctionDeclaration>.Builder? builder = null;
@@ -37,10 +51,20 @@ public static partial class TypedAstEvaluator
             }
 
             if (!AllowsIdentifierCaching(functionDeclaration.Function) ||
+                UnifiedBytecodeProductionEligibility.FunctionLiteralNeedsLexicalThisOrPrivateNameContext(
+                    functionDeclaration.Function,
+                    out _) ||
+                UnifiedBytecodeProductionEligibility.FunctionReferencesIdentifierNamed(
+                    functionDeclaration.Function,
+                    rootDeclarationNames!,
+                    out _) ||
                 UnifiedBytecodeProductionEligibility.FunctionCapturesActivationSlot(
                     functionDeclaration.Function,
                     activationSlots,
-                    out _))
+                    out var capturedName) &&
+                (!allowCapturedActivationSlots ||
+                 capturedName.Length == 0 ||
+                 capturedName[0] == '<'))
             {
                 declarations = ImmutableArray<ResumableHoistedFunctionDeclaration>.Empty;
                 return false;
@@ -49,20 +73,36 @@ public static partial class TypedAstEvaluator
             builder ??= ImmutableArray.CreateBuilder<ResumableHoistedFunctionDeclaration>();
             builder.Add(new ResumableHoistedFunctionDeclaration(
                 functionDeclaration.Name,
-                FunctionDeclarationDescriptor.Create(functionDeclaration)));
+                FunctionDeclarationDescriptor.Create(functionDeclaration),
+                CapturesActivationSlot:
+                UnifiedBytecodeProductionEligibility.FunctionCapturesActivationSlot(
+                    functionDeclaration.Function,
+                    activationSlots,
+                    out _)));
         }
 
         declarations = builder?.ToImmutable() ?? ImmutableArray<ResumableHoistedFunctionDeclaration>.Empty;
         return true;
     }
 
+    private static bool HoistedFunctionDeclarationsNeedMaterializedBodyEnvironment(
+        ImmutableArray<ResumableHoistedFunctionDeclaration> declarations)
+    {
+        for (var i = 0; i < declarations.Length; i++)
+        {
+            if (declarations[i].CapturesActivationSlot)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     private static bool TryInitializeResumableSlots(
         ExecutionPlan plan,
         UnifiedBytecodeProgram program,
         IReadOnlyList<JsValue> arguments,
-        ImmutableArray<ResumableHoistedFunctionDeclaration> hoistedFunctionDeclarations,
-        JsEnvironment closure,
-        EvaluationContext context,
         out JsValue[] slots)
     {
         slots = [];
@@ -70,16 +110,57 @@ public static partial class TypedAstEvaluator
         Array.Fill(slots, JsValue.Undefined);
         InitializeResumableLexicalSlots(slots, program);
         PopulateResumableParameterSlots(arguments, slots, program);
-        if (!TryPopulateResumableRootHoistedFunctionDeclarations(
-            hoistedFunctionDeclarations,
-            plan,
-            program,
-            slots,
-            closure,
-            context))
+        return true;
+    }
+
+    private static bool TryCreateMaterializedResumableBodyEnvironment(
+        ExecutionPlan plan,
+        UnifiedBytecodeProgram program,
+        JsValue[] slots,
+        JsEnvironment parent,
+        bool isStrict,
+        SourceReference? source,
+        out JsEnvironment environment)
+    {
+        environment = null!;
+        if (plan.ActivationSlots is not { } activationSlots)
         {
-            slots = [];
             return false;
+        }
+
+        environment = JsEnvironment.CreateInstance(
+            parent,
+            isFunctionScope: true,
+            isStrict,
+            creatingSource: source,
+            description: "resumable body activation",
+            isBodyEnvironment: true);
+        environment.InitializeSlots(activationSlots.SlotCount, activationSlots.ScopeId);
+        environment.SetSlotNames(activationSlots.SlotNames);
+        environment.SetSlotsLexicalUninitialized(activationSlots.LexicalSlotIndices);
+        environment.SetSlotsConst(activationSlots.ConstLexicalSlotIndices);
+
+        var slotNames = activationSlots.SlotNames;
+        for (var i = 0; i < slotNames.Length; i++)
+        {
+            var (name, activationSlotIndex) = slotNames[i];
+            if ((uint)activationSlotIndex >= (uint)environment.SlotCount ||
+                !TryResolveResumableRootFlatSlot(plan, program, name, out var flatSlotIndex) ||
+                (uint)flatSlotIndex >= (uint)slots.Length)
+            {
+                continue;
+            }
+
+            var value = slots[flatSlotIndex];
+            if (value.IsUninitialized)
+            {
+                ref var slot = ref environment.GetSlotByIndex(activationSlotIndex);
+                slot.Value = value;
+                slot.Flags |= SlotFlags.Uninitialized;
+                continue;
+            }
+
+            environment.SetSlotDirect(activationSlotIndex, value);
         }
 
         return true;
@@ -166,7 +247,12 @@ public static partial class TypedAstEvaluator
                 new FunctionLiteralDescriptor(descriptor.Function, descriptor.PlanSeed),
                 closure,
                 context);
-            slots[slotIndex] = JsValue.FromObjectUnsafe(functionValue);
+            var functionJsValue = JsValue.FromObjectUnsafe(functionValue);
+            slots[slotIndex] = functionJsValue;
+            if (closure.TryGetSlotIndex(declaration.Name, out var environmentSlotIndex))
+            {
+                closure.SetSlotDirect(environmentSlotIndex, functionJsValue);
+            }
         }
 
         return true;

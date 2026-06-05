@@ -162,7 +162,8 @@ internal readonly record struct UnifiedBytecodeCallTarget(
 internal readonly record struct UnifiedBytecodeScopeDescriptor(
     int ScopeId,
     ImmutableArray<int> LexicalSlotIndices,
-    ImmutableArray<int> ConstSlotIndices = default);
+    ImmutableArray<int> ConstSlotIndices = default,
+    ImmutableArray<int> PerIterationCopySlotIndices = default);
 
 internal readonly record struct UnifiedBytecodeTryDescriptor(
     int HandlerTarget,
@@ -457,6 +458,7 @@ internal sealed class UnifiedBytecodeResumeState
     public UnifiedBytecodePendingAbruptCompletion PendingAbruptCompletion { get; set; } =
         UnifiedBytecodePendingAbruptCompletion.None;
     public JsTypes.JsValue PendingAwaitPromise { get; set; } = JsTypes.JsValue.Undefined;
+    public bool HasMaterializedBodyEnvironment { get; init; }
     public bool IsAsyncLike { get; init; }
     public bool IsAsyncGenerator { get; init; }
 }

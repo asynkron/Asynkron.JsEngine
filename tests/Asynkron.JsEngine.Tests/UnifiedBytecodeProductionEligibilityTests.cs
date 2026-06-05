@@ -702,6 +702,194 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
+    public void Evaluate_BlockScopedFunctionDeclaration_AcceptsDeclareFunctionAndScopeOwner()
+    {
+        var plan = GetFunctionPlan("""
+            function outer() {
+                {
+                    function inner() {
+                        return 1;
+                    }
+                }
+
+                return inner();
+            }
+            """,
+            "outer");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, static instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.PushEnvironment);
+        Assert.Contains(result.Program.Instructions, static instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.DeclareFunction);
+    }
+
+    [Fact]
+    public void Evaluate_BlockScopedFunctionDeclarationCapturingActivation_Declines()
+    {
+        var plan = GetFunctionPlan("""
+            function outer(value) {
+                {
+                    function inner() {
+                        return value;
+                    }
+                }
+
+                return 0;
+            }
+            """,
+            "outer");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.False(result.IsEligible);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.UnsupportedPlanShape, result.Code);
+        Assert.Contains("captures activation binding 'value'", result.Reason, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Evaluate_SyntheticIfBranchFunctionDeclaration_AcceptsDeclareFunctionAndScopeOwner()
+    {
+        var plan = GetFunctionPlan("""
+            function outer(flag) {
+                var after = 0;
+                function pick() {
+                    return 0;
+                }
+
+                if (flag)
+                    function pick() {
+                        return 1;
+                    }
+
+                after = pick();
+                return after;
+            }
+            """,
+            "outer");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, static instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.DeclareFunction);
+    }
+
+    [Fact]
+    public async Task Execute_BlockScopedFunctionDeclaration_RoutesAndAppliesAnnexBVarUpdate()
+    {
+        await using var engine = CreateEngine();
+
+        var result = await engine.Evaluate("""
+            function outer() {
+                {
+                    function inner() {
+                        return 1;
+                    }
+                }
+
+                return inner();
+            }
+
+            outer();
+        """);
+
+        Assert.Equal(1d, result);
+        AssertProductionRouted("outer");
+    }
+
+    [Fact]
+    public async Task Execute_SyntheticIfBranchFunctionDeclaration_UpdatesAnnexBBinding()
+    {
+        await using var engine = CreateEngine();
+
+        var result = await engine.Evaluate("""
+            function outer(flag) {
+                var before = pick();
+                function pick() {
+                    return 0;
+                }
+
+                if (flag)
+                    function pick() {
+                        return 1;
+                    }
+
+                return before * 10 + pick();
+            }
+
+            outer(true);
+            """);
+
+        Assert.Equal(1d, result);
+    }
+
+    [Fact]
+    public async Task Execute_BlockFunctionDeclarationBlockedByBodyLexicalName_DoesNotApplyAnnexBUpdate()
+    {
+        await using var engine = CreateEngine();
+
+        var result = await engine.Evaluate("""
+            var init, after;
+
+            function outer() {
+                let f = 123;
+                init = f;
+
+                {
+                    function f() {
+                    }
+                }
+
+                after = f;
+                return init * 10 + after;
+            }
+
+            outer();
+            """);
+
+        Assert.Equal(1353d, result);
+        AssertProductionRouted("outer");
+    }
+
+    [Fact]
+    public async Task Execute_StrictBlockFunctionDeclaration_DoesNotLeakOutsideBlock()
+    {
+        await using var engine = CreateEngine();
+
+        var result = await engine.Evaluate("""
+            function outer() {
+                'use strict';
+                {
+                    function inner() {
+                        return 1;
+                    }
+                }
+
+                try {
+                    return inner();
+                } catch (e) {
+                    return e instanceof ReferenceError ? 7 : 8;
+                }
+            }
+
+            outer();
+            """);
+
+        Assert.Equal(7d, result);
+    }
+
+    [Fact]
     public void Evaluate_ParameterVarDeclarationWithoutInitializer_AcceptsHoistedNoOp()
     {
         var plan = GetFunctionPlan("""
@@ -4400,7 +4588,7 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
-    public void EvaluateResumable_ClassExpressionPrivateFieldPlan_AcceptsClassLiteralOpcode()
+    public void EvaluateResumable_ClassExpressionPrivateFieldWithPublicMembers_DeclinesMixedClassMemberSlice()
     {
         var plan = GetFunctionPlan("""
             function* makeBox() {
@@ -4424,14 +4612,9 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
             plan,
             new UnifiedBytecodeProductionActivationDescriptor(IsGenerator: true));
 
-        Assert.True(result.IsEligible, result.Reason);
-        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
-        Assert.Contains(
-            result.Program.Instructions,
-            instruction => instruction.OpCode == UnifiedBytecodeOpCode.LoadClassLiteral);
-        Assert.Contains(
-            result.Program.Instructions,
-            instruction => instruction.OpCode == UnifiedBytecodeOpCode.Yield);
+        Assert.False(result.IsEligible);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.UnsupportedPlanShape, result.Code);
+        Assert.Contains("outside B24e", result.Reason, StringComparison.Ordinal);
     }
 
     [Theory]
@@ -7723,6 +7906,15 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
         var slotIndex = program.SlotNames.IndexOf(name);
         Assert.True(slotIndex >= 0, $"Expected unified bytecode slot '{name}'.");
         slots[slotIndex] = value;
+    }
+
+    private void AssertProductionRouted(string functionName)
+    {
+        Assert.Contains(
+            CurrentLogger!.Collector.Snapshot(),
+            record => record.Message.Contains(
+                $"unified-bytecode-production-fast-path func={functionName}",
+                StringComparison.Ordinal));
     }
 
     // This-binding widening proof pack (issue #2633 / ADR 0279)

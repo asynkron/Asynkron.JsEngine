@@ -171,21 +171,42 @@ all-or-nothing until a separate routing issue proves production readiness.
      suspension context, not only the direct opcode allowlist. A nested function
      literal whose lowered body needs arrow lexical `this`, `new.target`,
      `super`, or private-name context must decline until the resumable route
-     materializes that closure context. A pending `finally` body that writes a
-     captured or free binding must also decline for generator early-close
-     (`.return()` / `.throw()`) until the VM owns that cleanup execution. Do not
-     infer resumable safety from "no ordinary activation-slot capture" alone:
-     lexical/private context and pending-finally cleanup are separate semantic
-     dependencies. Future widening must include adjacent no-route tests for
-     these hazards, not only accepted route tests. WHY: issue #3172 / PR #3179
-     repaired red `main` after the resumable route admitted generator shapes
-     that were correct on ordinary `.next()` completion but wrong for
-     pending-finally early close or nested arrow private-field access. Issue
-     `autrun-dj0vu3jrima8-13c399233d` / PR #3178 preserved the same boundary
-     for nearby resumable-generator widening. Related ADRs:
-     `docs/adrs/0323-keep-resumable-unified-bytecode-context-sensitive-cleanup-declined.md`
+     materializes that closure context. A nested function literal that captures
+     root body locals may route only when the relevant invocation path
+     materializes a body `JsEnvironment`, mirrors resume-state flat slots into
+     it, and synchronizes slot writes back into that environment across
+     suspension. Treat this as generator-owned until async and async-generator
+     invocation/settlement paths prove the same environment lifetime; do not
+     infer async captured-literal safety from the sync-generator bridge. A
+     pending `finally` body that writes a captured or free binding must also
+     decline for generator early-close (`.return()` / `.throw()`) until the VM
+     owns that cleanup execution. Do not infer resumable safety from "no
+     ordinary activation-slot capture" alone: lexical/private context,
+     materialized body-environment lifetime, and pending-finally cleanup are
+     separate semantic dependencies. Future widening must include adjacent
+     no-route tests for these hazards, not only accepted route tests. WHY:
+     issue #3172 / PR #3179 repaired red `main` after the resumable route
+     admitted generator shapes that were correct on ordinary `.next()`
+     completion but wrong for pending-finally early close or nested arrow
+     private-field access. Issue `autrun-dj0vu3jrima8-13c399233d` / PR #3178
+     preserved the same boundary for nearby resumable-generator widening.
+     Faktorial issue
+     `planitem-planmanual1780639098493226000-full-unified-bytecode-execution-burndown-b-0768364f94`
+     / PR #3234 admitted the B23 sync-generator captured-root-local subset only
+     after adding a materialized resumable body environment plus slot
+     synchronization; async captured literals and lexical/private closure
+     contexts remain declined. Faktorial issue #gh3238 / PR #3240 then admitted
+     the narrow B36 sync-generator direct root hoisted-helper subset that
+     captures root body locals by creating the helper against the materialized
+     body environment and pre-populating the compiled VM flat slot before
+     `ExecuteResumable`; async/async-generator captured helpers,
+     recursive/sibling helper graphs, dynamic/eval helpers, block/Annex B
+     declarations, and class declarations remain declined. Related ADRs:
+     `docs/adrs/0323-keep-resumable-unified-bytecode-context-sensitive-cleanup-declined.md`,
+     `docs/adrs/0324-keep-resumable-generator-context-cleanup-declines-explicit.md`,
+     `docs/adrs/0333-admit-generator-captured-function-literals-through-materialized-resumable-body-environment.md`,
      and
-     `docs/adrs/0324-keep-resumable-generator-context-cleanup-declines-explicit.md`.
+     `docs/adrs/0335-admit-generator-captured-hoisted-helpers-through-materialized-body-environment.md`
 10f. When admitting class literals inside resumable unified bytecode, classify
      each class element by the class-definition state it needs during creation,
      not by the presence of `LoadClassLiteral` alone. Public member functions
@@ -272,6 +293,35 @@ all-or-nothing until a separate routing issue proves production readiness.
      settlement, and the control-cleanup opcode allowlist alignment.
      Related ADR:
      `docs/adrs/0330-keep-iterator-init-async-kind-and-awaited-source-gates-separate.md`.
+10h. When admitting captured per-iteration `let` / `const` loop bindings
+     through ordinary sync production `PushEnvironment`, keep the
+     CreatePerIterationEnvironment copy semantics descriptor-owned. A copied
+     per-iteration binding needs a flat slot, an explicit
+     `PerIterationCopySlotIndices` descriptor entry, a VM snapshot before scope
+     rebinding, and a write into the fresh scope environment after rebinding.
+     Do not fix this family by treating all lexical slots as ordinary TDZ entry
+     slots, by relying on dynamic lexical mirroring, or by inferring Annex B
+     block-function or resumable `PushEnvironment` safety from the sync A44
+     route. Positive tests must assert both captured closure values and
+     production routing, with adjacent boundaries kept explicit. WHY: issue
+     `planitem-planmanual1780639098493226000-full-unified-bytecode-execution-burndown-b-c99c23d77d`
+     / PR #3231 admitted A44 only after slot stamping, compiler descriptors,
+     and VM scope-entry handling agreed on per-iteration copy slots; the
+     earlier forced route left closure-visible bindings in TDZ. Related ADR:
+     `docs/adrs/0334-admit-captured-per-iteration-bindings-through-push-environment-copy-slots.md`.
+10i. When admitting descriptor-backed block-scoped function declarations on the
+     ordinary sync production route, treat Annex B blocked-name setup as part
+     of fast activation, not as an optional IR-runner side effect.
+     `PushEnvironment` and `DeclareFunction` may own the block environment and
+     runtime declaration update, but the function var environment must already
+     carry the same blocked-name set as the existing non-VM activation paths.
+     Pair positive route proof for sloppy block-function updates with adjacent
+     blocked-name and strict no-leak proofs. WHY: issue
+     `planitem-planmanual1780639098493226000-full-unified-bytecode-execution-burndown-b-cbbdaf84ff`
+     / PR #3233 admitted A43, then the Annex B `let f = 123` blocked-name shape
+     showed that production unified fast activation had skipped the shared
+     blocked-name setup. Related ADR:
+     `docs/adrs/0337-keep-annex-b-blocked-names-shared-for-unified-fast-activation.md`.
 11. When updating docs, ADRs, roadmap text, or evidence reports for unified
     bytecode production routing, treat ADR 0253 as the current loop-control
     production widening layered on ADR 0210, and keep ADR 0204/#2227
@@ -2075,14 +2125,17 @@ avoids the build-back repair cycle that the sibling task (PR #2748) required.
     derived constructors whose `extends` value is resolved from the surrounding
     environment rather than from resumable activation slots, narrow private
     instance fields, and narrow private method/accessor class literals whose
-    constructor/private member bodies do not capture activation slots. The
-    resumable handler must synchronize unified slots into that environment
-    before class creation, call `CreateClassValueFromLiteral(...)`, synchronize
-    back after creation, and translate class-creation throws into the resumable
-    throw step. Keep unproven fields, static elements/blocks, public accessors,
-    computed members, member `super`, activation-capturing private members, and
-    `extends` expressions that read resumable activation slots as pre-VM
-    declines until the VM owns those class-definition environment semantics. Do
+    constructor/private member bodies do not capture activation slots, and
+    public non-computed instance accessors whose getter/setter bodies do not
+    capture activation slots or use `super`. The resumable handler must
+    synchronize unified slots into that environment before class creation, call
+    `CreateClassValueFromLiteral(...)`, synchronize back after creation, and
+    translate class-creation throws into the resumable throw step. Keep
+    unproven fields, static elements/blocks, static/computed/private or
+    activation-capturing public accessors, computed members, member `super`,
+    activation-capturing private members, and `extends` expressions that read
+    resumable activation slots as pre-VM declines until the VM owns those
+    class-definition environment semantics. Do
     not duplicate class-definition,
     `extends`, static-element, private-name, or name-inference semantics inside
     the VM, and do not satisfy the route by falling back to `ExpressionProgram`,
@@ -2108,6 +2161,10 @@ avoids the build-back repair cycle that the sibling task (PR #2748) required.
     accessors only after adding activation-capture declines and focused
     route/no-route proof. Related ADR:
     `docs/adrs/0327-admit-resumable-class-literal-private-members-through-shared-class-creation.md`.
+    Issue #gh3237 / PR #3239 admitted B24g public non-computed instance
+    accessors after keeping activation-capturing and `super` accessor bodies as
+    pre-VM declines. Related ADR:
+    `docs/adrs/0336-admit-resumable-class-literal-public-accessors-through-shared-class-creation.md`.
 
 51. When widening production unified-bytecode construct routing beyond the
     identifier-only `new F(...)` lane, keep constructor-target recognition

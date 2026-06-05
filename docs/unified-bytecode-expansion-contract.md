@@ -88,12 +88,14 @@ statement interpretation.
   concrete object-member opcodes; B24 remains real work for full bytecode
   execution because only the constructor/default-constructor class-literal
   subset, the B24b public non-computed instance-field subset without
-  activation-capturing field initializers, and the B24c public non-computed
-  static-field subset are resumable-admitted. The VM handler still delegates
+  activation-capturing field initializers, the B24c public non-computed
+  static-field subset, and the B24g public non-computed instance-accessor
+  subset whose accessor bodies do not capture activation slots or use `super`
+  are resumable-admitted. The VM handler still delegates
   class-definition evaluation to lower-level class machinery that can run
-  expression programs and static-block IR plans, and B24d/B24g-B24i keep
-  static-block, accessor, computed-member, member-super, and activation-slot
-  `extends` shapes declined.
+  expression programs and static-block IR plans, and B24d/B24h-B24i keep
+  static-block, computed-member, member-super, and activation-slot `extends`
+  shapes declined.
 - `UnifiedBytecodeCompiler` now has generated audit coverage for every declared
   IR instruction record. Function-scoped `FunctionDeclarationInstruction`
   entries compile as no-ops after fast activation hoisting installs the callable
@@ -436,13 +438,16 @@ constructor/default-constructor class literals, the B24b public non-computed
 instance-field subset whose field initializers do not capture activation slots,
 B24c public non-computed static field class literals, narrow B24e private
 instance-field class literals, and the narrow B24f private method/accessor
-class-literal shape. Full bytecode execution is not done: class-literal
-creation still calls class-definition machinery that resolves extends/computed
-names/field initializers through expression programs and static blocks through
+class-literal shape, plus the B24g public non-computed instance-accessor subset
+whose accessor bodies do not capture activation slots or use `super`. Full
+bytecode execution is not done: class-literal creation still calls
+class-definition machinery that resolves extends/computed names/field
+initializers through expression programs and static blocks through
 `ExecutionPlanRunner.RunScript`; `extends` expressions that read resumable
 activation slots also remain declined until class-definition evaluation owns
-that environment bridge. B24d and B24g-B24i remain declined by the resumable
-shape gate.
+that environment bridge. B24d and B24h-B24i remain declined by the resumable
+shape gate, and static/computed/private/capturing/super public accessor
+neighbors remain outside the B24g subset.
 
 - `B24a:ClassExpressionConstructor`
 - `B24b:ClassExpressionInstanceFields`
@@ -752,29 +757,34 @@ predicates and proof tests.
   - NESTED FUNCTION LITERALS (`var h = function(){...}`) inside generator/async
     bodies are now split by capture analysis. Non-capturing literals route through
     `ExecuteResumable` via `LoadFunctionLiteral` and `EnsureHasName`; object
-    method/accessor literals use the same path. Capturing literals still decline:
-    the nested function closes over the resumable activation's ENVIRONMENT, but
-    the body's own locals are realised as FLAT SLOTS on the resume state, so a
-    nested function that captures a generator/async local cannot see it through
-    its environment chain (a naive resumable route makes
-    `function* g(){ var n=1; var f=()=>n; yield f(); }` throw
-    `ReferenceError: n is not defined`) and a sync-on-create would go stale on a
-    post-capture mutation. Function declarations nested inside an otherwise
-    non-capturing function literal also stay declined until declaration
-    instantiation is represented by the resumable route. B23 remains partial until
-    the resume state owns a materialized body environment.
+    method/accessor literals use the same path. Generator nested function literals
+    that capture a root body local also route after invocation setup materializes
+    a body environment whose activation slots are mirrored from the resume-state
+    flat slots and kept synchronized on slot writes. This admits
+    `function* g(){ var n=1; var f=()=>n; yield f(); n=2; yield f(); }`, so the
+    closure observes `1` then `2` on the resumable generator route. Async and
+    async-generator captured-local literals, lexical-this/private-name dependent
+    literals, and function declarations nested inside an otherwise non-capturing
+    function literal still decline until their closure contexts or declaration
+    instantiation semantics are represented by the resumable route. B23 remains
+    partial.
   - HOISTED NESTED FUNCTION DECLARATIONS (`function helper(){...}`;
     `FunctionDeclarationInstruction` / `DeclareFunction`) inside a generator/async
     body are now partially admitted (B36): direct root function-scoped
-    declarations route when the declared helper is non-capturing and the
-    resumable invoker pre-populates the helper's compiled VM flat slot before
-    `ExecuteResumable` starts. Capturing helpers, recursive/sibling helper
-    dependencies, dynamic/eval helpers, descriptor-backed block/Annex B
-    declarations, and class declarations remain declined until resumable
-    activation owns a materialized body environment and block-declaration
-    semantics. `DeclareFunction` remains OFF the resumable opcode allowlist and
-    `FunctionDeclarationInstruction` remains conditionally guarded by the
-    invoker-proof activation flag; the boundary is pinned by
+    declarations route when the resumable invoker pre-populates the helper's
+    compiled VM flat slot before `ExecuteResumable` starts. Non-capturing
+    helpers route in generators, async functions, and async generators. The
+    sync-generator route also admits helpers that capture root body locals after
+    invocation setup materializes the resumable body environment and creates the
+    helper against that environment, so the helper observes flat-slot mutations
+    across `yield`/resume. A43 now admits descriptor-backed block/Annex B
+    declarations through materialized block environments. Async/async-generator
+    captured helpers still remain declined because those invokers do not yet
+    prove the same materialized body environment lifetime. Recursive/sibling
+    helper graphs, dynamic/eval helpers, and class declarations are separate B36
+    declaration-instantiation work. `DeclareFunction` remains OFF the resumable
+    opcode allowlist and `FunctionDeclarationInstruction` remains conditionally
+    guarded by the invoker-proof activation flag; the boundary is pinned by
     `UnifiedBytecodeResumableNestedFunctionTests`.
 - Captured function scopes outside the simple-return captured-closure route,
   unresolved non-with dynamic activation, arrow lexical `this` / `new.target`,
@@ -1071,21 +1081,26 @@ the final post-compile production subset check before VM entry.
 ## Production Block Lexical Scope Boundary
 - Current production block-scope support is slot-layout-owned, not
   source-syntax-owned.
-- Accepted block scopes are non-capturing, non-iterating lexical scopes with
-  flat slot mappings. Destructuring-free `let` / `const` declarations compile
-  through `SimpleVariableDeclaration` into active-scope flat slots.
+- Accepted block scopes are slot-layout-owned lexical scopes with flat slot
+  mappings. Destructuring-free `let` / `const` declarations compile through
+  `SimpleVariableDeclaration` into active-scope flat slots. Captured
+  per-iteration loop bindings are admitted only when the compiler can carry the
+  per-iteration copy list as descriptor metadata for the mapped slots.
 - `UnifiedBytecodeProgram.SlotCount` covers root activation slots and admitted
   block-scope flat slots. Parameter slot metadata preserves formal positions,
   using `-1` for unused or unmapped formals so invocation does not shift later
   arguments.
-- `PushEnvironment` initializes the admitted scope's lexical flat slots to
-  `JsValue.Uninitialized`; `PopEnvironment` is an owned VM cleanup opcode for
-  the admitted linear shape. Neither opcode creates a `JsEnvironment`, uses
-  name fallback, or calls back into `ExpressionProgram`, `ExecutionPlanRunner`,
-  or AST evaluation.
+- `PushEnvironment` initializes ordinary admitted lexical flat slots to
+  `JsValue.Uninitialized`; for copy-listed per-iteration slots it snapshots the
+  previous value before rebinding and writes that value into the fresh scope
+  environment instead of TDZ-wiping it. `PopEnvironment` is an owned VM cleanup
+  opcode for the admitted linear shape. Neither opcode uses name fallback or
+  calls back into `ExpressionProgram`, `ExecutionPlanRunner`, or AST
+  evaluation.
 - Unsupported binding declaration shapes, unsupported object/array destructuring
-  driver instructions, unsupported dynamic lookup, captured activation,
-  per-iteration bindings, and `using` / `await using` remain pre-VM declines.
+  driver instructions, unsupported dynamic lookup, `using` / `await using`,
+  resumable `PushEnvironmentInstruction`, and scope-entry shapes without flat
+  mappings remain pre-VM declines.
 
 ## Production With-Backed Dynamic Name Boundary
 - Current production dynamic-name support is with-backed and compiler-gated.
@@ -1764,7 +1779,10 @@ the final post-compile production subset check before VM entry.
   non-capturing: the value lowers to `LoadFunctionLiteral`, name inference lowers to
   `EnsureHasName` when needed, and the `Define{Computed}ObjectMethod` /
   `Define{Computed}ObjectAccessor` handlers attach the callable to the fresh object.
-  Capturing method/accessor literals remain covered by the B23 capture decline.
+  Capturing generator method/accessor literals can route through the B23
+  materialized-body-environment slice when they capture root body locals; async
+  captured method/accessor literals and lexical/private-context captures remain
+  covered by the B23 capture decline.
   Separately,
   a `var x = <literal>` whose literal contains no suspension still declines at the
   resumable var-declaration lowering boundary (`SimpleVariableDeclarationInstruction`

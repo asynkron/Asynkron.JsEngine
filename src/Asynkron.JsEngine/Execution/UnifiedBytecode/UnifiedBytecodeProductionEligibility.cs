@@ -40,6 +40,7 @@ internal readonly record struct UnifiedBytecodeProductionActivationDescriptor(
     bool AllowsOrdinaryDynamicIdentifierEnvironmentOperations = false,
     bool AllowsImplicitArgumentsObjectPropertyReadOperands = false,
     bool AllowsRootFunctionDeclarationInstructions = false,
+    bool AllowsMaterializedBodyEnvironmentFunctionLiterals = false,
     bool IsStrict = false);
 
 internal readonly record struct UnifiedBytecodeProductionEligibilityResult(
@@ -584,27 +585,12 @@ internal static class UnifiedBytecodeProductionEligibility
                 return true;
             }
 
-            // A43 (burn-down) — DECLINED, kept as the explicit gate. The DeclareFunction opcode and VM
-            // handler (UnifiedBytecodeVirtualMachine.DeclareFunction) already port the IR runner's
-            // sloppy-mode Annex B.3.3 dual-hoist, so this instruction gate is not the true blocker: a
-            // descriptor-backed block function ALSO declines at IsSupportedPushEnvironment because the
-            // block's lexical slot for the function name carries NO flat-slot mapping (the value is bound
-            // by Symbol via DeclareFunction and read through the Annex B var/dynamic path, never via the
-            // block flat slot). Relaxing IsSupportedPushEnvironment to tolerate unmapped lexical slots
-            // does admit the sloppy shapes correctly (return g() => 1, conditional, redeclaration), but it
-            // BREAKS strict-mode block scoping: the strict IIFE in StrictModeBlockFunctionScopingTests
-            // .StrictMode_BlockFunctionDeclaration_ShouldNotHoistToFunctionScope then leaks the block `f`
-            // into the function scope (typeof f === "function"/"undefined" outside the block instead of a
-            // ReferenceError), because the VM's flat-slot env model resolves the dropped block binding at
-            // the activation scope. Admitting A43 cleanly requires giving the block function binding a
-            // real flat-slot mapping AND strict-mode-correct VM env resolution — a block-environment
-            // change with blast radius across all lexical block bindings, well beyond an Annex-B-scoped
-            // edit. Correct decline > fragile admission: the IR runner keeps these shapes correct today.
-            if (instruction is FunctionDeclarationInstruction { Descriptor: not null })
+            if (instruction is FunctionDeclarationInstruction { Descriptor: { } descriptor } &&
+                FunctionCapturesActivationSlot(descriptor.Function, activationSlots, out var capturedName))
             {
                 declineCode = UnifiedBytecodeProductionDeclineCode.UnsupportedPlanShape;
                 declineReason =
-                    "Descriptor-backed block-scoped function declarations require an admitted lexical environment shape before production unified bytecode routing.";
+                    $"Descriptor-backed block-scoped function declaration captures activation binding '{capturedName}' and is not eligible for production unified bytecode routing until the VM owns that materialized closure shape.";
                 return true;
             }
 
@@ -1144,6 +1130,7 @@ internal static class UnifiedBytecodeProductionEligibility
             if (TryFindNestedFunctionActivationCaptureDecline(
                     instruction,
                     activationSlots,
+                    activation,
                     out declineReason))
             {
                 declineCode = UnifiedBytecodeProductionDeclineCode.UnsupportedPlanShape;
@@ -1334,21 +1321,65 @@ internal static class UnifiedBytecodeProductionEligibility
     private static bool TryFindNestedFunctionActivationCaptureDecline(
         ExecutionInstruction instruction,
         ActivationSlotShape activationSlots,
+        UnifiedBytecodeProductionActivationDescriptor activation,
         out string declineReason)
     {
-        if (TryGetResumableExpressionProgram(instruction, out var program) &&
-            ExpressionProgramHasActivationCapturingFunctionLiteral(
-                program,
-                activationSlots,
-                out var capturedName))
+        if (!TryGetResumableExpressionProgram(instruction, out var program) ||
+            !ExpressionProgramHasActivationCapturingFunctionLiteral(
+                    program,
+                    activationSlots,
+                    out var capturedName))
         {
-            declineReason = capturedName == NestedFunctionDeclarationBoundary
-                ? "Nested function literal contains a function declaration and is not eligible for resumable unified bytecode routing until declaration instantiation is represented by the resumable route."
-                : $"Nested function literal captures activation binding '{capturedName}' and is not eligible for resumable unified bytecode routing until the resume state owns a materialized body environment.";
+            declineReason = string.Empty;
+            return false;
+        }
+
+        if (capturedName == NestedFunctionDeclarationBoundary)
+        {
+            declineReason =
+                "Nested function literal contains a function declaration and is not eligible for resumable unified bytecode routing until declaration instantiation is represented by the resumable route.";
             return true;
         }
 
-        declineReason = string.Empty;
+        if (capturedName.Length > 0 && capturedName[0] == '<')
+        {
+            declineReason =
+                $"Nested function literal depends on {capturedName} and is not eligible for resumable unified bytecode routing until the resumable route materializes that closure context.";
+            return true;
+        }
+
+        if (activation.AllowsMaterializedBodyEnvironmentFunctionLiterals)
+        {
+            declineReason = string.Empty;
+            return false;
+        }
+
+        declineReason =
+            $"Nested function literal captures activation binding '{capturedName}' and is not eligible for resumable unified bytecode routing until the resume state owns a materialized body environment.";
+        return true;
+    }
+
+    internal static bool PlanNeedsMaterializedResumableBodyEnvironment(ExecutionPlan plan)
+    {
+        if (plan.ActivationSlots is not { } activationSlots)
+        {
+            return false;
+        }
+
+        foreach (var instruction in plan.Instructions)
+        {
+            if (TryGetResumableExpressionProgram(instruction, out var program) &&
+                ExpressionProgramHasActivationCapturingFunctionLiteral(
+                    program,
+                    activationSlots,
+                    out var capturedName) &&
+                capturedName != NestedFunctionDeclarationBoundary &&
+                (capturedName.Length == 0 || capturedName[0] != '<'))
+            {
+                return true;
+            }
+        }
+
         return false;
     }
 
@@ -1386,7 +1417,7 @@ internal static class UnifiedBytecodeProductionEligibility
         return false;
     }
 
-    private static bool FunctionLiteralNeedsLexicalThisOrPrivateNameContext(
+    internal static bool FunctionLiteralNeedsLexicalThisOrPrivateNameContext(
         FunctionExpression function,
         out string capturedName)
     {
@@ -1412,6 +1443,79 @@ internal static class UnifiedBytecodeProductionEligibility
             if (instruction is FunctionDeclarationInstruction { Descriptor: { } descriptor } &&
                 FunctionLiteralNeedsLexicalThisOrPrivateNameContext(descriptor.Function, out capturedName))
             {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    internal static bool FunctionReferencesIdentifierNamed(
+        FunctionExpression function,
+        IReadOnlySet<Symbol> names,
+        out string referencedName)
+    {
+        referencedName = string.Empty;
+        if (names.Count == 0)
+        {
+            return false;
+        }
+
+        var cache = ((IAstCacheable<ExecutionPlanCache>)function).GetOrCreateCache();
+        if (!cache.Succeeded || cache.Plan is not { } plan)
+        {
+            referencedName = "<unknown>";
+            return true;
+        }
+
+        foreach (var instruction in plan.Instructions)
+        {
+            if (TryGetExpressionProgram(instruction, out var program) &&
+                ExpressionProgramReferencesIdentifierNamed(program, names, out referencedName))
+            {
+                return true;
+            }
+
+            if (instruction is FunctionDeclarationInstruction { Descriptor: { } descriptor } &&
+                FunctionReferencesIdentifierNamed(descriptor.Function, names, out referencedName))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool ExpressionProgramReferencesIdentifierNamed(
+        ExpressionProgram program,
+        IReadOnlySet<Symbol> names,
+        out string referencedName)
+    {
+        referencedName = string.Empty;
+        if (program.IsEmpty)
+        {
+            return false;
+        }
+
+        var identifierConstants = program.IdentifierConstants.AsSpan();
+        var objectConstants = program.ObjectConstants.AsSpan();
+        foreach (var operation in program.EnumerateOperations())
+        {
+            if (operation.Kind == ExpressionOpKind.LoadFunctionLiteral)
+            {
+                var descriptor = operation.GetObject<FunctionLiteralDescriptor>(objectConstants);
+                if (FunctionReferencesIdentifierNamed(descriptor.Function, names, out referencedName))
+                {
+                    return true;
+                }
+
+                continue;
+            }
+
+            if (TryGetIdentifierDependency(operation, identifierConstants, out var identifier) &&
+                names.Contains(identifier.Name))
+            {
+                referencedName = identifier.Name.Name;
                 return true;
             }
         }
@@ -2069,6 +2173,13 @@ internal static class UnifiedBytecodeProductionEligibility
         }
 
         var isPrivateInstanceFieldClassLiteral = IsB24ePrivateInstanceFieldClassLiteral(definition);
+        if (isPrivateInstanceFieldClassLiteral && !definition.Members.IsDefaultOrEmpty)
+        {
+            declineReason =
+                "Class literal is outside B24e: private-field class literals with member bodies remain owned by later mixed class-member slices.";
+            return false;
+        }
+
         if (IsB24fPrivateInstanceMemberClassLiteral(definition))
         {
             if (definition.Extends is not null)
@@ -2099,6 +2210,29 @@ internal static class UnifiedBytecodeProductionEligibility
             return true;
         }
 
+        if (IsB24gPublicInstanceAccessorClassLiteral(definition))
+        {
+            foreach (var member in definition.Members)
+            {
+                if (FunctionCapturesActivationSlot(member.Function, activationSlots, out var capturedName))
+                {
+                    declineReason =
+                        $"Class literal is outside B24g: public accessor body captures activation binding '{capturedName}' and needs the materialized body environment route.";
+                    return false;
+                }
+
+                if (FunctionContainsSuper(member.Function))
+                {
+                    declineReason =
+                        "Class literal is outside B24g: public accessor bodies that use super remain owned by the B24i member-super slice.";
+                    return false;
+                }
+            }
+
+            declineReason = string.Empty;
+            return true;
+        }
+
         if (!AreResumableB24ClassMembersSupported(definition, isPrivateInstanceFieldClassLiteral))
         {
             declineReason =
@@ -2107,6 +2241,31 @@ internal static class UnifiedBytecodeProductionEligibility
         }
 
         declineReason = string.Empty;
+        return true;
+    }
+
+    private static bool IsB24gPublicInstanceAccessorClassLiteral(ClassDefinition definition)
+    {
+        if (!definition.Fields.IsDefaultOrEmpty ||
+            definition.Members.IsDefaultOrEmpty ||
+            definition.Members.Length == 0 ||
+            !definition.StaticBlocks.IsDefaultOrEmpty ||
+            !definition.StaticElements.IsDefaultOrEmpty)
+        {
+            return false;
+        }
+
+        foreach (var member in definition.Members)
+        {
+            if (member.Kind is not (ClassMemberKind.Getter or ClassMemberKind.Setter) ||
+                member.IsStatic ||
+                member.IsComputed ||
+                member.IsPrivate)
+            {
+                return false;
+            }
+        }
+
         return true;
     }
 
@@ -4080,28 +4239,10 @@ internal static class UnifiedBytecodeProductionEligibility
             return true;
         }
 
-        // Per-iteration binding environments (for (const/let x in/of ...)) are admitted when all
-        // per-iteration slots resolve to flat activation slots. The per-iteration rebinding semantics
-        // are modeled by ForInMoveNext/IteratorMoveNext writing to __forIn_value/__iter_value, the
-        // PushEnvironment resetting the lexical slot to Uninitialized, and the binding statement
-        // assigning the value slot to the per-iteration slot — all within the flat-slot model.
-        //
-        // A44 (burn-down) — DECLINED, investigated. A per-iteration `let`/`const` that is CAPTURED by a
-        // closure (each iteration must produce a FRESH binding the closure observes; e.g.
-        // `for(let i=0;i<3;i++){ fns.push(()=>i); }` → 0,1,2) emits a PushEnvironment whose synthetic
-        // per-iteration scope has NO flat-slot mapping — the binding lives in a heap environment the
-        // closure captures, so `flatSlotMappings.TryGetValue(ScopeId)` misses and we decline here. This
-        // gate is not the only blocker: relaxing it pushes the captured per-iteration `let` onto the
-        // dynamic-identifier path, where (a) the compiler rejects the lexical declaration target
-        // ("requires dynamic identifier operations", UnifiedBytecodeCompiler.TryAppendDynamicDeclaration)
-        // unless the function is already dynamic, and (b) once forced through, the VM throws a SPURIOUS
-        // `ReferenceError: Cannot access '<name>' before initialization` because the freshly-created
-        // per-iteration scope environment the closure captured is left in its TDZ — DeclareDynamicLexical
-        // / MirrorDynamicLexicalToFlatSlot mirror flat↔call-env but not the per-iteration scope env. A
-        // clean admission needs per-iteration heap-env binding init + value copy + TDZ initialization
-        // mirrored into the captured environment — a block-environment change with blast radius across all
-        // lexical block bindings (same class of work as the A43 decline). The IR runner keeps these shapes
-        // correct today; see A44PerIterationLetDeclineTests for the standing tripwire.
+        // Per-iteration binding environments (for (const/let x in/of ...)) are admitted when every
+        // lexical slot resolves to a flat slot. Captured A44 shapes depend on the compiler carrying
+        // PerIterationBindings as copy metadata so PushEnvironment copies the current value into the fresh
+        // scope environment instead of applying the ordinary TDZ wipe to that slot.
         if (instruction.ScopeId < 0 ||
             instruction.SlotCount < 0 ||
             instruction.SlotMap.IsEmpty ||

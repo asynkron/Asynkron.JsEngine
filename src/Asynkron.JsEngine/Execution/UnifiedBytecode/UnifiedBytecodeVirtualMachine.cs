@@ -3668,12 +3668,27 @@ internal static class UnifiedBytecodeVirtualMachine
 
                 case UnifiedBytecodeOpCode.LoadClassLiteral:
                     {
-                        var classExpression = program.ClassLiteralConstants[instruction.Operand];
-                        var closureEnvironment = RequireDynamicEnvironment(state.CallingEnvironment);
-                        PushResumableValue(TypedAstEvaluator.CreateClassValueFromLiteral(
-                            classExpression,
-                            closureEnvironment,
-                            context));
+                        var classEnvironment = RequireDynamicEnvironment(state.CallingEnvironment);
+                        SyncUnifiedSlotsToEnvironment(program, slots, slotEnvironments: null, classEnvironment);
+                        try
+                        {
+                            PushResumableValue(TypedAstEvaluator.CreateClassValueFromLiteral(
+                                program.ClassLiteralConstants[instruction.Operand],
+                                classEnvironment,
+                                context));
+                        }
+                        catch (ThrowSignal signal)
+                        {
+                            context.SetThrow(signal.ThrownValue);
+                        }
+
+                        SyncEnvironmentToUnifiedSlots(program, slots, slotEnvironments: null, classEnvironment);
+                        if (context.ShouldStopEvaluation)
+                        {
+                            state.IsCompleted = true;
+                            return UnifiedBytecodeStepResult.Throw(context.FlowValue);
+                        }
+
                         programCounter++;
                         break;
                     }

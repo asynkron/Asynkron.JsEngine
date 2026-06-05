@@ -86,11 +86,13 @@ statement interpretation.
   `### A35 Object Literal Member Leaves (current)` and
   `### B24 Class Expression Leaves (current)`. A35 is sync-admitted across its
   concrete object-member opcodes; B24 remains real work for full bytecode
-  execution because only the B24b public non-computed instance-field class
-  expression subset without activation-capturing field initializers is
-  resumable-admitted, and the VM handler still delegates
-  class-definition evaluation to lower-level class machinery that can run
-  expression programs and static-block IR plans.
+  execution because only the constructor/default-constructor class-literal
+  subset and the B24b public non-computed instance-field subset without
+  activation-capturing field initializers are resumable-admitted. The VM
+  handler still delegates class-definition evaluation to lower-level class
+  machinery that can run expression programs and static-block IR plans, and
+  B24c-B24i keep static-block, private, accessor, computed-member,
+  member-super, and activation-slot `extends` shapes declined.
 - `UnifiedBytecodeCompiler` now has generated audit coverage for every declared
   IR instruction record. Function-scoped `FunctionDeclarationInstruction`
   entries compile as no-ops after fast activation hoisting installs the callable
@@ -433,14 +435,15 @@ sync-admitted and pinned by `A35ComplexObjectLiteralTests`,
 ### B24 Class Expression Leaves (current)
 
 The former B24 class-expression coarse row is split by class-element semantics.
-`LoadClassLiteral` itself has sync VM and compiler coverage. Resumable routing
-now admits the B24b public non-computed instance-field subset whose field
-initializers do not capture activation slots, while full bytecode execution is
-still not done: class-literal creation still calls class-definition machinery
-that resolves extends/computed names/field initializers through expression
-programs and static blocks through
-`ExecutionPlanRunner.RunScript`, and B24a/B24c-B24i remain outside the admitted
-resumable subset.
+`LoadClassLiteral` itself has sync VM and compiler coverage, and resumable
+routing now admits the B24a constructor/default-constructor subset plus the
+B24b public non-computed instance-field subset whose field initializers do not
+capture activation slots. Full bytecode execution is not done: class-literal
+creation still calls class-definition machinery that resolves extends/computed
+names/field initializers through expression programs and static blocks through
+`ExecutionPlanRunner.RunScript`; `extends` expressions that read resumable
+activation slots also remain declined until class-definition evaluation owns
+that environment bridge. B24c-B24i remain declined by the resumable shape gate.
 
 - `B24a:ClassExpressionConstructor`
 - `B24b:ClassExpressionInstanceFields`

@@ -74,15 +74,6 @@ public sealed class UnifiedBytecodeResumableClassExpressionTests(ITestOutputHelp
 
     [Theory]
     [InlineData("""
-        function* g() {
-            yield class {
-                constructor() {
-                    this.value = 1;
-                }
-            };
-        }
-        """)]
-    [InlineData("""
         function* g(seed) {
             yield class {
                 field = seed;

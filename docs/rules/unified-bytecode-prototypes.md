@@ -965,6 +965,19 @@ all-or-nothing until a separate routing issue proves production readiness.
     the repair reset the unified-bytecode stack after `HandleContextThrow` so
     `ThrowBugTests.AssertThrowsPattern_ShouldCatchErrorObject` no longer
     overflowed the fixed operand stack.
+    For the **resumable** route, do not admit `EnterCatch` / `PopEnvironment`
+    by allowlist alone. The resume state must own active try frames, catch-used
+    state, thrown values, pending finally completion, and inactive catch-binding
+    slots across yield/await boundaries. Try-body and catch-body suspension may
+    route when that state is represented on `UnifiedBytecodeResumeState`;
+    suspending `finally` cleanup and destructuring catch bindings must remain
+    pre-VM declines until their cleanup/binding state is owned. WHY: issue
+    `planitem-planmanual1780639098493226000-full-unified-bytecode-execution-burndown-b-ba3b90f110`
+    / PR #3226 admitted simple/optional resumable try-catch by replacing the
+    old descriptor-index/resume-target arrays with resumable try frames and by
+    persisting inactive catch-binding slots, while keeping suspending finally
+    and destructuring catch bindings out of the route. Related ADR:
+    `docs/adrs/0332-admit-resumable-try-catch-with-owned-frame-state.md`.
 
 35. When removing a pre-gate from `CanUseProductionUnifiedBytecodeFastPath`,
     verify that the plan-level decline taxonomy in
@@ -2295,3 +2308,4 @@ Related ADRs:
 - `docs/adrs/0314-split-unified-bytecode-driver-break-and-continue-cleanup-targets.md`
 - `docs/adrs/0316-admit-nested-named-receiver-computed-delete-in-unified-bytecode.md`
 - `docs/adrs/0318-admit-apply-binding-target-assignment-destructuring-bridge-in-unified-bytecode.md`
+- `docs/adrs/0332-admit-resumable-try-catch-with-owned-frame-state.md`

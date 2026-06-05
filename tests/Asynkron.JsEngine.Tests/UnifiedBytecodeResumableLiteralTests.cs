@@ -134,7 +134,11 @@ public sealed class UnifiedBytecodeResumableLiteralTests(ITestOutputHelper outpu
 
         Assert.False(result.IsEligible);
         Assert.Equal(UnifiedBytecodeProductionDeclineCode.UnsupportedPlanShape, result.Code);
-        Assert.Contains("outside B24", result.Reason, StringComparison.Ordinal);
+        Assert.True(
+            result.Reason.Contains("outside B24a", StringComparison.Ordinal) ||
+            result.Reason.Contains("outside B24", StringComparison.Ordinal) ||
+            result.Reason.Contains("B24b resumable", StringComparison.Ordinal),
+            result.Reason);
     }
 
     [Fact(Timeout = 5000)]
@@ -693,11 +697,6 @@ public sealed class UnifiedBytecodeResumableLiteralTests(ITestOutputHelper outpu
 
     public static TheoryData<string> DeclinedB24ClassLiteralPrograms { get; } = new()
     {
-        """
-        function* g() {
-            yield class { field = 1; };
-        }
-        """,
         """
         function* g() {
             yield class { static field = 1; };

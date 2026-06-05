@@ -1662,6 +1662,17 @@ internal static class UnifiedBytecodeProductionEligibility
     {
         foreach (var instruction in program.Instructions)
         {
+            if (instruction.OpCode == UnifiedBytecodeOpCode.LoadClassLiteral)
+            {
+                var classExpression = program.ClassLiteralConstants[instruction.Operand];
+                if (IsResumableClassLiteral(program, activationSlots, classExpression, out declineReason))
+                {
+                    continue;
+                }
+
+                return true;
+            }
+
             if (instruction.OpCode is
                 UnifiedBytecodeOpCode.LoadSlot or
                 UnifiedBytecodeOpCode.LoadLiteral or
@@ -2032,10 +2043,8 @@ internal static class UnifiedBytecodeProductionEligibility
             return false;
         }
 
-        if (!AreResumableB24ClassFieldsSupported(definition))
+        if (!AreResumableB24ClassFieldsSupported(definition, activationSlots, out declineReason))
         {
-            declineReason =
-                "Class literal is outside B24: class fields remain owned by later B24 static-field/computed-member slices.";
             return false;
         }
 
@@ -2101,6 +2110,45 @@ internal static class UnifiedBytecodeProductionEligibility
         return true;
     }
 
+    private static bool ExpressionProgramReferencesActivationSlot(
+        ExpressionProgram program,
+        ActivationSlotShape activationSlots,
+        out string capturedName)
+    {
+        capturedName = string.Empty;
+        if (program.IsEmpty)
+        {
+            return false;
+        }
+
+        var identifierConstants = program.IdentifierConstants.AsSpan();
+        var objectConstants = program.ObjectConstants.AsSpan();
+        foreach (var operation in program.EnumerateOperations())
+        {
+            if (operation.Kind == ExpressionOpKind.LoadFunctionLiteral)
+            {
+                var descriptor = operation.GetObject<FunctionLiteralDescriptor>(objectConstants);
+                if (FunctionCapturesActivationSlot(descriptor.Function, activationSlots, out capturedName))
+                {
+                    return true;
+                }
+
+                continue;
+            }
+
+            if (!TryGetIdentifierDependency(operation, identifierConstants, out var identifier) ||
+                !ResolvesToActivationSlot(identifier, activationSlots))
+            {
+                continue;
+            }
+
+            capturedName = identifier.Name.Name;
+            return true;
+        }
+
+        return false;
+    }
+
     private static bool IsB24ePrivateInstanceFieldClassLiteral(ClassDefinition definition)
     {
         if (definition.Fields.IsDefaultOrEmpty)
@@ -2119,22 +2167,91 @@ internal static class UnifiedBytecodeProductionEligibility
         return true;
     }
 
-    private static bool AreResumableB24ClassFieldsSupported(ClassDefinition definition)
+    private static bool AreResumableB24ClassFieldsSupported(
+        ClassDefinition definition,
+        ActivationSlotShape activationSlots,
+        out string declineReason)
     {
+        declineReason = string.Empty;
+        if (definition.Fields.IsDefaultOrEmpty)
+        {
+            return true;
+        }
+
+        if (IsB24bPublicInstanceFieldClassLiteral(definition))
+        {
+            return AreB24bFieldInitializersActivationSafe(definition, activationSlots, out declineReason);
+        }
+
         foreach (var field in definition.Fields)
         {
             if (field.IsStatic || field.IsComputed)
             {
+                declineReason =
+                    "Class literal is outside B24: class fields remain owned by later B24 static-field/computed-member slices.";
                 return false;
             }
 
             if (!field.IsPrivate &&
                 (field.Initializer is null || !ExpressionContainsSuper(field.Initializer)))
             {
+                declineReason =
+                    "Class literal is outside B24: class fields remain owned by later B24 static-field/computed-member slices.";
                 return false;
             }
         }
 
+        return true;
+    }
+
+    private static bool IsB24bPublicInstanceFieldClassLiteral(ClassDefinition definition)
+    {
+        if (definition.Extends is not null ||
+            definition.Fields.IsDefaultOrEmpty ||
+            !definition.Members.IsDefaultOrEmpty ||
+            !definition.StaticBlocks.IsDefaultOrEmpty ||
+            !definition.StaticElements.IsDefaultOrEmpty)
+        {
+            return false;
+        }
+
+        foreach (var field in definition.Fields)
+        {
+            if (field.IsStatic || field.IsPrivate || field.IsComputed)
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static bool AreB24bFieldInitializersActivationSafe(
+        ClassDefinition definition,
+        ActivationSlotShape activationSlots,
+        out string declineReason)
+    {
+        var cache = ((IAstCacheable<ClassDefinitionProgramCache>)definition).GetOrCreateCache();
+        if (!cache.Succeeded)
+        {
+            declineReason =
+                $"Class literal field programs could not lower for B24b resumable production routing: {cache.FailureReason ?? "unknown failure"}.";
+            return false;
+        }
+
+        var initializerPrograms = cache.FieldInitializerPrograms;
+        for (var i = 0; i < initializerPrograms.Length; i++)
+        {
+            if (initializerPrograms[i] is { } initializerProgram &&
+                ExpressionProgramReferencesActivationSlot(initializerProgram, activationSlots, out var capturedName))
+            {
+                declineReason =
+                    $"Class literal field initializer captures activation binding '{capturedName}' and is not supported by B24b resumable production routing until the resume state owns a materialized body environment.";
+                return false;
+            }
+        }
+
+        declineReason = string.Empty;
         return true;
     }
 

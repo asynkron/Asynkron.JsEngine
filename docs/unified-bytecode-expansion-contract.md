@@ -57,7 +57,7 @@ statement interpretation.
   drift gate
   `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~ExpressionProgramCoverageMapTests&FullyQualifiedName~UnifiedBytecodeExpansionContract"`
   passed. The checked inventories remain current: 6 sync prototype opcode guard
-  gaps, 29 resumable opcode allowlist gaps, 9 resumable instruction allowlist
+  gaps, 19 resumable opcode allowlist gaps, 9 resumable instruction allowlist
   gaps, A35 split into 5 object-literal member leaves, B24 split into 9
   class-expression leaves, and no general expression lowering gaps.
 - Completing the decline-burndown plan did not make unified bytecode the only
@@ -87,10 +87,12 @@ statement interpretation.
   `### B24 Class Expression Leaves (current)`. A35 is sync-admitted across its
   concrete object-member opcodes; B24 remains real work for full bytecode
   execution because only the constructor/default-constructor class-literal
-  subset is resumable-admitted; the VM handler still delegates class-definition
-  evaluation to lower-level class machinery, and B24b-B24i keep field,
-  static-block, private, accessor, computed-member, member-super, and
-  activation-slot `extends` shapes declined.
+  subset and the B24b public non-computed instance-field subset without
+  activation-capturing field initializers are resumable-admitted. The VM
+  handler still delegates class-definition evaluation to lower-level class
+  machinery that can run expression programs and static-block IR plans, and
+  B24c-B24i keep static-block, private, accessor, computed-member,
+  member-super, and activation-slot `extends` shapes declined.
 - `UnifiedBytecodeCompiler` now has generated audit coverage for every declared
   IR instruction record. Function-scoped `FunctionDeclarationInstruction`
   entries compile as no-ops after fast activation hoisting installs the callable
@@ -434,15 +436,16 @@ sync-admitted and pinned by `A35ComplexObjectLiteralTests`,
 
 The former B24 class-expression coarse row is split by class-element semantics.
 `LoadClassLiteral` itself has sync VM and compiler coverage, including class
-expressions with static blocks, and resumable routing admits B24a
-constructor/default-constructor class literals, narrow B24e private
-instance-field class literals, and the narrow B24f private
+expressions with static blocks, and resumable routing now admits B24a
+constructor/default-constructor class literals, the B24b public non-computed
+instance-field subset whose field initializers do not capture activation slots,
+narrow B24e private instance-field class literals, and the narrow B24f private
 method/accessor class-literal shape. Full bytecode execution is not done:
 class-literal creation still calls class-definition machinery that resolves
 extends/computed names/field initializers through expression programs and static
 blocks through `ExecutionPlanRunner.RunScript`; `extends` expressions that read
 resumable activation slots also remain declined until class-definition
-evaluation owns that environment bridge. B24b-B24d and B24g-B24i remain declined
+evaluation owns that environment bridge. B24c-B24d and B24g-B24i remain declined
 by the resumable shape gate.
 
 - `B24a:ClassExpressionConstructor`

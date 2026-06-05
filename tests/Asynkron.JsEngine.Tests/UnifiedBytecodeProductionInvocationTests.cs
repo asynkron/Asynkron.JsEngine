@@ -2371,6 +2371,59 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     }
 
     [Fact(Timeout = 5000)]
+    public async Task DirectEvalThenOrdinaryDynamicReadStoreCall_UsesUnifiedBytecodeProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            var externalValue = 20;
+            function helper(value) {
+                return value + 1;
+            }
+
+            function run(delta) {
+                eval("'non-injecting direct eval'");
+                externalValue = externalValue + delta;
+                return helper(externalValue);
+            }
+
+            run(21) + ":" + externalValue;
+            """);
+
+        Assert.Equal("42:41", result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=run argc=1",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task ClosureWithLiveWithObjectAfterDirectEval_StillDeclines()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function mk(scope) {
+                with (scope) {
+                    function read() {
+                        eval("'non-injecting direct eval'");
+                        return value;
+                    }
+
+                    return read;
+                }
+            }
+
+            var fn = mk({ value: 42 });
+            fn();
+            """);
+
+        Assert.Equal(42d, result);
+        Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=read",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task WithDynamicIdentifierCallTarget_UsesWithReceiverOnProductionFastPath()
     {
         await using var engine = CreateEngine();

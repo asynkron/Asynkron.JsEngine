@@ -252,14 +252,24 @@ all-or-nothing until a separate routing issue proves production readiness.
      sync driver with an awaited source is still synchronous driver state after
      the resumable route owns the await step. `IteratorDriverKind.Await` is the
      async iterator protocol boundary; B41 admits the simple resumable VM subset
-     only after protocol state, async iterator settlement, and close behavior
-     are VM-owned. Future proof packs should test the helper directly for sync
+     only after protocol state, async next-result/value settlement, close
+     settlement, and driver cleanup through return/throw/break/continue are
+     VM-owned. Future proof packs should test the helper directly for sync
      iterable admit, sync awaited-source admit, async-kind admit, and
      missing/dual source declines, because async-like activation pre-gates can
-     otherwise hide the iterator-kind boundary. WHY: issue
+     otherwise hide the iterator-kind boundary. Keep the resumable opcode
+     allowlist, `ExecuteResumable` switch, and expansion-contract gap ledger in
+     sync: admitting `Break`, `Continue`, or `JumpWithDriverCleanup` is valid
+     only when the VM owns the matching cleanup topology and settlement path.
+     WHY: issue
      `planitem-planmanual1780639098493226000-full-unified-bytecode-execution-burndown-b-7e33a72606`
      / PR #3217 hardened `IsSupportedIteratorInit` after earlier ADR 0288
      wording made awaited source and async iterator kind look like one boundary.
+     Issue
+     `planitem-planmanual1780639098493226000-full-unified-bytecode-execution-burndown-b-b462ae896c`
+     / PR #3220 then admitted the B41 async iterator subset by adding resumable
+     async iterator `next`/yielded-value awaits, async `return()` close
+     settlement, and the control-cleanup opcode allowlist alignment.
      Related ADR:
      `docs/adrs/0330-keep-iterator-init-async-kind-and-awaited-source-gates-separate.md`.
 11. When updating docs, ADRs, roadmap text, or evidence reports for unified

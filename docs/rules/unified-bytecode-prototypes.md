@@ -940,6 +940,32 @@ all-or-nothing until a separate routing issue proves production readiness.
     resumable widening (e.g. `this.x` reads, new.target) must clear both gates
     and pick the resume-state lifetime, not the per-step VM-parameter lifetime.
 
+36a. When admitting `super` property access to the **resumable** unified
+     bytecode route, move the activation metadata, opcode allowlist, VM
+     handlers, and proof pack together. A class method's home-object/super
+     activation facts must be captured on `UnifiedBytecodeResumeState` and
+     reused on each `ExecuteResumable` step; do not reconstruct them through a
+     per-step sync-invocation shortcut and do not add a resumable VM fallback.
+     Add or remove the super-property opcode family as a coupled set:
+     `EnsureSuperReference`, `GetNamedSuperProperty`,
+     `GetComputedSuperProperty`, `SetNamedSuperProperty`,
+     `SetComputedSuperProperty`, `UpdateNamedSuperProperty`, and
+     `UpdateComputedSuperProperty` must be covered by the resumable opcode
+     allowlist, matching `ExecuteResumable` handlers, expansion-contract
+     inventories, and focused route tests. Keep unowned super invocation,
+     construct, private/exotic neighbors, and delete-super shapes as pre-VM
+     declines until those semantics are VM-owned. For class-method route-log
+     tests, assert the resumable route marker and activation shape without
+     relying on the JavaScript method name; class methods may log as
+     `func=<anonymous>`. WHY: issue
+     `planitem-planmanual1780639098493226000-full-unified-bytecode-execution-burndown-b-a28e4dff02`
+     / PR #3188 admitted resumable super property reads/writes/updates by
+     wiring the activation state, opcode allowlist, and VM handlers together,
+     while the final B14 proof pass (`49bfd4169`) added super compound/update
+     coverage and aligned route-log assertions with the existing anonymous
+     class-method behavior. Related ADR:
+     `docs/adrs/0325-admit-resumable-super-property-access-through-owned-resume-state.md`.
+
 37. When admitting label-dependent control flow to production unified bytecode,
     treat labels as compiler-owned targets, not a source-syntax permission.
     The old label-specific eligibility decline was removed together with the

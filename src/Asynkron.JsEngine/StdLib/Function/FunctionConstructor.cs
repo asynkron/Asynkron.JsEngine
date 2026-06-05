@@ -92,6 +92,8 @@ public sealed partial class FunctionConstructor(IJsObjectLike prototype, RealmSt
                 realm);
         }
 
+        program = MarkDynamicFunctionConstructorBody(program);
+
         var created = engine.ExecuteProgram(
             program,
             engine.GlobalEnvironment,
@@ -109,6 +111,24 @@ public sealed partial class FunctionConstructor(IJsObjectLike prototype, RealmSt
         }
 
         return created;
+    }
+
+    private static ProgramNode MarkDynamicFunctionConstructorBody(ProgramNode program)
+    {
+        if (program.Body is not [ExpressionStatement { Expression: FunctionExpression function } statement])
+        {
+            return program;
+        }
+
+        return program with
+        {
+            Body = program.Body.SetItem(
+                0,
+                statement with
+                {
+                    Expression = function with { IsDynamicFunctionConstructorBody = true }
+                })
+        };
     }
 
     internal static string ToFunctionArgumentString(JsValue value, EvaluationContext evalContext, RealmState realmState)

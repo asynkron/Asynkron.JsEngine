@@ -1,6 +1,6 @@
 # Asynkron.JsEngine Dreaming
 
-Date: 2026-06-05 (rev 9)
+Date: 2026-06-05 (rev 10)
 
 ## Why this document exists
 Architecture north star for Asynkron.JsEngine as a Node.js-competitive JavaScript runtime on .NET.
@@ -11,9 +11,9 @@ Architecture north star for Asynkron.JsEngine as a Node.js-competitive JavaScrip
 
 ## Critique of the current dream state (self-critique)
 
-Rev 6 replaced the stale greenfield/migration label conflict, added startup-cost, host-conversion, and host-error diagrams, grouped the proven-now table by phase, clarified capability-lifecycle back edges, and added the delivery decomposition flow. Rev 7 applied that flow to the current roadmap: optional computed delete chains are the next open property-family slice, and SLO proof remains a separate evidence packet rather than a side effect of route widening. Rev 8 tightened that packet into an acceptance/decline handoff so a future implementation starts from one owner, one receiving contract, and an explicit proof boundary. This rev 9 adds the packet-selection control plane for the current open roadmap queue so maintainers can route gh2934, gh2935, gh2954, and gh2955 without converting landed gh3134/gh3135 evidence or any directional target into a current runtime claim.
+Rev 6 replaced the stale greenfield/migration label conflict, added startup-cost, host-conversion, and host-error diagrams, grouped the proven-now table by phase, clarified capability-lifecycle back edges, and added the delivery decomposition flow. Rev 7 applied that flow to the current roadmap: optional computed delete chains are the next open property-family slice, and SLO proof remains a separate evidence packet rather than a side effect of route widening. Rev 8 tightened that packet into an acceptance/decline handoff so a future implementation starts from one owner, one receiving contract, and an explicit proof boundary. Rev 9 added the packet-selection control plane for the current open roadmap queue so maintainers can route gh2934, gh2935, gh2954, and gh2955 without converting landed gh3134/gh3135 evidence or any directional target into a current runtime claim. This rev 10 refreshes that selector with the current async-generator/yield* queue, adding gh3175 and gh3176 as separate resumable packets instead of folding them into gh2955 or the proven gh3135 async-generator route.
 
-1. **Delivery decomposition now needs a queue-level control plane.** The map below explains how to route one broad concern into one packet, and gh2934 remains the concrete property-family example. The roadmap now also carries multiple open packets across execution, concurrency, evidence, and performance fabrics, so the dream needs a selector that chooses the next packet without implying that all packets share an owner or proof shape.
+1. **Delivery decomposition now needs a queue-level control plane.** The map below explains how to route one broad concern into one packet, and gh2934 remains the concrete property-family example. The roadmap now also carries multiple open packets across execution, concurrency, evidence, performance, and resumable-layout fabrics, so the dream needs a selector that chooses the next packet without implying that all packets share an owner or proof shape.
 
 2. **Optional computed delete can still be overclaimed easily.** Ordinary named/computed property delete and nested named receiver computed delete are proven, but optional computed delete chains still need selector, compiler, VM/opcode, expansion-contract, positive-route, and negative-decline proof together. The packet-selection view must keep gh2934 as an execution packet, not as broad optional-chain or Tier 0 dominance proof.
 
@@ -23,7 +23,7 @@ Rev 6 replaced the stale greenfield/migration label conflict, added startup-cost
 
 5. **Non-goals remain part of the architecture.** A packet can be valid while explicitly not claiming Node/CommonJS parity, async seam closure, full Tier 0 dominance, or SLO proof. The queue-level selector should keep those non-goals attached before a future implementation chooses a lane.
 
-This revision therefore turns the open roadmap queue into a packet-selection handoff under the delivery decomposition flow. It is a routing aid only; it does not claim new runtime behavior.
+This revision therefore refreshes the open roadmap queue as a packet-selection handoff under the delivery decomposition flow. It is a routing aid only; it does not claim new runtime behavior.
 
 ## Product dream
 Build a standards-first, production-grade JavaScript Runtime Fabric on .NET that is:
@@ -1338,7 +1338,7 @@ Decomposition invariants:
 
 ### Roadmap packet-selection control plane
 
-The current roadmap has more than one open packet candidate. The selector below keeps the queue reviewable: choose one lane, name the owner fabric and receiving contract, then carry only that packet to implementation and proof. Landed adjacent packets such as gh3134 and gh3135 stay as roadmap evidence, not selectable queue items. It is a scheduling aid, not a capability claim.
+The current roadmap has more than one open packet candidate. The selector below keeps the queue reviewable: choose one lane, name the owner fabric and receiving contract, then carry only that packet to implementation and proof. Landed adjacent packets such as gh3134, gh3135, and the June 2026 B24a follow-up stay as roadmap evidence, not selectable queue items. It is a scheduling aid, not a capability claim.
 
 ```mermaid
 flowchart TD
@@ -1352,17 +1352,22 @@ flowchart TD
 
     subgraph Concurrency["Concurrency fabric candidates"]
         G2955["gh2955\nasync-generator yield* delegated resume lane"]
+        G3175["gh3175\nB39 async-generator yield* delegated resume"]
     end
 
     subgraph Evidence["Evidence fabric candidates"]
         G2935["gh2935\nSLO target-status proof"]
     end
 
+    subgraph Layout["Resumable layout candidates"]
+        G3176["gh3176\nB47a yield* state-slot and synthetic resume target"]
+    end
+
     subgraph Perf["Performance fabric candidates"]
         G2954["gh2954\nresidual mapset gap"]
     end
 
-    CONTRACT["Receiving contract\nopcode / decline code / resume payload / ProfileRunner row"]
+    CONTRACT["Receiving contract\nopcode / decline code / resume payload / layout cell / ProfileRunner row"]
     PROOF["Focused proof first\npositive path + negative decline\nor baseline/final profile"]
     NONCLAIM["Non-goals stay attached\nno Node/CommonJS parity\nno async seam closure\nno Tier 0 dominance\nno SLO advancement without evidence"]
 
@@ -1370,10 +1375,12 @@ flowchart TD
     PICK --> Execution
     PICK --> Concurrency
     PICK --> Evidence
+    PICK --> Layout
     PICK --> Perf
     Execution --> CONTRACT
     Concurrency --> CONTRACT
     Evidence --> CONTRACT
+    Layout --> CONTRACT
     Perf --> CONTRACT
     CONTRACT --> PROOF --> NONCLAIM
 
@@ -1387,6 +1394,8 @@ flowchart TD
 Packet-selection rules:
 - **gh2934 optional computed delete chains:** Execution Engine owns the selector/opcode route. The receiving contract is a descriptor-aware computed delete after nullish short-circuit has proven it may evaluate the key. It does not advance SLO status or broad optional-chain coverage.
 - **gh2955 async-generator yield* delegated resume lane:** Concurrency Runtime owns delegated resume state; Execution Engine owns any yielded/awaited value opcode consumed by the lane. The packet must preserve no-mixed-execution and adjacent declines before any route wording advances.
+- **gh3175 B39 async-generator yield* delegated resume:** Concurrency Runtime owns whether delegated async-generator `yield*` can resume through `ExecuteResumable`. The receiving contract is the delegated resume state plus the yielded/awaited value handoff; a valid outcome may be an explicit B39 decline with focused route evidence.
+- **gh3176 B47a resumable-only yield* layout:** Execution/Compiler layout owns the state-slot and synthetic resume-target shape needed by resumable-only `yield*`. It must not be bundled with gh3175 unless both packets share one proof pack; otherwise the existing generator/async execution-plan route remains the documented boundary.
 - **gh2935 SLO target-status proof:** Evidence owns the packet. The receiving contract is a ProfileRunner row with the matching measurement shape: p95 for p95 targets and same-run comparison for parity wording. A green baseline-regression gate alone is not SLO proof.
 - **gh2954 residual mapset gap:** Performance work starts from the documented identity-guarded fast path and must keep method identity and receiver-family guards intact. Any claim stronger than "one measured gap reduced" requires before/after profile or benchmark evidence.
 

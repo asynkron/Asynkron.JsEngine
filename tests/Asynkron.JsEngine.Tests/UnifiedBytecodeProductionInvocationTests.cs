@@ -9064,30 +9064,60 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
             "UnifiedBytecode",
             "UnifiedBytecodeVirtualMachine.cs");
 
+        Assert.True(File.Exists(invokerPath), $"Expected sync invoker source at '{invokerPath}'.");
+        Assert.True(File.Exists(vmPath), $"Expected unified bytecode VM source at '{vmPath}'.");
         var invokerSource = File.ReadAllText(invokerPath);
-        var acceptedPathStart = invokerSource.IndexOf(
+        var acceptedPathSource = ExtractRequiredSourceSection(
+            invokerSource,
             "private bool TryInvokeProductionUnifiedBytecode<TArgs>(",
-            StringComparison.Ordinal);
-        Assert.True(acceptedPathStart >= 0, "Could not locate TryInvokeProductionUnifiedBytecode fast-path method.");
-        var acceptedPathEnd = invokerSource.IndexOf(
             "private bool TryGetProductionUnifiedBytecodeProgram(",
-            acceptedPathStart,
-            StringComparison.Ordinal);
-        Assert.True(acceptedPathEnd > acceptedPathStart, "Could not locate end boundary for TryInvokeProductionUnifiedBytecode.");
-        var acceptedPathSource = invokerSource.Substring(acceptedPathStart, acceptedPathEnd - acceptedPathStart);
+            "TryInvokeProductionUnifiedBytecode accepted path");
 
-        Assert.DoesNotContain("ExecutionPlanRunner", acceptedPathSource, StringComparison.Ordinal);
-        Assert.DoesNotContain("ExpressionProgram", acceptedPathSource, StringComparison.Ordinal);
-        Assert.DoesNotContain("EvaluateExpression(", acceptedPathSource, StringComparison.Ordinal);
-        Assert.DoesNotContain("ProfileEvaluateExpression(", acceptedPathSource, StringComparison.Ordinal);
-        Assert.DoesNotContain("EvaluateDynamicExpressionProgram(", acceptedPathSource, StringComparison.Ordinal);
+        AssertUnifiedBytecodeAcceptedSectionDoesNotDelegate(acceptedPathSource, "ordinary sync accepted path");
 
         var vmSource = File.ReadAllText(vmPath);
-        Assert.DoesNotContain("ExecutionPlanRunner", vmSource, StringComparison.Ordinal);
-        Assert.DoesNotContain("ExpressionProgram", vmSource, StringComparison.Ordinal);
-        Assert.DoesNotContain("EvaluateExpression(", vmSource, StringComparison.Ordinal);
-        Assert.DoesNotContain("ProfileEvaluateExpression(", vmSource, StringComparison.Ordinal);
-        Assert.DoesNotContain("EvaluateDynamicExpressionProgram(", vmSource, StringComparison.Ordinal);
+        AssertUnifiedBytecodeAcceptedSectionDoesNotDelegate(vmSource, "unified bytecode VM");
+    }
+
+    [Fact]
+    public void SourceGate_ProductionUnifiedBytecodeScriptAndResumableAcceptedPaths_DoNotDelegateToAstOrExecutionPlanRunner()
+    {
+        var repositoryRoot = FindRepositoryRootForSourceGate();
+        var checkedSections = new (string RelativePath, string StartMarker, string EndMarker, string SectionName)[]
+        {
+            (
+                Path.Combine("src", "Asynkron.JsEngine", "Ast", "Legacy", "StatementNodeExtensions.cs"),
+                "private static bool TryRunScriptViaProductionUnifiedBytecode(",
+                "    }\n}",
+                "script accepted path"),
+            (
+                Path.Combine("src", "Asynkron.JsEngine", "Ast", "TypedAstEvaluator.AsyncFunctionInvoker.cs"),
+                "private void DriveUnifiedBytecodeToCompletion(",
+                "private void DriveToCompletion(",
+                "async-function resumable accepted path"),
+            (
+                Path.Combine("src", "Asynkron.JsEngine", "Ast", "TypedAstEvaluator.SyncGeneratorInvoker.cs"),
+                "private static JsValue ExecuteUnifiedBytecodeGeneratorStep(",
+                "protected override void EnsureIntrinsics()",
+                "sync-generator resumable accepted path"),
+            (
+                Path.Combine("src", "Asynkron.JsEngine", "Ast", "TypedAstEvaluator.AsyncGeneratorInvoker.cs"),
+                "private ExecutionPlanRunner.AsyncGeneratorStepResult ExecuteUnifiedBytecodeStep(",
+                "private static UnifiedBytecodeResumeMode ToUnifiedResumeMode(",
+                "async-generator resumable accepted path")
+        };
+
+        Assert.NotEmpty(checkedSections);
+        foreach (var (relativePath, startMarker, endMarker, sectionName) in checkedSections)
+        {
+            var sourcePath = Path.Combine(repositoryRoot.FullName, relativePath);
+            Assert.True(File.Exists(sourcePath), $"Expected accepted-route source at '{sourcePath}'.");
+            var source = File.ReadAllText(sourcePath);
+            var section = ExtractRequiredSourceSection(source, startMarker, endMarker, sectionName);
+
+            Assert.Contains("UnifiedBytecodeVirtualMachine.Execute", section, StringComparison.Ordinal);
+            AssertUnifiedBytecodeAcceptedSectionDoesNotDelegate(section, sectionName);
+        }
     }
 
     private static DirectoryInfo FindRepositoryRootForSourceGate()
@@ -9107,6 +9137,47 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
         }
 
         throw new DirectoryNotFoundException("Could not locate repository root for unified-bytecode source gate.");
+    }
+
+    private static string ExtractRequiredSourceSection(
+        string source,
+        string startMarker,
+        string endMarker,
+        string sectionName)
+    {
+        var start = source.IndexOf(startMarker, StringComparison.Ordinal);
+        Assert.True(start >= 0, $"Could not locate start of {sectionName}: '{startMarker}'.");
+        var end = source.IndexOf(endMarker, start + startMarker.Length, StringComparison.Ordinal);
+        Assert.True(end > start, $"Could not locate end of {sectionName}: '{endMarker}'.");
+        return source.Substring(start, end - start);
+    }
+
+    private static void AssertUnifiedBytecodeAcceptedSectionDoesNotDelegate(string source, string sectionName)
+    {
+        var forbiddenDelegationMarkers = new[]
+        {
+            "new ExecutionPlanRunner(",
+            "ExecutionPlanRunner.RunScript(",
+            "ExecutionPlanRunner.RunSync(",
+            ".ExecuteAsyncStep(",
+            ".RunScriptInternal(",
+            "EvaluateExpression(",
+            "EvaluateExpressionProgram(",
+            "EvaluateLoweredExpressionProgram(",
+            "EvaluateStandaloneExpressionProgram(",
+            "ProfileEvaluateExpression(",
+            "EvaluateDynamicExpressionProgram(",
+            "EvaluateLegacyAstExpression(",
+            "EvaluateLegacyAstExpressionSlow("
+        };
+
+        Assert.NotEmpty(source);
+        foreach (var marker in forbiddenDelegationMarkers)
+        {
+            Assert.False(
+                source.Contains(marker, StringComparison.Ordinal),
+                $"{sectionName} must not delegate through forbidden marker '{marker}'.");
+        }
     }
 
     // This-binding widening proof pack (issue #2633 / ADR 0279)

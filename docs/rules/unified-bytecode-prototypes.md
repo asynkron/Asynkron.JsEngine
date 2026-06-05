@@ -453,13 +453,19 @@ all-or-nothing until a separate routing issue proves production readiness.
      / PR #3284 reinforced that setup-only runner environment creation must be
      named by route boundary. Declined async/generator/async-generator bodies
      use `CreateClassified*DeclinedBodyRunner` helpers and remain fallback
-     inventory, while accepted `super` bodies use
-     `CreateResumableSuperEnvironmentBridgeRunner` only to materialize the
-     environment before `UnifiedBytecodeResumeState` owns execution. Source
-     gates should remove that narrow bridge marker from accepted setup sections
-     without allowing unclassified fallback runner construction or helper
-     definitions inside the accepted route body. Related ADR:
-     `docs/adrs/0347-keep-resumable-runner-construction-classified-by-route-boundary.md`.
+     inventory. Faktorial issue
+     `planitem-planitem-planmanual1780639098493226000-full-unified-bytecode-execution-b-e947984722`
+     / PR #3285 then retired the accepted `super` bridge by snapshotting
+     `SuperBinding` into `UnifiedBytecodeResumeState.ResumableSuperBinding`.
+     Source gates should treat `CreateResumableSuperEnvironmentBridgeRunner`
+     and runner-backed `GetOrCreateExecutionEnvironmentForInternalUse` setup as
+     tombstones for accepted resumable `super` paths, while requiring the
+     `TryCreateResumableSuperBinding` / `ResumableSuperBinding = ...` setup
+     markers and still rejecting unclassified fallback runner construction or
+     helper definitions inside the accepted route body. Related ADRs:
+     `docs/adrs/0347-keep-resumable-runner-construction-classified-by-route-boundary.md`
+     and
+     `docs/adrs/0348-keep-resumable-super-binding-vm-owned-without-runner-bridges.md`.
 10k. When retiring ordinary sync runner residue, convert the source gate from
      a classified fallback allowance to a tombstone. `TryInvokeIrFast<TArgs>(...)`
      must not construct `ExecutionPlanRunner`, call `.RunSync(`, or silently

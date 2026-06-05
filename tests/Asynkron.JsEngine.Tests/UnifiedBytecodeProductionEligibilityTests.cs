@@ -6690,10 +6690,21 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
             instruction.OpCode == UnifiedBytecodeOpCode.IteratorInit);
     }
 
-    // ── AC-5 negative fallback proof (#2678): unsupported async-driver sub-shapes ──
-    // The TDZ-head admit must not leak the async-iterator kind. Async drivers live inside
-    // async functions, which decline before plan inspection, so this exercises the decline
-    // arm directly.
+    // A48 direct gate proof: async drivers live inside async functions that decline before
+    // plan inspection, so these helpers exercise the iterator-kind boundary directly.
+
+    [Fact]
+    public void IsSupportedIteratorInit_SyncIterableSource_Accepts()
+    {
+        var instruction = new IteratorInitInstruction(
+            IteratorDriverKind.Sync,
+            Symbol.Synthetic("__iter_state"),
+            IteratorSlotIndex: 0,
+            Next: -1,
+            IterableProgram: ExpressionProgram.Empty);
+
+        Assert.True(UnifiedBytecodeProductionEligibility.IsSupportedIteratorInit(instruction, out var reason), reason);
+    }
 
     [Fact]
     public void IsSupportedIteratorInit_AsyncKind_Declines()
@@ -6707,6 +6718,34 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
 
         Assert.False(UnifiedBytecodeProductionEligibility.IsSupportedIteratorInit(instruction, out var reason));
         Assert.Contains("Async iterator driver state", reason, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void IsSupportedIteratorInit_AsyncKindWithAwaitedSource_DeclinesWithAsyncReason()
+    {
+        var instruction = new IteratorInitInstruction(
+            IteratorDriverKind.Await,
+            Symbol.Synthetic("__iter_state"),
+            IteratorSlotIndex: 0,
+            Next: -1,
+            IterableProgram: null,
+            AwaitedProgram: ExpressionProgram.Empty);
+
+        Assert.False(UnifiedBytecodeProductionEligibility.IsSupportedIteratorInit(instruction, out var reason));
+        Assert.Contains("Async iterator driver state", reason, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void IsSupportedIteratorInit_MissingSourcePayload_Declines()
+    {
+        var instruction = new IteratorInitInstruction(
+            IteratorDriverKind.Sync,
+            Symbol.Synthetic("__iter_state"),
+            IteratorSlotIndex: 0,
+            Next: -1);
+
+        Assert.False(UnifiedBytecodeProductionEligibility.IsSupportedIteratorInit(instruction, out var reason));
+        Assert.Contains("exactly one expression bytecode payload", reason, StringComparison.Ordinal);
     }
 
     [Fact]

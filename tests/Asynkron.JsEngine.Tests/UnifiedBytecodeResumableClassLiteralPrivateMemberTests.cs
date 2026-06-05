@@ -105,6 +105,101 @@ public sealed class UnifiedBytecodeResumableClassLiteralPrivateMemberTests(ITest
     }
 
     [Fact]
+    public void EvaluateResumable_PrivateMethodCapturingLocal_StillDeclines()
+    {
+        var plan = GetFunctionPlan("""
+            function* g() {
+                var n = 1;
+                const C = class {
+                    constructor() {
+                        this.value = this.#read();
+                    }
+
+                    #read() {
+                        return n;
+                    }
+                };
+                yield new C().value;
+                n = 2;
+                yield new C().value;
+            }
+            """,
+            "g");
+
+        var result = UnifiedBytecodeProductionEligibility.EvaluateResumable(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor(IsGenerator: true));
+
+        Assert.False(result.IsEligible);
+        Assert.Contains(
+            "private member body captures activation binding 'n'",
+            result.Reason,
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void EvaluateResumable_PrivateAccessorCapturingLocal_StillDeclines()
+    {
+        var plan = GetFunctionPlan("""
+            function* g() {
+                var n = 1;
+                const C = class {
+                    get #read() {
+                        return n;
+                    }
+
+                    constructor() {
+                        this.value = this.#read;
+                    }
+                };
+                yield new C().value;
+            }
+            """,
+            "g");
+
+        var result = UnifiedBytecodeProductionEligibility.EvaluateResumable(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor(IsGenerator: true));
+
+        Assert.False(result.IsEligible);
+        Assert.Contains(
+            "private member body captures activation binding 'n'",
+            result.Reason,
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void EvaluateResumable_PrivateMemberClassConstructorCapturingLocal_StillDeclines()
+    {
+        var plan = GetFunctionPlan("""
+            function* g() {
+                var n = 1;
+                const C = class {
+                    constructor() {
+                        this.value = n;
+                    }
+
+                    #tag() {
+                        return 0;
+                    }
+                };
+                yield new C().value;
+            }
+            """,
+            "g");
+
+        var result = UnifiedBytecodeProductionEligibility.EvaluateResumable(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor(IsGenerator: true));
+
+        Assert.False(result.IsEligible);
+        Assert.Contains(
+            "constructor body captures activation binding 'n'",
+            result.Reason,
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void EvaluateResumable_ExtendsClassLiteral_StillDeclines()
     {
         var plan = GetFunctionPlan("""
@@ -190,11 +285,40 @@ public sealed class UnifiedBytecodeResumableClassLiteralPrivateMemberTests(ITest
         AssertAsyncFastPath("run", argc: 2);
     }
 
+    [Fact(Timeout = 5000)]
+    public async Task GeneratorPrivateMethodCapturesLocalAcrossYields_CorrectButDeclinesToRunner()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function* g(){
+                var n = 1;
+                const C = class {
+                    constructor() { this.value = this.#read(); }
+                    #read() { return n; }
+                };
+                yield new C().value;
+                n = 2;
+                yield new C().value;
+            }
+            const it = g();
+            const a = it.next().value;
+            const b = it.next().value;
+            a + "|" + b;
+            """);
+
+        Assert.Equal("1|2", result);
+        AssertGeneratorNotRouted();
+    }
+
     private void AssertGeneratorFastPath(string functionName, int argc) =>
         Assert.Contains(CurrentLogger!.Collector.Snapshot(),
             record => record.Message.Contains(
                 $"{ResumableGeneratorFastPathLog} func={functionName} argc={argc}",
                 StringComparison.Ordinal));
+
+    private void AssertGeneratorNotRouted() =>
+        Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(),
+            record => record.Message.Contains(ResumableGeneratorFastPathLog, StringComparison.Ordinal));
 
     private void AssertAsyncFastPath(string functionName, int argc) =>
         Assert.Contains(CurrentLogger!.Collector.Snapshot(),

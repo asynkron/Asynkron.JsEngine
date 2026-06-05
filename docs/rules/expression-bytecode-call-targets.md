@@ -164,10 +164,12 @@ narrow: syntactic one-argument non-spread direct eval only, compiled through
 the existing dynamic identifier call-target preparation, tagged by a packed
 direct-eval bit on `CallInvocationBoundary`, and executed through the same-engine
 `EvalHostFunction.InvokeDirectSingleArgumentFast` path with caller slot
-resynchronization afterward. Later review narrowed this further to
-declaration-free literal eval source; identifier-loaded runtime text can inject
-bindings whose names are unknown before VM execution, so it must stay on IR.
-The delivery also hit construct-boundary rebase
+resynchronization afterward. Issue
+`planitem-planmanual1780639098493226000-full-unified-bytecode-execution-burndown-b-4e57b65e02`
+/ PR #3230 narrowed this further to declaration-free literal eval source;
+identifier-loaded runtime text can inject bindings whose names are unknown
+before VM execution, so it must stay on IR. The delivery also hit
+construct-boundary rebase
 fallout because construct sites reuse the same operand-packing helper. The
 durable lesson is that widening executable call families must move three
 surfaces together — activation gating, boundary-local directness metadata, and
@@ -186,4 +188,7 @@ opcode: they depend on both super lookup and receiver preservation across
 suspension. Super construct stays out of this route because constructor-state
 ownership was not proven by the legal generator/async method shapes in B12.
 
-Related ADR: `docs/adrs/0326-admit-resumable-super-member-calls-through-captured-method-environment.md`.
+Related ADRs:
+
+- `docs/adrs/0326-admit-resumable-super-member-calls-through-captured-method-environment.md`
+- `docs/adrs/0338-keep-direct-eval-production-bytecode-literal-and-declaration-free.md`

@@ -4244,6 +4244,34 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
             instruction => instruction.OpCode == UnifiedBytecodeOpCode.LoadClassLiteral);
     }
 
+    [Fact]
+    public void Evaluate_ClassLiteralWithComputedMemberAndFieldNames_AcceptsAndCompilesClassLiteralOpcode()
+    {
+        var plan = GetFunctionPlan("""
+            function makeComputedClass(methodKey, instanceKey, staticKey, seed) {
+                return class {
+                    [methodKey]() {
+                        return this[instanceKey] + this.constructor[staticKey] + seed;
+                    }
+
+                    [instanceKey] = 10;
+                    static [staticKey] = 20;
+                };
+            }
+            """,
+            "makeComputedClass");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(
+            result.Program.Instructions,
+            instruction => instruction.OpCode == UnifiedBytecodeOpCode.LoadClassLiteral);
+    }
+
     [Theory]
     [MemberData(nameof(AcceptedPropertyWriteAndUpdatePrograms))]
     public void Evaluate_AcceptedPropertyWriteAndUpdatePrograms_StayWithinOwnedOpcodeSubset(

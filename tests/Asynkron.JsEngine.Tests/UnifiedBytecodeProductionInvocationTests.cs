@@ -293,6 +293,30 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     }
 
     [Fact(Timeout = 5000)]
+    public async Task TopLevelC3ComposedAdmittedScript_UsesUnifiedBytecodeProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            var source = { head: 2, tail: 3, extra: 5 };
+            var { head, ...rest } = source;
+            let box = { value: head, add(n) { return this.value + n; } };
+            let total = Math.pow(box.add(rest.tail), 2);
+
+            if (rest.extra > 4) {
+                total += Math.sqrt(16);
+            }
+
+            total;
+            """);
+
+        Assert.Equal(29d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path script",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task IdentifierCallWithOptionalNamedPropertyReadArgument_UsesUnifiedBytecodeProductionFastPath()
     {
         await using var engine = CreateEngine();

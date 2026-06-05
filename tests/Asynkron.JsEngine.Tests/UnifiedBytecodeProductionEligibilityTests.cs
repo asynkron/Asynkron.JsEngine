@@ -317,6 +317,92 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
         Assert.Contains("destructuring target", result.Reason, StringComparison.Ordinal);
     }
 
+    public static TheoryData<string, string, int[]> C3RepresentativeScriptRows => new()
+    {
+        {
+            "property-read-call-control-flow",
+            """
+            let box = { value: 1, add(n) { return this.value + n; } };
+            let total = 0;
+            for (let i = 0; i < 3; i++) {
+                if (i === 1) {
+                    continue;
+                }
+
+                total += box.add(i);
+            }
+
+            total;
+            """,
+            [
+                (int)UnifiedBytecodeOpCode.PrepareNamedCallTarget,
+                (int)UnifiedBytecodeOpCode.JumpIfFalse,
+                (int)UnifiedBytecodeOpCode.Jump
+            ]
+        },
+        {
+            "script-var-destructuring-dynamic-targets",
+            """
+            var source = { head: 2, tail: 3, extra: 5 };
+            var { head, ...rest } = source;
+            head + rest.tail + rest.extra;
+            """,
+            [
+                (int)UnifiedBytecodeOpCode.ObjectDestructuringInit,
+                (int)UnifiedBytecodeOpCode.ObjectDestructuringRest
+            ]
+        },
+        {
+            "dynamic-global-read-call-and-completion",
+            """
+            let base = Math.max(1, 5);
+            let next = Math.pow(base, 2);
+            next - Math.sqrt(16);
+            """,
+            [
+                (int)UnifiedBytecodeOpCode.LoadDynamicIdentifier,
+                (int)UnifiedBytecodeOpCode.PrepareNamedCallTarget,
+                (int)UnifiedBytecodeOpCode.CallInvocationBoundary
+            ]
+        }
+    };
+
+    [Theory]
+    [MemberData(nameof(C3RepresentativeScriptRows))]
+    public void EvaluateScript_C3RepresentativeAdmittedShapes_InheritSharedProductionGate(
+        string name,
+        string source,
+        int[] expectedOpCodes)
+    {
+        var plan = GetScriptPlan(source);
+
+        var result = UnifiedBytecodeProductionEligibility.EvaluateScript(plan);
+
+        Assert.True(result.IsEligible, $"{name}: {result.Code} {result.Reason}");
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.True(result.Program.ScriptCompletionSlot >= 0);
+        foreach (var expectedOpCode in expectedOpCodes)
+        {
+            Assert.Contains(result.Program.Instructions, instruction =>
+                instruction.OpCode == (UnifiedBytecodeOpCode)expectedOpCode);
+        }
+    }
+
+    [Fact]
+    public void EvaluateScript_C3TrueDynamicResidue_DirectEvalInjectedBindingStaysDeclined()
+    {
+        var plan = GetScriptPlan("""
+            eval("var injected = 1");
+            injected;
+            """);
+
+        var result = UnifiedBytecodeProductionEligibility.EvaluateScript(plan);
+
+        Assert.False(result.IsEligible);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.CallDependency, result.Code);
+        Assert.Contains("eval", result.Reason, StringComparison.OrdinalIgnoreCase);
+    }
+
     [Fact]
     public void Evaluate_AsyncLikeActivation_DeclinesBeforePlanInspection()
     {

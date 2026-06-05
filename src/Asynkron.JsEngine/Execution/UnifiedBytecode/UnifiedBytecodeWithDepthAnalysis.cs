@@ -67,6 +67,18 @@ internal static class UnifiedBytecodeWithDepthAnalysis
 
                     break;
 
+                case EnterTryInstruction enterTry:
+                    if (!TryPush(enterTry.Next, successorWithDepth, instructions, pending, out reason) ||
+                        (enterTry.HandlerIndex >= 0 &&
+                         !TryPush(enterTry.HandlerIndex, successorWithDepth, instructions, pending, out reason)) ||
+                        (enterTry.FinallyIndex >= 0 &&
+                         !TryPush(enterTry.FinallyIndex, successorWithDepth, instructions, pending, out reason)))
+                    {
+                        return false;
+                    }
+
+                    break;
+
                 case JumpInstruction jump:
                     if (!TryPush(jump.TargetIndex, successorWithDepth, instructions, pending, out reason))
                     {

@@ -2047,14 +2047,14 @@ internal static class UnifiedBytecodeProductionEligibility
         if (ClassExtendsReadsUnifiedSlot(definition, program.SlotNames))
         {
             declineReason =
-                "Class literal is outside B24: extends expressions that read resumable activation slots need a later class-definition environment slice.";
+                "Class literal is outside B24: extends expressions that read resumable activation slots need a later class-definition environment slice; admitted subsets include the B24c public static-field subset.";
             return false;
         }
 
         if (!definition.StaticBlocks.IsDefaultOrEmpty || !definition.StaticElements.IsDefaultOrEmpty)
         {
             declineReason =
-                "Class literal is outside B24: static elements remain owned by later B24 static-field/static-block slices.";
+                "Class literal is outside B24: static elements remain owned by later B24 static-field/static-block slices; admitted subsets include the B24c public static-field subset.";
             return false;
         }
 
@@ -2097,7 +2097,7 @@ internal static class UnifiedBytecodeProductionEligibility
         if (!AreResumableB24ClassMembersSupported(definition, isPrivateInstanceFieldClassLiteral))
         {
             declineReason =
-                "Class literal is outside B24: computed or static class members remain later B24 slices.";
+                "Class literal is outside B24: computed or static class members remain later B24 slices; admitted subsets include the B24c public static-field subset.";
             return false;
         }
 

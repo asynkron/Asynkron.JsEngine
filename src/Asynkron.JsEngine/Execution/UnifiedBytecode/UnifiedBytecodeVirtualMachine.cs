@@ -3361,6 +3361,12 @@ internal static class UnifiedBytecodeVirtualMachine
             }
 
             CleanupActiveDriverStates(slots, slotEnvironments, context, false);
+            if (!DisposeActiveFunctionEnvironmentResources(currentEnvironment, context))
+            {
+                returnValue = JsValue.Undefined;
+                return true;
+            }
+
             returnValue = context.ShouldStopEvaluation ? JsValue.Undefined : pending.Value;
             return true;
         }
@@ -3417,6 +3423,7 @@ internal static class UnifiedBytecodeVirtualMachine
 
         context.SetThrow(pending.Value);
         CleanupActiveDriverStates(slots, slotEnvironments, context, true);
+        DisposeActiveFunctionEnvironmentResources(currentEnvironment, context);
         returnValue = JsValue.Undefined;
         return true;
     }

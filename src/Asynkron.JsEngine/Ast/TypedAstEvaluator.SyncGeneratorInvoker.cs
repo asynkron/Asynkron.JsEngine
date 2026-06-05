@@ -44,7 +44,7 @@ public static partial class TypedAstEvaluator
                 return JsValue.FromJsObject(unifiedIterator);
             }
 
-            var runner = CreateRunner(arguments, thisValue);
+            var runner = CreateClassifiedGeneratorDeclinedBodyRunner(arguments, thisValue);
             runner.Initialize();
             return (JsValue)runner.CreateGeneratorObject();
         }
@@ -152,7 +152,7 @@ public static partial class TypedAstEvaluator
 
             if (RequiresResumableSuperEnvironment(program))
             {
-                callingEnvironment = CreateRunner(arguments, thisValue)
+                callingEnvironment = CreateResumableSuperEnvironmentBridgeRunner(arguments, thisValue)
                     .GetOrCreateExecutionEnvironmentForInternalUse();
             }
 

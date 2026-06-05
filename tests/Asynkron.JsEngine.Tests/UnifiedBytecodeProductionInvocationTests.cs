@@ -9260,6 +9260,33 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
             Assert.Contains("new UnifiedBytecodeResumeState", section, StringComparison.Ordinal);
             AssertUnifiedBytecodeAcceptedSectionDoesNotDelegate(sectionWithoutRequiredSetup, sectionName);
         }
+
+        var asyncGeneratorInvokerPath = Path.Combine(
+            repositoryRoot.FullName,
+            "src",
+            "Asynkron.JsEngine",
+            "Ast",
+            "TypedAstEvaluator.AsyncGeneratorInvoker.cs");
+        Assert.True(
+            File.Exists(asyncGeneratorInvokerPath),
+            $"Expected async-generator invoker source at '{asyncGeneratorInvokerPath}'.");
+        var asyncGeneratorInvokerSource = File.ReadAllText(asyncGeneratorInvokerPath);
+        var asyncGeneratorFallbackSection = ExtractRequiredSourceSection(
+            asyncGeneratorInvokerSource,
+            "private ExecutionPlanRunner CreateClassifiedAsyncGeneratorDeclinedBodyRunner()",
+            "private ExecutionPlanRunner.AsyncGeneratorStepResult ExecuteStep(",
+            "classified async-generator declined-body fallback");
+        var asyncGeneratorStepDispatcher = ExtractRequiredSourceSection(
+            asyncGeneratorInvokerSource,
+            "private ExecutionPlanRunner.AsyncGeneratorStepResult ExecuteStep(",
+            "private ExecutionPlanRunner.AsyncGeneratorStepResult ExecuteUnifiedBytecodeStep(",
+            "async-generator step dispatcher");
+
+        Assert.Contains("new ExecutionPlanRunner(", asyncGeneratorFallbackSection, StringComparison.Ordinal);
+        Assert.Contains("planOverride: planSeed.Plan", asyncGeneratorFallbackSection, StringComparison.Ordinal);
+        Assert.Contains("planFailureOverride: planSeed.Failure", asyncGeneratorFallbackSection, StringComparison.Ordinal);
+        Assert.Contains("ExecuteUnifiedBytecodeStep(ToUnifiedResumeMode(mode), argument, unifiedState)", asyncGeneratorStepDispatcher, StringComparison.Ordinal);
+        Assert.Contains("_inner!.ExecuteAsyncStep(ToRunnerResumeMode(mode), argument)", asyncGeneratorStepDispatcher, StringComparison.Ordinal);
     }
 
     private static DirectoryInfo FindRepositoryRootForSourceGate()
@@ -9336,6 +9363,8 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
             "new ExecutionPlanRunner(",
             "ExecutionPlanRunner.RunScript(",
             "ExecutionPlanRunner.RunSync(",
+            ".RunScript(",
+            ".RunSync(",
             "ExpressionProgram",
             ".ExecuteAsyncStep(",
             ".RunScriptInternal(",

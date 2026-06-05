@@ -227,6 +227,72 @@ public sealed class UnifiedBytecodeAsyncGeneratorRouteTests(ITestOutputHelper ou
     }
 
     [Fact(Timeout = 5000)]
+    public async Task AsyncGeneratorTryFinallyCleanup_RoutesResumableAndRunsCleanup()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.EvaluateAndAwait("""
+            var output = undefined;
+            let log = [];
+
+            async function* gen() {
+                try {
+                    log.push("try-start");
+                    yield "body";
+                    log.push("try-end");
+                } finally {
+                    log.push("finally-start");
+                    log.push("finally-end");
+                }
+            }
+
+            async function run() {
+                var iterator = gen();
+                var first = await iterator.next();
+                var second = await iterator.next();
+                return first.value + ":" + first.done + "|" +
+                    String(second.value) + ":" + second.done + "|" +
+                    log.join("|");
+            }
+
+            run().then(value => output = value);
+            output;
+            """);
+
+        Assert.Equal(
+            "body:false|undefined:true|try-start|try-end|finally-start|finally-end",
+            result?.ToString());
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            record => record.Message.Contains(
+                $"{ResumableAsyncGeneratorFastPathLog} func=gen argc=0",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task AsyncGeneratorDefaultParameter_DeclinesResumableButSettles()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.EvaluateAndAwait("""
+            var output = undefined;
+
+            async function* values(x = 7) {
+                yield x;
+            }
+
+            async function run() {
+                var iterator = values();
+                var first = await iterator.next();
+                return first.value + ":" + first.done;
+            }
+
+            run().then(value => output = value);
+            output;
+            """);
+
+        Assert.Equal("7:false", result?.ToString());
+        AssertNotRouted("func=values");
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task AsyncGeneratorNonSimpleParameter_DeclinesResumableButSettlesBeforeBody()
     {
         await using var engine = CreateEngine();
@@ -250,6 +316,31 @@ public sealed class UnifiedBytecodeAsyncGeneratorRouteTests(ITestOutputHelper ou
             """);
 
         Assert.Equal("7:false|default,body:7", result?.ToString());
+        AssertNotRouted("func=values");
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task AsyncGeneratorDestructuringParameter_DeclinesResumableButSettles()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.EvaluateAndAwait("""
+            var output = undefined;
+
+            async function* values([x]) {
+                yield x;
+            }
+
+            async function run() {
+                var iterator = values([1]);
+                var first = await iterator.next();
+                return first.value + ":" + first.done;
+            }
+
+            run().then(value => output = value);
+            output;
+            """);
+
+        Assert.Equal("1:false", result?.ToString());
         AssertNotRouted("func=values");
     }
 

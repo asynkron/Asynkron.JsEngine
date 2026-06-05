@@ -3666,6 +3666,33 @@ internal static class UnifiedBytecodeVirtualMachine
                         break;
                     }
 
+                case UnifiedBytecodeOpCode.LoadClassLiteral:
+                    {
+                        var classEnvironment = RequireDynamicEnvironment(state.CallingEnvironment);
+                        SyncUnifiedSlotsToEnvironment(program, slots, slotEnvironments: null, classEnvironment);
+                        try
+                        {
+                            PushResumableValue(TypedAstEvaluator.CreateClassValueFromLiteral(
+                                program.ClassLiteralConstants[instruction.Operand],
+                                classEnvironment,
+                                context));
+                        }
+                        catch (ThrowSignal signal)
+                        {
+                            context.SetThrow(signal.ThrownValue);
+                        }
+
+                        SyncEnvironmentToUnifiedSlots(program, slots, slotEnvironments: null, classEnvironment);
+                        if (context.ShouldStopEvaluation)
+                        {
+                            state.IsCompleted = true;
+                            return UnifiedBytecodeStepResult.Throw(context.FlowValue);
+                        }
+
+                        programCounter++;
+                        break;
+                    }
+
                 case UnifiedBytecodeOpCode.EnsureHasName:
                     {
                         var targetName = program.StringConstants[instruction.Operand];

@@ -1915,6 +1915,7 @@ internal static class UnifiedBytecodeProductionEligibility
                 UnifiedBytecodeOpCode.CallInvocationBoundary or
                 UnifiedBytecodeOpCode.LoadFunctionLiteral or
                 UnifiedBytecodeOpCode.EnsureHasName or
+                UnifiedBytecodeOpCode.LoadClassLiteral or
                 // Synchronous construct dispatch (non-optional `new C(args)`). Mirrors the admitted
                 // CallInvocationBoundary (#3108): the constructor value and its simple/spread arguments are
                 // lowered onto the operand stack by preceding ops in source order (a regular value load —
@@ -1983,6 +1984,15 @@ internal static class UnifiedBytecodeProductionEligibility
                 UnifiedBytecodeOpCode.ArrayPushHole or
                 UnifiedBytecodeOpCode.ArraySpread)
             {
+                if (instruction.OpCode == UnifiedBytecodeOpCode.LoadClassLiteral &&
+                    !IsB24aConstructorOnlyClassLiteral(
+                        program,
+                        program.ClassLiteralConstants[instruction.Operand],
+                        out declineReason))
+                {
+                    return true;
+                }
+
                 continue;
             }
 
@@ -1992,6 +2002,98 @@ internal static class UnifiedBytecodeProductionEligibility
         }
 
         declineReason = string.Empty;
+        return false;
+    }
+
+    private static bool IsB24aConstructorOnlyClassLiteral(
+        UnifiedBytecodeProgram program,
+        ClassExpression classExpression,
+        out string declineReason)
+    {
+        var definition = classExpression.Definition;
+        if (!definition.Fields.IsDefaultOrEmpty)
+        {
+            declineReason =
+                "Class literal is outside B24a: class fields remain owned by later B24 field/private/computed-member slices.";
+            return false;
+        }
+
+        if (!definition.StaticBlocks.IsDefaultOrEmpty || !definition.StaticElements.IsDefaultOrEmpty)
+        {
+            declineReason =
+                "Class literal is outside B24a: static elements remain owned by later B24 static-field/static-block slices.";
+            return false;
+        }
+
+        if (!definition.Members.IsDefaultOrEmpty)
+        {
+            declineReason =
+                "Class literal is outside B24a: class methods, accessors, computed members, private members, and member super semantics remain later B24 slices.";
+            return false;
+        }
+
+        if (ClassExtendsReadsUnifiedSlot(definition, program.SlotNames))
+        {
+            declineReason =
+                "Class literal is outside B24a: extends expressions that read resumable activation slots need a later class-definition environment slice.";
+            return false;
+        }
+
+        declineReason = string.Empty;
+        return true;
+    }
+
+    private static bool ClassExtendsReadsUnifiedSlot(
+        ClassDefinition definition,
+        ImmutableArray<string?> slotNames)
+    {
+        if (definition.Extends is null)
+        {
+            return false;
+        }
+
+        var cache = ((IAstCacheable<ClassDefinitionProgramCache>)definition).GetOrCreateCache();
+        if (!cache.Succeeded || cache.ExtendsProgram is not { } extendsProgram)
+        {
+            return false;
+        }
+
+        var identifierConstants = extendsProgram.IdentifierConstants.AsSpan();
+        for (var operationIndex = 0; operationIndex < extendsProgram.OperationCount; operationIndex++)
+        {
+            var operation = extendsProgram.GetOperation(operationIndex);
+            if (operation.Kind is not (
+                    ExpressionOpKind.LoadIdentifier or
+                    ExpressionOpKind.LoadIdentifierCallTarget or
+                    ExpressionOpKind.ResolveIdentifierReference or
+                    ExpressionOpKind.StoreIdentifier or
+                    ExpressionOpKind.UpdateIdentifier or
+                    ExpressionOpKind.TypeOfIdentifier or
+                    ExpressionOpKind.DeleteIdentifier))
+            {
+                continue;
+            }
+
+            var identifier = operation.GetIdentifier(identifierConstants);
+            if (identifier.FlatSlotId >= 0 || SlotNamesContain(slotNames, identifier.Name.Name))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool SlotNamesContain(ImmutableArray<string?> slotNames, string name)
+    {
+        for (var i = 0; i < slotNames.Length; i++)
+        {
+            if (string.Equals(slotNames[i], name, StringComparison.Ordinal))
+            {
+                return true;
+            }
+        }
+
         return false;
     }
 

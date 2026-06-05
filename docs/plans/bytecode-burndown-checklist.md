@@ -10,14 +10,14 @@ plus an adversarial grammar-completeness audit. Authoritative gate:
 `src/Asynkron.JsEngine/Execution/UnifiedBytecode/UnifiedBytecodeProductionEligibility.cs`
 (`Evaluate` / `EvaluateScript` / `EvaluateResumable`).
 
-> **Completeness status (from the adversarial audit): this list is currently a
-> LOWER BOUND, not yet a proven ceiling.** Because the eligibility gate runs
-> *after* the compiler lowers the AST, constructs that lowering erases (`switch`,
-> `do-while`, `debugger`, sequence expr, BigInt, `static {}`, super-in-field-init,
-> ordinary `new.target`, labeled non-loop break) have no named line — they are
-> folded into admitted primitives or named compiler-decline leaves. **Phase 0
-> below closes the remaining coarse gaps and makes the count final.** Until Phase
-> 0 is done, treat the totals as a floor.
+> **Completeness status (from the adversarial audit): Phase 0 has closed the
+> known inventory holes.** Constructs that lowering erases (`switch`, `do-while`,
+> `debugger`, sequence expr, BigInt, `static {}`, super-in-field-init, ordinary
+> `new.target`, labeled non-loop break) are now mapped to grammar coverage,
+> compiler-decline leaves, opcode/allowlist gap inventories, or the decomposed
+> A35/B24 leaves below. Treat the checklist as the current finite burn-down list;
+> future source drift must update the matching audited inventory in the same
+> slice.
 
 **Definition of done** — all must hold simultaneously and be machine-checkable:
 1. No decline code fires for any non-dynamic shape (only the §Dynamic-Residue set).
@@ -45,12 +45,12 @@ non-awaited `with`, the `Function` call boundary itself.
 - [x] **P0.1** Grammar-coverage appendix → `docs/plans/bytecode-grammar-coverage.md` ✅ (covers switch+`let`, do-while, sequence, BigInt literal/arithmetic/`typeof`, `static {}`, super-in-instance/static-fields, `new.target`, labeled-block break — each mapped to its lowering owner + test anchor). **Surfaced 1 real new leaf → A52 (`debugger;`).**
 - [x] **P0.2** Enumerate the `UnsupportedPlanShape` compiler umbrellas (A51 / B47 / E2): promoted current `UnifiedBytecodeCompiler.TryCompile` reason templates into named owner leaves A51a-A51m plus B47a, with exact source-template drift coverage in `docs/unified-bytecode-expansion-contract.md`.
 - [x] **P0.3** Diff `UnifiedBytecodeOpCode` enum vs the sync admit-switch (E3) and the two resumable allowlists; name every enum/instruction-but-not-admitted gap. ✅ (2026-06-05): contract now drift-checks sync prototype opcode guard gaps (6 resumable-only opcodes), resumable opcode allowlist gaps (36 opcodes), and resumable instruction allowlist gaps (12 instruction records) against source.
-- [ ] **P0.4** Decompose the coarse leaves: split **B24** (class expression) into per-member shapes (constructor, instance fields, static fields, static blocks, private fields, private methods, accessors, computed members, super-in-members) and **A35** into its 4 object-literal-member opcodes.
+- [x] **P0.4** Decompose the coarse leaves: split **B24** (class expression) into per-member shapes and **A35** into concrete object-literal member opcode leaves. ✅ (2026-06-05): A35 is now A35a-A35e; B24 is now B24a-B24i; the expansion contract drift-checks both decompositions.
 - [x] **P0.5** Delete the dead `LabelControlFlow` enum member + stale contract-doc rows (zero emission sites; labeled loop break/continue already admitted on sync). *(= old E1.)*
 
 ---
 
-## Phase A — Synchronous admission surface (64 items, by decline code / promoted compiler leaf)
+## Phase A — Synchronous admission surface (69 items, by decline code / promoted compiler leaf)
 
 Status: ☐ declined · ◐ partial · ☑ admitted (parity work remains on other engine)
 
@@ -88,7 +88,11 @@ Status: ☐ declined · ◐ partial · ☑ admitted (parity work remains on othe
 - [ ] **A32** Optional-chain delete chained `delete a?.b?.c` — *OptionalChainDependency* — ☐/☐ — `:1619` — ⚠️ FOUNDATION: ExpressionProgram IR is lossy for optional-chain deletes (terminal-hop optionality not encoded; `delete a?.b?.c` == `delete a?.b.c` in bytecode). Needs an IR-lowering change preserving terminal-hop optionality (broad blast radius, both interpreter + VM). Not a sync-route slice.
 - [x] **A33** Array spread non-simple source `[...f().items]`, `[...gen()]` — *ObjectLiteralOrSpreadDependency* — ◐/◐ — `:2014` ✅ #3166
 - [x] **A34** Object spread non-simple source `{...f()}` — *ObjectLiteralOrSpreadDependency* — ◐/◐ — `:2036` ✅ #3167
-- [x] **A35** Computed key / method / accessor object literal outside simple span *(decompose → P0.4)* — *ObjectLiteralOrSpreadDependency* — ☑/☐ — `:2019` ✅ (basics pinned `AlreadyRoutingShapePinTests`; complex members commit 9e53768d2): complex computed key `{[a+b]:1}`/`{[f()]:1}`, complex/member-call values, computed method/getter, getter/setter pairs, `__proto__`, mixed kinds, spread-in-middle all route. NEW admissions: bare-identifier-call values `{x:g()}`, method/accessor-then-later-member `{m(){}, ...o}`, and method/accessor-only literal as a property-read base. Eval order L-to-R proven. Remaining (declined, separate lanes): calling a method off a literal base `({m(){}}).m()` (call-boundary), direct-eval value.
+- [x] **A35a** Computed data property object literal (`DefineComputedObjectProperty`) — *ObjectLiteralOrSpreadDependency* — ☑/☑ — `:2019` ✅ computed keys/values route in sync and resumable literal spans; non-admitted key/value sub-shapes stay owned by their underlying dependency rows.
+- [x] **A35b** Static shorthand method object literal (`DefineObjectMethod`) — *ObjectLiteralOrSpreadDependency* — ☑/☐ — `:2019` ✅ sync route pinned; resumable still declines because the method value lowers through `LoadFunctionLiteral` (B23/B36 foundation), not because the define opcode lacks a handler.
+- [x] **A35c** Computed shorthand method object literal (`DefineComputedObjectMethod`) — *ObjectLiteralOrSpreadDependency* — ☑/☐ — `:2019` ✅ sync route pinned with computed-key order; resumable remains blocked by `LoadFunctionLiteral`.
+- [x] **A35d** Static accessor object literal (`DefineObjectAccessor`) — *ObjectLiteralOrSpreadDependency* — ☑/☐ — `:2019` ✅ sync route pinned; resumable remains blocked by `LoadFunctionLiteral`.
+- [x] **A35e** Computed accessor object literal (`DefineComputedObjectAccessor`) — *ObjectLiteralOrSpreadDependency* — ☑/☐ — `:2019` ✅ sync route pinned; resumable remains blocked by `LoadFunctionLiteral`.
 - [x] **A36** Private-field define in object literal `{#x:v}` — *PrivateFieldDependency* — n/a — `:2042` ✅ (commit 45aea8402): RESOLVED — `{#x:v}` is not a valid shape; the parser previously (wrongly) accepted it as a property named `"#x"`. Now `ParseObjectPropertyKey` throws a SyntaxError (private names are class-body-only), matching spec. Nothing to admit; the decline path is unreachable for valid input.
 - [x] **A37** Private-named mutation outside admitted direct shapes — *PrivateFieldDependency* — ☑/◐ — `:1093` ✅ (commit 2378907f0, 7 ratchet pins, no source change): private-field mutation is ALREADY fully admitted — plain write `this.#x=v`, `++`/`--`, simple compound `+=`, cross-instance `other.#x=v`, complex-RHS `this.#x=a*b+c` (via 830236be0), and private method call `this.#m()` all route. The 2 residual declines are NOT private-specific and are separate items: (1) private READ as a nested value operand (`this.#x = this.#x + a` — a private-read admission concern, general to reads); (2) ~~compound-assign with a COMPLEX RHS (`x += a + b`)~~ — ✅ NOW ADMITTED (commit e06f13cf5): named + computed compound writes with complex RHS route, and this also covers the private compound `this.#x += a + b` residual. Only the private READ-as-operand residual (1) remains.
 - [x] **A38** for-in unsupported driver source (awaited / non-lowered) — *ForInDriverStateDependency* — ☑/☑ — `:524` ✅ (Codex)
@@ -120,7 +124,7 @@ Status: ☐ declined · ◐ partial · ☑ admitted (parity work remains on othe
 - [ ] **A51m** Measured property-read span rollback diagnostics — owner: measured span helpers; fallback route: existing property-read expression evaluation; sync/resumable: both.
 - [x] **A52** `debugger;` statement — *(new leaf from P0.1)* — ☑/☑ — ✅ (commit d01faf31f): was not a keyword — lexed as Identifier and threw `ReferenceError` at runtime. Now a reserved word (`TokenType.Debugger`) lowered to the already-owned `EmptyStatement` no-op (admitted on every path; no new opcode/eligibility change). Routes through both sync-function and script fast paths. Reserved-word rejection (`var debugger`) + property-name usage (`o.debugger`) preserved.
 
-## Phase B — Resumable-VM parity + suspension machinery (48 items)
+## Phase B — Resumable-VM parity + suspension machinery (57 items)
 
 Gated by `TryFindUnsupportedResumableOpcode@895` (opcode allowlist) and
 `IsSupportedResumableInstruction@846` (instruction allowlist). Most are
@@ -151,7 +155,15 @@ these allowlists — mechanical extensions against existing sync VM handlers.
 - [ ] **B21** Tagged-template / template object — ☑/☐ — ⚠️ INVESTIGATED-DECLINE (commit a8e64adb6): tagged-template calls decline at the SHARED expression-eligibility gate on BOTH sync+resumable routes — the general call-candidate predicates don't model the `LoadTemplateObject`+substitutions argument shape (`CallInvocationBoundary`/`CallDependency`), so `LoadTemplateObject` is never emitted by an admitted program. Needs expression-level call-candidate infrastructure, not an allowlist add.
 - [x] **B22** Regex literal — ☑/☑ ✅ #3118
 - [ ] **B23** Nested function literal — ☑/☐ — ⚠️ INVESTIGATED-DECLINE (commit 8b421604c, doc + 7 tripwires): a nested function literal inside a generator/async that CAPTURES a body local can't see it — the body's locals are flat slots on the resume state, not env bindings, so the captured nested fn resolves through the env chain and throws `ReferenceError`/goes stale. Needs free-variable capture analysis the resumable route doesn't carry. Non-capturing subset works but can't be safely separated. Correct via IR.
-- [ ] **B24** Class expression *(decompose → P0.4: ~8 member shapes)* — ☑/☐
+- [ ] **B24a** Class expression constructor/default-constructor creation — sync ◐ / res ☐ — `LoadClassLiteral` has sync VM coverage, but creation still delegates to class-definition machinery; resumable declines `LoadClassLiteral`.
+- [ ] **B24b** Class expression instance fields — sync ◐ / res ☐ — field name/initializer handling still runs through class-definition field programs during class creation; resumable declines before creation.
+- [ ] **B24c** Class expression static fields — sync ◐ / res ☐ — static field initialization still runs during class-definition evaluation; resumable declines before creation.
+- [ ] **B24d** Class expression static blocks — sync ◐ / res ☐ — static blocks explicitly execute via `ExecutionPlanRunner.RunScript`; must become bytecode-owned before fallback-tier retirement.
+- [ ] **B24e** Class expression private fields / branding — sync ◐ / res ☐ — private scope/brand setup is owned by class-definition creation, not resumable bytecode.
+- [ ] **B24f** Class expression private methods / private accessors — sync ◐ / res ☐ — private member definition is class-definition machinery; resumable declines `LoadClassLiteral`.
+- [ ] **B24g** Class expression public accessors — sync ◐ / res ☐ — accessor callables are created through class-definition member assignment; resumable declines `LoadClassLiteral`.
+- [ ] **B24h** Class expression computed member names / computed field names — sync ◐ / res ☐ — computed name programs are evaluated during class creation; need bytecode-owned class-definition evaluation.
+- [ ] **B24i** Class expression `super` in members/field initializers — sync ◐ / res ☐ — super constructor/prototype threading is class-definition creation state today; resumable declines before creation.
 - [x] **B25** `typeof unresolvedFreeVar` — ☑/☑ ✅ #3163
 - [ ] **B26** Dynamic free write `freeVar=v` — ☑/☐ — ⚠️ INVESTIGATED-DECLINE (commit 0c2707532): free WRITE lowers via `ResolveDynamicIdentifierReference` → `StoreDynamicIdentifierReference`; the pending `AssignmentReference` lives in a transient VM-local array NOT threaded on `UnifiedBytecodeResumeState`, so a suspending RHS (`freeVar = yield`) would corrupt the store target on resume. Needs resume-state reference threading (same class as resumeclosure's captured-store decline). Correct via IR.
 - [x] **B27** Dynamic free update `freeVar++` — ☑/☑ ✅ (commit 0c2707532): `UpdateDynamicIdentifier` admitted to the resumable route (commit 71be17015), free/global update routes; pinned.
@@ -206,15 +218,15 @@ these allowlists — mechanical extensions against existing sync VM handlers.
 
 | Phase | Items | Notes |
 |---|---:|---|
-| 0 — Make list finite | 5 | grammar appendix + umbrella enumeration; converts floor → ceiling |
-| A — Sync admission | 64 | by decline code / promoted compiler leaf |
-| B — Resumable parity + suspension | 48 | bulk of the work; mostly allowlist extensions |
-| C — Script route | 3 | closes mostly via A/B |
-| D — Dynamic quarantine | 5 | build the residue boundary |
-| E — Retire tiers | 6 | E2/E3 = P0.2/P0.3 |
-| **Total** | **~131** | floor until remaining Phase 0 decomposition is done; P0.2 promoted A51/B47 compiler leaves |
+| 0 — Make list finite | 5 | 5 complete / 0 open; Phase 0 inventory closure is complete |
+| A — Sync admission | 69 | 44 complete / 25 open; by decline code / promoted compiler leaf |
+| B — Resumable parity + suspension | 57 | 30 complete / 27 open; class-expression decomposition added B24a-B24i |
+| C — Script route | 3 | 2 complete / 1 open; closes mostly via A/B |
+| D — Dynamic quarantine | 5 | 0 complete / 5 open; build the residue boundary |
+| E — Retire tiers | 6 | 3 complete / 3 open; E2/E3 = P0.2/P0.3 |
+| **Total** | **145** | finite current burn-down list after Phase 0 decomposition; future source drift must update audited inventories |
 
-**Status (110 concrete A+B+C shape items):** Sync `Execute` 29 admitted / 30 partial / 43 declined. Resumable `ExecuteResumable` 6 admitted / 16 partial / 68 declined. **Resumable is the bulk of the remaining work; async-generator delegation, driver state, and fallback-tier retirement remain significant gaps.**
+**Status (129 concrete A+B+C checklist items):** 76 complete / 53 open. **Resumable is the bulk of the remaining work; class-expression creation, async-generator delegation, driver state, and fallback-tier retirement remain significant gaps.**
 
 ## Known soft spots
 1. **Named compiler-decline leaves** (A51a-A51m/B47a) are now source-inventoried in the expansion contract; future `TryCompile` reason drift must update that contract and the focused source gate.
@@ -222,4 +234,4 @@ these allowlists — mechanical extensions against existing sync VM handlers.
 
 ---
 
-_Checklist status: 79 / 133 complete after P0.3 inventory closure. Phase 0 is still not a proven ceiling until P0.4 decomposes B24 and A35._
+_Checklist status: 84 / 145 complete after P0.4 coarse-leaf decomposition. Phase 0 inventory closure is complete; remaining work is semantic admission, dynamic quarantine, and fallback-tier retirement._

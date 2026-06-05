@@ -120,6 +120,28 @@ public sealed class ExpressionProgramCoverageMapTests
         "SetCompletionValueInstruction"
     ];
 
+    private static readonly string[] A35ObjectLiteralMemberLeafNames =
+    [
+        "A35a:DefineComputedObjectProperty",
+        "A35b:DefineObjectMethod",
+        "A35c:DefineComputedObjectMethod",
+        "A35d:DefineObjectAccessor",
+        "A35e:DefineComputedObjectAccessor"
+    ];
+
+    private static readonly string[] B24ClassExpressionLeafNames =
+    [
+        "B24a:ClassExpressionConstructor",
+        "B24b:ClassExpressionInstanceFields",
+        "B24c:ClassExpressionStaticFields",
+        "B24d:ClassExpressionStaticBlocks",
+        "B24e:ClassExpressionPrivateFields",
+        "B24f:ClassExpressionPrivateMethods",
+        "B24g:ClassExpressionAccessors",
+        "B24h:ClassExpressionComputedMembers",
+        "B24i:ClassExpressionSuperInMembers"
+    ];
+
     private static readonly string[] StaleDiscardDeclinePhrases =
     [
         "non-directive discarded expressions still decline before VM execution",
@@ -200,6 +222,8 @@ public sealed class ExpressionProgramCoverageMapTests
         Assert.Contains("### Sync Prototype Opcode Guard Gaps (current)", contractText, StringComparison.Ordinal);
         Assert.Contains("### Resumable Opcode Allowlist Gaps (current)", contractText, StringComparison.Ordinal);
         Assert.Contains("### Resumable Instruction Allowlist Gaps (current)", contractText, StringComparison.Ordinal);
+        Assert.Contains("### A35 Object Literal Member Leaves (current)", contractText, StringComparison.Ordinal);
+        Assert.Contains("### B24 Class Expression Leaves (current)", contractText, StringComparison.Ordinal);
         Assert.Contains("### Compiler Decline Owner Leaves (current)", contractText, StringComparison.Ordinal);
         Assert.Contains("### Compiler Decline Reason Templates (current)", contractText, StringComparison.Ordinal);
         Assert.Contains("## Reserved Ownership Lanes (planned, not implemented)", contractText, StringComparison.Ordinal);
@@ -424,6 +448,31 @@ public sealed class ExpressionProgramCoverageMapTests
             UnifiedBytecodeExpressionOpGeneralLoopGapNames,
             documentedGeneralLoopGaps,
             "Documented general expression lowering gaps");
+    }
+
+    [Fact]
+    public void UnifiedBytecodeExpansionContract_ListsCoarseLeafDecomposition()
+    {
+        var repositoryRoot = FindRepositoryRoot();
+        var contractPath = Path.Combine(repositoryRoot.FullName, "docs", "unified-bytecode-expansion-contract.md");
+        Assert.True(File.Exists(contractPath), $"Expected contract doc at '{contractPath}'.");
+
+        var contractText = File.ReadAllText(contractPath);
+        var documentedA35Leaves = ExtractBacktickedBulletItemsUnderHeading(
+            contractText,
+            "### A35 Object Literal Member Leaves (current)");
+        var documentedB24Leaves = ExtractBacktickedBulletItemsUnderHeading(
+            contractText,
+            "### B24 Class Expression Leaves (current)");
+
+        AssertSameSet(
+            A35ObjectLiteralMemberLeafNames,
+            documentedA35Leaves,
+            "A35 object literal member leaf decomposition");
+        AssertSameSet(
+            B24ClassExpressionLeafNames,
+            documentedB24Leaves,
+            "B24 class expression leaf decomposition");
     }
 
     [Fact]

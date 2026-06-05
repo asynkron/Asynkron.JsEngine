@@ -75,6 +75,13 @@ statement interpretation.
   `### Resumable Instruction Allowlist Gaps (current)`. Future opcode or IR
   instruction additions must either be admitted by the corresponding gate or be
   named in those sections in the same slice.
+- The remaining coarse P0.4 leaves are decomposed under
+  `### A35 Object Literal Member Leaves (current)` and
+  `### B24 Class Expression Leaves (current)`. A35 is sync-admitted across its
+  concrete object-member opcodes; B24 remains real work for full bytecode
+  execution because `LoadClassLiteral` is not resumable-admitted and the sync VM
+  handler still delegates class-definition evaluation to lower-level class
+  machinery that can run expression programs and static-block IR plans.
 - `UnifiedBytecodeCompiler` now has generated audit coverage for every declared
   IR instruction record. Function-scoped `FunctionDeclarationInstruction`
   entries compile as no-ops after fast activation hoisting installs the callable
@@ -415,6 +422,39 @@ not yet proven for them.
 - `PopEnvironmentInstruction`
 - `PushEnvironmentInstruction`
 - `SetCompletionValueInstruction`
+
+### A35 Object Literal Member Leaves (current)
+
+The former A35 object-literal coarse row is split by the concrete unified
+bytecode member-definition opcodes it exercises. These leaves are currently
+sync-admitted and pinned by `A35ComplexObjectLiteralTests`,
+`AlreadyRoutingShapePinTests`, and
+`UnifiedBytecodeProductionEligibilityTests.Evaluate_ObjectMethodAndAccessorLiteralShapes_AcceptAndVmDefinesProperty`.
+
+- `A35a:DefineComputedObjectProperty`
+- `A35b:DefineObjectMethod`
+- `A35c:DefineComputedObjectMethod`
+- `A35d:DefineObjectAccessor`
+- `A35e:DefineComputedObjectAccessor`
+
+### B24 Class Expression Leaves (current)
+
+The former B24 class-expression coarse row is split by class-element semantics.
+`LoadClassLiteral` itself has sync VM and compiler coverage, but full bytecode
+execution is not done: resumable routing still declines `LoadClassLiteral`, and
+sync class-literal creation still calls class-definition machinery that resolves
+extends/computed names/field initializers through expression programs and static
+blocks through `ExecutionPlanRunner.RunScript`.
+
+- `B24a:ClassExpressionConstructor`
+- `B24b:ClassExpressionInstanceFields`
+- `B24c:ClassExpressionStaticFields`
+- `B24d:ClassExpressionStaticBlocks`
+- `B24e:ClassExpressionPrivateFields`
+- `B24f:ClassExpressionPrivateMethods`
+- `B24g:ClassExpressionAccessors`
+- `B24h:ClassExpressionComputedMembers`
+- `B24i:ClassExpressionSuperInMembers`
 
 ### Production Decline Families (current)
 - `None`

@@ -88,12 +88,14 @@ statement interpretation.
   concrete object-member opcodes; B24 remains real work for full bytecode
   execution because only the constructor/default-constructor class-literal
   subset, the B24b public non-computed instance-field subset without
-  activation-capturing field initializers, and the B24c public non-computed
-  static-field subset are resumable-admitted. The VM handler still delegates
+  activation-capturing field initializers, the B24c public non-computed
+  static-field subset, and the B24g public non-computed instance-accessor
+  subset whose accessor bodies do not capture activation slots or use `super`
+  are resumable-admitted. The VM handler still delegates
   class-definition evaluation to lower-level class machinery that can run
-  expression programs and static-block IR plans, and B24d/B24g-B24i keep
-  static-block, accessor, computed-member, member-super, and activation-slot
-  `extends` shapes declined.
+  expression programs and static-block IR plans, and B24d/B24h-B24i keep
+  static-block, computed-member, member-super, and activation-slot `extends`
+  shapes declined.
 - `UnifiedBytecodeCompiler` now has generated audit coverage for every declared
   IR instruction record. Function-scoped `FunctionDeclarationInstruction`
   entries compile as no-ops after fast activation hoisting installs the callable
@@ -436,13 +438,16 @@ constructor/default-constructor class literals, the B24b public non-computed
 instance-field subset whose field initializers do not capture activation slots,
 B24c public non-computed static field class literals, narrow B24e private
 instance-field class literals, and the narrow B24f private method/accessor
-class-literal shape. Full bytecode execution is not done: class-literal
-creation still calls class-definition machinery that resolves extends/computed
-names/field initializers through expression programs and static blocks through
+class-literal shape, plus the B24g public non-computed instance-accessor subset
+whose accessor bodies do not capture activation slots or use `super`. Full
+bytecode execution is not done: class-literal creation still calls
+class-definition machinery that resolves extends/computed names/field
+initializers through expression programs and static blocks through
 `ExecutionPlanRunner.RunScript`; `extends` expressions that read resumable
 activation slots also remain declined until class-definition evaluation owns
-that environment bridge. B24d and B24g-B24i remain declined by the resumable
-shape gate.
+that environment bridge. B24d and B24h-B24i remain declined by the resumable
+shape gate, and static/computed/private/capturing/super public accessor
+neighbors remain outside the B24g subset.
 
 - `B24a:ClassExpressionConstructor`
 - `B24b:ClassExpressionInstanceFields`

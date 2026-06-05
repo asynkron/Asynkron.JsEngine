@@ -90,17 +90,6 @@ public sealed class UnifiedBytecodeResumableLiteralTests(ITestOutputHelper outpu
             };
         }
         """)]
-    [InlineData("""
-        class Base {
-            get value() { return 41; }
-        }
-
-        function* g() {
-            yield class Derived extends Base {
-                get answer() { return super.value + 1; }
-            };
-        }
-        """)]
     public void EvaluateResumable_ClassLiteralPublicMemberSuper_AdmitsLoadClassLiteral(string source)
     {
         _ = AssertClassLiteralEligible(source);
@@ -734,13 +723,19 @@ public sealed class UnifiedBytecodeResumableLiteralTests(ITestOutputHelper outpu
         }
         """,
         """
-        function* g() {
-            yield class { get value() { return 1; } };
+        function* g(name) {
+            yield class { [name]() { return 1; } };
         }
         """,
         """
-        function* g(name) {
-            yield class { [name]() { return 1; } };
+        class Base {
+            get value() { return 41; }
+        }
+
+        function* g() {
+            yield class Derived extends Base {
+                get answer() { return super.value + 1; }
+            };
         }
         """,
         """

@@ -4400,7 +4400,7 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
-    public void EvaluateResumable_ClassExpressionPrivateFieldPlan_AcceptsClassLiteralOpcode()
+    public void EvaluateResumable_ClassExpressionPrivateFieldWithPublicMembers_DeclinesMixedClassMemberSlice()
     {
         var plan = GetFunctionPlan("""
             function* makeBox() {
@@ -4424,14 +4424,9 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
             plan,
             new UnifiedBytecodeProductionActivationDescriptor(IsGenerator: true));
 
-        Assert.True(result.IsEligible, result.Reason);
-        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
-        Assert.Contains(
-            result.Program.Instructions,
-            instruction => instruction.OpCode == UnifiedBytecodeOpCode.LoadClassLiteral);
-        Assert.Contains(
-            result.Program.Instructions,
-            instruction => instruction.OpCode == UnifiedBytecodeOpCode.Yield);
+        Assert.False(result.IsEligible);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.UnsupportedPlanShape, result.Code);
+        Assert.Contains("outside B24e", result.Reason, StringComparison.Ordinal);
     }
 
     [Theory]

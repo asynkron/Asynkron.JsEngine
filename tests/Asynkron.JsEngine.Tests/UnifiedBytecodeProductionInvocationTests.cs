@@ -1463,7 +1463,7 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     }
 
     [Fact(Timeout = 5000)]
-    public async Task AsyncGeneratorYieldStar_ReturnDelegatesThroughIrAndDeclinesResumableUnifiedBytecode()
+    public async Task AsyncGeneratorYieldStar_ReturnDelegatesThroughResumableUnifiedBytecode()
     {
         await using var engine = CreateEngine();
         var result = await engine.EvaluateAndAwait("""
@@ -1506,18 +1506,14 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
         Assert.Equal("closed:stop", steps.Items[2].AsString());
         Assert.True(steps.Items[3].AsBoolean());
         Assert.Equal("next,return:stop", steps.Items[4].AsString());
-        Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(),
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
             static record => record.Message.Contains(
-                "unified-bytecode-resumable-generator-fast-path func=outer",
-                StringComparison.Ordinal));
-        Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(),
-            static record => record.Message.Contains(
-                "unified-bytecode-resumable-async-fast-path func=outer",
+                "unified-bytecode-resumable-async-generator-fast-path func=outer",
                 StringComparison.Ordinal));
     }
 
     [Fact(Timeout = 5000)]
-    public async Task AsyncGeneratorYieldStar_ThrowDelegatesThroughIrAndDeclinesResumableUnifiedBytecode()
+    public async Task AsyncGeneratorYieldStar_ThrowDelegatesThroughResumableUnifiedBytecode()
     {
         await using var engine = CreateEngine();
         var result = await engine.EvaluateAndAwait("""
@@ -1560,13 +1556,9 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
         Assert.Equal("handled:boom", steps.Items[2].AsString());
         Assert.True(steps.Items[3].AsBoolean());
         Assert.Equal("next,throw:boom", steps.Items[4].AsString());
-        Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(),
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
             static record => record.Message.Contains(
-                "unified-bytecode-resumable-generator-fast-path func=outer",
-                StringComparison.Ordinal));
-        Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(),
-            static record => record.Message.Contains(
-                "unified-bytecode-resumable-async-fast-path func=outer",
+                "unified-bytecode-resumable-async-generator-fast-path func=outer",
                 StringComparison.Ordinal));
     }
 

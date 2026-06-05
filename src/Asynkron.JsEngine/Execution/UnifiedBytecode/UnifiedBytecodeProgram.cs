@@ -446,6 +446,7 @@ internal sealed class UnifiedBytecodeResumeState
     public UnifiedBytecodePendingAbruptCompletion PendingAbruptCompletion { get; set; } =
         UnifiedBytecodePendingAbruptCompletion.None;
     public JsTypes.JsValue PendingAwaitPromise { get; set; } = JsTypes.JsValue.Undefined;
+    public bool IsAsyncGenerator { get; init; }
 }
 
 internal sealed record UnifiedBytecodeProgram(

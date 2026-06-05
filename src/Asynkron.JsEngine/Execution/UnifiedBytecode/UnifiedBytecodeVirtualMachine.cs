@@ -5495,11 +5495,95 @@ internal static class UnifiedBytecodeVirtualMachine
 
                 case UnifiedBytecodeOpCode.YieldStar:
                     var yieldStarDescriptor = program.DriverDescriptors[instruction.Operand];
+                    var isAsyncYieldStar = state.IsAsyncGenerator;
                     if (!TryGetDriverState<IteratorDriverState>(slots, yieldStarDescriptor.StateSlot, out var yieldStarState))
                     {
                         var iterable = stack[--stackPointer];
-                        yieldStarState = CreateIteratorDriverState(iterable, IteratorDriverKind.Sync, context);
+                        try
+                        {
+                            yieldStarState = CreateIteratorDriverState(
+                                iterable,
+                                isAsyncYieldStar ? IteratorDriverKind.Await : IteratorDriverKind.Sync,
+                                context);
+                        }
+                        catch (ThrowSignal signal)
+                        {
+                            state.IsCompleted = true;
+                            state.ProgramCounter = programCounter;
+                            state.StackPointer = stackPointer;
+                            return UnifiedBytecodeStepResult.Throw(signal.ThrownValue);
+                        }
+
                         slots[yieldStarDescriptor.StateSlot] = JsValue.FromObjectUnsafe(yieldStarState);
+                    }
+
+                    if (yieldStarState.YieldStarPendingAwaitKind is not YieldStarPendingAwaitKind.None)
+                    {
+                        var pendingKind = yieldStarState.YieldStarPendingAwaitKind;
+                        yieldStarState.YieldStarPendingAwaitKind = YieldStarPendingAwaitKind.None;
+                        if (!TryConsumePendingAwaitResume(state, out var awaitedYieldStarResult, out var awaitedYieldStarThrow))
+                        {
+                            state.IsCompleted = true;
+                            return UnifiedBytecodeStepResult.Throw(StandardLibrary.CreateTypeError(
+                                "Missing awaited yield* iterator result.",
+                                context,
+                                context.RealmState));
+                        }
+
+                        if (awaitedYieldStarThrow)
+                        {
+                            CompleteIteratorDriverState(yieldStarDescriptor.StateSlot, slots, null, yieldStarState);
+                            state.IsCompleted = true;
+                            return UnifiedBytecodeStepResult.Throw(awaitedYieldStarResult);
+                        }
+
+                        if (!TryReadYieldStarResolvedIteratorResult(
+                                awaitedYieldStarResult,
+                                context,
+                                readDoneValue: true,
+                                forceYieldWhenReturnPromiseDone: false,
+                                awaitedPromise: true,
+                                readYieldValue: true,
+                                out var awaitedDelegatedValue,
+                                out var awaitedDelegatedDone,
+                                out var awaitedDelegatedIteratorResult))
+                        {
+                            CompleteIteratorDriverState(yieldStarDescriptor.StateSlot, slots, null, yieldStarState);
+                            state.IsCompleted = true;
+                            return UnifiedBytecodeStepResult.Throw(context.FlowValue);
+                        }
+
+                        if (pendingKind == YieldStarPendingAwaitKind.Return)
+                        {
+                            if (awaitedDelegatedDone)
+                            {
+                                CompleteIteratorDriverState(yieldStarDescriptor.StateSlot, slots, null, yieldStarState);
+                                state.IsCompleted = true;
+                                return UnifiedBytecodeStepResult.Completed(awaitedDelegatedValue);
+                            }
+
+                            state.ProgramCounter = programCounter;
+                            state.StackPointer = stackPointer;
+                            return UnifiedBytecodeStepResult.Yield(awaitedDelegatedValue);
+                        }
+
+                        if (awaitedDelegatedDone)
+                        {
+                            CompleteIteratorDriverState(yieldStarDescriptor.StateSlot, slots, null, yieldStarState);
+                            if (yieldStarDescriptor.ValueSlot >= 0)
+                            {
+                                slots[yieldStarDescriptor.ValueSlot] = awaitedDelegatedValue;
+                            }
+
+                            programCounter++;
+                            break;
+                        }
+
+                        state.ProgramCounter = programCounter;
+                        state.StackPointer = stackPointer;
+                        return isAsyncYieldStar || awaitedDelegatedIteratorResult.IsUndefined
+                            ? UnifiedBytecodeStepResult.Yield(awaitedDelegatedValue)
+                            : UnifiedBytecodeStepResult.YieldIteratorResult(awaitedDelegatedIteratorResult);
                     }
 
                     var delegatedResumeKind = state.ResumePayloadKind;
@@ -5516,11 +5600,21 @@ internal static class UnifiedBytecodeVirtualMachine
                                 out var throwResumeValue,
                                 out var throwResumeDone,
                                 out var throwIteratorResult,
-                                out var throwMethodMissing))
+                                out var throwMethodMissing,
+                                isAsyncYieldStar,
+                                state,
+                                programCounter,
+                                stackPointer,
+                                out var throwPendingStep))
                         {
                             CompleteIteratorDriverState(yieldStarDescriptor.StateSlot, slots, null, yieldStarState);
                             state.IsCompleted = true;
                             return UnifiedBytecodeStepResult.Throw(context.FlowValue);
+                        }
+
+                        if (throwPendingStep is { } pendingStep)
+                        {
+                            return pendingStep;
                         }
 
                         if (throwMethodMissing)
@@ -5547,9 +5641,9 @@ internal static class UnifiedBytecodeVirtualMachine
 
                         state.ProgramCounter = programCounter;
                         state.StackPointer = stackPointer;
-                        return !throwIteratorResult.IsUndefined
-                            ? UnifiedBytecodeStepResult.YieldIteratorResult(throwIteratorResult)
-                            : UnifiedBytecodeStepResult.Yield(throwResumeValue);
+                        return isAsyncYieldStar || throwIteratorResult.IsUndefined
+                            ? UnifiedBytecodeStepResult.Yield(throwResumeValue)
+                            : UnifiedBytecodeStepResult.YieldIteratorResult(throwIteratorResult);
                     }
 
                     if (delegatedResumeKind == UnifiedBytecodeResumePayloadKind.Return)
@@ -5562,11 +5656,21 @@ internal static class UnifiedBytecodeVirtualMachine
                                 out var returnResumeValue,
                                 out var returnResumeDone,
                                 out var returnIteratorResult,
-                                out var returnMethodMissing))
+                                out var returnMethodMissing,
+                                isAsyncYieldStar,
+                                state,
+                                programCounter,
+                                stackPointer,
+                                out var returnPendingStep))
                         {
                             CompleteIteratorDriverState(yieldStarDescriptor.StateSlot, slots, null, yieldStarState);
                             state.IsCompleted = true;
                             return UnifiedBytecodeStepResult.Throw(context.FlowValue);
+                        }
+
+                        if (returnPendingStep is { } pendingStep)
+                        {
+                            return pendingStep;
                         }
 
                         if (returnMethodMissing)
@@ -5585,9 +5689,9 @@ internal static class UnifiedBytecodeVirtualMachine
 
                         state.ProgramCounter = programCounter;
                         state.StackPointer = stackPointer;
-                        return !returnIteratorResult.IsUndefined
-                            ? UnifiedBytecodeStepResult.YieldIteratorResult(returnIteratorResult)
-                            : UnifiedBytecodeStepResult.Yield(returnResumeValue);
+                        return isAsyncYieldStar || returnIteratorResult.IsUndefined
+                            ? UnifiedBytecodeStepResult.Yield(returnResumeValue)
+                            : UnifiedBytecodeStepResult.YieldIteratorResult(returnIteratorResult);
                     }
 
                     var isFirstYieldStarEntry = !yieldStarState.YieldStarStarted;
@@ -5607,11 +5711,21 @@ internal static class UnifiedBytecodeVirtualMachine
                             readDoneValue: true,
                             out var delegatedValue,
                             out var delegatedDone,
-                            out var delegatedIteratorResult))
+                            out var delegatedIteratorResult,
+                            isAsyncYieldStar,
+                            state,
+                            programCounter,
+                            stackPointer,
+                            out var nextPendingStep))
                     {
                         CompleteIteratorDriverState(yieldStarDescriptor.StateSlot, slots, null, yieldStarState);
                         state.IsCompleted = true;
                         return UnifiedBytecodeStepResult.Throw(context.FlowValue);
+                    }
+
+                    if (nextPendingStep is { } pendingNext)
+                    {
+                        return pendingNext;
                     }
 
                     if (delegatedDone)
@@ -5628,9 +5742,9 @@ internal static class UnifiedBytecodeVirtualMachine
 
                     state.ProgramCounter = programCounter;
                     state.StackPointer = stackPointer;
-                    return !delegatedIteratorResult.IsUndefined
-                        ? UnifiedBytecodeStepResult.YieldIteratorResult(delegatedIteratorResult)
-                        : UnifiedBytecodeStepResult.Yield(delegatedValue);
+                    return isAsyncYieldStar || delegatedIteratorResult.IsUndefined
+                        ? UnifiedBytecodeStepResult.Yield(delegatedValue)
+                        : UnifiedBytecodeStepResult.YieldIteratorResult(delegatedIteratorResult);
 
                 case UnifiedBytecodeOpCode.Return:
                     if (!TryCleanupActiveDriverStatesResumable(
@@ -7067,6 +7181,11 @@ internal static class UnifiedBytecodeVirtualMachine
         if (!TypedAstEvaluator.TryGetIteratorFromProtocols(iteratorTarget, context, out var iterator) ||
             iterator is null)
         {
+            if (context.IsThrow)
+            {
+                throw new ThrowSignal(context.FlowValue);
+            }
+
             throw StandardLibrary.ThrowTypeError("Value is not iterable", context, context.RealmState);
         }
 
@@ -7436,12 +7555,18 @@ internal static class UnifiedBytecodeVirtualMachine
         out JsValue value,
         out bool done,
         out JsValue iteratorResult,
-        out bool methodMissing)
+        out bool methodMissing,
+        bool asyncStepMode,
+        UnifiedBytecodeResumeState resumeState,
+        int programCounter,
+        int stackPointer,
+        out UnifiedBytecodeStepResult? pendingStep)
     {
         value = JsValue.Undefined;
         done = true;
         iteratorResult = JsValue.Undefined;
         methodMissing = false;
+        pendingStep = null;
 
         if (state.IteratorObject is not { } iterator)
         {
@@ -7483,9 +7608,16 @@ internal static class UnifiedBytecodeVirtualMachine
             context,
             readDoneValue: true,
             forceYieldWhenReturnPromiseDone: methodName == "return",
+            asyncStepMode,
+            resumeState,
+            state,
+            methodName == "return" ? YieldStarPendingAwaitKind.Return : YieldStarPendingAwaitKind.Throw,
+            programCounter,
+            stackPointer,
             out value,
             out done,
-            out iteratorResult);
+            out iteratorResult,
+            out pendingStep);
     }
 
     private static bool TryReadYieldStarIteratorNextValue(
@@ -7497,11 +7629,17 @@ internal static class UnifiedBytecodeVirtualMachine
         bool readDoneValue,
         out JsValue value,
         out bool done,
-        out JsValue iteratorResult)
+        out JsValue iteratorResult,
+        bool asyncStepMode,
+        UnifiedBytecodeResumeState resumeState,
+        int programCounter,
+        int stackPointer,
+        out UnifiedBytecodeStepResult? pendingStep)
     {
         value = JsValue.Undefined;
         done = true;
         iteratorResult = JsValue.Undefined;
+        pendingStep = null;
 
         if (state.IteratorObject is { } iterator)
         {
@@ -7519,9 +7657,16 @@ internal static class UnifiedBytecodeVirtualMachine
                     context,
                     readDoneValue,
                     forceYieldWhenReturnPromiseDone: false,
+                    asyncStepMode,
+                    resumeState,
+                    state,
+                    YieldStarPendingAwaitKind.Next,
+                    programCounter,
+                    stackPointer,
                     out value,
                     out done,
-                    out iteratorResult);
+                    out iteratorResult,
+                    out pendingStep);
             }
             catch (ThrowSignal signal)
             {
@@ -7550,13 +7695,42 @@ internal static class UnifiedBytecodeVirtualMachine
         EvaluationContext context,
         bool readDoneValue,
         bool forceYieldWhenReturnPromiseDone,
+        bool asyncStepMode,
+        UnifiedBytecodeResumeState resumeState,
+        IteratorDriverState driverState,
+        YieldStarPendingAwaitKind pendingAwaitKind,
+        int programCounter,
+        int stackPointer,
         out JsValue value,
         out bool done,
-        out JsValue iteratorResult)
+        out JsValue iteratorResult,
+        out UnifiedBytecodeStepResult? pendingStep)
     {
         value = JsValue.Undefined;
         done = true;
         iteratorResult = JsValue.Undefined;
+        pendingStep = null;
+        if (asyncStepMode)
+        {
+            var pendingPromise = resumeState.PendingAwaitPromise;
+            if (!AwaitScheduler.TryResolvePromiseOrYield(
+                    result,
+                    asyncStepMode: true,
+                    ref pendingPromise,
+                    context,
+                    out result))
+            {
+                resumeState.PendingAwaitPromise = pendingPromise;
+                resumeState.ProgramCounter = programCounter;
+                resumeState.StackPointer = stackPointer;
+                resumeState.ResumePayloadKind = UnifiedBytecodeResumePayloadKind.None;
+                resumeState.ResumePayload = JsValue.Undefined;
+                driverState.YieldStarPendingAwaitKind = pendingAwaitKind;
+                pendingStep = UnifiedBytecodeStepResult.PendingAwait(resumeState.PendingAwaitPromise);
+                return true;
+            }
+        }
+
         var awaitedPromise = false;
         if (result.IsObject && AwaitScheduler.IsPromiseLike(result))
         {
@@ -7570,6 +7744,33 @@ internal static class UnifiedBytecodeVirtualMachine
                 return false;
             }
         }
+
+        return TryReadYieldStarResolvedIteratorResult(
+            result,
+            context,
+            readDoneValue,
+            forceYieldWhenReturnPromiseDone,
+            awaitedPromise || asyncStepMode,
+            readYieldValue: asyncStepMode,
+            out value,
+            out done,
+            out iteratorResult);
+    }
+
+    private static bool TryReadYieldStarResolvedIteratorResult(
+        JsValue result,
+        EvaluationContext context,
+        bool readDoneValue,
+        bool forceYieldWhenReturnPromiseDone,
+        bool awaitedPromise,
+        bool readYieldValue,
+        out JsValue value,
+        out bool done,
+        out JsValue iteratorResult)
+    {
+        value = JsValue.Undefined;
+        done = true;
+        iteratorResult = JsValue.Undefined;
 
         if (!result.TryGetObject<IJsPropertyAccessor>(out var resultObject))
         {
@@ -7615,6 +7816,17 @@ internal static class UnifiedBytecodeVirtualMachine
             }
 
             return true;
+        }
+
+        if (readYieldValue &&
+            JsOps.TryGetPropertyValue(resultValue, "value", out var yieldedValue, context))
+        {
+            value = yieldedValue;
+        }
+
+        if (context.IsThrow)
+        {
+            return false;
         }
 
         iteratorResult = resultValue;

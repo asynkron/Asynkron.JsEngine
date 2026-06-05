@@ -119,6 +119,26 @@ all-or-nothing until a separate routing issue proves production readiness.
     finally/catch free-callee scan from the main with-depth and plan-shape scan.
     Related ADR:
     `docs/adrs/0341-keep-with-depth-and-zero-depth-dynamic-name-scans-separate.md`.
+9b. When admitting sync `using` declarations to production unified bytecode,
+    keep resource disposal wired to every VM-owned terminal completion lane.
+    Function-body top-level `using` declarations register resources against the
+    active function environment, not a block environment, so direct return,
+    direct throw, normal function completion, pending return through
+    `CompleteFinally`, and pending throw through `CompleteFinally` must all run
+    the same active function-environment disposal hook before leaving the VM.
+    Do not assume a finally body or `PopEnvironment` will clean function-scope
+    resources, and do not repair a missing disposal edge by falling back to
+    `ExecutionPlanRunner`, `ExpressionProgram`, or AST evaluation. Future
+    widening must include route-hit regressions for return and throw through
+    `finally`, plus direct completion/block cleanup neighbors; `await using`
+    remains declined until async-dispose settlement is VM-owned. WHY: Faktorial
+    issue
+    `planitem-planmanual1780639098493226000-full-unified-bytecode-execution-burndown-b-935f087566`
+    / PR #3254 first admitted sync `using` declarations, then the repair commit
+    `50a9a8513` found that `CompleteFinally` skipped
+    `DisposeActiveFunctionEnvironmentResources` for pending return/throw
+    completions. Related ADR:
+    `docs/adrs/0342-keep-unified-bytecode-finally-completion-resource-disposal-owned.md`.
 10. When invoking production unified bytecode from sync calls, keep the bridge
     slot-layout owned and fast-path ordered. Direct specialized simple-return
     binary/chain shortcuts stay ahead of unified bytecode. The production

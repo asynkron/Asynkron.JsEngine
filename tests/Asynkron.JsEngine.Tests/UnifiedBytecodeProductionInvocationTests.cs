@@ -9271,9 +9271,11 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
             File.Exists(asyncGeneratorInvokerPath),
             $"Expected async-generator invoker source at '{asyncGeneratorInvokerPath}'.");
         var asyncGeneratorInvokerSource = File.ReadAllText(asyncGeneratorInvokerPath);
+        var asyncGeneratorInvokerWithoutClassifiedFallback =
+            RemoveClassifiedAsyncGeneratorFallbackMarkers(asyncGeneratorInvokerSource);
         AssertUnifiedBytecodeAcceptedSectionDoesNotDelegate(
-            asyncGeneratorInvokerSource,
-            "async-generator invoker fallback tombstone",
+            asyncGeneratorInvokerWithoutClassifiedFallback,
+            "async-generator invoker classified fallback boundary",
             [
                 "ExecutionPlanRunner.AsyncGeneratorStepResult",
                 "ExecutionPlanRunner.AsyncGeneratorStepKind"
@@ -9330,6 +9332,41 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
         Assert.False(
             source.Contains("GetOrCreateExecutionEnvironmentForInternalUse(", StringComparison.Ordinal),
             $"{sectionName} has an unclassified runner environment setup call.");
+        return source;
+    }
+
+    private static string RemoveClassifiedAsyncGeneratorFallbackMarkers(string source)
+    {
+        var classifiedFallbackMarkers = new[]
+        {
+            "private ExecutionPlanRunner? _inner;",
+            "// classified fallback and use ExecutionPlanRunner.ExecuteAsyncStep.",
+            "_inner = CreateClassifiedAsyncGeneratorDeclinedBodyRunner();",
+            "_inner.Initialize();",
+            "return _inner!.ExecuteAsyncStep(ToRunnerResumeMode(mode), argument);"
+        };
+
+        foreach (var marker in classifiedFallbackMarkers)
+        {
+            Assert.Contains(marker, source, StringComparison.Ordinal);
+            source = source.Replace(marker, string.Empty, StringComparison.Ordinal);
+        }
+
+        var runnerModeSection = ExtractRequiredSourceSection(
+            source,
+            "        private static ExecutionPlanRunner.ResumeMode ToRunnerResumeMode(",
+            "        private enum AsyncGeneratorResumeMode",
+            "async-generator classified fallback resume-mode mapper");
+        source = source.Replace(runnerModeSection, string.Empty, StringComparison.Ordinal);
+
+        var classifiedRunnerFactorySection = ExtractRequiredSourceSection(
+            source,
+            "        private ExecutionPlanRunner CreateClassifiedAsyncGeneratorDeclinedBodyRunner()",
+            "        private static JsValue CreateAsyncIteratorResult(",
+            "async-generator classified fallback runner factory");
+        Assert.Contains("return new ExecutionPlanRunner(", classifiedRunnerFactorySection, StringComparison.Ordinal);
+        source = source.Replace(classifiedRunnerFactorySection, string.Empty, StringComparison.Ordinal);
+
         return source;
     }
 

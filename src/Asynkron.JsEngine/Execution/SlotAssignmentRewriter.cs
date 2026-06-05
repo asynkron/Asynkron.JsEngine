@@ -248,6 +248,11 @@ internal sealed class SlotAssignmentRewriter : AstRewriter
                 var mappedPushScope = RemapScopeId(push.ScopeId);
                 var lexical = GetLexicalBindings(mappedPushScope);
                 var slotMap = GetSlotMap(mappedPushScope);
+                EnsurePushEnvironmentFlatSlots(
+                    mappedPushScope,
+                    lexical,
+                    slotMap,
+                    push.PerIterationBindings);
                 var updatedPush = push with
                 {
                     ScopeId = mappedPushScope,
@@ -1126,6 +1131,71 @@ internal sealed class SlotAssignmentRewriter : AstRewriter
         flatSlotId = _flatSlotMap.Count;
         _flatSlotMap[key] = flatSlotId;
         return flatSlotId;
+    }
+
+    private void EnsurePushEnvironmentFlatSlots(
+        int scopeId,
+        ImmutableHashSet<Symbol> lexicalBindings,
+        ImmutableDictionary<Symbol, int> slotMap,
+        ImmutableArray<Symbol> perIterationBindings)
+    {
+        if (_isRestampingNestedFunction || lexicalBindings.Count == 0 || slotMap.IsEmpty)
+        {
+            return;
+        }
+
+        var shareWithActiveScope = !perIterationBindings.IsDefaultOrEmpty;
+        foreach (var binding in lexicalBindings)
+        {
+            if (!slotMap.TryGetValue(binding, out var slotIndex))
+            {
+                continue;
+            }
+
+            if (shareWithActiveScope &&
+                ContainsPerIterationBinding(perIterationBindings, binding) &&
+                TryFindActiveFlatSlot(binding, out var activeFlatSlotId))
+            {
+                _flatSlotMap.TryAdd((scopeId, slotIndex), activeFlatSlotId);
+                continue;
+            }
+
+            _ = GetOrCreateFlatSlotId(scopeId, slotIndex);
+        }
+    }
+
+    private bool TryFindActiveFlatSlot(Symbol symbol, out int flatSlotId)
+    {
+        foreach (var scopeId in _scopeStack)
+        {
+            var (_, slotIndex) = ResolveInScope(symbol, scopeId);
+            if (slotIndex < 0)
+            {
+                continue;
+            }
+
+            if (_flatSlotMap.TryGetValue((scopeId, slotIndex), out flatSlotId))
+            {
+                return true;
+            }
+        }
+
+        flatSlotId = -1;
+        return false;
+    }
+
+    private static bool ContainsPerIterationBinding(ImmutableArray<Symbol> perIterationBindings, Symbol binding)
+    {
+        for (var i = 0; i < perIterationBindings.Length; i++)
+        {
+            if (ReferenceEquals(perIterationBindings[i], binding) ||
+                string.Equals(perIterationBindings[i].Name, binding.Name, StringComparison.Ordinal))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     protected override AssignmentExpression RewriteAssignment(AssignmentExpression node)

@@ -187,7 +187,7 @@ these allowlists — mechanical extensions against existing sync VM handlers.
 - [x] **B45** Resumable instruction-allowlist default (master plan-level gap) *(→ P0.3)* — n/a/n/a ✅ decomposed by P0.3: the 9 non-allowlisted instruction records are now named and drift-checked under `Resumable Instruction Allowlist Gaps`.
 - [x] **B46** Resumable opcode-allowlist default (master opcode-level gap) *(→ P0.3)* — n/a/n/a ✅ decomposed by P0.3: the 19 non-allowlisted opcodes are now named and drift-checked under `Resumable Opcode Allowlist Gaps`; the admitted allowlist remains 1:1 with `ExecuteResumable`.
 - [x] **B47** Resumable compiler `TryCompile` wrap *(decomposed by P0.2)* — n/a/see A51a-A51m plus B47a.
-- [ ] **B47a** Resumable-only compiler declines for `yield*` state slots and synthetic resume targets — owner: resumable resume-state layout; fallback route: existing generator/async execution-plan route; sync/resumable: n/a/☐.
+- [x] **B47a** Resumable-only compiler declines for `yield*` state slots and synthetic resume targets — n/a/☑ ✅ (Codex): current compiler slot layout adds generator-lowered synthetic resume/result and `yield*` driver-state symbols before flat-slot mapping, so sync generator `yield*` compiles and routes through `ExecuteResumable` instead of declining on missing activation-slot metadata. Existing focused coverage pins `YieldStar`, `StoreResumeValue`, public generator route hits, delegated return/throw, and async-generator `yield*` / `yield* await` pre-VM declines.
 
 ## Phase C — Top-level / script route (3 items)
 

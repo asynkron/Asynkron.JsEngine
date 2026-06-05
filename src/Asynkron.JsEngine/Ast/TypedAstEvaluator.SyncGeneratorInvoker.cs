@@ -149,6 +149,7 @@ public static partial class TypedAstEvaluator
             // A generator is never a constructor and never an arrow, so its own new.target is undefined.
             var state = new UnifiedBytecodeResumeState(program, slots, boundThis, callingEnvironment, isStrict, JsValue.Undefined)
             {
+                HasMaterializedBodyEnvironment = needsMaterializedBodyEnvironment,
                 // Thread the private-name scopes lexically active where this generator method was defined
                 // (captured enclosing scopes plus the class's own brand scope, innermost last) onto the
                 // resume state so the resumable VM can re-enter them on each per-step context and resolve

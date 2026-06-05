@@ -3413,10 +3413,10 @@ internal static class UnifiedBytecodeVirtualMachine
         var programCounter = state.ProgramCounter;
         var resumableTryFrames = state.ResumableTryFrames;
         var resumableInactiveCatchBindingSlots = state.ResumableInactiveCatchBindingSlots;
-        var slotEnvironments = state.CallingEnvironment is null
+        var slotEnvironments = state.CallingEnvironment is null || !state.HasMaterializedBodyEnvironment
             ? null
             : InitializeSlotEnvironments(program, state.CallingEnvironment);
-        if (state.CallingEnvironment is not null)
+        if (state.CallingEnvironment is not null && state.HasMaterializedBodyEnvironment)
         {
             SyncEnvironmentToUnifiedSlots(program, slots, slotEnvironments, state.CallingEnvironment);
         }
@@ -4038,6 +4038,7 @@ internal static class UnifiedBytecodeVirtualMachine
 
                     var resumableStoredSlotValue = stack[--stackPointer];
                     slots[instruction.Operand] = resumableStoredSlotValue;
+                    ClearInactiveCatchBindingSlot(resumableInactiveCatchBindingSlots, instruction.Operand);
                     SyncSlotEnvironment(slotEnvironments, instruction.Operand, resumableStoredSlotValue);
                     ClearInactiveCatchBindingSlot(resumableInactiveCatchBindingSlots, instruction.Operand);
                     programCounter++;
@@ -4101,6 +4102,7 @@ internal static class UnifiedBytecodeVirtualMachine
                 case UnifiedBytecodeOpCode.InitializeSlot:
                     var resumableInitializedSlotValue = stack[--stackPointer];
                     slots[instruction.Operand] = resumableInitializedSlotValue;
+                    ClearInactiveCatchBindingSlot(resumableInactiveCatchBindingSlots, instruction.Operand);
                     SyncSlotEnvironment(slotEnvironments, instruction.Operand, resumableInitializedSlotValue);
                     ClearInactiveCatchBindingSlot(resumableInactiveCatchBindingSlots, instruction.Operand);
                     programCounter++;
@@ -5314,6 +5316,7 @@ internal static class UnifiedBytecodeVirtualMachine
                             if (instruction.Operand >= 0)
                             {
                                 slots[instruction.Operand] = payload;
+                                ClearInactiveCatchBindingSlot(resumableInactiveCatchBindingSlots, instruction.Operand);
                                 SyncSlotEnvironment(slotEnvironments, instruction.Operand, payload);
                                 ClearInactiveCatchBindingSlot(resumableInactiveCatchBindingSlots, instruction.Operand);
                             }

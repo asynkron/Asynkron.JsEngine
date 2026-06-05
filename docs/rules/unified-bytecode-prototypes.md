@@ -287,7 +287,11 @@ all-or-nothing until a separate routing issue proves production readiness.
      / PR #3288 added the public declined-neighbor pins for non-simple
      parameter initialization and captured hoisted helpers, plus a source gate
      that the accepted async-generator resumable step and VM stay off runner and
-     expression-evaluation bridges.
+     expression-evaluation bridges. Issue #gh3295 / PR #3298 restored the
+     classified declined-body fallback after PR #3291 retired it too early and
+     made valid route-ineligible async generators fail fast on red `main`.
+     Related ADR:
+     `docs/adrs/0349-keep-declined-async-generator-bodies-on-classified-runner-fallback.md`.
 10e. When admitting resumable generator or async shapes that contain nested
      function literals or `try/finally` cleanup, prove the surrounding
      suspension context, not only the direct opcode allowlist. A nested function

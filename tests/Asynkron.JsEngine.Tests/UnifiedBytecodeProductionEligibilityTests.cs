@@ -10980,4 +10980,32 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
             "logicalAndOptionalWrite"));
     }
 
+    [Fact]
+    public void EvaluateResumable_SwitchBody_RemainsPreVmDeclined()
+    {
+        var plan = GetFunctionPlan("""
+            function* gen(n) {
+                yield 0;
+                switch (n) {
+                    case 1:
+                        return 10;
+                    default:
+                        return 20;
+                }
+            }
+            """,
+            "gen");
+
+        var result = UnifiedBytecodeProductionEligibility.EvaluateResumable(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor(IsGenerator: true));
+
+        Assert.False(result.IsEligible);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.UnsupportedPlanShape, result.Code);
+        Assert.Contains(
+            "Instruction 'PushEnvironmentInstruction' is not eligible for resumable unified bytecode routing.",
+            result.Reason,
+            StringComparison.Ordinal);
+    }
+
 }

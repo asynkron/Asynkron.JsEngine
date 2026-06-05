@@ -10632,6 +10632,31 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
                 1
             },
             {
+                // A51a: switch lowering uses a breakable wrapper that handles completion internally.
+                // Numeric break targets are compiler-owned, so this sync shape can route.
+                """
+                function switchBreak(n) {
+                    var selected = 0;
+                    switch (n) {
+                        case 1:
+                            selected = 10;
+                            break;
+                        case 2:
+                            selected = 20;
+                            break;
+                        default:
+                            selected = 30;
+                    }
+
+                    return selected;
+                }
+                """,
+                "switchBreak(2)",
+                20d,
+                "switchBreak",
+                1
+            },
+            {
                 """
                 function countDo(n) {
                     var count = 0;

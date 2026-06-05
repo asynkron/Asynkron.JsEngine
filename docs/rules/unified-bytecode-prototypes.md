@@ -262,10 +262,16 @@ all-or-nothing until a separate routing issue proves production readiness.
      `YieldStar` driver, so `yield* await ...` must use the same resumable
      async-generator settlement path instead of the IR runner. Non-simple
      parameter lists must stay on the IR runner until the VM owns their eager
-     parameter-initialization effects before iterator creation. Do not treat
-     direct-yield or delegated `yield*` admission as broad async-generator
-     support or add VM fallback into
-     `ExecutionPlanRunner`, `ExpressionProgram`, or AST evaluation. WHY: issue
+     parameter-initialization effects before iterator creation, and captured
+     hoisted helpers remain declined until the async-generator route owns the
+     materialized body-environment lifetime required by those closures. Future
+     widening must pair public route-hit tests with nearby public no-route
+     tests for declined neighbors and a source gate proving the accepted step
+     body and `UnifiedBytecodeVirtualMachine` do not delegate back to
+     `ExecutionPlanRunner`, `ExpressionProgram`, or AST/expression evaluation
+     bridges. Do not treat direct-yield or delegated `yield*` admission as broad
+     async-generator support or add VM fallback into those existing evaluators.
+     WHY: issue
      #3135 / PR #3142 added the first async-generator resumable route and kept
      delegated async-generator `yield*` declined until a later slice owned
      delegation semantics. Faktorial issue
@@ -276,7 +282,12 @@ all-or-nothing until a separate routing issue proves production readiness.
      issue
      `planitem-planmanual1780639098493226000-full-unified-bytecode-execution-burndown-b-c98550dd55`
      then admitted the awaited-source lane by compiling the source expression
-     through `AwaitValue` before `YieldStar`.
+     through `AwaitValue` before `YieldStar`. Faktorial issue
+     `planitem-planitem-planmanual1780639098493226000-full-unified-bytecode-execution-b-c7edbd19ba`
+     / PR #3288 added the public declined-neighbor pins for non-simple
+     parameter initialization and captured hoisted helpers, plus a source gate
+     that the accepted async-generator resumable step and VM stay off runner and
+     expression-evaluation bridges.
 10e. When admitting resumable generator or async shapes that contain nested
      function literals or `try/finally` cleanup, prove the surrounding
      suspension context, not only the direct opcode allowlist. A nested function

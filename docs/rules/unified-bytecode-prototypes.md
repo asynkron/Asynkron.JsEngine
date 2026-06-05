@@ -185,6 +185,10 @@ all-or-nothing until a separate routing issue proves production readiness.
      when `LoadClassLiteral` can reuse the captured
      `UnifiedBytecodeResumeState.CallingEnvironment` and the existing
      class-definition program cache owns the member/initializer execution.
+     Public non-computed instance fields may route only when their lowered
+     field initializer programs do not read resumable activation slots; an
+     initializer that captures a body binding still needs a future materialized
+     body-environment route.
      Extends expressions that read resumable activation slots, computed member
      names, static elements, broad static-field creation, and private
      method/accessor bodies that capture activation slots must remain explicit
@@ -202,6 +206,13 @@ all-or-nothing until a separate routing issue proves production readiness.
      routeable when existing class-definition machinery and the captured calling
      environment already own lookup, but the route must not infer broad
      class-expression safety from that narrow ownership proof.
+     Issue
+     `planitem-planmanual1780639098493226000-full-unified-bytecode-execution-burndown-b-8327a9bee2`
+     / PR #3202 admitted the B24b public non-computed instance-field subset by
+     inspecting class-definition field initializer programs and declining
+     activation-slot captures until the resumable route owns a materialized
+     body environment. Related ADR:
+     `docs/adrs/0328-admit-resumable-class-literal-public-instance-fields-with-activation-safe-initializers.md`.
      Issue
      `planitem-planmanual1780639098493226000-full-unified-bytecode-execution-burndown-b-7d0f3d6a80`
      / PR #3194 then admitted the narrow B24f private method/accessor shape.

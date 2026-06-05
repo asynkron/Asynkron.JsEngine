@@ -194,12 +194,19 @@ all-or-nothing until a separate routing issue proves production readiness.
      `planitem-planmanual1780639098493226000-full-unified-bytecode-execution-burndown-b-0768364f94`
      / PR #3234 admitted the B23 sync-generator captured-root-local subset only
      after adding a materialized resumable body environment plus slot
-     synchronization; async captured literals, lexical/private closure contexts,
-     and B36 declaration-instantiation graphs remain declined. Related ADRs:
+     synchronization; async captured literals and lexical/private closure
+     contexts remain declined. Faktorial issue #gh3238 / PR #3240 then admitted
+     the narrow B36 sync-generator direct root hoisted-helper subset that
+     captures root body locals by creating the helper against the materialized
+     body environment and pre-populating the compiled VM flat slot before
+     `ExecuteResumable`; async/async-generator captured helpers,
+     recursive/sibling helper graphs, dynamic/eval helpers, block/Annex B
+     declarations, and class declarations remain declined. Related ADRs:
      `docs/adrs/0323-keep-resumable-unified-bytecode-context-sensitive-cleanup-declined.md`,
      `docs/adrs/0324-keep-resumable-generator-context-cleanup-declines-explicit.md`,
+     `docs/adrs/0333-admit-generator-captured-function-literals-through-materialized-resumable-body-environment.md`,
      and
-     `docs/adrs/0333-admit-generator-captured-function-literals-through-materialized-resumable-body-environment.md`
+     `docs/adrs/0335-admit-generator-captured-hoisted-helpers-through-materialized-body-environment.md`
 10f. When admitting class literals inside resumable unified bytecode, classify
      each class element by the class-definition state it needs during creation,
      not by the presence of `LoadClassLiteral` alone. Public member functions

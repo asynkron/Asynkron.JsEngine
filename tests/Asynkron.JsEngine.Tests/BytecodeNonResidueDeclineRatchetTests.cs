@@ -9,12 +9,13 @@ namespace Asynkron.JsEngine.Tests;
 [Category(TestCategories.Debugging)]
 public sealed class BytecodeNonResidueDeclineRatchetTests
 {
-    private const int ExpectedKnownOpenNonResidueCount = 2;
+    private const int ExpectedKnownOpenNonResidueCount = 3;
 
     private static readonly string[] KnownOpenNonResidueDeclines =
     [
         "A32_ChainedOptionalComputedDelete_Declines",
-        "B23_B36_NestedFunctionDeclarationInResumable_Declines"
+        "B23_B36_NestedFunctionDeclarationInResumable_Declines",
+        "C3_TopLevelLexicalDestructuring_Declines"
     ];
 
     private static readonly RatchetRow[] Rows =
@@ -40,6 +41,35 @@ public sealed class BytecodeNonResidueDeclineRatchetTests
             string.Empty,
             IsDynamicResidue: false,
             UnifiedBytecodeProductionDeclineCode.None),
+        new(
+            "C3_Admitted_ComposedScript",
+            """
+            var source = { head: 2, tail: 3, extra: 5 };
+            var { head, ...rest } = source;
+            let box = { value: head, add(n) { return this.value + n; } };
+            let total = Math.pow(box.add(rest.tail), 2);
+
+            if (rest.extra > 4) {
+                total += Math.sqrt(16);
+            }
+
+            total;
+            """,
+            SubjectKind.Script,
+            string.Empty,
+            IsDynamicResidue: false,
+            UnifiedBytecodeProductionDeclineCode.None),
+        new(
+            "C3_TopLevelLexicalDestructuring_Declines",
+            """
+            const source = { value: 1 };
+            const { value } = source;
+            value;
+            """,
+            SubjectKind.Script,
+            string.Empty,
+            IsDynamicResidue: false,
+            UnifiedBytecodeProductionDeclineCode.UnsupportedPlanShape),
         new(
             "D5_Admitted_ResumableGenerator",
             """
@@ -164,6 +194,16 @@ public sealed class BytecodeNonResidueDeclineRatchetTests
             IsDynamicResidue: true,
             UnifiedBytecodeProductionDeclineCode.DynamicLookupDependency),
         new(
+            "C3_Residue_ScriptEvalInjectedRuntimeBinding_Declines",
+            """
+            eval("var injected = 1");
+            injected;
+            """,
+            SubjectKind.Script,
+            string.Empty,
+            IsDynamicResidue: true,
+            UnifiedBytecodeProductionDeclineCode.CallDependency),
+        new(
             "D5_Residue_ResumableWithDynamicScope_Declines",
             """
             function* d5ResumableWithDynamicScope(obj) {
@@ -271,7 +311,7 @@ public sealed class BytecodeNonResidueDeclineRatchetTests
     {
         var dynamicResidueCount = Rows.Count(static row => row.IsDynamicResidue);
 
-        Assert.Equal(6, dynamicResidueCount);
+        Assert.Equal(7, dynamicResidueCount);
     }
 
     private static UnifiedBytecodeProductionEligibilityResult Evaluate(

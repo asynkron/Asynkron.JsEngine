@@ -193,7 +193,7 @@ these allowlists — mechanical extensions against existing sync VM handlers.
 
 - [x] **C1** Script `typeof <ident>` reading block-scoped lexical (stale flat-slot liveness): `for(let i){}; typeof i` — *UnsupportedPlanShape* — ☑/n/a ✅ (Codex)
 - [x] **C2** Script with no `ScriptCompletionSlot` — ☑/n/a ✅ (Codex)
-- [ ] **C3** Script inheriting any per-shape decline (union gate; closes via A/B) — *UnsupportedPlanShape* — ☐/n/a
+- [x] **C3** Script inheriting any per-shape decline (union gate; closes via A/B) — *UnsupportedPlanShape* — ☑/n/a ✅ (Codex): focused C3 proof rows now pin top-level scripts that compose admitted property reads/calls, control flow, dynamic global reads/calls, completion-slot endings, and script-scope `var` destructuring through the shared production unified-bytecode gate. The ratchet explicitly names top-level lexical destructuring as a known script-specific safety decline and keeps eval-injected script bindings in dynamic residue, so future non-residue script declines must be added deliberately instead of silently falling back.
 
 ## Phase D — Dynamic quarantine gates (5 items)
 
@@ -221,12 +221,12 @@ these allowlists — mechanical extensions against existing sync VM handlers.
 | 0 — Make list finite | 5 | 5 complete / 0 open; Phase 0 inventory closure is complete |
 | A — Sync admission | 69 | 47 complete / 22 open; by decline code / promoted compiler leaf |
 | B — Resumable parity + suspension | 57 | 44 complete / 13 open; class-expression decomposition added B24a-B24i |
-| C — Script route | 3 | 2 complete / 1 open; closes mostly via A/B |
+| C — Script route | 3 | 3 complete / 0 open; closes mostly via A/B |
 | D — Dynamic quarantine | 5 | 4 complete / 1 open; D1-D4 now pin terminal dynamic-residue boundaries |
 | E — Retire tiers | 6 | 3 complete / 3 open; E2/E3 = P0.2/P0.3 |
 | **Total** | **145** | finite current burn-down list after Phase 0 decomposition; future source drift must update audited inventories |
 
-**Status (134 concrete A+B+C+D checklist items):** 95 complete / 39 open. **Resumable is the bulk of the remaining work; class-expression static blocks, computed/super class members, async-generator delegation, driver state, and fallback-tier retirement remain significant gaps.**
+**Status (134 concrete A+B+C+D checklist items):** 96 complete / 38 open. **Resumable is the bulk of the remaining work; class-expression static blocks, computed/super class members, async-generator delegation, driver state, and fallback-tier retirement remain significant gaps.**
 
 ## Known soft spots
 1. **Named compiler-decline leaves** (A51a-A51m/B47a) are now source-inventoried in the expansion contract; future `TryCompile` reason drift must update that contract and the focused source gate.
@@ -234,4 +234,4 @@ these allowlists — mechanical extensions against existing sync VM handlers.
 
 ---
 
-_Checklist status: 103 / 145 complete. The latest D3 slice quarantined resumable `with` and awaited with-object evaluation as terminal dynamic residue while preserving sync non-awaited `with` admission. Phase B stands at 44 / 57 complete, and the concrete A+B+C checklist stands at 94 complete / 35 open. B23 remains partial for async captured literals and lexical/private closure contexts; B36 remains partial for async/async-generator captured helpers, recursive/sibling helper graphs, block/Annex B declarations, and class declarations. The resumable opcode gap inventory is now 20 because `RegisterDisposable` is sync-only, and the instruction gap inventory remains 7._
+_Checklist status: 104 / 145 complete. The latest C3 slice proved top-level script routing inherits representative admitted A/B production shapes through the shared gate while preserving explicit dynamic and script-safety declines. Phase B stands at 44 / 57 complete, and the concrete A+B+C checklist stands at 95 complete / 34 open. B23 remains partial for async captured literals and lexical/private closure contexts; B36 remains partial for async/async-generator captured helpers, recursive/sibling helper graphs, block/Annex B declarations, and class declarations. The resumable opcode gap inventory is now 20 because `RegisterDisposable` is sync-only, and the instruction gap inventory remains 7._

@@ -1665,8 +1665,7 @@ internal static class UnifiedBytecodeProductionEligibility
             if (instruction.OpCode == UnifiedBytecodeOpCode.LoadClassLiteral)
             {
                 var classExpression = program.ClassLiteralConstants[instruction.Operand];
-                if (IsB24aConstructorOnlyClassLiteral(program, classExpression, out declineReason) ||
-                    IsB24bResumableClassLiteral(classExpression, activationSlots, out declineReason))
+                if (IsResumableB24ClassLiteral(program, classExpression, activationSlots, out declineReason))
                 {
                     continue;
                 }
@@ -2013,126 +2012,37 @@ internal static class UnifiedBytecodeProductionEligibility
         return false;
     }
 
-    private static bool IsB24bResumableClassLiteral(
+    private static bool IsResumableB24ClassLiteral(
+        UnifiedBytecodeProgram program,
         ClassExpression classExpression,
         ActivationSlotShape activationSlots,
         out string declineReason)
     {
         var definition = classExpression.Definition;
-        if (definition.Extends is not null)
-        {
-            declineReason =
-                "Class literal extends/super semantics are not supported by B24b resumable production routing.";
-            return false;
-        }
-
-        if (definition.Fields.IsDefaultOrEmpty)
-        {
-            declineReason =
-                "Class literal constructor-only creation is not supported by B24b resumable production routing.";
-            return false;
-        }
-
-        if (!definition.Members.IsDefaultOrEmpty)
-        {
-            declineReason =
-                "Class literal methods/accessors are not supported by B24b resumable production routing.";
-            return false;
-        }
-
-        if (!definition.StaticBlocks.IsDefaultOrEmpty || !definition.StaticElements.IsDefaultOrEmpty)
-        {
-            declineReason =
-                "Class literal static elements are not supported by B24b resumable production routing.";
-            return false;
-        }
-
-        foreach (var field in definition.Fields)
-        {
-            if (field.IsStatic)
-            {
-                declineReason =
-                    "Class literal static fields are not supported by B24b resumable production routing.";
-                return false;
-            }
-
-            if (field.IsPrivate)
-            {
-                declineReason =
-                    "Class literal private fields are not supported by B24b resumable production routing.";
-                return false;
-            }
-
-            if (field.IsComputed)
-            {
-                declineReason =
-                    "Class literal computed fields are not supported by B24b resumable production routing.";
-                return false;
-            }
-        }
-
-        var cache = ((IAstCacheable<ClassDefinitionProgramCache>)definition).GetOrCreateCache();
-        if (!cache.Succeeded)
-        {
-            declineReason =
-                $"Class literal field programs could not lower for B24b resumable production routing: {cache.FailureReason ?? "unknown failure"}.";
-            return false;
-        }
-
-        var initializerPrograms = cache.FieldInitializerPrograms;
-        for (var i = 0; i < initializerPrograms.Length; i++)
-        {
-            if (initializerPrograms[i] is { } initializerProgram &&
-                ExpressionProgramReferencesActivationSlot(initializerProgram, activationSlots, out var capturedName))
-            {
-                declineReason =
-                    $"Class literal field initializer captures activation binding '{capturedName}' and is not supported by B24b resumable production routing until the resume state owns a materialized body environment.";
-                return false;
-            }
-        }
-
-        declineReason = string.Empty;
-        return true;
-    }
-
-    private static bool IsB24aConstructorOnlyClassLiteral(
-        UnifiedBytecodeProgram program,
-        ClassExpression classExpression,
-        out string declineReason)
-    {
-        var definition = classExpression.Definition;
-        if (!definition.Fields.IsDefaultOrEmpty)
-        {
-            if (IsB24ePrivateInstanceFieldClassLiteral(definition) &&
-                !ClassExtendsReadsUnifiedSlot(definition, program.SlotNames))
-            {
-                declineReason = string.Empty;
-                return true;
-            }
-
-            declineReason =
-                "Class literal is outside B24a: class fields remain owned by later B24 field/private/computed-member slices.";
-            return false;
-        }
-
-        if (!definition.StaticBlocks.IsDefaultOrEmpty || !definition.StaticElements.IsDefaultOrEmpty)
-        {
-            declineReason =
-                "Class literal is outside B24a: static elements remain owned by later B24 static-field/static-block slices.";
-            return false;
-        }
-
-        if (!definition.Members.IsDefaultOrEmpty)
-        {
-            declineReason =
-                "Class literal is outside B24a: class methods, accessors, computed members, private members, and member super semantics remain later B24 slices.";
-            return false;
-        }
-
         if (ClassExtendsReadsUnifiedSlot(definition, program.SlotNames))
         {
             declineReason =
-                "Class literal is outside B24a: extends expressions that read resumable activation slots need a later class-definition environment slice.";
+                "Class literal is outside B24: extends expressions that read resumable activation slots need a later class-definition environment slice.";
+            return false;
+        }
+
+        if (!definition.StaticBlocks.IsDefaultOrEmpty || !definition.StaticElements.IsDefaultOrEmpty)
+        {
+            declineReason =
+                "Class literal is outside B24: static elements remain owned by later B24 static-field/static-block slices.";
+            return false;
+        }
+
+        if (!AreResumableB24ClassFieldsSupported(definition, activationSlots, out declineReason))
+        {
+            return false;
+        }
+
+        var isPrivateInstanceFieldClassLiteral = IsB24ePrivateInstanceFieldClassLiteral(definition);
+        if (!AreResumableB24ClassMembersSupported(definition, isPrivateInstanceFieldClassLiteral))
+        {
+            declineReason =
+                "Class literal is outside B24: computed or static class members remain later B24 slices.";
             return false;
         }
 
@@ -2181,7 +2091,7 @@ internal static class UnifiedBytecodeProductionEligibility
 
     private static bool IsB24ePrivateInstanceFieldClassLiteral(ClassDefinition definition)
     {
-        if (!definition.StaticBlocks.IsDefaultOrEmpty || !definition.StaticElements.IsDefaultOrEmpty)
+        if (definition.Fields.IsDefaultOrEmpty)
         {
             return false;
         }
@@ -2194,15 +2104,134 @@ internal static class UnifiedBytecodeProductionEligibility
             }
         }
 
-        foreach (var member in definition.Members)
+        return true;
+    }
+
+    private static bool AreResumableB24ClassFieldsSupported(
+        ClassDefinition definition,
+        ActivationSlotShape activationSlots,
+        out string declineReason)
+    {
+        declineReason = string.Empty;
+        if (definition.Fields.IsDefaultOrEmpty)
         {
-            if (member.IsStatic || member.IsComputed || member.IsPrivate)
+            return true;
+        }
+
+        if (IsB24bPublicInstanceFieldClassLiteral(definition))
+        {
+            return AreB24bFieldInitializersActivationSafe(definition, activationSlots, out declineReason);
+        }
+
+        foreach (var field in definition.Fields)
+        {
+            if (field.IsStatic || field.IsComputed)
+            {
+                declineReason =
+                    "Class literal is outside B24: class fields remain owned by later B24 static-field/computed-member slices.";
+                return false;
+            }
+
+            if (!field.IsPrivate &&
+                (field.Initializer is null || !ExpressionContainsSuper(field.Initializer)))
+            {
+                declineReason =
+                    "Class literal is outside B24: class fields remain owned by later B24 static-field/computed-member slices.";
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static bool IsB24bPublicInstanceFieldClassLiteral(ClassDefinition definition)
+    {
+        if (definition.Extends is not null ||
+            definition.Fields.IsDefaultOrEmpty ||
+            !definition.Members.IsDefaultOrEmpty ||
+            !definition.StaticBlocks.IsDefaultOrEmpty ||
+            !definition.StaticElements.IsDefaultOrEmpty)
+        {
+            return false;
+        }
+
+        foreach (var field in definition.Fields)
+        {
+            if (field.IsStatic || field.IsPrivate || field.IsComputed)
             {
                 return false;
             }
         }
 
         return true;
+    }
+
+    private static bool AreB24bFieldInitializersActivationSafe(
+        ClassDefinition definition,
+        ActivationSlotShape activationSlots,
+        out string declineReason)
+    {
+        var cache = ((IAstCacheable<ClassDefinitionProgramCache>)definition).GetOrCreateCache();
+        if (!cache.Succeeded)
+        {
+            declineReason =
+                $"Class literal field programs could not lower for B24b resumable production routing: {cache.FailureReason ?? "unknown failure"}.";
+            return false;
+        }
+
+        var initializerPrograms = cache.FieldInitializerPrograms;
+        for (var i = 0; i < initializerPrograms.Length; i++)
+        {
+            if (initializerPrograms[i] is { } initializerProgram &&
+                ExpressionProgramReferencesActivationSlot(initializerProgram, activationSlots, out var capturedName))
+            {
+                declineReason =
+                    $"Class literal field initializer captures activation binding '{capturedName}' and is not supported by B24b resumable production routing until the resume state owns a materialized body environment.";
+                return false;
+            }
+        }
+
+        declineReason = string.Empty;
+        return true;
+    }
+
+    private static bool AreResumableB24ClassMembersSupported(
+        ClassDefinition definition,
+        bool isPrivateInstanceFieldClassLiteral)
+    {
+        foreach (var member in definition.Members)
+        {
+            if (member.IsStatic ||
+                member.IsComputed ||
+                member.IsPrivate ||
+                (!isPrivateInstanceFieldClassLiteral && !FunctionContainsSuper(member.Function)))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static bool FunctionContainsSuper(FunctionExpression function) =>
+        ExpressionContainsSuper(function);
+
+    private static bool ExpressionContainsSuper(ExpressionNode expression)
+    {
+        var visitor = new SuperExpressionDetector();
+        visitor.Visit(expression);
+        return visitor.Found;
+    }
+
+    private sealed class SuperExpressionDetector : AstVisitor
+    {
+        public bool Found { get; private set; }
+
+        protected override void VisitSuperExpression(SuperExpression node)
+        {
+            Found = true;
+            ShouldStop = true;
+        }
     }
 
     private static bool ClassExtendsReadsUnifiedSlot(

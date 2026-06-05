@@ -79,8 +79,52 @@ public sealed class UnifiedBytecodeResumableLiteralTests(ITestOutputHelper outpu
     }
 
     [Theory]
+    [InlineData("""
+        class Base {
+            get value() { return 41; }
+        }
+
+        function* g() {
+            yield class Derived extends Base {
+                read() { return super.value + 1; }
+            };
+        }
+        """)]
+    [InlineData("""
+        class Base {
+            get value() { return 41; }
+        }
+
+        function* g() {
+            yield class Derived extends Base {
+                get answer() { return super.value + 1; }
+            };
+        }
+        """)]
+    public void EvaluateResumable_ClassLiteralPublicMemberSuper_AdmitsLoadClassLiteral(string source)
+    {
+        _ = AssertClassLiteralEligible(source);
+    }
+
+    [Fact]
+    public void EvaluateResumable_ClassLiteralPublicInstanceFieldSuper_AdmitsLoadClassLiteral()
+    {
+        _ = AssertClassLiteralEligible("""
+            class Base {
+                get value() { return 41; }
+            }
+
+            function* g() {
+                yield class Derived extends Base {
+                    answer = super.value + 1;
+                };
+            }
+            """);
+    }
+
+    [Theory]
     [MemberData(nameof(DeclinedB24ClassLiteralPrograms))]
-    public void EvaluateResumable_ClassLiteralOutsideAdmittedB24Subsets_DeclinesForLaterB24Leaves(string source)
+    public void EvaluateResumable_ClassLiteralOutsideB24_DeclinesForLaterB24Leaves(string source)
     {
         var plan = GetFunctionPlan(source, "g");
 
@@ -92,6 +136,7 @@ public sealed class UnifiedBytecodeResumableLiteralTests(ITestOutputHelper outpu
         Assert.Equal(UnifiedBytecodeProductionDeclineCode.UnsupportedPlanShape, result.Code);
         Assert.True(
             result.Reason.Contains("outside B24a", StringComparison.Ordinal) ||
+            result.Reason.Contains("outside B24", StringComparison.Ordinal) ||
             result.Reason.Contains("B24b resumable", StringComparison.Ordinal),
             result.Reason);
     }
@@ -160,6 +205,34 @@ public sealed class UnifiedBytecodeResumableLiteralTests(ITestOutputHelper outpu
             """);
 
         Assert.Equal("11|true|true", result);
+        AssertGeneratorFastPath("g", argc: 0);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task GeneratorClassLiteralPublicSuperMembers_RoutesResumableAndRunsSuperInitializers()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            class Base {
+                get value() { return 20; }
+            }
+
+            function* g() {
+                yield 0;
+                yield class Derived extends Base {
+                    answer = super.value + 2;
+                    read() { return super.value + this.answer; }
+                };
+            }
+
+            var it = g();
+            it.next();
+            var Derived = it.next().value;
+            var instance = new Derived();
+            instance.answer + "|" + instance.read() + "|" + (instance instanceof Base);
+            """);
+
+        Assert.Equal("22|42|true", result);
         AssertGeneratorFastPath("g", argc: 0);
     }
 
@@ -647,11 +720,6 @@ public sealed class UnifiedBytecodeResumableLiteralTests(ITestOutputHelper outpu
         """
         function* g(name) {
             yield class { [name]() { return 1; } };
-        }
-        """,
-        """
-        function* g(Base) {
-            yield class extends Base { method() { return super.toString(); } };
         }
         """,
         """

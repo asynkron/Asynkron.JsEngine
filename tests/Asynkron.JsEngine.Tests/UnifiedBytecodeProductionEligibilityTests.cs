@@ -4654,6 +4654,43 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
+    public void Evaluate_ConstructorSuperPropertyCalls_AcceptSuperCallTargetPreparation()
+    {
+        var plan = GetClassConstructorPlan("""
+            class Base {
+                read(value) {
+                    return this.value + value;
+                }
+            }
+
+            class Derived extends Base {
+                constructor(name, value) {
+                    super();
+                    this.value = value;
+                    this.named = super.read(1);
+                    this.computed = super[name](2);
+                }
+            }
+            """,
+            "Derived");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.PrepareNamedSuperCallTarget);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.PrepareComputedSuperCallTarget);
+        Assert.Contains(result.Program.CallTargetConstants, callTarget =>
+            callTarget.Kind == UnifiedBytecodeCallTargetKind.NamedSuperMember);
+        Assert.Contains(result.Program.CallTargetConstants, callTarget =>
+            callTarget.Kind == UnifiedBytecodeCallTargetKind.ComputedSuperMember);
+    }
+
+    [Fact]
     public void Evaluate_SuperCall_AcceptsSuperConstructInvocationBoundary()
     {
         var plan = GetClassConstructorPlan("""

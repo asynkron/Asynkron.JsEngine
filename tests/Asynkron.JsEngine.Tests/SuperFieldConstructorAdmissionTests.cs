@@ -9,8 +9,9 @@ namespace Asynkron.JsEngine.Tests;
 ///     Derived-constructor (super-call) and instance-field-initializer class constructors now route through
 ///     the production sync VM — an emergent, VERIFIED consequence of admitting complex property-write RHS
 ///     (the body-shape blocker that previously kept these declined). This battery locks the correctness of
-///     that admission across super/field edge cases. Super-PROPERTY access (`super.m()`) and private names
-///     still correctly decline (A27 / PrivateFieldDependency) — guarded elsewhere.
+///     that admission across super/field edge cases. Super-property call targets (`super.m()` /
+///     `super[k]()`) now route; private names still correctly decline (PrivateFieldDependency) —
+///     guarded elsewhere.
 /// </summary>
 [Category(TestCategories.RuntimeSemantics)]
 public sealed class SuperFieldConstructorAdmissionTests(ITestOutputHelper output) : InternalTestBase(output)
@@ -83,12 +84,20 @@ public sealed class SuperFieldConstructorAdmissionTests(ITestOutputHelper output
     }
 
     [Fact]
-    public async Task SuperPropertyAccessInCtor_StillDeclines()
+    public async Task NamedSuperPropertyCallInCtor_RoutesAndPreservesReceiver()
     {
         await using var e = CreateEngine();
-        // super.m() (super-PROPERTY access, A27) still correctly declines to the IR runner; result correct.
-        var r = await e.Evaluate("class B{m(){return 4;}} class D extends B{constructor(){super(); this.v=super.m();}} new D().v;");
-        Assert.Equal(4d, r);
-        Assert.False(Routed("D"), "super-property access (A27) still declines");
+        var r = await e.Evaluate("class B{m(){return this.x+4;}} class D extends B{constructor(){super(); this.x=3; this.v=super.m();}} new D().v;");
+        Assert.Equal(7d, r);
+        Assert.True(Routed("D"));
+    }
+
+    [Fact]
+    public async Task ComputedSuperPropertyCallInCtor_RoutesAndPreservesReceiver()
+    {
+        await using var e = CreateEngine();
+        var r = await e.Evaluate("class B{m(n){return this.x+n;}} class D extends B{constructor(name){super(); this.x=5; this.v=super[name](2);}} new D('m').v;");
+        Assert.Equal(7d, r);
+        Assert.True(Routed("D"));
     }
 }

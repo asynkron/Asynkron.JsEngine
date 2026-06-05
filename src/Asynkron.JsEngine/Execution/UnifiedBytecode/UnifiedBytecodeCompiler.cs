@@ -7913,6 +7913,51 @@ internal static class UnifiedBytecodeCompiler
                     break;
                 }
 
+                case ExpressionOpKind.EnsureSuperReference:
+                    unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.EnsureSuperReference));
+                    break;
+
+                case ExpressionOpKind.LoadNamedSuperCallTarget:
+                {
+                    var namedSuperCtName = op.GetString(expressionStringConstants);
+                    if (namedSuperCtName.IsPrivateName())
+                    {
+                        RollBack();
+                        reason = "Private named super call target in complex call argument.";
+                        return false;
+                    }
+
+                    var namedSuperCtNameIdx = stringConstants.Count;
+                    stringConstants.Add(namedSuperCtName);
+                    var namedSuperCtIdx = callTargetConstants.Count;
+                    callTargetConstants.Add(new UnifiedBytecodeCallTarget(
+                        UnifiedBytecodeCallTargetKind.NamedSuperMember,
+                        NameConstantIndex: namedSuperCtNameIdx));
+                    unified.Add(new UnifiedBytecodeInstruction(
+                        UnifiedBytecodeOpCode.PrepareNamedSuperCallTarget,
+                        namedSuperCtIdx));
+                    depth += 2;
+                    break;
+                }
+
+                case ExpressionOpKind.LoadComputedSuperCallTarget:
+                {
+                    if (depth < 1)
+                    {
+                        RollBack();
+                        reason = "Unsupported computed super call target in complex call argument.";
+                        return false;
+                    }
+
+                    var computedSuperCtIdx = callTargetConstants.Count;
+                    callTargetConstants.Add(new UnifiedBytecodeCallTarget(UnifiedBytecodeCallTargetKind.ComputedSuperMember));
+                    unified.Add(new UnifiedBytecodeInstruction(
+                        UnifiedBytecodeOpCode.PrepareComputedSuperCallTarget,
+                        computedSuperCtIdx));
+                    depth++;
+                    break;
+                }
+
                 case ExpressionOpKind.Call:
                     if (!op.HasExplicitThis ||
                         op.IsDirectEval ||

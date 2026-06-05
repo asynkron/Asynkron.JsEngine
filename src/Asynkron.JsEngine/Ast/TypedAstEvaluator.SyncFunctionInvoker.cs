@@ -4106,6 +4106,7 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                     case ExpressionOpKind.LoadNamedSuperCallTarget:
                     case ExpressionOpKind.LoadComputedSuperCallTarget:
                     case ExpressionOpKind.EnsureSuperReference:
+                        break;
                     case ExpressionOpKind.GetNamedSuperProperty:
                     case ExpressionOpKind.GetComputedSuperProperty:
                     case ExpressionOpKind.SetNamedSuperProperty:

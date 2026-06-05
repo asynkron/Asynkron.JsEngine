@@ -2241,6 +2241,16 @@ avoids the build-back repair cycle that the sibling task (PR #2748) required.
     names, and `super` as pre-VM declines until a later slice proves those exact
     semantics.
 
+    Chained optional delete can use two different guard op families. A terminal
+    optional hop (`delete box?.value?.leaf`) carries a normal nullish guard,
+    while a non-terminal optional target-chain guard (`delete box?.child[key]`)
+    carries `JumpIfShortCircuited` after the optional receiver hop. Treat
+    `JumpIfShortCircuited` as a net-neutral conditional jump in first-boundary
+    stack-depth tests: it skips later key/delete work but leaves stack height
+    unchanged by itself. Do not model it like a pop-semantics conditional branch
+    or the stack-depth proof can reject valid optional-delete bytecode even when
+    the compiler and VM route are correct.
+
     Pair each positive widening with opcode proof, public fast-path route logs,
     computed-key coercion/order proof for computed deletes, strict/sloppy
     descriptor failure proof, and adjacent negative decline coverage. WHY:
@@ -2262,6 +2272,12 @@ avoids the build-back repair cycle that the sibling task (PR #2748) required.
     predicates must match the exact short-circuit-to-true expression-program
     shape, prove the computed key is skipped when the receiver is nullish, and
     leave adjacent optional delete forms declined (ADR 0317).
+    Faktorial issue
+    `planitem-planmanual1780639098493226000-full-unified-bytecode-execution-burndown-b-31d21ea9a4`
+    / PR #3255 then admitted chained optional named delete (`delete a?.b?.c`)
+    and repaired the stack-depth guard after the accepted optional-computed
+    delete route exposed that `JumpIfShortCircuited` is a neutral guard in this
+    model, not a stack-consuming branch.
 
 53. When admitting labeled `break` or `continue` that crosses nested
     iterator/for-in driver loops to production unified bytecode, make cleanup

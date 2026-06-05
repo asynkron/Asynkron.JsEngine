@@ -2,6 +2,7 @@ using System;
 using System.Linq;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.Execution;
+using Asynkron.JsEngine.Execution.Instructions;
 using Asynkron.JsEngine.Execution.UnifiedBytecode;
 using Xunit;
 using Xunit.Abstractions;
@@ -9,7 +10,7 @@ using Xunit.Abstractions;
 namespace Asynkron.JsEngine.Tests;
 
 /// <summary>
-///     A41 (burn-down) — DECLINED, investigated. "Slot-resolved identifier via dynamic-name reference op."
+///     A41 (burn-down) — ADMITTED. "Slot-resolved identifier via dynamic-name reference op."
 ///
 ///     SHAPE: a slot-bound local assigned to as a CONSUMED (value-producing) sub-expression — e.g.
 ///     <c>return (x = v)</c>, <c>var y = (x = v)</c>, <c>g(x = v)</c>, chained <c>(x = z = v)</c>. Because the
@@ -17,25 +18,19 @@ namespace Asynkron.JsEngine.Tests;
 ///     <c>StoreResolvedIdentifier</c> ops (the "dynamic-name reference" path) rather than a top-level
 ///     <c>AssignmentSlotInstruction</c> → <c>StoreSlot</c>.
 ///
-///     WHY IT DECLINES: <see cref="UnifiedBytecodeProductionEligibility"/> declines any
-///     <c>ResolveIdentifierReference</c> / <c>StoreResolvedIdentifier</c> whose identifier resolves to an
-///     activation slot — UNCONDITIONALLY (not gated on the dynamic-name flag) — with
-///     <see cref="UnifiedBytecodeProductionDeclineCode.UnsupportedPlanShape"/> and reason
-///     "...resolves to an activation slot and is outside the ordinary dynamic-name production slice.". The
-///     compiler itself declines the same shape ("...is not eligible for dynamic unified bytecode assignment
-///     references."). The dynamic-name VM has no slot-targeting reference-store opcode:
-///     <c>StoreDynamicIdentifierReference</c> writes by NAME to the threaded environment, never to a flat slot.
-///     Admitting cleanly requires a NEW slot-reference-store lowering (push slot reference, store-to-slot,
-///     leave the value on the stack) — compiler + VM foundation work, not a clean admit.
+///     ADMISSION: <see cref="UnifiedBytecodeProductionEligibility"/> and
+///     <see cref="UnifiedBytecodeCompiler"/> now track explicit slot-resolved identifier references as compiler
+///     side-state. <c>LoadResolvedIdentifierValue</c> lowers to <c>LoadSlot</c>, and
+///     <c>StoreResolvedIdentifier</c> lowers to <c>DuplicateTop</c> + <c>StoreSlot</c>, preserving the assignment
+///     expression result while still writing the flat slot. Name-only activation-slot matches remain declined so
+///     with/dynamic shadowing does not get converted into a flat-slot write.
 ///
-///     STANDING TRIPWIRE: each declined case asserts CORRECT runtime results (the IR runner keeps it correct)
-///     AND the exact decline code + reason. The ADMITTED neighbor (the SAME assignment written as a top-level
-///     STATEMENT, whose value is discarded, taking <c>AssignmentSlotInstruction</c> → <c>StoreSlot</c>) proves
-///     the decline is scoped to consumed assignment expressions, not slot stores in general. Complements
-///     <see cref="AlreadyRoutingShapePinTests"/> (A46/A49 already-routing pins).
+///     STANDING TRIPWIRE: each consumed assignment case asserts CORRECT runtime results and a production
+///     route hit. The statement neighbor remains pinned to prove discarded and consumed slot stores are both
+///     bytecode-owned.
 /// </summary>
 [Category(TestCategories.RuntimeSemantics)]
-public sealed class A41SlotReferenceAssignDeclineTests(ITestOutputHelper output) : InternalTestBase(output)
+public sealed class A41SlotReferenceAssignAdmissionTests(ITestOutputHelper output) : InternalTestBase(output)
 {
     private bool RoutedFunction(string func) =>
         CurrentLogger!.Collector.Snapshot().Any(rec => rec.Message.Contains(
@@ -52,7 +47,7 @@ public sealed class A41SlotReferenceAssignDeclineTests(ITestOutputHelper output)
         return Assert.IsType<ExecutionPlan>(cache.Plan);
     }
 
-    // --- DECLINED shapes: correct runtime results, NOT routed. ---
+    // --- ADMITTED shapes: correct runtime results and production route hits. ---
 
     [Theory]
     [InlineData("function f(){ var x=0; return (x = 5); } f();", 5d, "f")]
@@ -60,25 +55,24 @@ public sealed class A41SlotReferenceAssignDeclineTests(ITestOutputHelper output)
     [InlineData("function f(){ var x=0; g(x = 5); return x; } function g(a){} f();", 5d, "f")]
     [InlineData("function f(){ var x=0; return (x = 5) + x; } f();", 10d, "f")]
     [InlineData("function f(){ var x=0,z=0; return (x = z = 5); } f();", 5d, "f")]
-    public async Task ConsumedSlotAssign_CorrectButDeclined(string source, double expected, string func)
+    public async Task ConsumedSlotAssign_RoutesThroughProduction(string source, double expected, string func)
     {
         await using var engine = CreateEngine();
         var r = await engine.Evaluate(source);
         Assert.Equal(expected, Convert.ToDouble(r));
-        Assert.False(
+        Assert.True(
             RoutedFunction(func),
-            "a slot-bound assignment consumed as a value must NOT route through the production VM");
+            "a slot-bound assignment consumed as a value must route through the production VM");
     }
 
-    // The decline is NOT gated on the dynamic-name flag: it fires for the consumed slot assignment whether
-    // or not ordinary dynamic identifiers are allowed. Pin both descriptor variants.
     [Theory]
     [InlineData("function f(){ var x=0; return (x = 5); }", false)]
     [InlineData("function f(){ var x=0; return (x = 5); }", true)]
     [InlineData("function f(){ var x=0; var y = (x = 5); return x+y; }", false)]
     [InlineData("function f(){ var x=0; var y = (x = 5); return x+y; }", true)]
+    [InlineData("function f(){ var x=0; g(x = 5); return x; } function g(a){}", true)]
     [InlineData("function f(){ var x=0,z=0; return (x = z = 5); }", true)]
-    public void ConsumedSlotAssign_DeclineCodeAndReason_ArePinned(string source, bool allowsDynamicNames)
+    public void ConsumedSlotAssign_IsEligible(string source, bool allowsDynamicNames)
     {
         var plan = GetFunctionPlan(source, "f");
         var result = UnifiedBytecodeProductionEligibility.Evaluate(
@@ -86,12 +80,35 @@ public sealed class A41SlotReferenceAssignDeclineTests(ITestOutputHelper output)
             new UnifiedBytecodeProductionActivationDescriptor(
                 AllowsOrdinaryDynamicIdentifierEnvironmentOperations: allowsDynamicNames));
 
-        Assert.False(result.IsEligible);
-        Assert.Equal(UnifiedBytecodeProductionDeclineCode.UnsupportedPlanShape, result.Code);
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+    }
+
+    [Fact]
+    public void ConsumedSlotAssign_CompilesToValuePreservingSlotStore()
+    {
+        var plan = GetFunctionPlan("function f(){ var x=0; return (x = 5) + x; }", "f");
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        var opCodes = result.Program.Instructions.Select(static instruction => instruction.OpCode).ToArray();
+        Assert.Contains(UnifiedBytecodeOpCode.DuplicateTop, opCodes);
+        Assert.Contains(UnifiedBytecodeOpCode.StoreSlot, opCodes);
+        Assert.DoesNotContain(UnifiedBytecodeOpCode.StoreDynamicIdentifierReference, opCodes);
+
+        var returnInstruction = Assert.Single(
+            plan.Instructions.OfType<ReturnInstruction>(),
+            i => i.ReturnProgram is not null);
+        Assert.NotNull(returnInstruction.ReturnProgram);
+        var returnProgram = returnInstruction.ReturnProgram.Value;
         Assert.Contains(
-            "resolves to an activation slot and is outside the ordinary dynamic-name production slice.",
-            result.Reason,
-            StringComparison.Ordinal);
+            returnProgram.GetOps(ExpressionOpKind.ResolveIdentifierReference),
+            static op => op.Name.Name == "x" && (op.FlatSlotId >= 0 || op.SlotIndex >= 0));
+        Assert.Contains(
+            returnProgram.GetOps(ExpressionOpKind.StoreResolvedIdentifier),
+            static op => op.Name.Name == "x" && (op.FlatSlotId >= 0 || op.SlotIndex >= 0));
     }
 
     // --- ADMITTED neighbor: the SAME assignment as a top-level STATEMENT (value discarded) routes. ---
@@ -100,7 +117,7 @@ public sealed class A41SlotReferenceAssignDeclineTests(ITestOutputHelper output)
     public async Task StatementSlotAssign_RoutesThroughProduction()
     {
         // `x = 5;` as a statement lowers to AssignmentSlotInstruction -> StoreSlot and routes, proving the
-        // A41 decline is scoped to consumed (value-producing) assignment expressions, not slot stores.
+        // statement and consumed-expression slot-store paths are both production-owned.
         await using var engine = CreateEngine();
         var r = await engine.Evaluate("function f(){ var x=0; x = 5; return x; } f();");
         Assert.Equal(5d, r);

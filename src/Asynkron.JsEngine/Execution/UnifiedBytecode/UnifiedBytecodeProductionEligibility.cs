@@ -1249,6 +1249,14 @@ internal static class UnifiedBytecodeProductionEligibility
                     return true;
                 }
 
+                if (TryFindLexicalSlotReferenceAssignment(program, activationSlots, out var lexicalReferenceTarget))
+                {
+                    declineCode = UnifiedBytecodeProductionDeclineCode.UnsupportedPlanShape;
+                    declineReason =
+                        $"Assignment target '{lexicalReferenceTarget.Name}' is a lexical (let/const) slot; the resumable VM cannot enforce const-assignment semantics and the assignment is not eligible for resumable unified bytecode routing.";
+                    return true;
+                }
+
                 // `__debug()` introspection dependency. The engine's `__debug()` host hook captures the live
                 // ENVIRONMENT chain (JsEnvironment.GetAllVariables) to report each local binding's value. A
                 // resumable body keeps its own locals in flat slots, NOT as environment bindings, so a resumed
@@ -1935,6 +1943,8 @@ internal static class UnifiedBytecodeProductionEligibility
                  identifierConstants,
                  activationSlots,
                  allowsDynamicIdentifiers));
+        const int DynamicIdentifierReferenceSlot = -1;
+        List<int>? identifierReferenceSlots = null;
         for (var operationIndex = 0; operationIndex < operationCount; operationIndex++)
         {
             var operation = program.GetOperation(operationIndex);
@@ -2162,12 +2172,38 @@ internal static class UnifiedBytecodeProductionEligibility
                         return true;
                     }
 
+                    if (TryResolveExplicitActivationSlot(referenceIdentifier, activationSlots, out var referenceSlotIndex))
+                    {
+                        identifierReferenceSlots ??= [];
+                        identifierReferenceSlots.Add(referenceSlotIndex);
+                        break;
+                    }
+
                     if (TryResolveActivationSlot(referenceIdentifier, activationSlots))
                     {
                         declineCode = UnifiedBytecodeProductionDeclineCode.UnsupportedPlanShape;
                         declineReason =
-                            $"Identifier assignment reference '{referenceIdentifier.Name.Name}' resolves to an activation slot and is outside the ordinary dynamic-name production slice.";
+                            $"Identifier assignment reference '{referenceIdentifier.Name.Name}' resolves only by activation-slot name lookup and is outside the slot-reference production slice.";
                         return true;
+                    }
+
+                    if (allowsDynamicIdentifiers)
+                    {
+                        identifierReferenceSlots ??= [];
+                        identifierReferenceSlots.Add(DynamicIdentifierReferenceSlot);
+                        break;
+                    }
+
+                    declineCode = UnifiedBytecodeProductionDeclineCode.DynamicLookupDependency;
+                    declineReason =
+                        "Dynamic identifier assignment references are not eligible for production unified bytecode routing.";
+                    return true;
+
+                case ExpressionOpKind.LoadResolvedIdentifierValue:
+                    if (identifierReferenceSlots is { Count: > 0 } &&
+                        identifierReferenceSlots[^1] >= 0)
+                    {
+                        break;
                     }
 
                     if (allowsDynamicIdentifiers)
@@ -2180,8 +2216,17 @@ internal static class UnifiedBytecodeProductionEligibility
                         "Dynamic identifier assignment references are not eligible for production unified bytecode routing.";
                     return true;
 
-                case ExpressionOpKind.LoadResolvedIdentifierValue:
                 case ExpressionOpKind.PopResolvedIdentifierReference:
+                    if (identifierReferenceSlots is { Count: > 0 })
+                    {
+                        var pendingReferenceSlot = identifierReferenceSlots[^1];
+                        identifierReferenceSlots.RemoveAt(identifierReferenceSlots.Count - 1);
+                        if (pendingReferenceSlot >= 0)
+                        {
+                            break;
+                        }
+                    }
+
                     if (allowsDynamicIdentifiers)
                     {
                         break;
@@ -2193,6 +2238,57 @@ internal static class UnifiedBytecodeProductionEligibility
                     return true;
 
                 case ExpressionOpKind.StoreResolvedIdentifier:
+                    var storeReferenceIdentifier = operation.GetIdentifier(identifierConstants);
+                    if (IsImplicitArgumentsIdentifier(storeReferenceIdentifier, activationSlots))
+                    {
+                        declineCode = UnifiedBytecodeProductionDeclineCode.ArgumentsObjectDependency;
+                        declineReason =
+                            "arguments assignment references are not eligible for production unified bytecode routing.";
+                        return true;
+                    }
+
+                    if (TryResolveExplicitActivationSlot(
+                            storeReferenceIdentifier,
+                            activationSlots,
+                            out var storeReferenceSlotIndex))
+                    {
+                        if (identifierReferenceSlots is not { Count: > 0 } ||
+                            identifierReferenceSlots[^1] != storeReferenceSlotIndex)
+                        {
+                            declineCode = UnifiedBytecodeProductionDeclineCode.UnsupportedPlanShape;
+                            declineReason =
+                                $"Identifier assignment target '{storeReferenceIdentifier.Name.Name}' does not match the pending slot-reference target.";
+                            return true;
+                        }
+
+                        identifierReferenceSlots.RemoveAt(identifierReferenceSlots.Count - 1);
+                        break;
+                    }
+
+                    if (TryResolveActivationSlot(storeReferenceIdentifier, activationSlots))
+                    {
+                        declineCode = UnifiedBytecodeProductionDeclineCode.UnsupportedPlanShape;
+                        declineReason =
+                            $"Identifier assignment target '{storeReferenceIdentifier.Name.Name}' resolves only by activation-slot name lookup and is outside the slot-reference production slice.";
+                        return true;
+                    }
+
+                    if (allowsDynamicIdentifiers)
+                    {
+                        if (identifierReferenceSlots is { Count: > 0 } &&
+                            identifierReferenceSlots[^1] == DynamicIdentifierReferenceSlot)
+                        {
+                            identifierReferenceSlots.RemoveAt(identifierReferenceSlots.Count - 1);
+                        }
+
+                        break;
+                    }
+
+                    declineCode = UnifiedBytecodeProductionDeclineCode.DynamicLookupDependency;
+                    declineReason =
+                        "Dynamic identifier assignment references are not eligible for production unified bytecode routing.";
+                    return true;
+
                 case ExpressionOpKind.StoreIdentifier:
                     var storeIdentifier = operation.GetIdentifier(identifierConstants);
                     if (IsImplicitArgumentsIdentifier(storeIdentifier, activationSlots))
@@ -3065,6 +3161,14 @@ internal static class UnifiedBytecodeProductionEligibility
 
                     break;
             }
+        }
+
+        if (identifierReferenceSlots is { Count: > 0 })
+        {
+            declineCode = UnifiedBytecodeProductionDeclineCode.UnsupportedPlanShape;
+            declineReason =
+                "Identifier assignment references were left pending after unified bytecode expression lowering.";
+            return true;
         }
 
         declineCode = UnifiedBytecodeProductionDeclineCode.None;
@@ -5516,6 +5620,8 @@ internal static class UnifiedBytecodeProductionEligibility
         // program must leave exactly one operand on the stack.
         var depth = 0;
         var hasCall = false;
+        const int DynamicIdentifierReferenceSlot = -1;
+        List<int>? identifierReferenceSlots = null;
         for (var operationIndex = 0; operationIndex < program.OperationCount; operationIndex++)
         {
             if (program.GetOperation(operationIndex).Kind == ExpressionOpKind.Call)
@@ -5530,6 +5636,8 @@ internal static class UnifiedBytecodeProductionEligibility
                     stringConstants,
                     activationSlots,
                     allowsDynamicIdentifiers,
+                    DynamicIdentifierReferenceSlot,
+                    ref identifierReferenceSlots,
                     depth,
                     out depth))
             {
@@ -5537,7 +5645,7 @@ internal static class UnifiedBytecodeProductionEligibility
             }
         }
 
-        return hasCall && depth == 1;
+        return hasCall && depth == 1 && identifierReferenceSlots is not { Count: > 0 };
     }
 
     private static int FindComputedCallKeyStart(
@@ -6654,6 +6762,8 @@ internal static class UnifiedBytecodeProductionEligibility
         var stringConstants = program.StringConstants.AsSpan();
         var depth = 0;
         var index = argsStartIndex;
+        const int DynamicIdentifierReferenceSlot = -1;
+        List<int>? identifierReferenceSlots = null;
         while (index < callIndex)
         {
             // At each position first try the existing flat value-span measurers. Each one validates
@@ -6697,6 +6807,8 @@ internal static class UnifiedBytecodeProductionEligibility
                     stringConstants,
                     activationSlots,
                     allowsDynamicIdentifiers,
+                    DynamicIdentifierReferenceSlot,
+                    ref identifierReferenceSlots,
                     depth,
                     out depth))
             {
@@ -6708,7 +6820,8 @@ internal static class UnifiedBytecodeProductionEligibility
 
         // The whole argument region must leave exactly one operand per logical argument on the
         // stack (and the per-op deltas above never underflowed), matching the call's arity.
-        return depth == expectedArgumentCount;
+        return depth == expectedArgumentCount &&
+               identifierReferenceSlots is not { Count: > 0 };
     }
 
     // Validates a SINGLE op at <paramref name="index"/> as an admitted value-producing argument
@@ -6722,6 +6835,8 @@ internal static class UnifiedBytecodeProductionEligibility
         ReadOnlySpan<string> stringConstants,
         ActivationSlotShape activationSlots,
         bool allowsDynamicIdentifiers,
+        int dynamicIdentifierReferenceSlot,
+        ref List<int>? identifierReferenceSlots,
         int depthBefore,
         out int depthAfter)
     {
@@ -6778,6 +6893,86 @@ internal static class UnifiedBytecodeProductionEligibility
 
                 depthAfter = depthBefore - 1;
                 return true;
+
+            case ExpressionOpKind.ResolveIdentifierReference:
+                if (op.IsArguments)
+                {
+                    return false;
+                }
+
+                var referenceIdentifier = op.GetIdentifier(identifierConstants);
+                if (TryResolveExplicitActivationSlot(referenceIdentifier, activationSlots, out var referenceSlotIndex))
+                {
+                    identifierReferenceSlots ??= [];
+                    identifierReferenceSlots.Add(referenceSlotIndex);
+                    return true;
+                }
+
+                if (TryResolveActivationSlot(referenceIdentifier, activationSlots))
+                {
+                    return false;
+                }
+
+                if (!allowsDynamicIdentifiers)
+                {
+                    return false;
+                }
+
+                identifierReferenceSlots ??= [];
+                identifierReferenceSlots.Add(dynamicIdentifierReferenceSlot);
+                return true;
+
+            case ExpressionOpKind.LoadResolvedIdentifierValue:
+                if (identifierReferenceSlots is not { Count: > 0 })
+                {
+                    return false;
+                }
+
+                depthAfter = depthBefore + 1;
+                return identifierReferenceSlots[^1] >= 0 || allowsDynamicIdentifiers;
+
+            case ExpressionOpKind.StoreResolvedIdentifier:
+                if (depthBefore < 1 || op.IsArguments)
+                {
+                    return false;
+                }
+
+                var storeReferenceIdentifier = op.GetIdentifier(identifierConstants);
+                if (TryResolveExplicitActivationSlot(
+                        storeReferenceIdentifier,
+                        activationSlots,
+                        out var storeReferenceSlotIndex))
+                {
+                    if (identifierReferenceSlots is not { Count: > 0 } ||
+                        identifierReferenceSlots[^1] != storeReferenceSlotIndex)
+                    {
+                        return false;
+                    }
+
+                    identifierReferenceSlots.RemoveAt(identifierReferenceSlots.Count - 1);
+                    return true;
+                }
+
+                if (TryResolveActivationSlot(storeReferenceIdentifier, activationSlots) ||
+                    !allowsDynamicIdentifiers ||
+                    identifierReferenceSlots is not { Count: > 0 } ||
+                    identifierReferenceSlots[^1] != dynamicIdentifierReferenceSlot)
+                {
+                    return false;
+                }
+
+                identifierReferenceSlots.RemoveAt(identifierReferenceSlots.Count - 1);
+                return true;
+
+            case ExpressionOpKind.PopResolvedIdentifierReference:
+                if (identifierReferenceSlots is not { Count: > 0 })
+                {
+                    return false;
+                }
+
+                var pendingReferenceSlot = identifierReferenceSlots[^1];
+                identifierReferenceSlots.RemoveAt(identifierReferenceSlots.Count - 1);
+                return pendingReferenceSlot >= 0 || allowsDynamicIdentifiers;
 
             case ExpressionOpKind.UnaryPlus:
             case ExpressionOpKind.UnaryMinus:
@@ -10381,6 +10576,54 @@ internal static class UnifiedBytecodeProductionEligibility
 
         return activationSlots.SlotMap.ContainsKey(identifier.Name) ||
                IsYieldStarSyntheticResult(identifier.Name);
+    }
+
+    private static bool TryResolveExplicitActivationSlot(
+        IdentifierOperand identifier,
+        ActivationSlotShape activationSlots,
+        out int slotIndex)
+    {
+        if (identifier.FlatSlotId >= 0)
+        {
+            slotIndex = identifier.FlatSlotId;
+            return true;
+        }
+
+        if (identifier.ScopeId == activationSlots.ScopeId && identifier.SlotIndex >= 0)
+        {
+            slotIndex = identifier.SlotIndex;
+            return true;
+        }
+
+        slotIndex = -1;
+        return false;
+    }
+
+    private static bool TryFindLexicalSlotReferenceAssignment(
+        ExpressionProgram program,
+        ActivationSlotShape activationSlots,
+        out Symbol target)
+    {
+        var identifierConstants = program.IdentifierConstants.AsSpan();
+        for (var operationIndex = 0; operationIndex < program.OperationCount; operationIndex++)
+        {
+            var operation = program.GetOperation(operationIndex);
+            if (operation.Kind != ExpressionOpKind.StoreResolvedIdentifier)
+            {
+                continue;
+            }
+
+            var identifier = operation.GetIdentifier(identifierConstants);
+            if (TryResolveExplicitActivationSlot(identifier, activationSlots, out var slotIndex) &&
+                IsLexicalSlotUpdateTarget(slotIndex, identifier.FlatSlotId, activationSlots))
+            {
+                target = identifier.Name;
+                return true;
+            }
+        }
+
+        target = default!;
+        return false;
     }
 
     private static bool IsYieldStarSyntheticResult(Symbol symbol) =>

@@ -265,7 +265,25 @@ internal static class UnifiedBytecodeCompiler
             maxStackDepth = Math.Max(maxStackDepth, 3);
         }
 
+        if (RequiresValuePreservingIdentifierReferenceStoreStack(expressionProgram))
+        {
+            maxStackDepth++;
+        }
+
         return maxStackDepth;
+    }
+
+    private static bool RequiresValuePreservingIdentifierReferenceStoreStack(ExpressionProgram expressionProgram)
+    {
+        for (var operationIndex = 0; operationIndex < expressionProgram.OperationCount; operationIndex++)
+        {
+            if (expressionProgram.GetOperation(operationIndex).Kind == ExpressionOpKind.StoreResolvedIdentifier)
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static bool RequiresNestedNamedPropertyReceiverStack(ExpressionProgram expressionProgram)
@@ -4473,6 +4491,8 @@ internal static class UnifiedBytecodeCompiler
 
         var exprPcToUnifiedPc = new int[expressionProgram.OperationCount + 1];
         List<(int UnifiedIndex, int ExprTarget)>? patches = null;
+        const int DynamicIdentifierReferenceSlot = -1;
+        List<int>? identifierReferenceSlots = null;
 
         for (var exprPc = 0; exprPc < expressionProgram.OperationCount; exprPc++)
         {
@@ -4511,10 +4531,17 @@ internal static class UnifiedBytecodeCompiler
                         return false;
                     }
 
+                    if (TryResolveExplicitActivationSlot(referenceIdentifier, slotLayout, out var referenceSlotIndex))
+                    {
+                        identifierReferenceSlots ??= [];
+                        identifierReferenceSlots.Add(referenceSlotIndex);
+                        break;
+                    }
+
                     if (TryResolveActivationSlot(referenceIdentifier, slotLayout, out _))
                     {
                         reason =
-                            $"Identifier assignment reference '{referenceIdentifier.Name.Name}' resolves to an activation slot and is not eligible for dynamic unified bytecode assignment references.";
+                            $"Identifier assignment reference '{referenceIdentifier.Name.Name}' resolves only by activation-slot name lookup and is not eligible for slot-reference unified bytecode assignment lowering.";
                         return false;
                     }
 
@@ -4530,9 +4557,20 @@ internal static class UnifiedBytecodeCompiler
                     unified.Add(new UnifiedBytecodeInstruction(
                         UnifiedBytecodeOpCode.ResolveDynamicIdentifierReference,
                         referenceNameIndex));
+                    identifierReferenceSlots ??= [];
+                    identifierReferenceSlots.Add(DynamicIdentifierReferenceSlot);
                     break;
 
                 case ExpressionOpKind.LoadResolvedIdentifierValue:
+                    if (identifierReferenceSlots is { Count: > 0 } &&
+                        identifierReferenceSlots[^1] >= 0)
+                    {
+                        unified.Add(new UnifiedBytecodeInstruction(
+                            UnifiedBytecodeOpCode.LoadSlot,
+                            identifierReferenceSlots[^1]));
+                        break;
+                    }
+
                     if (!allowsDynamicIdentifiers)
                     {
                         reason =
@@ -4551,10 +4589,31 @@ internal static class UnifiedBytecodeCompiler
                         return false;
                     }
 
+                    if (TryResolveExplicitActivationSlot(
+                            storeReferenceIdentifier,
+                            slotLayout,
+                            out var storeReferenceSlotIndex))
+                    {
+                        if (identifierReferenceSlots is not { Count: > 0 } ||
+                            identifierReferenceSlots[^1] != storeReferenceSlotIndex)
+                        {
+                            reason =
+                                $"Identifier assignment reference '{storeReferenceIdentifier.Name.Name}' does not match the pending slot-reference target.";
+                            return false;
+                        }
+
+                        identifierReferenceSlots.RemoveAt(identifierReferenceSlots.Count - 1);
+                        unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.DuplicateTop));
+                        unified.Add(new UnifiedBytecodeInstruction(
+                            UnifiedBytecodeOpCode.StoreSlot,
+                            storeReferenceSlotIndex));
+                        break;
+                    }
+
                     if (TryResolveActivationSlot(storeReferenceIdentifier, slotLayout, out _))
                     {
                         reason =
-                            $"Identifier assignment reference '{storeReferenceIdentifier.Name.Name}' resolves to an activation slot and is not eligible for dynamic unified bytecode assignment references.";
+                            $"Identifier assignment reference '{storeReferenceIdentifier.Name.Name}' resolves only by activation-slot name lookup and is not eligible for slot-reference unified bytecode assignment lowering.";
                         return false;
                     }
 
@@ -4565,14 +4624,38 @@ internal static class UnifiedBytecodeCompiler
                         return false;
                     }
 
+                    if (identifierReferenceSlots is { Count: > 0 } &&
+                        identifierReferenceSlots[^1] >= 0)
+                    {
+                        reason =
+                            $"Identifier assignment reference '{storeReferenceIdentifier.Name.Name}' cannot store through a pending slot-reference target using the dynamic-name path.";
+                        return false;
+                    }
+
                     var storeReferenceNameIndex = stringConstants.Count;
                     stringConstants.Add(storeReferenceIdentifier.Name.Name ?? string.Empty);
                     unified.Add(new UnifiedBytecodeInstruction(
                         UnifiedBytecodeOpCode.StoreDynamicIdentifierReference,
                         EncodeDynamicStoreOperand(storeReferenceNameIndex, operation)));
+                    if (identifierReferenceSlots is { Count: > 0 } &&
+                        identifierReferenceSlots[^1] == DynamicIdentifierReferenceSlot)
+                    {
+                        identifierReferenceSlots.RemoveAt(identifierReferenceSlots.Count - 1);
+                    }
+
                     break;
 
                 case ExpressionOpKind.PopResolvedIdentifierReference:
+                    if (identifierReferenceSlots is { Count: > 0 })
+                    {
+                        var pendingReferenceSlot = identifierReferenceSlots[^1];
+                        identifierReferenceSlots.RemoveAt(identifierReferenceSlots.Count - 1);
+                        if (pendingReferenceSlot >= 0)
+                        {
+                            break;
+                        }
+                    }
+
                     if (!allowsDynamicIdentifiers)
                     {
                         reason =
@@ -5201,6 +5284,12 @@ internal static class UnifiedBytecodeCompiler
                     reason = $"Unsupported expression op '{operation.Kind}'.";
                     return false;
             }
+        }
+
+        if (identifierReferenceSlots is { Count: > 0 })
+        {
+            reason = "Identifier assignment references were left pending after unified bytecode expression lowering.";
+            return false;
         }
 
         exprPcToUnifiedPc[expressionProgram.OperationCount] = unified.Count;
@@ -7376,6 +7465,8 @@ internal static class UnifiedBytecodeCompiler
         }
 
         var depth = 0;
+        const int DynamicIdentifierReferenceSlot = -1;
+        List<int>? identifierReferenceSlots = null;
         var index = startIndex;
         while (index < callIndex)
         {
@@ -7488,6 +7579,148 @@ internal static class UnifiedBytecodeCompiler
 
                     unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.Binary, (int)op.Operator));
                     depth--;
+                    break;
+
+                case ExpressionOpKind.ResolveIdentifierReference:
+                {
+                    var referenceIdentifier = op.GetIdentifier(expressionProgram.IdentifierConstants.AsSpan());
+                    if (IsImplicitArgumentsIdentifier(referenceIdentifier, slotLayout))
+                    {
+                        { RollBack(); reason = "arguments assignment references are not supported in complex call arguments."; return false; }
+                    }
+
+                    if (TryResolveExplicitActivationSlot(referenceIdentifier, slotLayout, out var referenceSlotIndex))
+                    {
+                        identifierReferenceSlots ??= [];
+                        identifierReferenceSlots.Add(referenceSlotIndex);
+                        break;
+                    }
+
+                    if (TryResolveActivationSlot(referenceIdentifier, slotLayout, out _))
+                    {
+                        RollBack();
+                        reason =
+                            $"Identifier assignment reference '{referenceIdentifier.Name.Name}' resolves only by activation-slot name lookup and is not eligible for slot-reference unified bytecode assignment lowering.";
+                        return false;
+                    }
+
+                    if (!allowsDynamicIdentifiers)
+                    {
+                        RollBack();
+                        reason =
+                            $"Identifier assignment reference '{referenceIdentifier.Name.Name}' requires dynamic lookup and is not eligible in complex call arguments.";
+                        return false;
+                    }
+
+                    var referenceNameIndex = stringConstants.Count;
+                    stringConstants.Add(referenceIdentifier.Name.Name ?? string.Empty);
+                    unified.Add(new UnifiedBytecodeInstruction(
+                        UnifiedBytecodeOpCode.ResolveDynamicIdentifierReference,
+                        referenceNameIndex));
+                    identifierReferenceSlots ??= [];
+                    identifierReferenceSlots.Add(DynamicIdentifierReferenceSlot);
+                    break;
+                }
+
+                case ExpressionOpKind.LoadResolvedIdentifierValue:
+                    if (identifierReferenceSlots is not { Count: > 0 })
+                    {
+                        { RollBack(); reason = "Identifier reference load without a pending reference in complex call argument."; return false; }
+                    }
+
+                    if (identifierReferenceSlots[^1] >= 0)
+                    {
+                        unified.Add(new UnifiedBytecodeInstruction(
+                            UnifiedBytecodeOpCode.LoadSlot,
+                            identifierReferenceSlots[^1]));
+                    }
+                    else
+                    {
+                        if (!allowsDynamicIdentifiers)
+                        {
+                            { RollBack(); reason = "Dynamic identifier assignment references are not eligible in complex call arguments."; return false; }
+                        }
+
+                        unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.LoadDynamicIdentifierReference));
+                    }
+
+                    depth++;
+                    break;
+
+                case ExpressionOpKind.StoreResolvedIdentifier:
+                {
+                    if (depth < 1)
+                    {
+                        { RollBack(); reason = "Identifier reference store underflow in complex call argument."; return false; }
+                    }
+
+                    var storeReferenceIdentifier = op.GetIdentifier(expressionProgram.IdentifierConstants.AsSpan());
+                    if (IsImplicitArgumentsIdentifier(storeReferenceIdentifier, slotLayout))
+                    {
+                        { RollBack(); reason = "arguments assignment references are not supported in complex call arguments."; return false; }
+                    }
+
+                    if (TryResolveExplicitActivationSlot(
+                            storeReferenceIdentifier,
+                            slotLayout,
+                            out var storeReferenceSlotIndex))
+                    {
+                        if (identifierReferenceSlots is not { Count: > 0 } ||
+                            identifierReferenceSlots[^1] != storeReferenceSlotIndex)
+                        {
+                            { RollBack(); reason = "Identifier reference store target mismatch in complex call argument."; return false; }
+                        }
+
+                        identifierReferenceSlots.RemoveAt(identifierReferenceSlots.Count - 1);
+                        unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.DuplicateTop));
+                        unified.Add(new UnifiedBytecodeInstruction(
+                            UnifiedBytecodeOpCode.StoreSlot,
+                            storeReferenceSlotIndex));
+                        break;
+                    }
+
+                    if (TryResolveActivationSlot(storeReferenceIdentifier, slotLayout, out _))
+                    {
+                        RollBack();
+                        reason =
+                            $"Identifier assignment reference '{storeReferenceIdentifier.Name.Name}' resolves only by activation-slot name lookup and is not eligible for slot-reference unified bytecode assignment lowering.";
+                        return false;
+                    }
+
+                    if (!allowsDynamicIdentifiers ||
+                        identifierReferenceSlots is not { Count: > 0 } ||
+                        identifierReferenceSlots[^1] != DynamicIdentifierReferenceSlot)
+                    {
+                        { RollBack(); reason = "Dynamic identifier reference store without a pending dynamic reference in complex call argument."; return false; }
+                    }
+
+                    var storeReferenceNameIndex = stringConstants.Count;
+                    stringConstants.Add(storeReferenceIdentifier.Name.Name ?? string.Empty);
+                    unified.Add(new UnifiedBytecodeInstruction(
+                        UnifiedBytecodeOpCode.StoreDynamicIdentifierReference,
+                        EncodeDynamicStoreOperand(storeReferenceNameIndex, op)));
+                    identifierReferenceSlots.RemoveAt(identifierReferenceSlots.Count - 1);
+                    break;
+                }
+
+                case ExpressionOpKind.PopResolvedIdentifierReference:
+                    if (identifierReferenceSlots is not { Count: > 0 })
+                    {
+                        { RollBack(); reason = "Identifier reference pop without a pending reference in complex call argument."; return false; }
+                    }
+
+                    var pendingReferenceSlot = identifierReferenceSlots[^1];
+                    identifierReferenceSlots.RemoveAt(identifierReferenceSlots.Count - 1);
+                    if (pendingReferenceSlot < 0)
+                    {
+                        if (!allowsDynamicIdentifiers)
+                        {
+                            { RollBack(); reason = "Dynamic identifier assignment references are not eligible in complex call arguments."; return false; }
+                        }
+
+                        unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.PopDynamicIdentifierReference));
+                    }
+
                     break;
 
                 case ExpressionOpKind.UnaryPlus:
@@ -7630,7 +7863,8 @@ internal static class UnifiedBytecodeCompiler
             index++;
         }
 
-        if (depth != expectedArgumentCount)
+        if (depth != expectedArgumentCount ||
+            identifierReferenceSlots is { Count: > 0 })
         {
             { RollBack(); reason = "Complex call argument region did not produce the expected operand count."; return false; }
         }
@@ -16402,6 +16636,46 @@ internal static class UnifiedBytecodeCompiler
             parameterSlots[0] >= 0)
         {
             slotIndex = parameterSlots[0];
+            return true;
+        }
+
+        slotIndex = -1;
+        return false;
+    }
+
+    private static bool TryResolveExplicitActivationSlot(
+        IdentifierOperand identifier,
+        UnifiedBytecodeSlotLayout slotLayout,
+        out int slotIndex)
+    {
+        var activationSlots = slotLayout.ActivationSlots;
+        if (identifier.FlatSlotId >= 0)
+        {
+            if (identifier.ScopeId >= 0 &&
+                identifier.ScopeId != activationSlots.ScopeId)
+            {
+                if (identifier.SlotIndex >= 0 &&
+                    TryMapSlot(identifier.ScopeId, identifier.SlotIndex, slotLayout.FlatSlotMappings, out slotIndex))
+                {
+                    return true;
+                }
+
+                slotIndex = -1;
+                return false;
+            }
+
+            slotIndex = identifier.FlatSlotId;
+            return true;
+        }
+
+        if (identifier.ScopeId == activationSlots.ScopeId && identifier.SlotIndex >= 0)
+        {
+            if (TryMapSlot(identifier.ScopeId, identifier.SlotIndex, slotLayout.FlatSlotMappings, out slotIndex))
+            {
+                return true;
+            }
+
+            slotIndex = identifier.SlotIndex;
             return true;
         }
 

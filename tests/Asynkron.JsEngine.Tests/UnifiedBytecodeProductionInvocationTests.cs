@@ -9083,7 +9083,7 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     public void SourceGate_ProductionUnifiedBytecodeScriptAndResumableAcceptedPaths_DoNotDelegateToAstOrExecutionPlanRunner()
     {
         var repositoryRoot = FindRepositoryRootForSourceGate();
-        var checkedSections = new (string RelativePath, string StartMarker, string EndMarker, string SectionName)[]
+        var checkedExecutionSections = new (string RelativePath, string StartMarker, string EndMarker, string SectionName)[]
         {
             (
                 Path.Combine("src", "Asynkron.JsEngine", "Ast", "Legacy", "StatementNodeExtensions.cs"),
@@ -9107,8 +9107,8 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
                 "async-generator resumable accepted path")
         };
 
-        Assert.NotEmpty(checkedSections);
-        foreach (var (relativePath, startMarker, endMarker, sectionName) in checkedSections)
+        Assert.NotEmpty(checkedExecutionSections);
+        foreach (var (relativePath, startMarker, endMarker, sectionName) in checkedExecutionSections)
         {
             var sourcePath = Path.Combine(repositoryRoot.FullName, relativePath);
             Assert.True(File.Exists(sourcePath), $"Expected accepted-route source at '{sourcePath}'.");
@@ -9117,6 +9117,71 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
 
             Assert.Contains("UnifiedBytecodeVirtualMachine.Execute", section, StringComparison.Ordinal);
             AssertUnifiedBytecodeAcceptedSectionDoesNotDelegate(section, sectionName);
+        }
+
+        var checkedSetupSections = new (string RelativePath, string StartMarker, string EndMarker, string SectionName, string[] AllowedRunnerSetupMarkers)[]
+        {
+            (
+                Path.Combine("src", "Asynkron.JsEngine", "Ast", "TypedAstEvaluator.AsyncFunctionInvoker.cs"),
+                "private bool TryExecuteUnifiedBytecode(IJsCallable resolve, IJsCallable reject)",
+                "private bool TryGetExecutionPlan(out ExecutionPlan plan)",
+                "async-function resumable setup accepted path",
+                [
+                    "new ExecutionPlanRunner(\n" +
+                    "                        function,\n" +
+                    "                        closure,\n" +
+                    "                        arguments,\n" +
+                    "                        thisValue,\n" +
+                    "                        callable,\n" +
+                    "                        _realmState,\n" +
+                    "                        isLexicallyStrict,\n" +
+                    "                        hasFunctionNameEnvironment,\n" +
+                    "                        homeObject,\n" +
+                    "                        privateNameScope,\n" +
+                    "                        capturedPrivateNameScopes,\n" +
+                    "                        planOverride: _planSeed.Plan,\n" +
+                    "                        planFailureOverride: _planSeed.Failure)\n" +
+                    "                    .GetOrCreateExecutionEnvironmentForInternalUse()"
+                ]),
+            (
+                Path.Combine("src", "Asynkron.JsEngine", "Ast", "TypedAstEvaluator.SyncGeneratorInvoker.cs"),
+                "private bool TryCreateUnifiedBytecodeGenerator(",
+                "private bool TryGetExecutionPlan(out ExecutionPlan plan)",
+                "sync-generator resumable setup accepted path",
+                [
+                    "CreateRunner(arguments, thisValue)\n" +
+                    "                    .GetOrCreateExecutionEnvironmentForInternalUse()"
+                ]),
+            (
+                Path.Combine("src", "Asynkron.JsEngine", "Ast", "TypedAstEvaluator.AsyncGeneratorInvoker.cs"),
+                "private bool TryInitializeUnifiedBytecode()",
+                "private bool TryGetExecutionPlan(out ExecutionPlan plan)",
+                "async-generator resumable setup accepted path",
+                [
+                    "new ExecutionPlanRunner(function, closure, arguments, thisValue, callable,\n" +
+                    "                    realmState, isLexicallyStrict, hasFunctionNameEnvironment, homeObject, privateNameScope,\n" +
+                    "                    capturedPrivateNameScopes,\n" +
+                    "                    planOverride: planSeed.Plan,\n" +
+                    "                    planFailureOverride: planSeed.Failure);\n" +
+                    "                callingEnvironment = _inner.GetOrCreateExecutionEnvironmentForInternalUse()"
+                ])
+        };
+
+        Assert.NotEmpty(checkedSetupSections);
+        foreach (var (relativePath, startMarker, endMarker, sectionName, allowedRunnerSetupMarkers) in checkedSetupSections)
+        {
+            var sourcePath = Path.Combine(repositoryRoot.FullName, relativePath);
+            Assert.True(File.Exists(sourcePath), $"Expected accepted-route setup source at '{sourcePath}'.");
+            var source = File.ReadAllText(sourcePath);
+            var section = ExtractRequiredSourceSection(source, startMarker, endMarker, sectionName);
+            var sectionWithoutAllowedRunnerSetup = RemoveRequiredSourceMarkers(
+                section,
+                allowedRunnerSetupMarkers,
+                sectionName);
+
+            Assert.Contains("UnifiedBytecodeProductionEligibility.EvaluateResumable", section, StringComparison.Ordinal);
+            Assert.Contains("new UnifiedBytecodeResumeState", section, StringComparison.Ordinal);
+            AssertUnifiedBytecodeAcceptedSectionDoesNotDelegate(sectionWithoutAllowedRunnerSetup, sectionName);
         }
     }
 
@@ -9150,6 +9215,27 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
         var end = source.IndexOf(endMarker, start + startMarker.Length, StringComparison.Ordinal);
         Assert.True(end > start, $"Could not locate end of {sectionName}: '{endMarker}'.");
         return source.Substring(start, end - start);
+    }
+
+    private static string RemoveRequiredSourceMarkers(
+        string source,
+        IReadOnlyList<string> markers,
+        string sectionName)
+    {
+        Assert.NotEmpty(markers);
+        foreach (var marker in markers)
+        {
+            Assert.Contains(marker, source, StringComparison.Ordinal);
+            source = source.Replace(marker, string.Empty, StringComparison.Ordinal);
+        }
+
+        Assert.False(
+            source.Contains("CreateRunner(", StringComparison.Ordinal),
+            $"{sectionName} has an unclassified generator runner setup call.");
+        Assert.False(
+            source.Contains("GetOrCreateExecutionEnvironmentForInternalUse(", StringComparison.Ordinal),
+            $"{sectionName} has an unclassified runner environment setup call.");
+        return source;
     }
 
     private static void AssertUnifiedBytecodeAcceptedSectionDoesNotDelegate(string source, string sectionName)

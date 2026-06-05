@@ -75,6 +75,13 @@ scope cleanup chains.
     prologues, or any closure-bearing syntax. Treat `ClassDeclaration` as
     closure-bearing because class methods can capture the loop binding, just
     like class expressions.
+14. When admitting `break` or `continue` across resumable suspension, prove more
+    than the instruction allowlist. The compiler must already lower the IR
+    record to VM-owned `Break`/`Continue` opcodes, the resumable VM must route
+    those opcodes through driver cleanup topology, and iterator close must use
+    the correct sync-vs-async settlement mode for the resumable frame. Sync
+    generators must resolve plain `Iterator.return()` results synchronously;
+    async functions and async generators must keep async-step scheduling.
 
 ## Why
 
@@ -157,3 +164,14 @@ per-iteration value `2`. The repair made class declarations closure-bearing and
 added `SyncForLoop_ClassDeclarationMethodCapture_KeepsParentLoopScope`.
 Related ADR:
 `docs/adrs/0239-keep-noncapturing-for-let-loop-scope-elision-plan-proven.md`.
+
+Issue
+`planitem-planmanual1780639098493226000-full-unified-bytecode-execution-burndown-b-6e929f0772`
+/ PR #3225 admitted resumable `BreakInstruction` and `ContinueInstruction`
+after confirming the compiler already produced VM-owned control-flow opcodes
+and `ExecuteResumable` already ran crossed-driver cleanup through
+`TryCleanupDriverStatesForControlTargetResumable`. The only runtime correction
+was close-settlement mode: sync-generator iterator close must not force
+async-step scheduling for a plain `Iterator.return()` object, while async
+functions/generators still must. Related ADR:
+`docs/adrs/0331-admit-resumable-break-continue-with-async-kind-aware-close.md`.

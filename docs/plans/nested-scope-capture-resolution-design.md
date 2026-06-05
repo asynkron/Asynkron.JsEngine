@@ -159,7 +159,7 @@ plan, mirroring the existing cached `HasOnlyRootFlatSlotMappings` at `ExecutionP
   construction; immediately unlocks every non-colliding nested-scope closure/arrow — the
   common case (a closure with an inner `if`/loop using locals that don't shadow a captured
   name).
-- **Cons:** still declines the *colliding* shapes (a strict superset of today's admissions,
+- **Limitations:** still declines the *colliding* shapes (a strict superset of today's admissions,
   so no regression; just not a full fix). Requires care that "captured names" is computed
   from the *post-lowering* instruction stream (dynamic ops), not a pre-pass, so it
   reflects what the VM actually does.
@@ -178,7 +178,7 @@ would let the colliding shapes route too.
 - **Pros:** removes the hazard at the source; the production VM then matches the IR runner
   for all nested-scope shapes; Option A's guard becomes unnecessary (could be relaxed to
   admit everything once B lands).
-- **Cons:** the fallback at `:1176` is load-bearing for legitimate cases (re-stamping where
+- **Limitations:** the fallback at `:1176` is load-bearing for legitimate cases (re-stamping where
   the scope stack is incomplete; that is *why* it exists). Changing it risks regressing
   currently-correct resolutions across the whole engine (IR runner shares this rewriter).
   Higher blast radius; needs the full golden-harness sweep. Per-use-site capture analysis

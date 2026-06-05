@@ -97,8 +97,8 @@ Your report MUST follow this structure:
 
 ### Option A: {Approach Name}
 [Step-by-step fix instructions]
-- Pros: [...]
-- Cons: [...]
+- Benefits: [...]
+- Risks: [...]
 
 ### Option B: {Alternative}
 [If applicable]

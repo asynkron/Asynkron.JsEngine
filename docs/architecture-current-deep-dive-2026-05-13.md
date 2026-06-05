@@ -49,8 +49,8 @@ identifier layout unless the engine can prove the code shape is safe.
 ## 2. Current Machinery Mega-Flow
 
 This is the current equivalent of the first-architecture execution-flow diagram.
-The old version could be drawn as `source -> parser -> S-expression -> tree
-evaluator`. The current version has multiple cooperating machines:
+The old version could be drawn as `source -> parser -> early tree evaluator`.
+The current version has multiple cooperating machines:
 
 * a compiler frontend that produces typed AST
 * AST-local semantic caches

@@ -2,7 +2,7 @@ namespace Asynkron.JsEngine.Parser;
 
 /// <summary>
 ///     Represents a reference to a range in the original JavaScript source code.
-///     Used to track the origin of s-expressions for debugging purposes.
+///     Used to track the origin of typed AST nodes for debugging purposes.
 /// </summary>
 public sealed record SourceReference
 {

@@ -12,7 +12,7 @@ namespace Asynkron.JsEngine.Tests;
 ///
 /// Key Discovery: The for-await-of loop works correctly when the iterable is declared
 /// in LOCAL scope (inside the async function), but FAILS when the iterable is declared
-/// in GLOBAL scope (outside the async function). The S-expression transformation is
+/// in GLOBAL scope (outside the async function). The typed AST shape is
 /// correct in both cases, but execution differs.
 /// </summary>
 [Category(TestCategories.AsyncRuntime)]
@@ -20,7 +20,7 @@ namespace Asynkron.JsEngine.Tests;
 public sealed class AsyncIterableScopeComparisonTests(ITestOutputHelper output)
 {
     [Fact(Timeout = 5000)]
-    public Task CompareGlobalVsLocalScope_SExpression()
+    public Task CompareGlobalVsLocalScope_TypedAst()
     {
         // Test 1: Iterable in LOCAL scope (works)
         var localScopeCode = @"
@@ -77,20 +77,20 @@ public sealed class AsyncIterableScopeComparisonTests(ITestOutputHelper output)
         var engine1 = CreateDebugEngine();
         var engine2 = CreateDebugEngine();
 
-        // Parse both versions to get S-expressions
+        // Parse both versions to get typed AST snapshots
         var localParsed = engine1.Parse(localScopeCode);
         var globalParsed = engine2.Parse(globalScopeCode);
 
-        output.WriteLine("=== LOCAL SCOPE S-EXPRESSION ===");
+        output.WriteLine("=== LOCAL SCOPE TYPED AST ===");
         output.WriteLine(localParsed.ToString());
         output.WriteLine("");
-        output.WriteLine("=== GLOBAL SCOPE S-EXPRESSION ===");
+        output.WriteLine("=== GLOBAL SCOPE TYPED AST ===");
         output.WriteLine(globalParsed.ToString());
         output.WriteLine("");
 
         // Now compare the for-await-of transformation
         output.WriteLine("=== COMPARISON NOTES ===");
-        output.WriteLine("The S-expressions should show how the for-await-of loop is transformed.");
+        output.WriteLine("The typed AST snapshots should show how the for-await-of loop is represented.");
         output.WriteLine("Key things to look for:");
         output.WriteLine("1. How 'localIterable' vs 'globalIterable' appears in the transformed code");
         output.WriteLine("2. The __getAsyncIterator call and how it references the iterable");

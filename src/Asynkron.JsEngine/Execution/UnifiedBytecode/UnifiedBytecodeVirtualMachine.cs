@@ -3668,15 +3668,19 @@ internal static class UnifiedBytecodeVirtualMachine
 
                 case UnifiedBytecodeOpCode.LoadClassLiteral:
                     {
-                        var classEnvironment = CreateResumableClassLiteralEnvironment(
-                            program,
-                            slots,
-                            RequireDynamicEnvironment(state.CallingEnvironment),
-                            state.IsStrict);
+                        var classExpression = program.ClassLiteralConstants[instruction.Operand];
+                        var callingEnvironment = RequireDynamicEnvironment(state.CallingEnvironment);
+                        var classEnvironment = RequiresResumableClassLiteralSlotEnvironment(classExpression)
+                            ? CreateResumableClassLiteralEnvironment(
+                                program,
+                                slots,
+                                callingEnvironment,
+                                state.IsStrict)
+                            : callingEnvironment;
                         try
                         {
                             PushResumableValue(TypedAstEvaluator.CreateClassValueFromLiteral(
-                                program.ClassLiteralConstants[instruction.Operand],
+                                classExpression,
                                 classEnvironment,
                                 context));
                         }
@@ -3685,7 +3689,11 @@ internal static class UnifiedBytecodeVirtualMachine
                             context.SetThrow(signal.ThrownValue);
                         }
 
-                        SyncEnvironmentToUnifiedSlots(program, slots, slotEnvironments: null, classEnvironment);
+                        if (!ReferenceEquals(classEnvironment, callingEnvironment))
+                        {
+                            SyncEnvironmentToUnifiedSlots(program, slots, slotEnvironments: null, classEnvironment);
+                        }
+
                         if (context.ShouldStopEvaluation)
                         {
                             state.IsCompleted = true;
@@ -6637,6 +6645,25 @@ internal static class UnifiedBytecodeVirtualMachine
         }
 
         return environment;
+    }
+
+    private static bool RequiresResumableClassLiteralSlotEnvironment(ClassExpression classExpression)
+    {
+        var definition = classExpression.Definition;
+        if (!definition.StaticElements.IsDefaultOrEmpty)
+        {
+            return true;
+        }
+
+        foreach (var field in definition.Fields)
+        {
+            if (field.IsStatic)
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static bool IsConstSlotIndex(int slotIndex, ImmutableArray<int> constSlotIndices)

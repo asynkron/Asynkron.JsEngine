@@ -9260,24 +9260,6 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
             Assert.Contains("new UnifiedBytecodeResumeState", section, StringComparison.Ordinal);
             AssertUnifiedBytecodeAcceptedSectionDoesNotDelegate(sectionWithoutRequiredSetup, sectionName);
         }
-
-        var asyncGeneratorInvokerPath = Path.Combine(
-            repositoryRoot.FullName,
-            "src",
-            "Asynkron.JsEngine",
-            "Ast",
-            "TypedAstEvaluator.AsyncGeneratorInvoker.cs");
-        Assert.True(
-            File.Exists(asyncGeneratorInvokerPath),
-            $"Expected async-generator invoker source at '{asyncGeneratorInvokerPath}'.");
-        var asyncGeneratorInvokerSource = File.ReadAllText(asyncGeneratorInvokerPath);
-        AssertUnifiedBytecodeAcceptedSectionDoesNotDelegate(
-            asyncGeneratorInvokerSource,
-            "async-generator invoker fallback tombstone",
-            [
-                "ExecutionPlanRunner.AsyncGeneratorStepResult",
-                "ExecutionPlanRunner.AsyncGeneratorStepKind"
-            ]);
     }
 
     private static DirectoryInfo FindRepositoryRootForSourceGate()

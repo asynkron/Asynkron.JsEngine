@@ -226,6 +226,116 @@ public sealed class UnifiedBytecodeAsyncGeneratorRouteTests(ITestOutputHelper ou
                 StringComparison.Ordinal));
     }
 
+    [Fact(Timeout = 5000)]
+    public async Task AsyncGeneratorNonSimpleParameter_DeclinesResumableButSettlesBeforeBody()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.EvaluateAndAwait("""
+            var output = undefined;
+            var events = [];
+
+            async function* values(x = (events.push("default"), 7)) {
+                events.push("body:" + x);
+                yield x;
+            }
+
+            async function run() {
+                var iterator = values();
+                var first = await iterator.next();
+                return first.value + ":" + first.done + "|" + events.join(",");
+            }
+
+            run().then(value => output = value);
+            output;
+            """);
+
+        Assert.Equal("7:false|default,body:7", result?.ToString());
+        AssertNotRouted("func=values");
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task AsyncGeneratorCapturedHoistedHelper_DeclinesResumableButSettles()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.EvaluateAndAwait("""
+            var output = undefined;
+
+            async function* values(x) {
+                function addOne() {
+                    return x + 1;
+                }
+
+                yield addOne();
+            }
+
+            async function run() {
+                var iterator = values(4);
+                var first = await iterator.next();
+                var second = await iterator.next();
+                return first.value + ":" + first.done + "|" + second.value + ":" + second.done;
+            }
+
+            run().then(value => output = value);
+            output;
+            """);
+
+        Assert.Equal("5:false|undefined:true", result?.ToString());
+        AssertNotRouted("func=values");
+    }
+
+    [Fact]
+    public void SourceGate_AcceptedAsyncGeneratorRoute_DoesNotDelegateToRunnerOrExpressionEvaluation()
+    {
+        var repositoryRoot = FindRepositoryRoot();
+        var asyncGeneratorInvokerPath = Path.Combine(
+            repositoryRoot.FullName,
+            "src",
+            "Asynkron.JsEngine",
+            "Ast",
+            "TypedAstEvaluator.AsyncGeneratorInvoker.cs");
+        var virtualMachinePath = Path.Combine(
+            repositoryRoot.FullName,
+            "src",
+            "Asynkron.JsEngine",
+            "Execution",
+            "UnifiedBytecode",
+            "UnifiedBytecodeVirtualMachine.cs");
+
+        var acceptedStepBody = ExtractSourceBetween(
+            File.ReadAllText(asyncGeneratorInvokerPath),
+            "private ExecutionPlanRunner.AsyncGeneratorStepResult ExecuteUnifiedBytecodeStep",
+            "private static UnifiedBytecodeResumeMode ToUnifiedResumeMode");
+        var virtualMachineSource = File.ReadAllText(virtualMachinePath);
+        var forbiddenAcceptedStepTokens = new[]
+        {
+            "_inner",
+            "ExecuteAsyncStep(",
+            "new ExecutionPlanRunner(",
+            "EvaluateDynamicExpressionProgram(",
+            "EvaluateStandaloneExpressionProgram(",
+            "EvaluateLegacyAstExpression",
+            "ProfileEvaluateExpression"
+        };
+        var forbiddenVirtualMachineTokens = new[]
+        {
+            "ExecutionPlanRunner",
+            "ExpressionProgram",
+            "EvaluateDynamicExpressionProgram(",
+            "EvaluateStandaloneExpressionProgram(",
+            "EvaluateLegacyAstExpression",
+            "ProfileEvaluateExpression"
+        };
+
+        AssertNoForbiddenTokens(
+            acceptedStepBody,
+            forbiddenAcceptedStepTokens,
+            "Accepted async-generator resumable steps must stay on the unified VM route.");
+        AssertNoForbiddenTokens(
+            virtualMachineSource,
+            forbiddenVirtualMachineTokens,
+            "The unified bytecode VM must not delegate back into runner or expression-evaluation bridges.");
+    }
+
     private static ExecutionPlan GetFunctionPlan(string source, string functionName)
     {
         var pipeline = AstTestHelpers.ParseAndAnalyze(source);
@@ -234,5 +344,52 @@ public sealed class UnifiedBytecodeAsyncGeneratorRouteTests(ITestOutputHelper ou
         var cache = ((IAstCacheable<ExecutionPlanCache>)declaration.Function).GetOrCreateCache();
         Assert.True(cache.Succeeded, cache.FailureReason);
         return Assert.IsType<ExecutionPlan>(cache.Plan);
+    }
+
+    private void AssertNotRouted(string expectedRouteFragment)
+    {
+        Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(),
+            record => record.Message.Contains(
+                $"{ResumableAsyncGeneratorFastPathLog} {expectedRouteFragment}",
+                StringComparison.Ordinal));
+    }
+
+    private static void AssertNoForbiddenTokens(
+        string source,
+        IReadOnlyList<string> forbiddenTokens,
+        string message)
+    {
+        var matches = forbiddenTokens
+            .Where(token => source.Contains(token, StringComparison.Ordinal))
+            .ToArray();
+
+        Assert.True(matches.Length == 0, $"{message}\nForbidden tokens: {string.Join(", ", matches)}");
+    }
+
+    private static string ExtractSourceBetween(string source, string startMarker, string endMarker)
+    {
+        var start = source.IndexOf(startMarker, StringComparison.Ordinal);
+        Assert.True(start >= 0, $"Missing source start marker: {startMarker}");
+
+        var end = source.IndexOf(endMarker, start, StringComparison.Ordinal);
+        Assert.True(end > start, $"Missing source end marker: {endMarker}");
+
+        return source[start..end];
+    }
+
+    private static DirectoryInfo FindRepositoryRoot()
+    {
+        var directory = new DirectoryInfo(AppContext.BaseDirectory);
+        while (directory is not null)
+        {
+            if (File.Exists(Path.Combine(directory.FullName, "Asynkron.JsEngine.sln")))
+            {
+                return directory;
+            }
+
+            directory = directory.Parent;
+        }
+
+        throw new InvalidOperationException("Could not find repository root.");
     }
 }

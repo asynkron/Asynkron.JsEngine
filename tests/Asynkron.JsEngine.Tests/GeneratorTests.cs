@@ -957,9 +957,7 @@ public sealed class GeneratorTests(ITestOutputHelper output) : InternalTestBase(
         Assert.True((bool)finalDone!);
     }
 
-    [Fact(
-        Timeout = 2000,
-        Skip = "Known current-main failure: delegated generator throw does not bind the catch parameter on the current production route.")]
+    [Fact(Timeout = 2000)]
     public async Task Generator_YieldStarThrowDoneFalseContinuesForGeneratorIteratorIr()
     {
         await using var engine = CreateEngine();

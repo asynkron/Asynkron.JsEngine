@@ -9,7 +9,8 @@ internal static class UnifiedBytecodeWithDepthAnalysis
         ImmutableArray<ExecutionInstruction> instructions,
         int entryPoint,
         out int[] activeWithDepths,
-        out string reason)
+        out string reason,
+        bool includeZeroDepthExceptionRegions = false)
     {
         activeWithDepths = new int[instructions.Length];
         Array.Fill(activeWithDepths, -1);
@@ -73,10 +74,11 @@ internal static class UnifiedBytecodeWithDepthAnalysis
                         return false;
                     }
 
-                    if ((enterTry.HandlerIndex >= 0 &&
-                         !TryPush(enterTry.HandlerIndex, successorWithDepth, instructions, pending, out reason)) ||
-                        (enterTry.FinallyIndex >= 0 &&
-                         !TryPush(enterTry.FinallyIndex, successorWithDepth, instructions, pending, out reason)))
+                    if ((includeZeroDepthExceptionRegions || successorWithDepth > 0) &&
+                        ((enterTry.HandlerIndex >= 0 &&
+                          !TryPush(enterTry.HandlerIndex, successorWithDepth, instructions, pending, out reason)) ||
+                         (enterTry.FinallyIndex >= 0 &&
+                          !TryPush(enterTry.FinallyIndex, successorWithDepth, instructions, pending, out reason))))
                     {
                         return false;
                     }

@@ -44,7 +44,7 @@ non-awaited `with`, the `Function` call boundary itself.
 
 - [x] **P0.1** Grammar-coverage appendix → `docs/plans/bytecode-grammar-coverage.md` ✅ (covers switch+`let`, do-while, sequence, BigInt literal/arithmetic/`typeof`, `static {}`, super-in-instance/static-fields, `new.target`, labeled-block break — each mapped to its lowering owner + test anchor). **Surfaced 1 real new leaf → A52 (`debugger;`).**
 - [x] **P0.2** Enumerate the `UnsupportedPlanShape` compiler umbrellas (A51 / B47 / E2): promoted current `UnifiedBytecodeCompiler.TryCompile` reason templates into named owner leaves A51a-A51m plus B47a, with exact source-template drift coverage in `docs/unified-bytecode-expansion-contract.md`.
-- [ ] **P0.3** Diff `UnifiedBytecodeOpCode` enum vs the sync admit-switch (E3) and the two resumable allowlists; name every enum-but-not-admitted opcode as its own leaf.
+- [x] **P0.3** Diff `UnifiedBytecodeOpCode` enum vs the sync admit-switch (E3) and the two resumable allowlists; name every enum/instruction-but-not-admitted gap. ✅ (2026-06-05): contract now drift-checks sync prototype opcode guard gaps (6 resumable-only opcodes), resumable opcode allowlist gaps (36 opcodes), and resumable instruction allowlist gaps (12 instruction records) against source.
 - [ ] **P0.4** Decompose the coarse leaves: split **B24** (class expression) into per-member shapes (constructor, instance fields, static fields, static blocks, private fields, private methods, accessors, computed members, super-in-members) and **A35** into its 4 object-literal-member opcodes.
 - [x] **P0.5** Delete the dead `LabelControlFlow` enum member + stale contract-doc rows (zero emission sites; labeled loop break/continue already admitted on sync). *(= old E1.)*
 
@@ -103,7 +103,7 @@ Status: ☐ declined · ◐ partial · ☑ admitted (parity work remains on othe
 - [x] **A47** for-of unsupported iterator-init source — *UnsupportedPlanShape* — ☑/☑ — `:517` ✅ (Codex)
 - [ ] **A48** Sync iterator driver: async iterator kind — *UnsupportedPlanShape* — ☐/☐ — `:2332`
 - [x] **A49** Plan with no ActivationSlots metadata — *UnsupportedPlanShape* — ☑/☑ — `:204` ✅ (commit c4f4683e9): RESOLVED — the `Activation slot metadata is required` decline arm is UNREACHABLE for any valid compiled plan (`BuildActivationSlotShape` is unconditional; nested-fn restamp carries it forward). A pure defensive backstop; trivial plans pinned.
-- [ ] **A50** Default prototype-only opcode guard (drift backstop) *(→ P0.3)* — *UnsupportedPlanShape* — ☐/n/a — `:8243`
+- [x] **A50** Default prototype-only opcode guard (drift backstop) *(→ P0.3)* — *UnsupportedPlanShape* — n/a/n/a — ✅ decomposed by P0.3: every declared opcode not explicitly admitted by `TryFindPrototypeOnlyOpcode` is now named and drift-checked under `Sync Prototype Opcode Guard Gaps`; the only current gaps are resumable-only suspension opcodes.
 - [x] **A51** Compiler `TryCompile` failure umbrella *(decomposed by P0.2)* — *UnsupportedPlanShape* — see A51a-A51m and B47a below.
 - [ ] **A51a** Compiler entrypoint, invalid target, loop-shaped topology, and unsupported breakable/loop control — owner: statement/control-flow lowering; fallback route: existing execution-plan runner; sync/resumable: both.
 - [ ] **A51b** Activation-slot metadata, slot-layout, and unsupported declaration / assignment / update / storage targets — owner: slot-layout and flat-storage lowering; fallback route: existing execution-plan runner; sync/resumable: both.
@@ -172,8 +172,8 @@ these allowlists — mechanical extensions against existing sync VM handlers.
 - [x] **B42** `for(k in await p)` awaited for-in source — n/a/☑ ✅ (Codex)
 - [ ] **B43** Awaited with-object `with(await x){}` — ☐/☐
 - [x] **B44** Awaited binding/destructuring decl `let [a]=await x` — ☑/☑ ✅ (commit 48ca3dc12): awaited destructuring lowers to `<awaited ops> → AwaitValue → ApplyDeclarationBindingTarget` (new resumable VM handler that runs the synchronous destructuring against the resume state's CallingEnvironment after the suspension and writes each binding to its flat slot). Allowlist 1:1.
-- [ ] **B45** Resumable instruction-allowlist default (master plan-level gap) *(→ P0.3)* — n/a/☐
-- [ ] **B46** Resumable opcode-allowlist default (master opcode-level gap) *(→ P0.3)* — n/a/☐
+- [x] **B45** Resumable instruction-allowlist default (master plan-level gap) *(→ P0.3)* — n/a/n/a ✅ decomposed by P0.3: the 12 non-allowlisted instruction records are now named and drift-checked under `Resumable Instruction Allowlist Gaps`.
+- [x] **B46** Resumable opcode-allowlist default (master opcode-level gap) *(→ P0.3)* — n/a/n/a ✅ decomposed by P0.3: the 36 non-allowlisted opcodes are now named and drift-checked under `Resumable Opcode Allowlist Gaps`; the admitted allowlist remains 1:1 with `ExecuteResumable`.
 - [x] **B47** Resumable compiler `TryCompile` wrap *(decomposed by P0.2)* — n/a/see A51a-A51m plus B47a.
 - [ ] **B47a** Resumable-only compiler declines for `yield*` state slots and synthetic resume targets — owner: resumable resume-state layout; fallback route: existing generator/async execution-plan route; sync/resumable: n/a/☐.
 
@@ -195,7 +195,7 @@ these allowlists — mechanical extensions against existing sync VM handlers.
 
 - [x] **E1** *(moved to P0.5 — dead `LabelControlFlow` deletion)*
 - [x] **E2** Promote each wrapped `TryCompile` reason to a named decline *(= P0.2; A51/B47 decomposed and drift-guarded)*
-- [ ] **E3** Diff opcode enum vs admit-switch; name every gap *(= P0.3)*
+- [x] **E3** Diff opcode enum vs admit-switch; name every gap *(= P0.3)* ✅
 - [ ] **E4** Remove `ExpressionProgram` (tier-1) from hot path (after A/C admit its coverage)
 - [ ] **E5** Remove `ExecutionPlanRunner` (tier-2 IR) from hot path (after A/B/C parity)
 - [ ] **E6** Delete remaining `AsyncGeneratorInvoker` IR fallback after the async-generator route widens past the current #3135 direct-yield boundary.
@@ -222,4 +222,4 @@ these allowlists — mechanical extensions against existing sync VM handlers.
 
 ---
 
-_Status: 50 / ~131 complete (Stage 1 batch 2: A30,A33,A34,A23 via #3165-#3168; A32 blocked on IR optional-delete lowering). Plus correctness fix #3116. New leaves: A51a-A51m/B47a compiler declines, A52 (`debugger`), B8a (const-bitmap follow-up). Updated as each item merges._
+_Checklist status: 79 / 133 complete after P0.3 inventory closure. Phase 0 is still not a proven ceiling until P0.4 decomposes B24 and A35._

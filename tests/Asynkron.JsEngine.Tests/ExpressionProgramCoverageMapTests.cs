@@ -54,6 +54,72 @@ public sealed class ExpressionProgramCoverageMapTests
     [
     ];
 
+    private static readonly string[] UnifiedBytecodeSyncPrototypeGuardGapNames =
+    [
+        "AwaitAndDiscard",
+        "AwaitValue",
+        "AwaitedReturn",
+        "StoreResumeValue",
+        "Yield",
+        "YieldStar"
+    ];
+
+    private static readonly string[] UnifiedBytecodeResumableOpcodeAllowListGapNames =
+    [
+        "ApplyBindingTarget",
+        "Break",
+        "Continue",
+        "DeclareClass",
+        "DeclareDynamicLexical",
+        "DeclareDynamicVar",
+        "DeclareFunction",
+        "EnsureHasName",
+        "EnsureSuperReference",
+        "EnterCatch",
+        "EnterWith",
+        "GetComputedPropertyForCompoundSet",
+        "GetComputedSuperProperty",
+        "GetNamedPropertyForCompoundSet",
+        "GetNamedSuperProperty",
+        "InitializeDynamicLexical",
+        "JumpWithDriverCleanup",
+        "LeaveWith",
+        "LoadClassLiteral",
+        "LoadDynamicIdentifierReference",
+        "LoadFunctionLiteral",
+        "LoadTemplateObject",
+        "PopDynamicIdentifierReference",
+        "PopEnvironment",
+        "PrepareComputedSuperCallTarget",
+        "PrepareNamedSuperCallTarget",
+        "PushEnvironment",
+        "ResolveDynamicIdentifierReference",
+        "SetComputedSuperProperty",
+        "SetNamedSuperProperty",
+        "StoreDynamicIdentifier",
+        "StoreDynamicIdentifierReference",
+        "SuperConstructInvocationBoundary",
+        "ThrowReferenceError",
+        "UpdateComputedSuperProperty",
+        "UpdateNamedSuperProperty"
+    ];
+
+    private static readonly string[] UnifiedBytecodeResumableInstructionAllowListGapNames =
+    [
+        "BreakInstruction",
+        "ClassDeclarationInstruction",
+        "CompoundAssignmentSlotInstruction",
+        "ContinueInstruction",
+        "EnterCatchInstruction",
+        "EnterWithInstruction",
+        "FunctionDeclarationInstruction",
+        "LeaveWithInstruction",
+        "LogicalCompoundAssignmentSlotInstruction",
+        "PopEnvironmentInstruction",
+        "PushEnvironmentInstruction",
+        "SetCompletionValueInstruction"
+    ];
+
     private static readonly string[] StaleDiscardDeclinePhrases =
     [
         "non-directive discarded expressions still decline before VM execution",
@@ -131,6 +197,9 @@ public sealed class ExpressionProgramCoverageMapTests
         Assert.Contains("### Eligibility Decline Rows", contractText, StringComparison.Ordinal);
         Assert.Contains("### Sync Production Pre-Gate Rows", contractText, StringComparison.Ordinal);
         Assert.Contains("### Prototype Opcode Guard Rows", contractText, StringComparison.Ordinal);
+        Assert.Contains("### Sync Prototype Opcode Guard Gaps (current)", contractText, StringComparison.Ordinal);
+        Assert.Contains("### Resumable Opcode Allowlist Gaps (current)", contractText, StringComparison.Ordinal);
+        Assert.Contains("### Resumable Instruction Allowlist Gaps (current)", contractText, StringComparison.Ordinal);
         Assert.Contains("### Compiler Decline Owner Leaves (current)", contractText, StringComparison.Ordinal);
         Assert.Contains("### Compiler Decline Reason Templates (current)", contractText, StringComparison.Ordinal);
         Assert.Contains("## Reserved Ownership Lanes (planned, not implemented)", contractText, StringComparison.Ordinal);
@@ -358,6 +427,44 @@ public sealed class ExpressionProgramCoverageMapTests
     }
 
     [Fact]
+    public void UnifiedBytecodeProductionEligibility_SyncPrototypeGuardDocumentsEveryNonAdmittedOpcode()
+    {
+        var repositoryRoot = FindRepositoryRoot();
+        var eligibilityPath = Path.Combine(
+            repositoryRoot.FullName,
+            "src",
+            "Asynkron.JsEngine",
+            "Execution",
+            "UnifiedBytecode",
+            "UnifiedBytecodeProductionEligibility.cs");
+        var contractPath = Path.Combine(repositoryRoot.FullName, "docs", "unified-bytecode-expansion-contract.md");
+        Assert.True(File.Exists(eligibilityPath), $"Expected eligibility source at '{eligibilityPath}'.");
+        Assert.True(File.Exists(contractPath), $"Expected contract doc at '{contractPath}'.");
+
+        var eligibilityText = File.ReadAllText(eligibilityPath);
+        var contractText = File.ReadAllText(contractPath);
+        var prototypeGuardText = ExtractSourceSection(
+            eligibilityText,
+            "private static bool TryFindPrototypeOnlyOpcode(",
+            "private static void TryGetUnsupportedBinaryDecline(");
+        var admittedOpcodes = ExtractUnifiedBytecodeOpcodeCases(prototypeGuardText);
+        var unadmittedOpcodes = Enum.GetNames<UnifiedBytecodeOpCode>()
+            .Except(admittedOpcodes, StringComparer.Ordinal);
+        var documentedGaps = ExtractBacktickedBulletItemsUnderHeading(
+            contractText,
+            "### Sync Prototype Opcode Guard Gaps (current)");
+
+        AssertSameSet(
+            UnifiedBytecodeSyncPrototypeGuardGapNames,
+            unadmittedOpcodes,
+            "Sync prototype opcode guard gap inventory");
+        AssertSameSet(
+            UnifiedBytecodeSyncPrototypeGuardGapNames,
+            documentedGaps,
+            "Documented sync prototype opcode guard gaps");
+    }
+
+    [Fact]
     public void UnifiedBytecodeDiscardDocumentation_DoesNotPreserveStaleBlanketDeclineRule()
     {
         var repositoryRoot = FindRepositoryRoot();
@@ -414,6 +521,93 @@ public sealed class ExpressionProgramCoverageMapTests
         var resumableVmOpcodes = ExtractUnifiedBytecodeOpcodeCases(executeResumableText);
 
         AssertSameSet(resumableVmOpcodes, allowListOpcodes, "Resumable unified bytecode opcode allow-list");
+    }
+
+    [Fact]
+    public void UnifiedBytecodeResumableEligibility_DocumentsEveryNonAllowlistedOpcode()
+    {
+        var repositoryRoot = FindRepositoryRoot();
+        var eligibilityPath = Path.Combine(
+            repositoryRoot.FullName,
+            "src",
+            "Asynkron.JsEngine",
+            "Execution",
+            "UnifiedBytecode",
+            "UnifiedBytecodeProductionEligibility.cs");
+        var contractPath = Path.Combine(repositoryRoot.FullName, "docs", "unified-bytecode-expansion-contract.md");
+        Assert.True(File.Exists(eligibilityPath), $"Expected eligibility source at '{eligibilityPath}'.");
+        Assert.True(File.Exists(contractPath), $"Expected contract doc at '{contractPath}'.");
+
+        var eligibilityText = File.ReadAllText(eligibilityPath);
+        var contractText = File.ReadAllText(contractPath);
+        var resumableAllowListText = ExtractSourceSection(
+            eligibilityText,
+            "private static bool TryFindUnsupportedResumableOpcode(",
+            "private static bool TryFindInstructionDynamicIdentifierDecline(");
+        var allowListOpcodes = ExtractUnifiedBytecodeOpcodeReferences(resumableAllowListText);
+        var unallowlistedOpcodes = Enum.GetNames<UnifiedBytecodeOpCode>()
+            .Except(allowListOpcodes, StringComparer.Ordinal);
+        var documentedGaps = ExtractBacktickedBulletItemsUnderHeading(
+            contractText,
+            "### Resumable Opcode Allowlist Gaps (current)");
+
+        AssertSameSet(
+            UnifiedBytecodeResumableOpcodeAllowListGapNames,
+            unallowlistedOpcodes,
+            "Resumable unified bytecode opcode allow-list gap inventory");
+        AssertSameSet(
+            UnifiedBytecodeResumableOpcodeAllowListGapNames,
+            documentedGaps,
+            "Documented resumable opcode allow-list gaps");
+    }
+
+    [Fact]
+    public void UnifiedBytecodeResumableEligibility_DocumentsEveryNonAllowlistedInstruction()
+    {
+        var repositoryRoot = FindRepositoryRoot();
+        var instructionsPath = Path.Combine(
+            repositoryRoot.FullName,
+            "src",
+            "Asynkron.JsEngine",
+            "Execution",
+            "Instructions",
+            "Instructions.cs");
+        var eligibilityPath = Path.Combine(
+            repositoryRoot.FullName,
+            "src",
+            "Asynkron.JsEngine",
+            "Execution",
+            "UnifiedBytecode",
+            "UnifiedBytecodeProductionEligibility.cs");
+        var contractPath = Path.Combine(repositoryRoot.FullName, "docs", "unified-bytecode-expansion-contract.md");
+        Assert.True(File.Exists(instructionsPath), $"Expected instruction source at '{instructionsPath}'.");
+        Assert.True(File.Exists(eligibilityPath), $"Expected eligibility source at '{eligibilityPath}'.");
+        Assert.True(File.Exists(contractPath), $"Expected contract doc at '{contractPath}'.");
+
+        var instructionsText = File.ReadAllText(instructionsPath);
+        var eligibilityText = File.ReadAllText(eligibilityPath);
+        var contractText = File.ReadAllText(contractPath);
+        var declaredInstructions = ExtractExecutionInstructionRecordNames(instructionsText);
+        var resumableInstructionAllowListText = ExtractSourceSection(
+            eligibilityText,
+            "private static bool IsSupportedResumableInstruction(",
+            "private static bool TryGetResumableExpressionProgram(");
+        var allowListInstructions = ExtractExecutionInstructionCases(resumableInstructionAllowListText);
+        var unallowlistedInstructions = declaredInstructions.Except(
+            allowListInstructions,
+            StringComparer.Ordinal);
+        var documentedGaps = ExtractBacktickedBulletItemsUnderHeading(
+            contractText,
+            "### Resumable Instruction Allowlist Gaps (current)");
+
+        AssertSameSet(
+            UnifiedBytecodeResumableInstructionAllowListGapNames,
+            unallowlistedInstructions,
+            "Resumable unified bytecode instruction allow-list gap inventory");
+        AssertSameSet(
+            UnifiedBytecodeResumableInstructionAllowListGapNames,
+            documentedGaps,
+            "Documented resumable instruction allow-list gaps");
     }
 
     [Fact]

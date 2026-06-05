@@ -67,6 +67,14 @@ statement interpretation.
   lockstep; the current opcode surface has VM handling for every listed opcode.
   Remaining work is primarily semantic admission and lowering, not adding switch
   cases for already-declared opcodes.
+- The sync prototype guard and resumable allowlists are now separately
+  drift-checked against the declared opcode and instruction inventories. The
+  current non-admitted inventories live under
+  `### Sync Prototype Opcode Guard Gaps (current)`,
+  `### Resumable Opcode Allowlist Gaps (current)`, and
+  `### Resumable Instruction Allowlist Gaps (current)`. Future opcode or IR
+  instruction additions must either be admitted by the corresponding gate or be
+  named in those sections in the same slice.
 - `UnifiedBytecodeCompiler` now has generated audit coverage for every declared
   IR instruction record. Function-scoped `FunctionDeclarationInstruction`
   entries compile as no-ops after fast activation hoisting installs the callable
@@ -329,6 +337,84 @@ statement interpretation.
 - `ApplyBindingTarget`
 - `ApplyDeclarationBindingTarget`
 - `EnsureHasName`
+
+### Sync Prototype Opcode Guard Gaps (current)
+
+These are the declared opcodes not explicitly admitted by
+`UnifiedBytecodeProductionEligibility.TryFindPrototypeOnlyOpcode` for ordinary
+sync production routing. They are resumable-only suspension opcodes; seeing one
+in an ordinary sync production program still hits the default prototype guard
+and falls back before VM entry.
+
+- `AwaitAndDiscard`
+- `AwaitValue`
+- `AwaitedReturn`
+- `StoreResumeValue`
+- `Yield`
+- `YieldStar`
+
+### Resumable Opcode Allowlist Gaps (current)
+
+These are the declared `UnifiedBytecodeOpCode` names not admitted by
+`TryFindUnsupportedResumableOpcode`. The existing drift gate also verifies that
+the admitted subset stays 1:1 with `UnifiedBytecodeVirtualMachine.ExecuteResumable`.
+
+- `ApplyBindingTarget`
+- `Break`
+- `Continue`
+- `DeclareClass`
+- `DeclareDynamicLexical`
+- `DeclareDynamicVar`
+- `DeclareFunction`
+- `EnsureHasName`
+- `EnsureSuperReference`
+- `EnterCatch`
+- `EnterWith`
+- `GetComputedPropertyForCompoundSet`
+- `GetComputedSuperProperty`
+- `GetNamedPropertyForCompoundSet`
+- `GetNamedSuperProperty`
+- `InitializeDynamicLexical`
+- `JumpWithDriverCleanup`
+- `LeaveWith`
+- `LoadClassLiteral`
+- `LoadDynamicIdentifierReference`
+- `LoadFunctionLiteral`
+- `LoadTemplateObject`
+- `PopDynamicIdentifierReference`
+- `PopEnvironment`
+- `PrepareComputedSuperCallTarget`
+- `PrepareNamedSuperCallTarget`
+- `PushEnvironment`
+- `ResolveDynamicIdentifierReference`
+- `SetComputedSuperProperty`
+- `SetNamedSuperProperty`
+- `StoreDynamicIdentifier`
+- `StoreDynamicIdentifierReference`
+- `SuperConstructInvocationBoundary`
+- `ThrowReferenceError`
+- `UpdateComputedSuperProperty`
+- `UpdateNamedSuperProperty`
+
+### Resumable Instruction Allowlist Gaps (current)
+
+These are declared `ExecutionInstruction` records not admitted by
+`IsSupportedResumableInstruction`. Some compile to opcode families that already
+exist on the sync VM, but the plan-level resumable setup or suspension state is
+not yet proven for them.
+
+- `BreakInstruction`
+- `ClassDeclarationInstruction`
+- `CompoundAssignmentSlotInstruction`
+- `ContinueInstruction`
+- `EnterCatchInstruction`
+- `EnterWithInstruction`
+- `FunctionDeclarationInstruction`
+- `LeaveWithInstruction`
+- `LogicalCompoundAssignmentSlotInstruction`
+- `PopEnvironmentInstruction`
+- `PushEnvironmentInstruction`
+- `SetCompletionValueInstruction`
 
 ### Production Decline Families (current)
 - `None`

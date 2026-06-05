@@ -162,7 +162,8 @@ internal readonly record struct UnifiedBytecodeCallTarget(
 internal readonly record struct UnifiedBytecodeScopeDescriptor(
     int ScopeId,
     ImmutableArray<int> LexicalSlotIndices,
-    ImmutableArray<int> ConstSlotIndices = default);
+    ImmutableArray<int> ConstSlotIndices = default,
+    ImmutableArray<int> PerIterationCopySlotIndices = default);
 
 internal readonly record struct UnifiedBytecodeTryDescriptor(
     int HandlerTarget,

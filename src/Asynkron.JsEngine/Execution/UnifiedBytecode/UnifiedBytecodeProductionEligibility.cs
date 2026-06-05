@@ -1665,7 +1665,7 @@ internal static class UnifiedBytecodeProductionEligibility
             if (instruction.OpCode == UnifiedBytecodeOpCode.LoadClassLiteral)
             {
                 var classExpression = program.ClassLiteralConstants[instruction.Operand];
-                if (IsResumableB24ClassLiteral(program, classExpression, activationSlots, out declineReason))
+                if (IsResumableClassLiteral(program, activationSlots, classExpression, out declineReason))
                 {
                     continue;
                 }
@@ -2000,6 +2000,16 @@ internal static class UnifiedBytecodeProductionEligibility
                 UnifiedBytecodeOpCode.ArrayPushHole or
                 UnifiedBytecodeOpCode.ArraySpread)
             {
+                if (instruction.OpCode == UnifiedBytecodeOpCode.LoadClassLiteral &&
+                    !IsResumableClassLiteral(
+                        program,
+                        activationSlots,
+                        program.ClassLiteralConstants[instruction.Operand],
+                        out declineReason))
+                {
+                    return true;
+                }
+
                 continue;
             }
 
@@ -2012,10 +2022,10 @@ internal static class UnifiedBytecodeProductionEligibility
         return false;
     }
 
-    private static bool IsResumableB24ClassLiteral(
+    private static bool IsResumableClassLiteral(
         UnifiedBytecodeProgram program,
-        ClassExpression classExpression,
         ActivationSlotShape activationSlots,
+        ClassExpression classExpression,
         out string declineReason)
     {
         var definition = classExpression.Definition;
@@ -2039,6 +2049,36 @@ internal static class UnifiedBytecodeProductionEligibility
         }
 
         var isPrivateInstanceFieldClassLiteral = IsB24ePrivateInstanceFieldClassLiteral(definition);
+        if (IsB24fPrivateInstanceMemberClassLiteral(definition))
+        {
+            if (definition.Extends is not null)
+            {
+                declineReason =
+                    "Class literal is outside B24a and B24f: class literals with extends are not eligible for the B24f resumable private-member route.";
+                return false;
+            }
+
+            if (FunctionCapturesActivationSlot(definition.Constructor, activationSlots, out var constructorCapturedName))
+            {
+                declineReason =
+                    $"Class literal is outside B24f: constructor body captures activation binding '{constructorCapturedName}' and needs the materialized body environment route.";
+                return false;
+            }
+
+            foreach (var member in definition.Members)
+            {
+                if (FunctionCapturesActivationSlot(member.Function, activationSlots, out var capturedName))
+                {
+                    declineReason =
+                        $"Class literal is outside B24f: private member body captures activation binding '{capturedName}' and needs the materialized body environment route.";
+                    return false;
+                }
+            }
+
+            declineReason = string.Empty;
+            return true;
+        }
+
         if (!AreResumableB24ClassMembersSupported(definition, isPrivateInstanceFieldClassLiteral))
         {
             declineReason =
@@ -2047,6 +2087,26 @@ internal static class UnifiedBytecodeProductionEligibility
         }
 
         declineReason = string.Empty;
+        return true;
+    }
+
+    private static bool IsB24fPrivateInstanceMemberClassLiteral(ClassDefinition definition)
+    {
+        if (!definition.Fields.IsDefaultOrEmpty ||
+            definition.Members.IsDefaultOrEmpty ||
+            definition.Members.Length == 0)
+        {
+            return false;
+        }
+
+        foreach (var member in definition.Members)
+        {
+            if (!member.IsPrivate || member.IsStatic || member.IsComputed)
+            {
+                return false;
+            }
+        }
+
         return true;
     }
 

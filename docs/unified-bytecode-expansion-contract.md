@@ -345,8 +345,8 @@ statement interpretation.
 - `SuperConstructInvocationBoundary`
 - `DeclareClass`
 - `DeclareFunction`
-- `LoadFunctionLiteral`
 - `LoadClassLiteral`
+- `LoadFunctionLiteral`
 - `Yield`
 - `StoreResumeValue`
 - `AwaitAndDiscard`
@@ -436,15 +436,17 @@ sync-admitted and pinned by `A35ComplexObjectLiteralTests`,
 
 The former B24 class-expression coarse row is split by class-element semantics.
 `LoadClassLiteral` itself has sync VM and compiler coverage, including class
-expressions with static blocks. Resumable routing now admits the B24a
-constructor/default-constructor subset plus the B24b public non-computed
-instance-field subset whose field initializers do not capture activation slots.
-Full bytecode execution is not done: class-literal
-creation still calls class-definition machinery that resolves extends/computed
-names/field initializers through expression programs and static blocks through
-`ExecutionPlanRunner.RunScript`; `extends` expressions that read resumable
-activation slots also remain declined until class-definition evaluation owns
-that environment bridge. B24c-B24i remain declined by the resumable shape gate.
+expressions with static blocks, and resumable routing now admits B24a
+constructor/default-constructor class literals, the B24b public non-computed
+instance-field subset whose field initializers do not capture activation slots,
+narrow B24e private instance-field class literals, and the narrow B24f private
+method/accessor class-literal shape. Full bytecode execution is not done:
+class-literal creation still calls class-definition machinery that resolves
+extends/computed names/field initializers through expression programs and static
+blocks through `ExecutionPlanRunner.RunScript`; `extends` expressions that read
+resumable activation slots also remain declined until class-definition
+evaluation owns that environment bridge. B24c-B24d and B24g-B24i remain declined
+by the resumable shape gate.
 
 - `B24a:ClassExpressionConstructor`
 - `B24b:ClassExpressionInstanceFields`

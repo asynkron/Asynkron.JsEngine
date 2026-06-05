@@ -359,6 +359,108 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
+    public void EvaluateResumable_GeneratorBreakAfterYield_AcceptsBreakInstruction()
+    {
+        var plan = GetFunctionPlan("""
+            function* gen(values) {
+                for (var value of values) {
+                    yield value;
+                    break;
+                }
+
+                return "done";
+            }
+            """,
+            "gen");
+        Assert.Contains(plan.Instructions, static instruction => instruction is BreakInstruction);
+
+        var result = UnifiedBytecodeProductionEligibility.EvaluateResumable(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor(IsGenerator: true));
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(
+            result.Program.Instructions,
+            static instruction => instruction.OpCode == UnifiedBytecodeOpCode.Break);
+    }
+
+    [Fact]
+    public void EvaluateResumable_GeneratorContinueAfterYield_AcceptsContinueInstruction()
+    {
+        var plan = GetFunctionPlan("""
+            function* gen(values) {
+                for (var value of values) {
+                    yield value;
+                    continue;
+                }
+            }
+            """,
+            "gen");
+        Assert.Contains(plan.Instructions, static instruction => instruction is ContinueInstruction);
+
+        var result = UnifiedBytecodeProductionEligibility.EvaluateResumable(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor(IsGenerator: true));
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(
+            result.Program.Instructions,
+            static instruction => instruction.OpCode == UnifiedBytecodeOpCode.Continue);
+    }
+
+    [Fact]
+    public void EvaluateResumable_AsyncBreakAndContinueAfterAwait_AcceptsControlInstructions()
+    {
+        var breakPlan = GetFunctionPlan("""
+            async function breakAfterAwait(gate) {
+                for (var index = 0; index < 2; index = index + 1) {
+                    await gate;
+                    break;
+                }
+
+                return 1;
+            }
+            """,
+            "breakAfterAwait");
+        Assert.Contains(breakPlan.Instructions, static instruction => instruction is BreakInstruction);
+
+        var breakResult = UnifiedBytecodeProductionEligibility.EvaluateResumable(
+            breakPlan,
+            new UnifiedBytecodeProductionActivationDescriptor(IsAsyncLike: true));
+
+        Assert.True(breakResult.IsEligible, breakResult.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, breakResult.Code);
+        Assert.Contains(
+            breakResult.Program.Instructions,
+            static instruction => instruction.OpCode == UnifiedBytecodeOpCode.Break);
+
+        var continuePlan = GetFunctionPlan("""
+            async function continueAfterAwait(gate) {
+                for (var index = 0; index < 2; index = index + 1) {
+                    await gate;
+                    continue;
+                }
+
+                return 1;
+            }
+            """,
+            "continueAfterAwait");
+        Assert.Contains(continuePlan.Instructions, static instruction => instruction is ContinueInstruction);
+
+        var continueResult = UnifiedBytecodeProductionEligibility.EvaluateResumable(
+            continuePlan,
+            new UnifiedBytecodeProductionActivationDescriptor(IsAsyncLike: true));
+
+        Assert.True(continueResult.IsEligible, continueResult.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, continueResult.Code);
+        Assert.Contains(
+            continueResult.Program.Instructions,
+            static instruction => instruction.OpCode == UnifiedBytecodeOpCode.Continue);
+    }
+
+    [Fact]
     public void EvaluateResumable_NestedTryFinallyAroundYield_DeclinesPendingCleanupChain()
     {
         var plan = GetFunctionPlan("""

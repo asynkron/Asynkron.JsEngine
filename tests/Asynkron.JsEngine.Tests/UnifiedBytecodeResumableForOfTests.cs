@@ -32,6 +32,99 @@ public sealed class UnifiedBytecodeResumableForOfTests(ITestOutputHelper output)
     }
 
     [Fact(Timeout = 5000)]
+    public async Task GeneratorLabeledBreakAfterYield_ClosesIteratorOnce()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            var closed = 0;
+            var source = {
+                [Symbol.iterator]() {
+                    var current = 0;
+                    return {
+                        next() {
+                            current = current + 1;
+                            return current === 1
+                                ? { value: "inner", done: false }
+                                : { done: true };
+                        },
+                        return() {
+                            closed = closed + 1;
+                            return { done: true };
+                        }
+                    };
+                }
+            };
+
+            function* values(items) {
+                outer: for (var value of items) {
+                    yield value;
+                    break outer;
+                }
+
+                return "closed:" + closed;
+            }
+
+            var iterator = values(source);
+            iterator.next().value + "|" + iterator.next().value + "|" + iterator.next().done;
+            """);
+
+        Assert.Equal("inner|closed:1|true", result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            record => record.Message.Contains(
+                $"{ResumableGeneratorFastPathLog} func=values argc=1",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task GeneratorLabeledContinueAfterYield_KeepsTargetIteratorOpen()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            var closed = 0;
+            var source = {
+                [Symbol.iterator]() {
+                    var current = 0;
+                    return {
+                        next() {
+                            current = current + 1;
+                            if (current > 2) {
+                                return { done: true };
+                            }
+
+                            return { value: "inner" + current, done: false };
+                        },
+                        return() {
+                            closed = closed + 1;
+                            return { done: true };
+                        }
+                    };
+                }
+            };
+
+            function* values(items) {
+                outer: for (var value of items) {
+                    yield value;
+                    continue outer;
+                }
+
+                return "closed:" + closed;
+            }
+
+            var iterator = values(source);
+            iterator.next().value + "|" +
+                iterator.next().value + "|" +
+                iterator.next().value + "|" +
+                iterator.next().done;
+            """);
+
+        Assert.Equal("inner1|inner2|closed:0|true", result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            record => record.Message.Contains(
+                $"{ResumableGeneratorFastPathLog} func=values argc=1",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task AsyncForOfAwaitedSource_RoutesResumableAndReadsValue()
     {
         await using var engine = CreateEngine();

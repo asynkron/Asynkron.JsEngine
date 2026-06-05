@@ -8095,7 +8095,7 @@ internal static class UnifiedBytecodeVirtualMachine
         var pendingPromise = resumeState.PendingAwaitPromise;
         if (!AwaitScheduler.TryResolvePromiseOrYield(
                 closeResult,
-                asyncStepMode: true,
+                asyncStepMode: resumeState.IsAsyncLike,
                 ref pendingPromise,
                 context,
                 out var resolvedCloseResult))

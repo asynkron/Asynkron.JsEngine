@@ -183,6 +183,7 @@ public static partial class TypedAstEvaluator
 
             _unifiedState = new UnifiedBytecodeResumeState(program, slots, boundThis, callingEnvironment, isStrict, newTarget)
             {
+                IsAsyncLike = true,
                 // Thread the private-name scopes lexically active where this async body was defined so the
                 // resumable VM can re-enter them on each per-step continuation and resolve `#name in obj`.
                 PrivateNameScopes = UnifiedBytecodeResumeState.CombinePrivateNameScopes(

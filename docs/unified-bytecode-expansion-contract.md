@@ -409,9 +409,7 @@ gap inventory, but direct root function-scoped declarations still require the
 resumable invoker's activation proof before the conditional allowlist arm admits
 them.
 
-- `BreakInstruction`
 - `ClassDeclarationInstruction`
-- `ContinueInstruction`
 - `EnterCatchInstruction`
 - `EnterWithInstruction`
 - `LeaveWithInstruction`

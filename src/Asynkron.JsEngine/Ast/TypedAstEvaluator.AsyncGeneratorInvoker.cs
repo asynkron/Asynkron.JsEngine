@@ -202,6 +202,7 @@ public static partial class TypedAstEvaluator
                 isStrict,
                 JsValue.Undefined)
             {
+                IsAsyncLike = true,
                 IsAsyncGenerator = true,
                 // Thread the private-name scopes lexically active where this async-generator body was
                 // defined so the resumable VM can re-enter them on each per-step context and resolve

@@ -86,9 +86,7 @@ public sealed class ExpressionProgramCoverageMapTests
 
     private static readonly string[] UnifiedBytecodeResumableInstructionAllowListGapNames =
     [
-        "BreakInstruction",
         "ClassDeclarationInstruction",
-        "ContinueInstruction",
         "EnterCatchInstruction",
         "EnterWithInstruction",
         "LeaveWithInstruction",

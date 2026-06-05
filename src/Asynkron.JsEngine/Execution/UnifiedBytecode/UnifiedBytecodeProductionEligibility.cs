@@ -1114,12 +1114,21 @@ internal static class UnifiedBytecodeProductionEligibility
 
         for (var instructionIndex = 0; instructionIndex < plan.Instructions.Length; instructionIndex++)
         {
+            var instruction = plan.Instructions[instructionIndex];
+            if (instruction is EnterWithInstruction ||
+                (instruction is LeaveWithInstruction && activeWithDepths[instructionIndex] >= 0))
+            {
+                declineCode = UnifiedBytecodeProductionDeclineCode.UnsupportedPlanShape;
+                declineReason =
+                    "D3 dynamic residue: with statements in resumable bodies, including awaited with-object evaluation, are not eligible for resumable unified bytecode routing.";
+                return true;
+            }
+
             if (activeWithDepths[instructionIndex] < 0)
             {
                 continue;
             }
 
-            var instruction = plan.Instructions[instructionIndex];
             if (isAsyncGenerator &&
                 instruction is YieldStarInstruction { AwaitedProgram: not null })
             {

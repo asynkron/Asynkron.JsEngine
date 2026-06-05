@@ -220,6 +220,25 @@ public static partial class TypedAstEvaluator
             return true;
         }
 
+        private bool TryGetExecutionPlan(out ExecutionPlan plan)
+        {
+            if (planSeed.Plan is { } seededPlan)
+            {
+                plan = seededPlan;
+                return true;
+            }
+
+            var cache = ((IAstCacheable<ExecutionPlanCache>)function).GetOrCreateCache();
+            if (cache.Plan is { } cachedPlan)
+            {
+                plan = cachedPlan;
+                return true;
+            }
+
+            plan = null!;
+            return false;
+        }
+
         private ExecutionPlanRunner CreateClassifiedAsyncGeneratorDeclinedBodyRunner()
         {
             return CreateExecutionPlanRunner();
@@ -246,25 +265,6 @@ public static partial class TypedAstEvaluator
                 capturedPrivateNameScopes,
                 planOverride: planSeed.Plan,
                 planFailureOverride: planSeed.Failure);
-        }
-
-        private bool TryGetExecutionPlan(out ExecutionPlan plan)
-        {
-            if (planSeed.Plan is { } seededPlan)
-            {
-                plan = seededPlan;
-                return true;
-            }
-
-            var cache = ((IAstCacheable<ExecutionPlanCache>)function).GetOrCreateCache();
-            if (cache.Plan is { } cachedPlan)
-            {
-                plan = cachedPlan;
-                return true;
-            }
-
-            plan = null!;
-            return false;
         }
 
         private ExecutionPlanRunner.AsyncGeneratorStepResult ExecuteStep(

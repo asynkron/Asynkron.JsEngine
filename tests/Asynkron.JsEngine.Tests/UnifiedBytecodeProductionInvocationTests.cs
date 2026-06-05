@@ -9215,20 +9215,7 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
                 "private bool TryGetExecutionPlan(out ExecutionPlan plan)",
                 "async-function resumable setup accepted path",
                 [
-                    "new ExecutionPlanRunner(\n" +
-                    "                        function,\n" +
-                    "                        closure,\n" +
-                    "                        arguments,\n" +
-                    "                        thisValue,\n" +
-                    "                        callable,\n" +
-                    "                        _realmState,\n" +
-                    "                        isLexicallyStrict,\n" +
-                    "                        hasFunctionNameEnvironment,\n" +
-                    "                        homeObject,\n" +
-                    "                        privateNameScope,\n" +
-                    "                        capturedPrivateNameScopes,\n" +
-                    "                        planOverride: _planSeed.Plan,\n" +
-                    "                        planFailureOverride: _planSeed.Failure)\n" +
+                    "CreateResumableSuperEnvironmentBridgeRunner()\n" +
                     "                    .GetOrCreateExecutionEnvironmentForInternalUse()"
                 ]),
             (
@@ -9237,7 +9224,7 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
                 "private bool TryGetExecutionPlan(out ExecutionPlan plan)",
                 "sync-generator resumable setup accepted path",
                 [
-                    "CreateRunner(arguments, thisValue)\n" +
+                    "CreateResumableSuperEnvironmentBridgeRunner(arguments, thisValue)\n" +
                     "                    .GetOrCreateExecutionEnvironmentForInternalUse()"
                 ]),
             (
@@ -9246,11 +9233,7 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
                 "private bool TryGetExecutionPlan(out ExecutionPlan plan)",
                 "async-generator resumable setup accepted path",
                 [
-                    "new ExecutionPlanRunner(function, closure, arguments, thisValue, callable,\n" +
-                    "                    realmState, isLexicallyStrict, hasFunctionNameEnvironment, homeObject, privateNameScope,\n" +
-                    "                    capturedPrivateNameScopes,\n" +
-                    "                    planOverride: planSeed.Plan,\n" +
-                    "                    planFailureOverride: planSeed.Failure);\n" +
+                    "_inner = CreateResumableSuperEnvironmentBridgeRunner();\n" +
                     "                callingEnvironment = _inner.GetOrCreateExecutionEnvironmentForInternalUse()"
                 ])
         };

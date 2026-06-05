@@ -9207,7 +9207,7 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
             AssertUnifiedBytecodeAcceptedSectionDoesNotDelegate(section, sectionName, allowedTypeMarkers);
         }
 
-        var checkedSetupSections = new (string RelativePath, string StartMarker, string EndMarker, string SectionName, string[] AllowedRunnerSetupMarkers)[]
+        var checkedSetupSections = new (string RelativePath, string StartMarker, string EndMarker, string SectionName, string[] RequiredSetupMarkers)[]
         {
             (
                 Path.Combine("src", "Asynkron.JsEngine", "Ast", "TypedAstEvaluator.AsyncFunctionInvoker.cs"),
@@ -9215,8 +9215,10 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
                 "private bool TryGetExecutionPlan(out ExecutionPlan plan)",
                 "async-function resumable setup accepted path",
                 [
-                    "CreateResumableSuperEnvironmentBridgeRunner()\n" +
-                    "                    .GetOrCreateExecutionEnvironmentForInternalUse()"
+                    "SuperBinding? resumableSuperBinding = null;\n" +
+                    "            if (RequiresResumableSuperEnvironment(program) &&\n" +
+                    "                !TryCreateResumableSuperBinding(closure, boundThis, homeObject, out resumableSuperBinding))",
+                    "ResumableSuperBinding = resumableSuperBinding,"
                 ]),
             (
                 Path.Combine("src", "Asynkron.JsEngine", "Ast", "TypedAstEvaluator.SyncGeneratorInvoker.cs"),
@@ -9224,8 +9226,10 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
                 "private bool TryGetExecutionPlan(out ExecutionPlan plan)",
                 "sync-generator resumable setup accepted path",
                 [
-                    "CreateResumableSuperEnvironmentBridgeRunner(arguments, thisValue)\n" +
-                    "                    .GetOrCreateExecutionEnvironmentForInternalUse()"
+                    "var requiresResumableSuperBinding = RequiresResumableSuperEnvironment(program);",
+                    "if (requiresResumableSuperBinding &&\n" +
+                    "                !TryCreateResumableSuperBinding(_closure, boundThis, _homeObject, out resumableSuperBinding))",
+                    "ResumableSuperBinding = resumableSuperBinding,"
                 ]),
             (
                 Path.Combine("src", "Asynkron.JsEngine", "Ast", "TypedAstEvaluator.AsyncGeneratorInvoker.cs"),
@@ -9233,26 +9237,28 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
                 "private bool TryGetExecutionPlan(out ExecutionPlan plan)",
                 "async-generator resumable setup accepted path",
                 [
-                    "_inner = CreateResumableSuperEnvironmentBridgeRunner();\n" +
-                    "                callingEnvironment = _inner.GetOrCreateExecutionEnvironmentForInternalUse()"
+                    "SuperBinding? resumableSuperBinding = null;\n" +
+                    "            if (RequiresResumableSuperEnvironment(program) &&\n" +
+                    "                !TryCreateResumableSuperBinding(closure, boundThis, homeObject, out resumableSuperBinding))",
+                    "ResumableSuperBinding = resumableSuperBinding,"
                 ])
         };
 
         Assert.NotEmpty(checkedSetupSections);
-        foreach (var (relativePath, startMarker, endMarker, sectionName, allowedRunnerSetupMarkers) in checkedSetupSections)
+        foreach (var (relativePath, startMarker, endMarker, sectionName, requiredSetupMarkers) in checkedSetupSections)
         {
             var sourcePath = Path.Combine(repositoryRoot.FullName, relativePath);
             Assert.True(File.Exists(sourcePath), $"Expected accepted-route setup source at '{sourcePath}'.");
             var source = File.ReadAllText(sourcePath);
             var section = ExtractRequiredSourceSection(source, startMarker, endMarker, sectionName);
-            var sectionWithoutAllowedRunnerSetup = RemoveRequiredSourceMarkers(
+            var sectionWithoutRequiredSetup = RemoveRequiredSourceMarkers(
                 section,
-                allowedRunnerSetupMarkers,
+                requiredSetupMarkers,
                 sectionName);
 
             Assert.Contains("UnifiedBytecodeProductionEligibility.EvaluateResumable", section, StringComparison.Ordinal);
             Assert.Contains("new UnifiedBytecodeResumeState", section, StringComparison.Ordinal);
-            AssertUnifiedBytecodeAcceptedSectionDoesNotDelegate(sectionWithoutAllowedRunnerSetup, sectionName);
+            AssertUnifiedBytecodeAcceptedSectionDoesNotDelegate(sectionWithoutRequiredSetup, sectionName);
         }
     }
 

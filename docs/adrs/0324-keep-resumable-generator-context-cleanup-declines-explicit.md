@@ -1,4 +1,4 @@
-# ADR 0323: Keep resumable generator context and cleanup declines explicit
+# ADR 0324: Keep resumable generator context and cleanup declines explicit
 
 ## Status
 
@@ -63,9 +63,10 @@ nested function context.
   `Generator_ReturnExecutesPendingFinally_NoYieldInFinally`, and
   `Generator_ThrowExecutesPendingFinally_NoYieldInFinally`.
 - ADR allocation note: this learn runtime could not execute
-  `rtk faktorial-api adr-next` (`No such file or directory`), so the artifact
-  used the documented fallback after a duplicate-prefix check showed no
-  existing duplicates and `0323` was the next free local prefix.
+  `rtk faktorial-api adr-next` (`No such file or directory`). During conflict
+  repair, `origin/main` already owned ADR `0323`, so the documented
+  collision-repair fallback kept that accepted ADR stable and renumbered this
+  branch artifact to the next free prefix, `0324`.
 
 ## Related
 

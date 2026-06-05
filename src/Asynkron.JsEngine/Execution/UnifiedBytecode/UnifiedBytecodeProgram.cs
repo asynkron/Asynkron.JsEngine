@@ -438,6 +438,8 @@ internal sealed class UnifiedBytecodeResumeState
     public int NextActiveDriverOrdinal;
     public Stack<int>? ResumableTryDescriptorIndices;
     public Stack<int>? ResumableTryResumeTargets;
+    public AssignmentReference[]? DynamicIdentifierReferences;
+    public int DynamicIdentifierReferenceCount;
     public bool IsCompleted { get; set; }
     public UnifiedBytecodeResumePayloadKind ResumePayloadKind { get; set; }
     public JsTypes.JsValue ResumePayload { get; set; } = JsTypes.JsValue.Undefined;

@@ -1123,10 +1123,10 @@ internal static class UnifiedBytecodeProductionEligibility
             // (#3108), which is captured at construction and stable across yield/await suspension, so a
             // resumed step observes the CURRENT value of a captured/outer binding (closure capture and
             // outer mutation between yields both resolve correctly) and an uninitialized free binding
-            // still throws ReferenceError. Free dynamic *writes* (StoreDynamicIdentifier /
-            // ResolveDynamicIdentifierReference) and other dynamic-environment opcodes remain declined:
-            // the resumable opcode allowlist (TryFindUnsupportedResumableOpcode) only admits the dynamic
-            // read / call-target opcodes, so any write shape still routes to the interpreter.
+            // still throws ReferenceError. Free dynamic plain writes are also admitted through the
+            // pre-resolved assignment-reference sequence, whose pending AssignmentReference is persisted on
+            // UnifiedBytecodeResumeState across a suspending RHS. Dynamic declarations and compound/logical
+            // writes remain declined by their instruction/opcode gates until their own semantics are proven.
             const bool allowsDynamicIdentifiers = true;
             if (!IsSupportedResumableInstruction(instruction, activationSlots, out declineReason))
             {
@@ -1756,15 +1756,21 @@ internal static class UnifiedBytecodeProductionEligibility
                 // ExecuteResumable switch carries the UpdateDynamicIdentifier handler (kept 1:1 with this
                 // allowlist).
                 //
-                // The captured/free plain and compound STORE (`n = v`, `n += v`) is NOT admitted: it lowers
-                // to the three-opcode ResolveDynamicIdentifierReference -> <RHS> ->
-                // StoreDynamicIdentifierReference sequence whose resolved AssignmentReference lives in a
-                // transient VM-local array, NOT on UnifiedBytecodeResumeState. The RHS can suspend
-                // (`n = yield`), and the resume state does not thread the pending reference across the
-                // suspension, so admitting it would corrupt the store target on resume. It stays declined on
-                // the IR runner (ResolveDynamicIdentifierReference is absent from this allowlist). The
-                // remaining dynamic reference / single-shot store opcodes likewise stay omitted.
+                // Captured/free plain STORE (`n = v`) lowers to ResolveDynamicIdentifierReference ->
+                // <RHS> -> StoreDynamicIdentifierReference. The resolved AssignmentReference is persisted on
+                // UnifiedBytecodeResumeState, so a suspending RHS (`n = yield`) resumes with the exact target
+                // reference selected before suspension. This preserves §13.15.2 ordering: RHS side effects
+                // cannot change which binding the LHS originally resolved to. The Store handler leaves the
+                // assigned value on the operand stack for the following Pop, matching the sync VM. Compound
+                // and logical STORE shapes (`n += v`, `n &&= v`) still decline at their instruction gates:
+                // they need read-modify-write proof beyond reference persistence. Dynamic declarations and
+                // single-shot StoreDynamicIdentifier also stay omitted unless another proven shape requires
+                // them.
                 UnifiedBytecodeOpCode.UpdateDynamicIdentifier or
+                UnifiedBytecodeOpCode.ResolveDynamicIdentifierReference or
+                UnifiedBytecodeOpCode.LoadDynamicIdentifierReference or
+                UnifiedBytecodeOpCode.StoreDynamicIdentifierReference or
+                UnifiedBytecodeOpCode.PopDynamicIdentifierReference or
                 // Free/dynamic identifier DELETE (`delete freeVar` where `freeVar` is module/script-level or a
                 // captured outer binding that escapes this activation's slots). Resolves the name against the
                 // live closure environment threaded onto UnifiedBytecodeResumeState.CallingEnvironment (#3108)

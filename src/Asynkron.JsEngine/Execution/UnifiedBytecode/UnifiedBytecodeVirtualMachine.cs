@@ -3727,6 +3727,88 @@ internal static class UnifiedBytecodeVirtualMachine
                         break;
                     }
 
+                case UnifiedBytecodeOpCode.ResolveDynamicIdentifierReference:
+                    {
+                        // Free/captured plain WRITE (`outer = <rhs>`) resolves its assignment reference
+                        // before evaluating the RHS, per §13.15.2. Store the pending reference on the resume
+                        // state so an RHS suspension (`outer = yield v` / `outer = await p`) keeps the exact
+                        // target selected before the suspension.
+                        state.DynamicIdentifierReferences ??= new AssignmentReference[instructions.Length];
+                        state.DynamicIdentifierReferences[state.DynamicIdentifierReferenceCount++] =
+                            RequireDynamicEnvironment(state.CallingEnvironment)
+                                .ResolveIdentifierAssignmentReference(
+                                    Symbol.Intern(program.StringConstants[instruction.Operand]),
+                                    context);
+                        programCounter++;
+                        break;
+                    }
+
+                case UnifiedBytecodeOpCode.LoadDynamicIdentifierReference:
+                    {
+                        if (state.DynamicIdentifierReferenceCount == 0 ||
+                            state.DynamicIdentifierReferences is null)
+                        {
+                            throw new InvalidOperationException(
+                                "Unified bytecode attempted to load a missing dynamic identifier reference.");
+                        }
+
+                        PushResumableValue(
+                            state.DynamicIdentifierReferences[state.DynamicIdentifierReferenceCount - 1].GetJsValue());
+                        if (context.ShouldStopEvaluation)
+                        {
+                            state.IsCompleted = true;
+                            return UnifiedBytecodeStepResult.Throw(context.FlowValue);
+                        }
+
+                        programCounter++;
+                        break;
+                    }
+
+                case UnifiedBytecodeOpCode.StoreDynamicIdentifierReference:
+                    {
+                        if (state.DynamicIdentifierReferenceCount == 0 ||
+                            state.DynamicIdentifierReferences is null)
+                        {
+                            throw new InvalidOperationException(
+                                "Unified bytecode attempted to store through a missing dynamic identifier reference.");
+                        }
+
+                        var dynamicReferenceValue = stack[stackPointer - 1];
+                        var dynamicReferenceName = program.StringConstants[DecodeDynamicStoreNameOperand(instruction.Operand)];
+                        if (DecodeDynamicStoreAllowsNameInference(instruction.Operand) &&
+                            dynamicReferenceValue is
+                            { Kind: JsValueKind.Object, ObjectValue: TypedAstEvaluator.IFunctionNameTarget nameTarget })
+                        {
+                            nameTarget.EnsureHasName(dynamicReferenceName);
+                        }
+
+                        state.DynamicIdentifierReferences[--state.DynamicIdentifierReferenceCount]
+                            .SetValue(dynamicReferenceValue);
+                        state.DynamicIdentifierReferences[state.DynamicIdentifierReferenceCount] = default;
+                        if (context.ShouldStopEvaluation)
+                        {
+                            state.IsCompleted = true;
+                            return UnifiedBytecodeStepResult.Throw(context.FlowValue);
+                        }
+
+                        programCounter++;
+                        break;
+                    }
+
+                case UnifiedBytecodeOpCode.PopDynamicIdentifierReference:
+                    {
+                        if (state.DynamicIdentifierReferenceCount == 0 ||
+                            state.DynamicIdentifierReferences is null)
+                        {
+                            throw new InvalidOperationException(
+                                "Unified bytecode attempted to pop a missing dynamic identifier reference.");
+                        }
+
+                        state.DynamicIdentifierReferences[--state.DynamicIdentifierReferenceCount] = default;
+                        programCounter++;
+                        break;
+                    }
+
                 case UnifiedBytecodeOpCode.StoreSlot:
                     if (slots[instruction.Operand].IsUninitialized)
                     {

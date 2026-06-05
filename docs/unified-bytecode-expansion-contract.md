@@ -384,17 +384,13 @@ the admitted subset stays 1:1 with `UnifiedBytecodeVirtualMachine.ExecuteResumab
 - `JumpWithDriverCleanup`
 - `LeaveWith`
 - `LoadClassLiteral`
-- `LoadDynamicIdentifierReference`
-- `PopDynamicIdentifierReference`
 - `PopEnvironment`
 - `PrepareComputedSuperCallTarget`
 - `PrepareNamedSuperCallTarget`
 - `PushEnvironment`
-- `ResolveDynamicIdentifierReference`
 - `SetComputedSuperProperty`
 - `SetNamedSuperProperty`
 - `StoreDynamicIdentifier`
-- `StoreDynamicIdentifierReference`
 - `SuperConstructInvocationBoundary`
 - `ThrowReferenceError`
 - `UpdateComputedSuperProperty`
@@ -723,9 +719,11 @@ predicates and proof tests.
   the SAME heap slot across each suspension; const-safety enforced by the
   environment, not by absent const-slot metadata) and free/dynamic-identifier
   DELETE (`delete freeVar` via `DeleteDynamicIdentifier`, B28 — self-contained:
-  name + environment + isStrict → bool, never touching the transient reference
-  array, so no pending reference for the resume state to thread), PROPERTY WRITES (`o.x = v`, `o[k] = v`,
-  `this.x = v` via `SetNamedProperty`/`SetComputedProperty`), SLOT UPDATES and SLOT ASSIGNMENTS
+  name + environment + isStrict → bool), free/dynamic plain WRITES (`freeVar = v`,
+  including `freeVar = yield`, B26 — the pre-resolved `AssignmentReference` is
+  stored on `UnifiedBytecodeResumeState` so the RHS cannot change the selected
+  target while suspended), PROPERTY WRITES (`o.x = v`, `o[k] = v`, `this.x = v`
+  via `SetNamedProperty`/`SetComputedProperty`), SLOT UPDATES and SLOT ASSIGNMENTS
   (`x++`/`x--`/`++x`/`--x` via `UpdateSlot` and `x = v` via `StoreSlot`,
   admitted for parameter, `var`, and lexical `let`/`const` targets; const writes are
   enforced by `UnifiedBytecodeResumeState` const-slot metadata), and PROPERTY
@@ -735,13 +733,10 @@ predicates and proof tests.
   `o?.[k]()` (a leading optional hop, declined at the shared plan walk as
   `OptionalChainDependency` — distinct from the now-admitted computed-member
   optional call `o[k]?.()`, B15),
-  free/dynamic plain and compound WRITES (`freeGlobal = v`, `freeGlobal += x`,
-  B26/B29 — these lower via the
-  `ResolveDynamicIdentifierReference` → `StoreDynamicIdentifierReference` sequence
-  whose pending `AssignmentReference` lives in a transient VM-local array NOT
-  threaded on the resume state, so a suspending RHS (`freeGlobal = yield`) would
-  lose the store target on resume; the compound form additionally declines earlier
-  at the `CompoundAssignmentSlotInstruction` plan-shape gate),
+  free/dynamic compound/logical WRITES (`freeGlobal += x`, `freeGlobal &&= x`,
+  B29 — these decline at the `CompoundAssignmentSlotInstruction` /
+  `LogicalCompoundAssignmentSlotInstruction` plan-shape gates and need separate
+  read-modify-write proof beyond the now-admitted dynamic reference stack),
   super-property updates/deletes, and
   `super`/super-construct boundaries (`SuperConstructInvocationBoundary`, which
   needs the dynamic super-environment plumbing the resume state does not carry)
@@ -1530,11 +1525,13 @@ the final post-compile production subset check before VM entry.
   `PrepareDynamicIdentifierCallTarget`). `EvaluateResumable` sets
   `allowsDynamicIdentifiers = true` in `TryFindResumablePlanDecline`, compiles
   with `allowsOrdinaryDynamicIdentifiers: true`, and the two opcodes are added to
-  the `TryFindUnsupportedResumableOpcode` allowlist (that allowlist is the gate —
-  free WRITES/updates `StoreDynamicIdentifier`/`ResolveDynamicIdentifierReference`/
-  `UpdateDynamicIdentifier`, `DeleteDynamicIdentifier`, and `eval`/`with` stay off
-  it and therefore decline; `TypeOfDynamicIdentifier` is now admitted — see the
-  free-`typeof` entry below). The `ExecuteResumable`
+  the `TryFindUnsupportedResumableOpcode` allowlist. Free plain WRITES
+  (`freeGlobal = yield`) now route through the pre-resolved
+  `ResolveDynamicIdentifierReference` → `StoreDynamicIdentifierReference` sequence:
+  the pending `AssignmentReference` lives on `UnifiedBytecodeResumeState`, so the
+  store target selected before the RHS cannot change while suspended. Dynamic
+  compound/logical writes, dynamic declaration opcodes, `StoreDynamicIdentifier`,
+  and `eval`/`with` remain off the route. The `ExecuteResumable`
   handlers resolve BY NAME against the LIVE closure environment threaded onto
   `UnifiedBytecodeResumeState.CallingEnvironment` (the same field #3108 threads
   for call dispatch), reusing the sync `GetDynamicIdentifierValue` /
@@ -1571,10 +1568,10 @@ the final post-compile production subset check before VM entry.
   the sync VM threads into `Execute`) and applied via a single `ScopeKind.Function`
   scope frame pushed for the duration of each `ExecuteResumable` step (popped on
   every exit, so the scope stack stays balanced across `yield`/`await`). Super-property
-  writes and free dynamic writes stay off the allowlist and therefore decline (proof:
+  writes and free dynamic compound/logical writes stay declined (proof:
   `UnifiedBytecodeResumablePropertyWriteTests`, including the strict-throws /
-  sloppy-ignored adversarial pair and a NEGATIVE pin that a free dynamic update
-  `freeGlobal++` still declines).
+  sloppy-ignored adversarial pair, plus `UnifiedBytecodeResumableFreeIdentifierMutationTests`
+  for the B26 plain-write route).
 - Accepted resumable bodies may now perform PROPERTY UPDATES and DELETES between
   suspension points: `o.x++`/`o[k]--` (prefix and postfix) and `delete o.x`/`delete o[k]`.
   The `UpdateNamedProperty`/`UpdateComputedProperty`/`DeleteNamedProperty`/

@@ -17,10 +17,10 @@ namespace Asynkron.JsEngine.Tests;
 ///     (ResolveIdentifierAssignmentReference -> SetValue throws on a captured `const`), so a captured-const
 ///     update raises TypeError.
 ///
-///     The captured plain/compound STORE (`n = v`, `n += v`) is intentionally NOT admitted: it lowers via the
-///     ResolveDynamicIdentifierReference three-opcode sequence whose AssignmentReference lives in a transient
-///     VM-local array (not on the resume state), so a suspending RHS (`n = yield`) would lose the reference on
-///     resume. Those shapes stay correct on the IR runner (verified here: right value, NOT routed).
+///     The captured plain/compound STORE (`n = v`, `n += v`) is intentionally NOT admitted by this proof pack:
+///     the free/global B26 dynamic-reference stack is available, but captured enclosing-local assignment still
+///     needs its own activation-aliasing proof before it can route. Those shapes stay correct on the IR runner
+///     (verified here: right value, NOT routed).
 ///
 ///     Each admitted proof asserts (a) ROUTING via the resumable fast-path log and (b) correctness for the
 ///     adversarial cases: mutate-across-yield, mutation visible in the enclosing slot after suspension,
@@ -224,9 +224,9 @@ public sealed class UnifiedBytecodeResumableCapturedClosureWriteTests(ITestOutpu
         AssertAsyncFastPath("run", argc: 0);
     }
 
-    // Honest boundary: a captured plain assignment (`n = n + 1`) lowers via ResolveDynamicIdentifierReference,
-    // whose pending reference is not threaded on the resume state, so it stays on the IR runner. The value is
-    // still correct; it simply does NOT route through the resumable fast path.
+    // Honest boundary: a captured plain assignment (`n = n + 1`) stays on the IR runner until captured
+    // enclosing-local assignment has a dedicated activation-aliasing proof. The value is still correct; it
+    // simply does NOT route through the resumable fast path.
     [Fact(Timeout = 5000)]
     public async Task GeneratorCapturedPlainAssign_CorrectButDeclinesToRunner()
     {

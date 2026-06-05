@@ -90,8 +90,8 @@ public sealed class UnifiedBytecodeResumablePropertyWriteTests(ITestOutputHelper
     // update is atomic inside one resumable step (it never leaves a half-resolved reference on the operand
     // stack across a suspension), and const-safety is enforced by the environment. See
     // UnifiedBytecodeResumableCapturedClosureWriteTests for the captured-enclosing-local end-to-end battery.
-    // (The dynamic plain/compound STORE `freeGlobal = v` stays declined — it lowers via
-    // ResolveDynamicIdentifierReference, whose pending reference the resume state does not thread.)
+    // Plain dynamic stores are covered by UnifiedBytecodeResumableFreeIdentifierMutationTests; compound stores
+    // remain a separate B29 boundary.
     [Fact]
     public void EvaluateResumable_DynamicFreeVariableUpdate_AdmitsUpdateDynamicIdentifier()
     {
@@ -115,14 +115,11 @@ public sealed class UnifiedBytecodeResumablePropertyWriteTests(ITestOutputHelper
             static instruction => instruction.OpCode == UnifiedBytecodeOpCode.UpdateDynamicIdentifier);
     }
 
-    // NEGATIVE gate: the dynamic plain STORE `freeGlobal = v` STAYS declined — it lowers via the
-    // ResolveDynamicIdentifierReference -> <RHS> -> StoreDynamicIdentifierReference sequence whose pending
-    // AssignmentReference is held in a transient VM-local array, not on the resume state, so a suspending RHS
-    // would corrupt the store target on resume. ResolveDynamicIdentifierReference is absent from the
-    // resumable opcode allowlist, so this pins the admitted surface against silently routing dynamic-name
-    // reference assignment through an unverified path.
+    // B26 gate: the dynamic plain STORE `freeGlobal = v` now admits through the pre-resolved dynamic
+    // assignment-reference sequence. The suspending-RHS runtime proof lives in
+    // UnifiedBytecodeResumableFreeIdentifierMutationTests.
     [Fact]
-    public void EvaluateResumable_DynamicFreeVariableStore_StaysDeclined()
+    public void EvaluateResumable_DynamicFreeVariableStore_AdmitsDynamicReferenceStore()
     {
         var plan = GetFunctionPlan("""
             function* g() {
@@ -137,7 +134,13 @@ public sealed class UnifiedBytecodeResumablePropertyWriteTests(ITestOutputHelper
             plan,
             new UnifiedBytecodeProductionActivationDescriptor(IsGenerator: true));
 
-        Assert.False(result.IsEligible);
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Contains(
+            result.Program.Instructions,
+            static instruction => instruction.OpCode == UnifiedBytecodeOpCode.ResolveDynamicIdentifierReference);
+        Assert.Contains(
+            result.Program.Instructions,
+            static instruction => instruction.OpCode == UnifiedBytecodeOpCode.StoreDynamicIdentifierReference);
     }
 
     // End-to-end: a named write whose value crosses a yield routes through the resumable fast path,

@@ -14,6 +14,13 @@ namespace Asynkron.JsEngine.Tests;
 ///     ADMITTED:
 ///     <list type="bullet">
 ///         <item>
+///             B26 free WRITE (<c>freeVar = v</c>) lowers through the pre-resolved
+///             <see cref="UnifiedBytecodeOpCode.ResolveDynamicIdentifierReference" /> ->
+///             <see cref="UnifiedBytecodeOpCode.StoreDynamicIdentifierReference" /> sequence. The pending
+///             AssignmentReference is persisted on <see cref="UnifiedBytecodeResumeState" />, so a suspending RHS
+///             (<c>freeVar = yield</c>) resumes with the exact target selected before suspension.
+///         </item>
+///         <item>
 ///             B27 free UPDATE (<c>freeVar++</c>) lowers to <see cref="UnifiedBytecodeOpCode.UpdateDynamicIdentifier" />
 ///             — already admitted by the captured-closure tier (commit 71be17015); covered end-to-end here for the
 ///             FREE (global) case.
@@ -30,16 +37,9 @@ namespace Asynkron.JsEngine.Tests;
 ///     DECLINED (honest boundary, verified correct on the IR runner, NOT routed):
 ///     <list type="bullet">
 ///         <item>
-///             B26 free WRITE (<c>freeVar = v</c>) lowers via the
-///             <see cref="UnifiedBytecodeOpCode.ResolveDynamicIdentifierReference" /> ->
-///             <see cref="UnifiedBytecodeOpCode.StoreDynamicIdentifierReference" /> sequence whose pending
-///             AssignmentReference lives in a transient VM-local array, NOT on the resume state. A suspending RHS
-///             (<c>freeVar = yield</c>) would lose the store target on resume, so it stays declined.
-///         </item>
-///         <item>
 ///             B29 free COMPOUND (<c>freeVar += x</c>) declines even earlier, at the
-///             <c>CompoundAssignmentSlotInstruction</c> plan-shape gate, and would carry the same reference-threading
-///             hazard as B26.
+///             <c>CompoundAssignmentSlotInstruction</c> plan-shape gate, and needs separate read-modify-write proof
+///             beyond B26's reference persistence.
 ///         </item>
 ///     </list>
 ///
@@ -97,10 +97,9 @@ public sealed class UnifiedBytecodeResumableFreeIdentifierMutationTests(ITestOut
             static instruction => instruction.OpCode == UnifiedBytecodeOpCode.UpdateDynamicIdentifier);
     }
 
-    // B26: the free WRITE declines — its ResolveDynamicIdentifierReference lowering is absent from the
-    // resumable opcode allowlist (the pending reference is not threaded on the resume state).
+    // B26: the free WRITE admits and carries the pre-resolved dynamic reference store sequence.
     [Fact]
-    public void EvaluateResumable_FreeWrite_DeclinesUnsupportedReferenceLowering()
+    public void EvaluateResumable_FreeWrite_AdmitsDynamicReferenceStore()
     {
         var plan = GetFunctionPlan("""
             var s;
@@ -111,8 +110,14 @@ public sealed class UnifiedBytecodeResumableFreeIdentifierMutationTests(ITestOut
             plan,
             new UnifiedBytecodeProductionActivationDescriptor(IsGenerator: true));
 
-        Assert.False(result.IsEligible);
-        Assert.Contains("ResolveDynamicIdentifierReference", result.Reason, StringComparison.Ordinal);
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(
+            result.Program.Instructions,
+            static instruction => instruction.OpCode == UnifiedBytecodeOpCode.ResolveDynamicIdentifierReference);
+        Assert.Contains(
+            result.Program.Instructions,
+            static instruction => instruction.OpCode == UnifiedBytecodeOpCode.StoreDynamicIdentifierReference);
     }
 
     // B29: the free COMPOUND declines at the CompoundAssignmentSlotInstruction plan-shape gate (earlier than
@@ -300,11 +305,11 @@ public sealed class UnifiedBytecodeResumableFreeIdentifierMutationTests(ITestOut
         AssertAsyncFastPath("run", argc: 0);
     }
 
-    // ----- B26 / B29 honest decline pins: correct value, NOT routed (ran on the IR runner) -----
+    // ----- B26 free WRITE: end-to-end routing + correctness -----
 
-    // B26 free WRITE across a suspension: the value is correct, but the generator does NOT route resumable.
+    // B26 free WRITE across a suspension: the value is correct and the generator routes resumable.
     [Fact(Timeout = 5000)]
-    public async Task GeneratorFreeWrite_CorrectButDeclinesToRunner()
+    public async Task GeneratorFreeWrite_RoutesResumableAndMutatesGlobal()
     {
         await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
@@ -322,8 +327,55 @@ public sealed class UnifiedBytecodeResumableFreeIdentifierMutationTests(ITestOut
             """);
 
         Assert.Equal("9|10|10", result);
-        AssertNotResumableRouted();
+        AssertGeneratorFastPath("g", argc: 0);
     }
+
+    // Adversarial B26 proof: the LHS reference is resolved BEFORE evaluating the RHS. The RHS suspends, outer
+    // code changes a same-named binding while suspended, and the resumed store still writes through the pending
+    // AssignmentReference carried by UnifiedBytecodeResumeState.
+    [Fact(Timeout = 5000)]
+    public async Task GeneratorFreeWriteWithSuspendingRhs_RoutesAndPreservesPendingReference()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            var s = 0;
+            function* g() {
+                s = yield "send";
+                yield s;
+            }
+            var it = g();
+            var first = it.next().value;
+            s = 41;
+            var second = it.next(9).value;
+            first + "|" + second + "|" + s;
+            """);
+
+        Assert.Equal("send|9|9", result);
+        AssertGeneratorFastPath("g", argc: 0);
+    }
+
+    // Async variant: a free write after an await routes and mutates the same outer binding.
+    [Fact(Timeout = 5000)]
+    public async Task AsyncFreeWriteAcrossAwait_RoutesResumableAndMutatesGlobal()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.EvaluateAndAwait("""
+            var asyncResult = undefined;
+            var s = 1;
+            async function run() {
+                await Promise.resolve(0);
+                s = 5;
+                return s;
+            }
+            run().then(v => asyncResult = v + "|" + s);
+            asyncResult;
+            """);
+
+        Assert.Equal("5|5", result);
+        AssertAsyncFastPath("run", argc: 0);
+    }
+
+    // ----- B29 honest decline pin: correct value, NOT routed (ran on the IR runner) -----
 
     // B29 free COMPOUND across a suspension: correct value, NOT routed.
     [Fact(Timeout = 5000)]

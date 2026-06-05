@@ -9,7 +9,7 @@ namespace Asynkron.JsEngine.Tests;
 [Category(TestCategories.Debugging)]
 public sealed class BytecodeNonResidueDeclineRatchetTests
 {
-    private const int ExpectedKnownOpenNonResidueCount = 4;
+    private const int ExpectedKnownOpenNonResidueCount = 2;
 
     private static readonly RatchetRow[] Rows =
     [
@@ -70,7 +70,7 @@ public sealed class BytecodeNonResidueDeclineRatchetTests
             IsDynamicResidue: false,
             UnifiedBytecodeProductionDeclineCode.OptionalChainDependency),
         new(
-            "B8a_LexicalSlotAssignmentInResumable_Declines",
+            "B8a_LexicalSlotAssignmentInResumable_Admitted",
             """
             function* d5B8a() {
                 let value = 0;
@@ -82,7 +82,7 @@ public sealed class BytecodeNonResidueDeclineRatchetTests
             SubjectKind.ResumableGenerator,
             "d5B8a",
             IsDynamicResidue: false,
-            UnifiedBytecodeProductionDeclineCode.UnsupportedPlanShape),
+            UnifiedBytecodeProductionDeclineCode.None),
         new(
             "B23_B36_NestedFunctionDeclarationInResumable_Declines",
             """
@@ -99,7 +99,7 @@ public sealed class BytecodeNonResidueDeclineRatchetTests
             IsDynamicResidue: false,
             UnifiedBytecodeProductionDeclineCode.UnsupportedPlanShape),
         new(
-            "B26_FreeWriteInResumable_Declines",
+            "B26_FreeWriteInResumable_Admitted",
             """
             var outer = 0;
             function* d5B26() {
@@ -111,7 +111,7 @@ public sealed class BytecodeNonResidueDeclineRatchetTests
             SubjectKind.ResumableGenerator,
             "d5B26",
             IsDynamicResidue: false,
-            UnifiedBytecodeProductionDeclineCode.UnsupportedPlanShape)
+            UnifiedBytecodeProductionDeclineCode.None)
     ];
 
     public static TheoryData<string, string, SubjectKind, string, bool, int> CorpusRows

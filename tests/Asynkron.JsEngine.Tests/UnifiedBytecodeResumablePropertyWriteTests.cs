@@ -428,6 +428,77 @@ public sealed class UnifiedBytecodeResumablePropertyWriteTests(ITestOutputHelper
         AssertGeneratorFastPath("g", argc: 0);
     }
 
+    [Fact]
+    public void EvaluateResumable_NamedSuperPropertyCompoundAssignmentAcrossYield_AdmitsReadAndWrite()
+    {
+        var plan = GetClassMethodPlan("""
+            class Base {
+                get value() {
+                    return this.seen ?? 1;
+                }
+
+                set value(v) {
+                    this.seen = v;
+                }
+            }
+
+            class Derived extends Base {
+                *g() {
+                    super.value += yield 1;
+                    yield this.seen;
+                }
+            }
+            """,
+            "Derived",
+            "g");
+
+        var result = UnifiedBytecodeProductionEligibility.EvaluateResumable(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor(IsGenerator: true));
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(
+            result.Program.Instructions,
+            static instruction => instruction.OpCode == UnifiedBytecodeOpCode.GetNamedSuperProperty);
+        Assert.Contains(
+            result.Program.Instructions,
+            static instruction => instruction.OpCode == UnifiedBytecodeOpCode.SetNamedSuperProperty);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task GeneratorNamedSuperCompoundAssignmentAcrossYield_RoutesResumableAndPersists()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            class Base {
+                get value() {
+                    return this.seen ?? 1;
+                }
+
+                set value(v) {
+                    this.seen = v;
+                }
+            }
+
+            class Derived extends Base {
+                *g() {
+                    super.value += yield 1;
+                    yield this.seen;
+                }
+            }
+
+            var target = new Derived();
+            var it = target.g();
+            var a = it.next().value;
+            var b = it.next(41).value;
+            a + "|" + b + "|" + target.seen;
+            """);
+
+        Assert.Equal("1|42|42", result);
+        AssertGeneratorFastPath("g", argc: 0);
+    }
+
     // End-to-end async: an async function that writes a property after an await suspension routes through
     // the resumable fast path and the mutation persists on the resolved object.
     [Fact(Timeout = 5000)]

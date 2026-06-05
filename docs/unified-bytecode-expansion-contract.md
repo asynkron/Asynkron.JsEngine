@@ -1077,21 +1077,26 @@ the final post-compile production subset check before VM entry.
 ## Production Block Lexical Scope Boundary
 - Current production block-scope support is slot-layout-owned, not
   source-syntax-owned.
-- Accepted block scopes are non-capturing, non-iterating lexical scopes with
-  flat slot mappings. Destructuring-free `let` / `const` declarations compile
-  through `SimpleVariableDeclaration` into active-scope flat slots.
+- Accepted block scopes are slot-layout-owned lexical scopes with flat slot
+  mappings. Destructuring-free `let` / `const` declarations compile through
+  `SimpleVariableDeclaration` into active-scope flat slots. Captured
+  per-iteration loop bindings are admitted only when the compiler can carry the
+  per-iteration copy list as descriptor metadata for the mapped slots.
 - `UnifiedBytecodeProgram.SlotCount` covers root activation slots and admitted
   block-scope flat slots. Parameter slot metadata preserves formal positions,
   using `-1` for unused or unmapped formals so invocation does not shift later
   arguments.
-- `PushEnvironment` initializes the admitted scope's lexical flat slots to
-  `JsValue.Uninitialized`; `PopEnvironment` is an owned VM cleanup opcode for
-  the admitted linear shape. Neither opcode creates a `JsEnvironment`, uses
-  name fallback, or calls back into `ExpressionProgram`, `ExecutionPlanRunner`,
-  or AST evaluation.
+- `PushEnvironment` initializes ordinary admitted lexical flat slots to
+  `JsValue.Uninitialized`; for copy-listed per-iteration slots it snapshots the
+  previous value before rebinding and writes that value into the fresh scope
+  environment instead of TDZ-wiping it. `PopEnvironment` is an owned VM cleanup
+  opcode for the admitted linear shape. Neither opcode uses name fallback or
+  calls back into `ExpressionProgram`, `ExecutionPlanRunner`, or AST
+  evaluation.
 - Unsupported binding declaration shapes, unsupported object/array destructuring
-  driver instructions, unsupported dynamic lookup, captured activation,
-  per-iteration bindings, and `using` / `await using` remain pre-VM declines.
+  driver instructions, unsupported dynamic lookup, `using` / `await using`,
+  resumable `PushEnvironmentInstruction`, and scope-entry shapes without flat
+  mappings remain pre-VM declines.
 
 ## Production With-Backed Dynamic Name Boundary
 - Current production dynamic-name support is with-backed and compiler-gated.

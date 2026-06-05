@@ -743,6 +743,32 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     }
 
     [Fact(Timeout = 5000)]
+    public async Task ClassExpressionStaticBlock_UsesUnifiedBytecodeProductionFastPathAndRunsOnce()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function create(seed) {
+                var Box = class LocalBox {
+                    static {
+                        LocalBox.count = (LocalBox.count || 0) + 1;
+                        LocalBox.value = seed + LocalBox.count;
+                    }
+                };
+
+                return Box.value + "," + Box.value + "," + Box.count;
+            }
+
+            create(41);
+            """);
+
+        Assert.Equal("42,42,1", result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=create argc=1",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task SimpleObjectDestructuring_UsesUnifiedBytecodeProductionFastPath()
     {
         await using var engine = CreateEngine();

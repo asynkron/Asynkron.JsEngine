@@ -433,14 +433,14 @@ sync-admitted and pinned by `A35ComplexObjectLiteralTests`,
 ### B24 Class Expression Leaves (current)
 
 The former B24 class-expression coarse row is split by class-element semantics.
-`LoadClassLiteral` itself has sync VM and compiler coverage, and B24a admits the
-constructor/default-constructor subset on the resumable route. Full bytecode
-execution is not done: class-literal creation still calls class-definition
-machinery that resolves extends/computed names/field initializers through
-expression programs and static blocks through `ExecutionPlanRunner.RunScript`;
-`extends` expressions that read resumable activation slots also remain declined
-until class-definition evaluation owns that environment bridge. B24b-B24i remain
-declined by the resumable shape gate.
+`LoadClassLiteral` itself has sync VM and compiler coverage, including class
+expressions with static blocks, and B24a admits the constructor/default-constructor
+subset on the resumable route. Full bytecode execution is not done: class-literal
+creation still calls class-definition machinery that resolves extends/computed
+names/field initializers through expression programs and static blocks through
+`ExecutionPlanRunner.RunScript`; `extends` expressions that read resumable
+activation slots also remain declined until class-definition evaluation owns
+that environment bridge. B24b-B24i remain declined by the resumable shape gate.
 
 - `B24a:ClassExpressionConstructor`
 - `B24b:ClassExpressionInstanceFields`

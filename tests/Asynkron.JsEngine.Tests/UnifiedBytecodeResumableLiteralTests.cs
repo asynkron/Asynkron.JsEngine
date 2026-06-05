@@ -710,6 +710,11 @@ public sealed class UnifiedBytecodeResumableLiteralTests(ITestOutputHelper outpu
         """,
         """
         function* g() {
+            yield class { #method() {} };
+        }
+        """,
+        """
+        function* g() {
             yield class { get value() { return 1; } };
         }
         """,

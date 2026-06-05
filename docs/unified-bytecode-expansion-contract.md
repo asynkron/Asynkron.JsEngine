@@ -306,6 +306,7 @@ statement interpretation.
 - `PushEnvironment`
 - `PopEnvironment`
 - `EnterTry`
+- `EnsureSuperReference`
 - `EnterCatch`
 - `LeaveTry`
 - `EndFinally`
@@ -380,7 +381,6 @@ the admitted subset stays 1:1 with `UnifiedBytecodeVirtualMachine.ExecuteResumab
 - `DeclareDynamicLexical`
 - `DeclareDynamicVar`
 - `DeclareFunction`
-- `EnsureSuperReference`
 - `EnterCatch`
 - `EnterWith`
 - `GetComputedPropertyForCompoundSet`
@@ -392,8 +392,6 @@ the admitted subset stays 1:1 with `UnifiedBytecodeVirtualMachine.ExecuteResumab
 - `LeaveWith`
 - `LoadClassLiteral`
 - `PopEnvironment`
-- `PrepareComputedSuperCallTarget`
-- `PrepareNamedSuperCallTarget`
 - `PushEnvironment`
 - `SetComputedSuperProperty`
 - `SetNamedSuperProperty`
@@ -745,9 +743,9 @@ predicates and proof tests.
   `ResolveDynamicIdentifierReference` / `LoadDynamicIdentifierReference` and
   either `StoreDynamicIdentifierReference` or `PopDynamicIdentifierReference`
   for short-circuit cleanup),
-  super-property updates/deletes, and
-  `super`/super-construct boundaries (`SuperConstructInvocationBoundary`, which
-  needs the dynamic super-environment plumbing the resume state does not carry)
+  super-property reads/updates/deletes, and
+  super-construct boundaries (`SuperConstructInvocationBoundary`, which
+  remains outside legal generator/async source shapes and stays declined)
   inside resumable bodies remain outside it.
   - NESTED FUNCTION LITERALS (`var h = function(){...}`) inside generator/async
     bodies are now split by capture analysis. Non-capturing literals route through

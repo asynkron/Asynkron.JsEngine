@@ -4133,16 +4133,10 @@ internal static class UnifiedBytecodeProductionEligibility
         return false;
     }
 
-    // Exposed to the test assembly (AC-5 negative coverage): the async-kind and awaited-source
-    // arms must keep declining with their explicit reasons even though sync TDZ heads are admitted.
+    // Exposed to the test assembly (AC-5 negative coverage): the source-payload arm must keep
+    // declining with its explicit reason even though sync TDZ heads and async drivers are admitted.
     internal static bool IsSupportedIteratorInit(IteratorInitInstruction instruction, out string reason)
     {
-        if (instruction.IteratorKind != IteratorDriverKind.Sync)
-        {
-            reason = "Async iterator driver state is not eligible for production unified bytecode routing.";
-            return false;
-        }
-
         if (instruction.IterableProgram is null && instruction.AwaitedProgram is null ||
             instruction.IterableProgram is not null && instruction.AwaitedProgram is not null)
         {
@@ -4154,7 +4148,8 @@ internal static class UnifiedBytecodeProductionEligibility
         // (for example `for (const x of ...)`) are now admitted. Awaited sync-kind
         // sources in async functions are admitted through the resumable VM by
         // compiling the source expression followed by AwaitValue and IteratorInit.
-        // Async-kind drivers remain declined pending later slices.
+        // B41: async-kind drivers are admitted for the simple resumable VM subset. The VM owns
+        // next-result and yielded-value awaits before storing the current iteration value.
         reason = string.Empty;
         return true;
     }

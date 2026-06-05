@@ -5089,6 +5089,25 @@ internal static class UnifiedBytecodeVirtualMachine
                 case UnifiedBytecodeOpCode.IteratorMoveNext:
                     {
                         var descriptor = program.DriverDescriptors[instruction.Operand];
+                        if (descriptor.IteratorKind == IteratorDriverKind.Await)
+                        {
+                            if (!TryMoveAsyncIteratorNext(
+                                    descriptor,
+                                    slots,
+                                    context,
+                                    state,
+                                    programCounter,
+                                    stackPointer,
+                                    out var asyncNextProgramCounter,
+                                    out var asyncIteratorStep))
+                            {
+                                return asyncIteratorStep;
+                            }
+
+                            programCounter = asyncNextProgramCounter;
+                            break;
+                        }
+
                         if (!TryMoveIteratorNext(
                                 descriptor,
                                 slots,
@@ -6986,6 +7005,230 @@ internal static class UnifiedBytecodeVirtualMachine
             programCounter = descriptor.BreakTarget;
             return false;
         }
+    }
+
+    private static bool TryMoveAsyncIteratorNext(
+        UnifiedBytecodeDriverDescriptor descriptor,
+        Span<JsValue> slots,
+        EvaluationContext context,
+        UnifiedBytecodeResumeState resumeState,
+        int currentProgramCounter,
+        int stackPointer,
+        out int programCounter,
+        out UnifiedBytecodeStepResult stepResult)
+    {
+        stepResult = default;
+        if (!TryGetDriverState<IteratorDriverState>(slots, descriptor.StateSlot, out var state))
+        {
+            programCounter = descriptor.BreakTarget;
+            return true;
+        }
+
+        var awaitedNextResult = JsValue.Undefined;
+        var hasAwaitedNextResult = false;
+        var value = JsValue.Undefined;
+        var hasValue = false;
+
+        if (state.AwaitingNextResult || state.AwaitingValue)
+        {
+            var wasAwaitingValue = state.AwaitingValue;
+            state.AwaitingNextResult = false;
+            state.AwaitingValue = false;
+            if (!TryConsumePendingAwaitResume(resumeState, out var resumedValue, out var resumedThrow))
+            {
+                programCounter = currentProgramCounter;
+                return true;
+            }
+
+            if (resumedThrow)
+            {
+                resumeState.IsCompleted = true;
+                programCounter = descriptor.BreakTarget;
+                stepResult = UnifiedBytecodeStepResult.Throw(resumedValue);
+                return false;
+            }
+
+            if (wasAwaitingValue)
+            {
+                value = resumedValue;
+                hasValue = true;
+            }
+            else
+            {
+                awaitedNextResult = resumedValue;
+                hasAwaitedNextResult = true;
+            }
+        }
+
+        try
+        {
+            if (!hasValue)
+            {
+                if (state.IteratorObject is { } iterator)
+                {
+                    if (!hasAwaitedNextResult)
+                    {
+                        state.NextMethod ??= iterator.GetIteratorNextCallable(context);
+                        var nextResult = iterator.InvokeIteratorNext(
+                            state.NextMethod,
+                            JsValue.Undefined,
+                            hasSendValue: false,
+                            context: context,
+                            callingEnvironment: resumeState.CallingEnvironment);
+                        if (!TryAwaitAsyncIteratorValue(
+                                nextResult,
+                                context,
+                                resumeState,
+                                currentProgramCounter,
+                                stackPointer,
+                                markAwaitingNextResult: true,
+                                state,
+                                out awaitedNextResult,
+                                out stepResult))
+                        {
+                            programCounter = currentProgramCounter;
+                            return false;
+                        }
+                    }
+
+                    if (!awaitedNextResult.TryGetObject<IJsPropertyAccessor>(out var resultObject))
+                    {
+                        resumeState.IsCompleted = true;
+                        programCounter = descriptor.BreakTarget;
+                        stepResult = UnifiedBytecodeStepResult.Throw(StandardLibrary.CreateTypeError(
+                            "Iterator result is not an object",
+                            context,
+                            context.RealmState));
+                        return false;
+                    }
+
+                    var done = resultObject.TryGetProperty("done", out var doneValue) &&
+                               JsOps.ToBoolean(doneValue);
+                    if (done)
+                    {
+                        if (resultObject is IteratorResultObject poolableResult)
+                        {
+                            IteratorResultObjectPool.Return(poolableResult);
+                        }
+
+                        CompleteIteratorDriverState(descriptor.StateSlot, slots, null, state);
+                        programCounter = descriptor.BreakTarget;
+                        return true;
+                    }
+
+                    var rawValue = resultObject.TryGetProperty("value", out var yielded)
+                        ? yielded
+                        : JsValue.Undefined;
+                    if (resultObject is IteratorResultObject poolableResult2)
+                    {
+                        IteratorResultObjectPool.Return(poolableResult2);
+                    }
+
+                    if (!TryAwaitAsyncIteratorValue(
+                            rawValue,
+                            context,
+                            resumeState,
+                            currentProgramCounter,
+                            stackPointer,
+                            markAwaitingNextResult: false,
+                            state,
+                            out value,
+                            out stepResult))
+                    {
+                        programCounter = currentProgramCounter;
+                        return false;
+                    }
+                }
+                else if (state.Enumerator is { } enumerator)
+                {
+                    if (!enumerator.MoveNext())
+                    {
+                        CompleteIteratorDriverState(descriptor.StateSlot, slots, null, state);
+                        programCounter = descriptor.BreakTarget;
+                        return true;
+                    }
+
+                    if (!TryAwaitAsyncIteratorValue(
+                            enumerator.Current,
+                            context,
+                            resumeState,
+                            currentProgramCounter,
+                            stackPointer,
+                            markAwaitingNextResult: false,
+                            state,
+                            out value,
+                            out stepResult))
+                    {
+                        programCounter = currentProgramCounter;
+                        return false;
+                    }
+                }
+                else
+                {
+                    CompleteIteratorDriverState(descriptor.StateSlot, slots, null, state);
+                    programCounter = descriptor.BreakTarget;
+                    return true;
+                }
+            }
+
+            if (!state.HasEnteredLoop)
+            {
+                state.ActiveDriverOrdinal = ++resumeState.NextActiveDriverOrdinal;
+                state.HasEnteredLoop = true;
+            }
+
+            slots[descriptor.ValueSlot] = value;
+            programCounter = descriptor.NextTarget;
+            return true;
+        }
+        catch (ThrowSignal signal)
+        {
+            resumeState.IsCompleted = true;
+            programCounter = descriptor.BreakTarget;
+            stepResult = UnifiedBytecodeStepResult.Throw(signal.ThrownValue);
+            return false;
+        }
+    }
+
+    private static bool TryAwaitAsyncIteratorValue(
+        JsValue candidate,
+        EvaluationContext context,
+        UnifiedBytecodeResumeState resumeState,
+        int currentProgramCounter,
+        int stackPointer,
+        bool markAwaitingNextResult,
+        IteratorDriverState iteratorState,
+        out JsValue value,
+        out UnifiedBytecodeStepResult stepResult)
+    {
+        var pendingPromise = resumeState.PendingAwaitPromise;
+        if (!AwaitScheduler.TryResolvePromiseOrYield(
+                candidate,
+                asyncStepMode: true,
+                ref pendingPromise,
+                context,
+                out value))
+        {
+            iteratorState.AwaitingNextResult = markAwaitingNextResult;
+            iteratorState.AwaitingValue = !markAwaitingNextResult;
+            resumeState.PendingAwaitPromise = pendingPromise;
+            resumeState.ProgramCounter = currentProgramCounter;
+            resumeState.StackPointer = stackPointer;
+            resumeState.ResumePayloadKind = UnifiedBytecodeResumePayloadKind.None;
+            resumeState.ResumePayload = JsValue.Undefined;
+            stepResult = UnifiedBytecodeStepResult.PendingAwait(resumeState.PendingAwaitPromise);
+            return false;
+        }
+
+        if (context.IsThrow)
+        {
+            resumeState.IsCompleted = true;
+            stepResult = UnifiedBytecodeStepResult.Throw(context.FlowValue);
+            return false;
+        }
+
+        stepResult = default;
+        return true;
     }
 
     private static bool TryReadIteratorNextValue(

@@ -1751,7 +1751,6 @@ internal static class UnifiedBytecodeCompiler
 
                     case IteratorInitInstruction
                         {
-                            IteratorKind: IteratorDriverKind.Sync,
                             IterableProgram: { } iterableProgram,
                             AwaitedProgram: null
                         } iteratorInit:
@@ -1824,7 +1823,6 @@ internal static class UnifiedBytecodeCompiler
 
                     case IteratorInitInstruction
                         {
-                            IteratorKind: IteratorDriverKind.Sync,
                             IterableProgram: null,
                             AwaitedProgram: { } awaitedIterableProgram
                         } awaitedIteratorInit:

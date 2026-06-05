@@ -2248,6 +2248,13 @@ internal static class UnifiedBytecodeVirtualMachine
                             var scopeFrame = environmentStack![--environmentStackCount];
                             if (!DisposeEnvironmentResources(scopeFrame.Environment, context))
                             {
+                                RestoreSlotEnvironmentOwners(slotEnvironments, slots, scopeFrame);
+                                currentCallingEnvironment = scopeFrame.Environment.Enclosing ?? currentCallingEnvironment;
+                                if (TryHandleCurrentContextThrow(slots))
+                                {
+                                    break;
+                                }
+
                                 return StopWithDriverCleanup(slots, slotEnvironments, context, context.IsThrow);
                             }
 

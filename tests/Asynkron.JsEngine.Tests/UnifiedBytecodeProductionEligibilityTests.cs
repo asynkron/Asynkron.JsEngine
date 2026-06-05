@@ -850,6 +850,31 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
+    public async Task Execute_BlockScopedUsingDisposeThrow_RoutesThroughCatch()
+    {
+        await using var engine = CreateEngine();
+
+        var result = await engine.Evaluate("""
+            function outer(resource) {
+                try {
+                    {
+                        using value = resource;
+                    }
+
+                    return 'after';
+                } catch (e) {
+                    return e.message;
+                }
+            }
+
+            outer({ [Symbol.dispose]() { throw new Error('dispose'); } });
+            """);
+
+        Assert.Equal("dispose", result);
+        AssertProductionRouted("outer");
+    }
+
+    [Fact]
     public async Task Execute_SyntheticIfBranchFunctionDeclaration_UpdatesAnnexBBinding()
     {
         await using var engine = CreateEngine();

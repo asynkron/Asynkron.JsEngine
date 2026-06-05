@@ -15,7 +15,9 @@ Resumable fast-path logs: `unified-bytecode-resumable-{generator,async,async-gen
 ### Wave 1 — SERIALIZED on the eligibility file, after resumeclosure (each adds opcodes/handlers)
 1. **B1 + B44** (awaited value → slot/binding across resume) — best first lift; mirrors the admitted sync `let [a]=expr` / `var x=expr` slot stores + the existing `AwaitValue`/`StoreResumeValue` path.
 2. **B23 + B36** (nested function literal + decl hoisting) — same opcode family.
-3. **B21** (tagged template) — mirrors admitted sync tagged-template.
+3. **B21** (tagged template) — DONE for ordinary identifier/member
+   tagged-template calls on sync and resumable routes; keep super/private/exotic
+   tagged-template targets in their owning families.
 4. **B26/B27/B28/B29** (dynamic free write/update/delete/compound) — new resumable handlers for dynamic-mutation opcodes; mirrors admitted sync handlers.
 5. **B33** (break/continue across suspension) — driver-cleanup over suspension.
 6. **B8a** (generator own-const) — const-slot bitmap threading (ledger option a); plan-level lexical-slot guard.

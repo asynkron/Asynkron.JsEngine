@@ -2070,6 +2070,24 @@ public sealed class ExpressionProgramLoweringTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task FunctionPlan_IdentifierTaggedTemplateExpression_UsesIdentifierCallTarget()
+    {
+        var plan = await GetFunctionPlan("""
+            function test(tag) {
+                return tag`x`;
+            }
+            """, "test");
+
+        var instruction = Assert.Single(plan.Instructions.OfType<ReturnInstruction>(), i => i.ReturnProgram is not null);
+        Assert.Null(instruction.ReturnExpression);
+        AssertProgramContains<LoadIdentifierCallTargetExpressionOp>(
+            instruction.ReturnProgram,
+            op => op.Name.Name == "tag");
+        AssertProgramContains<LoadTemplateObjectExpressionOp>(instruction.ReturnProgram);
+        AssertProgramContains<CallExpressionOp>(instruction.ReturnProgram, op => op.ArgumentCount == 1 && op.HasExplicitThis);
+    }
+
+    [Fact]
     public async Task ScriptPlan_TaggedTemplateExpression_IsLoweredToExpressionProgram()
     {
         var program = _engine.ParseProgram("""

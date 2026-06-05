@@ -1443,6 +1443,13 @@ internal static class UnifiedBytecodeProductionEligibility
                 // ReferenceError as the sync VM via the resumable Throw step (the resumable loop carries no
                 // ThrowSignal catch, so the handler sets the throw directly rather than raising one).
                 UnifiedBytecodeOpCode.LoadImportMeta or
+                // Tagged-template template-object materialization (B21). The opcode reads the compiled
+                // TaggedTemplateDescriptor constant and resolves the per-realm template object through the
+                // same GetOrCreateTemplateObject cache as the sync VM. The descriptor is the callsite identity,
+                // so the same lowered callsite reuses its object while distinct parsed callsites stay distinct.
+                // It pushes one value, carries no AwaitedProgram, and cannot itself suspend; substitutions may
+                // suspend before/after it and are restored through the resumable operand stack.
+                UnifiedBytecodeOpCode.LoadTemplateObject or
                 // Template-substitution / explicit ToString coercion (B37) inside a resumable body — the per-hole
                 // String(value) coercion an untagged template literal (`` `v${x}` ``) emits before concatenation.
                 // Operates purely on the operand stack: the value to coerce sits on
@@ -6800,6 +6807,7 @@ internal static class UnifiedBytecodeProductionEligibility
             case ExpressionOpKind.LoadLiteral:
             case ExpressionOpKind.LoadThis:
             case ExpressionOpKind.LoadNewTarget:
+            case ExpressionOpKind.LoadTemplateObject:
                 depthAfter = depthBefore + 1;
                 return true;
 

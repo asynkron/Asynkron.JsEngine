@@ -5327,6 +5327,15 @@ internal static class UnifiedBytecodeCompiler
             return false;
         }
 
+        // Tagged-template calls carry LoadTemplateObject as the first logical argument. The generic
+        // expression-program loop already owns that opcode plus the prepared-call stack contract, so let
+        // it emit the whole call in source order instead of forcing the specialized simple-argument splitter
+        // to learn template-object constants as a second path.
+        if (FindFirstOperation(expressionProgram, ExpressionOpKind.LoadTemplateObject) >= 0)
+        {
+            return false;
+        }
+
         var lastOp = expressionProgram.GetOperation(expressionProgram.OperationCount - 1);
 
         // A12: chained method/computed calls past the first invocation boundary —

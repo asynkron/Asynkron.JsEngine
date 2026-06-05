@@ -3603,6 +3603,17 @@ internal static class UnifiedBytecodeVirtualMachine
                         return UnifiedBytecodeStepResult.Throw(context.FlowValue);
                     }
 
+                case UnifiedBytecodeOpCode.LoadTemplateObject:
+                    // Tagged-template template-object materialization (B21). Literal twin of the sync VM
+                    // handler: the compiled TaggedTemplateDescriptor is the callsite identity used by the
+                    // realm cache, so repeated evaluations of this callsite reuse the same template object
+                    // while separate parsed callsites do not collapse by source text.
+                    PushResumableValue(JsValue.FromJsArray(GetOrCreateTemplateObject(
+                        program.TemplateObjectConstants[instruction.Operand],
+                        context)));
+                    programCounter++;
+                    break;
+
                 case UnifiedBytecodeOpCode.ToString:
                     // Template-substitution / explicit ToString coercion (B37) inside a resumable body — the
                     // per-hole String(value) coercion an untagged template literal emits. The operand to coerce

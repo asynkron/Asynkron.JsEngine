@@ -1690,13 +1690,14 @@ the final post-compile production subset check before VM entry.
   suspend, so it runs to completion inside one resumable step. A throwing coercion (a
   `Symbol`, or a throwing `toString`/`Symbol.toPrimitive`) surfaces as the resumable Throw
   step (`state.IsCompleted = true; return UnifiedBytecodeStepResult.Throw(context.FlowValue)`).
-  BOUNDARY: TAGGED templates (`tag`a${x}b``, burndown B21) stay declined — the
-  tagged-template CALL shape declines at the shared expression-eligibility gate (the general
-  call-candidate predicates do not recognize the `LoadTemplateObject`-plus-substitutions
-  argument shape) on BOTH the sync and resumable routes, so `LoadTemplateObject` is never
-  reached by an admitted resumable program; admitting it is real expression-level
-  call-candidate infrastructure, not an allowlist/handler addition, and is left for a
-  separate slice (the `LoadTemplateObject` opcode is therefore NOT added to the allowlist).
+  TAGGED templates (`tag`a${x}b``, burndown B21) are now admitted for ordinary
+  identifier/member call targets on both sync and resumable routes. Bare identifier tags
+  lower through `LoadIdentifierCallTarget` so the VM call boundary sees the normal
+  `<this, callee, args...>` stack contract; `LoadTemplateObject` is modeled as a
+  value-producing call argument, emitted by the generic expression compiler, and handled
+  by `ExecuteResumable` through the same descriptor/callsite identity cache as the sync
+  VM. Super/private/exotic tagged-template call-target variants still remain bounded by
+  their existing super/private/call-target gates.
   The B37 scaffolding opcodes `EnsureHasName` and `ThrowReferenceError` are likewise NOT
   admitted: `EnsureHasName`'s only producer (`let f = function(){}`) co-emits
   `LoadFunctionLiteral`, which has no resumable handler and declines the whole program, and

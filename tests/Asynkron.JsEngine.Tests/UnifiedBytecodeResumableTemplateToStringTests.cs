@@ -25,12 +25,10 @@ namespace Asynkron.JsEngine.Tests;
 ///     the resumable fast-path log (an interpreter fall-back fails the test) — and (b) correctness, including the
 ///     adversarial case of a substitution evaluated ACROSS the suspension.
 ///
-///     SCOPE / honesty note: TAGGED templates (B21, <c>tag`a${x}b`</c>) are NOT admitted here. The tagged-template
-///     CALL shape declines at the shared expression-eligibility gate (the general call-candidate predicates do not
-///     recognize the <see cref="UnifiedBytecodeOpCode.LoadTemplateObject" />-plus-substitutions argument shape) on
-///     BOTH the sync and resumable routes, so <c>LoadTemplateObject</c> is never reached by an admitted resumable
-///     program; admitting it is real expression-level call-candidate infrastructure, out of scope for this
-///     allow-list/handler slice.
+///     SCOPE / history note: TAGGED templates (B21, <c>tag`a${x}b`</c>) were not admitted by the original B37
+///     ToString slice because the shared call-candidate infrastructure did not yet model
+///     <see cref="UnifiedBytecodeOpCode.LoadTemplateObject" /> as a call argument. B21 now owns that separate
+///     admission path and has its own proof pack.
 /// </summary>
 [Category(TestCategories.RuntimeSemantics)]
 public sealed class UnifiedBytecodeResumableTemplateToStringTests(ITestOutputHelper output)

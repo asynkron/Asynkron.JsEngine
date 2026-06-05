@@ -615,10 +615,15 @@ all-or-nothing until a separate routing issue proves production readiness.
     `HasSimpleCallArguments`. Any future span helper for a multi-op value
     expression shape must be wired into all value-position admission sites in
     the same delivery slice. No backpatch is required for optional call prepare
-    opcodes when the new shape is purely in argument value position. Tagged
-    template literals (`` tag`...` ``) are declined because `LoadTemplateObject`
-    requires owned VM/compiler support not in scope; complex substitutions
-    (`` `${a + b}` ``) decline because `a + b` is not a simple operand (ADR 0292).
+    opcodes when the new shape is purely in argument value position. Issue
+    #2807 / PR #2808 later admitted ordinary identifier/member tagged-template
+    calls by lowering bare identifier tags through `LoadIdentifierCallTarget`,
+    treating `LoadTemplateObject` as a call argument, and handling it in
+    resumable execution through the same template-object cache as the sync VM.
+    Keep super/private/exotic tagged-template targets outside that admission
+    until they have dedicated selector/compiler/VM proof. Complex substitutions
+    (`` `${a + b}` ``) decline because `a + b` is not a simple operand
+    (ADR 0292).
 26. When encountering stateful for-in or array-destructuring driver
     instructions in production unified bytecode eligibility, decline before VM
     execution until a full driver-state model is owned. `ForInInitInstruction`

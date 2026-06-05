@@ -75,9 +75,11 @@ try/finally regression, the `new.target` leak, three agent drifts, duplicate PRs
 ### Stage 1 — Drain the mechanical admissions
 *Goal: collapse the count with the proven sequential pipeline.*
 - **Resumable parity batch** (sync already handles, just allowlist + handler port):
-  B12–B14 (super), B15 (optional call), B20/B21/B23/B24 (import.meta, template,
-  function literal, class expr), B25–B29 (dynamic free typeof/write/update/delete +
-  ref plumbing), B36/B37 (decl hoisting, scaffolding).
+  B12–B14 (super), B15 (optional call), B20/B23/B24 (import.meta, function
+  literal, class expr), B25–B29 (dynamic free typeof/write/update/delete + ref
+  plumbing), B36/B37 (decl hoisting, scaffolding). B21 tagged-template /
+  template-object calls are now complete for ordinary identifier/member targets
+  on sync and resumable routes.
 - **Independent sync families**: A19 (deep writes), A22–A24 (free update/delete),
   A27 (super call-target), A28–A32 (optional-chain remainder), A33/A34 (non-simple
   spread), A36/A37 (private members), A46 (`**`/BigInt operators).

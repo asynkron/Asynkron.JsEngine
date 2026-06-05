@@ -1114,6 +1114,17 @@ internal static class ExpressionProgramCompiler
                 failureReason = "Expression bytecode does not yet support super tagged templates.";
                 return false;
 
+            case IdentifierExpression identifier:
+                builder.Add(PackedExpressionOp.LoadIdentifierCallTarget(
+                    builder.InternIdentifier(new IdentifierOperand(
+                        identifier.Name,
+                        identifier.ScopeId,
+                        identifier.SlotIndex,
+                        identifier.FlatSlotId)),
+                    ReferenceEquals(identifier.Name, Symbol.Arguments)));
+                hasExplicitThis = true;
+                break;
+
             case MemberExpression { Target: SuperExpression, IsComputed: false } member:
                 if (!TryGetStaticDotAccessPropertyName(member.Property, out var superPropertyName))
                 {

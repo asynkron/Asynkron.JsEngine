@@ -3808,12 +3808,17 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
                 or UnifiedBytecodeOpCode.CallInvocationBoundary);
     }
 
-    [Fact]
-    public void Evaluate_DirectEvalDeclaredVarRead_DeclinesEvalInjectedRuntimeBinding()
+    [Theory]
+    [InlineData("var value = 1")]
+    [InlineData("let value = 1")]
+    [InlineData("const value = 1")]
+    [InlineData("function value() { return 1; }")]
+    [InlineData("class value {}")]
+    public void Evaluate_DirectEvalDeclarationLiteral_DeclinesEvalInjectedRuntimeBinding(string evalSource)
     {
-        var plan = GetFunctionPlan("""
+        var plan = GetFunctionPlan($$"""
             function directEval() {
-                eval("var value = 1");
+                eval("{{evalSource}}");
                 return value;
             }
             """,

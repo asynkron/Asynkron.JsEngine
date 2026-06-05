@@ -179,6 +179,34 @@ internal static class UnifiedBytecodeProductionEligibility
             }
         }
 
+        // Zero-depth catch/finally bodies are not part of the main plan-shape scan. They can still contain
+        // a finally-return free callee whose dynamic call target enables the ordinary dynamic-name path.
+        // Keep this extra pass call-target-only so catch-only free reads do not over-admit the whole body.
+        if (!UnifiedBytecodeWithDepthAnalysis.TryBuildActiveWithDepths(
+                plan.Instructions,
+                plan.EntryPoint,
+                out var exceptionRegionDepths,
+                out _,
+                includeZeroDepthExceptionRegions: true))
+        {
+            return false;
+        }
+
+        for (var instructionIndex = 0; instructionIndex < plan.Instructions.Length; instructionIndex++)
+        {
+            if (activeWithDepths[instructionIndex] >= 0 ||
+                exceptionRegionDepths[instructionIndex] != 0 ||
+                !TryGetExpressionProgram(plan.Instructions[instructionIndex], out var program))
+            {
+                continue;
+            }
+
+            if (HasOrdinaryDynamicCallTargetDependency(program, activationSlots))
+            {
+                return true;
+            }
+        }
+
         return false;
     }
 

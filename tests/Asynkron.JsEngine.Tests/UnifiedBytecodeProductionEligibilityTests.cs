@@ -3799,6 +3799,40 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
+    public void Evaluate_WithAroundTryCatchFinally_PropagatesDynamicDepthIntoHandlerAndFinally()
+    {
+        var plan = GetFunctionPlan("""
+            function dynamic(box) {
+                with (box) {
+                    try {
+                        throw 1;
+                    } catch {
+                        value = value + 1;
+                    } finally {
+                        value = value + 2;
+                    }
+
+                    return value;
+                }
+            }
+            """,
+            "dynamic");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction => instruction.OpCode == UnifiedBytecodeOpCode.EnterWith);
+        Assert.Contains(result.Program.Instructions, instruction => instruction.OpCode == UnifiedBytecodeOpCode.EnterTry);
+        Assert.Contains(result.Program.Instructions, instruction => instruction.OpCode == UnifiedBytecodeOpCode.EnterCatch);
+        Assert.Contains(result.Program.Instructions, instruction => instruction.OpCode == UnifiedBytecodeOpCode.EndFinally);
+        Assert.Contains(result.Program.Instructions, instruction => instruction.OpCode == UnifiedBytecodeOpCode.StoreDynamicIdentifierReference);
+        Assert.Contains(result.Program.Instructions, instruction => instruction.OpCode == UnifiedBytecodeOpCode.LoadDynamicIdentifier);
+    }
+
+    [Fact]
     public void Evaluate_SimpleSourceArraySpread_Accepts()
     {
         var plan = GetFunctionPlan("""

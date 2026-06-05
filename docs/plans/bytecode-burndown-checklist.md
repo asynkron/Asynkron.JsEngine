@@ -200,7 +200,7 @@ these allowlists — mechanical extensions against existing sync VM handlers.
 - [ ] **D1** Direct-eval quarantine gate (multi-arg/spread + Call-op IsDirectEval → interpreter)
 - [ ] **D2** eval-injected runtime binding quarantine
 - [ ] **D3** `with` quarantine for resumable bodies + awaited with-object
-- [ ] **D4** `Function(...)` produced-body quarantine (body recurses into gate)
+- [x] **D4** `Function(...)` produced-body quarantine (body recurses into gate) ✅ (Codex): dynamic `Function` / `new Function` produced bodies now carry an explicit origin marker and are declined before the sync production unified-bytecode route, while the ordinary construction/call boundary and adjacent non-dynamic functions remain eligible. Pinned by `DynamicFunctionConstructorQuarantineTests.NewFunctionProducedBody_StaysOffProductionUnifiedBytecodeButOrdinaryFunctionStillRoutes`.
 - [ ] **D5** Standing CI gate: assert no `isDynamicResidue=false` decline ever fires on the corpus
 
 ## Phase E — Retire the fallback tiers (6 items)

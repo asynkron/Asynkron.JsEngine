@@ -28,7 +28,8 @@ public sealed partial record FunctionExpression(
     int SlotCount = -1,
     int ScopeId = -1,
     bool HasClosures = false,
-    int FunctionNameScopeId = -1)
+    int FunctionNameScopeId = -1,
+    bool IsDynamicFunctionConstructorBody = false)
     : ExpressionNode(Source),
         IAstCacheable<FunctionParameterNamesPlan>,
         IAstCacheable<FunctionInvokerStaticPlan>,

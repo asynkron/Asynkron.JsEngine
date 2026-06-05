@@ -3415,6 +3415,11 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
 
         private bool CanUseProductionUnifiedBytecodeFastPath(ExecutionPlan plan, JsValue newTarget)
         {
+            if (_function.IsDynamicFunctionConstructorBody)
+            {
+                return false;
+            }
+
             var canUseDynamicNamePath = CanUseProductionUnifiedBytecodeDynamicNameFastPath();
             var canUseOrdinaryDynamicNamePath = CanUseProductionUnifiedBytecodeOrdinaryDynamicNameFastPath(plan);
             var canUseArrowFunctionPath = CanUseProductionUnifiedBytecodeArrowFunctionActivation(plan, newTarget);

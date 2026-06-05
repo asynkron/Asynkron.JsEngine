@@ -1,6 +1,6 @@
 # Asynkron.JsEngine Dreaming
 
-Date: 2026-06-05 (rev 11)
+Date: 2026-06-05 (rev 12)
 
 ## Why this document exists
 Architecture north star for Asynkron.JsEngine as a Node.js-competitive JavaScript runtime on .NET.
@@ -11,7 +11,7 @@ Architecture north star for Asynkron.JsEngine as a Node.js-competitive JavaScrip
 
 ## Critique of the current dream state (self-critique)
 
-Rev 6 replaced the stale greenfield/migration label conflict, added startup-cost, host-conversion, and host-error diagrams, grouped the proven-now table by phase, clarified capability-lifecycle back edges, and added the delivery decomposition flow. Rev 7 applied that flow to the current roadmap: optional computed delete chains are the next open property-family slice, and SLO proof remains a separate evidence packet rather than a side effect of route widening. Rev 8 tightened that packet into an acceptance/decline handoff so a future implementation starts from one owner, one receiving contract, and an explicit proof boundary. Rev 9 added the packet-selection control plane for the current open roadmap queue so maintainers can route gh2934, gh2935, gh2954, and gh2955 without converting landed gh3134/gh3135 evidence or any directional target into a current runtime claim. Rev 10 refreshed that selector with the async-generator/yield* queue, splitting gh3175 and gh3176 as separate resumable packets instead of folding them into gh2955 or the proven gh3135 async-generator route. This rev 11 removes gh3175 and gh3176 from the selectable queue now that the roadmap records both as landed, while keeping their evidence as adjacent boundary context for the still-open gh2955 lane.
+Rev 6 replaced the stale greenfield/migration label conflict, added startup-cost, host-conversion, and host-error diagrams, grouped the proven-now table by phase, clarified capability-lifecycle back edges, and added the delivery decomposition flow. Rev 7 applied that flow to the current roadmap: optional computed delete chains are the next open property-family slice, and SLO proof remains a separate evidence packet rather than a side effect of route widening. Rev 8 tightened that packet into an acceptance/decline handoff so a future implementation starts from one owner, one receiving contract, and an explicit proof boundary. Rev 9 added the packet-selection control plane for the current open roadmap queue so maintainers can route gh2934, gh2935, gh2954, and gh2955 without converting landed gh3134/gh3135 evidence or any directional target into a current runtime claim. Rev 10 refreshed that selector with the async-generator/yield* queue, splitting gh3175 and gh3176 as separate resumable packets instead of folding them into gh2955 or the proven gh3135 async-generator route. Rev 11 removed gh3175 and gh3176 from the selectable queue now that the roadmap records both as landed, while keeping their evidence as adjacent boundary context for the still-open gh2955 lane. This rev 12 adds a system-to-subcomponent ownership diagram so the greenfield fabric can be read from top-level product shape down to packet owner surfaces without changing the current roadmap queue or proof status.
 
 1. **Delivery decomposition now needs a queue-level control plane.** The map below explains how to route one broad concern into one packet, and gh2934 remains the concrete property-family example. The roadmap now also carries multiple open packets across execution, concurrency, evidence, and performance fabrics, so the dream needs a selector that chooses the next packet without implying that all packets share an owner or proof shape.
 
@@ -169,6 +169,123 @@ flowchart TD
     EVID -.governs.-> PLT
     EVID -.governs.-> STD
 ```
+
+### Greenfield fabric decomposition
+
+The fabric decomposes from system to modules to components to subcomponents. This view is intentionally an ownership map, not a delivery claim: every leaf below either points at a proven current surface named later in this document or remains directional until a focused packet, proof pack, and evidence gate move it.
+
+```mermaid
+flowchart TD
+    RUNTIME["JavaScript Runtime Fabric"]
+
+    subgraph Compiler["Language Compiler module"]
+        CP["Compilation pipeline"]
+        CP_PARSE["Lexer + parser"]
+        CP_STATIC["Static semantics"]
+        CP_LOWER["IR + bytecode lowering"]
+        CP_ELIG["Eligibility classifier"]
+        CP_SLOT["Slot and layout assignment"]
+        CP --> CP_PARSE
+        CP --> CP_STATIC
+        CP --> CP_LOWER
+        CP --> CP_ELIG
+        CP --> CP_SLOT
+    end
+
+    subgraph Execution["Execution Engine module"]
+        EX["Execution strata"]
+        EX_S0["Stratum 0 compiled VM"]
+        EX_F["Stratum F correctness fallback"]
+        EX_ENV["Environment and slots"]
+        EX_COMP["Completion protocol"]
+        EX --> EX_S0
+        EX --> EX_F
+        EX --> EX_ENV
+        EX --> EX_COMP
+    end
+
+    subgraph Concurrency["Concurrency Runtime module"]
+        CR["Async ownership"]
+        CR_MQ["Microtask queue"]
+        CR_AWAIT["Await and resume routing"]
+        CR_AG["Async-generator state"]
+        CR_HOST["Host wakeup bridge"]
+        CR --> CR_MQ
+        CR --> CR_AWAIT
+        CR --> CR_AG
+        CR --> CR_HOST
+    end
+
+    subgraph Platform["Platform Layer module"]
+        PL["Host integration"]
+        PL_ESM["ESM loader and registry"]
+        PL_IMPORT["Dynamic import"]
+        PL_HOST["Host callable bridge"]
+        PL_REALM["Realm factory"]
+        PL --> PL_ESM
+        PL --> PL_IMPORT
+        PL --> PL_HOST
+        PL --> PL_REALM
+    end
+
+    subgraph Library["Standard Library module"]
+        SL["Runtime values and built-ins"]
+        SL_VALUE["JsValue and JsObject core"]
+        SL_DESC["Descriptor system"]
+        SL_PROTO["Prototype chains and built-ins"]
+        SL_STORE["Specialized storage"]
+        SL_SHAPE["Shape and IC system - directional"]
+        SL --> SL_VALUE
+        SL --> SL_DESC
+        SL --> SL_PROTO
+        SL --> SL_STORE
+        SL --> SL_SHAPE
+    end
+
+    subgraph Evidence["Evidence and Governance module"]
+        EV["Claim control"]
+        EV_TEST["Focused tests and Test262"]
+        EV_PROFILE["ProfileRunner matrix"]
+        EV_QUALITY["Canonical quality gate"]
+        EV_TRACE["ADR and roadmap traceability"]
+        EV --> EV_TEST
+        EV --> EV_PROFILE
+        EV --> EV_QUALITY
+        EV --> EV_TRACE
+    end
+
+    RUNTIME --> Compiler
+    RUNTIME --> Execution
+    RUNTIME --> Concurrency
+    RUNTIME --> Platform
+    RUNTIME --> Library
+    RUNTIME --> Evidence
+
+    Compiler -->|typed artifacts| Execution
+    Execution -->|suspension opcodes| Concurrency
+    Concurrency -->|resume payload| Execution
+    Execution -->|module entry| Platform
+    Platform -->|host functions and realms| Library
+    Library -->|JsValue operations| Execution
+    Evidence -.gates.-> Compiler
+    Evidence -.gates.-> Execution
+    Evidence -.gates.-> Concurrency
+    Evidence -.gates.-> Platform
+    Evidence -.gates.-> Library
+
+    style RUNTIME fill:#336,color:#fff
+    style EX_S0 fill:#060,color:#fff
+    style EX_F fill:#653,color:#fff
+    style SL_SHAPE fill:#555,color:#fff
+    style Evidence fill:#333,color:#fff
+```
+
+Decomposition rules:
+- The top-level fabric owns product coherence; it does not own implementation directly.
+- Each module owns one reviewable surface: compiler artifacts, execution routes, async resume state, host integration, runtime values, or evidence gates.
+- Subcomponents are the smallest durable routing units for recurring packets. A packet may cross fabrics only by naming the sending surface, the receiving contract, and the evidence gate before implementation.
+- Directional leaves such as Shape/IC, capability grants, Worker Fabric, artifact cache, and speculative optimization remain future architecture until focused proof and quality evidence exist.
+- The current selectable queue remains unchanged: gh2934, gh2935, gh2954, and gh2955 are the open packets; gh3175 and gh3176 remain landed adjacent evidence only.
 
 ## System lifecycle
 

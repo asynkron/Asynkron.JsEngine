@@ -137,6 +137,13 @@ boundary-explicit.
     evidence artifact and keep the open follow-up owned by the issue that
     created that artifact, or by a newly scoped follow-up if future work is
     broader.
+20. When `docs/dreaming.md` or roadmap text presents a queue of open
+    architecture packets, treat the queue selector as a scheduling control
+    plane, not a capability claim. Pick and describe one bounded packet at a
+    time by owner fabric, receiving contract, focused proof shape, and attached
+    non-goals. Keep landed adjacent work as evidence, not as a selectable open
+    packet, and do not imply that execution, concurrency, evidence, and
+    performance packets share the same owner or proof obligations.
 
 ## Why
 
@@ -275,6 +282,16 @@ startup evidence packet and remaining proof boundary. WHY: performance evidence
 work often lands in adjacent tooling and evidence packets; collapsing those
 issue references makes roadmap state look simultaneously done and open, and can
 promote a non-met SLO by provenance confusion rather than measurement proof.
+
+Faktorial issue `gh3184` / PR #3174 added the Dreamer roadmap packet-selection
+control plane after the open queue spanned optional computed delete chains
+(gh2934), SLO target-status proof (gh2935), residual map/set performance work
+(gh2954), and async-generator delegated resume routing (gh2955). WHY: a
+recurring Dreamer refresh can accidentally turn a multi-lane roadmap queue into
+a broad capability or scheduling claim if it does not separate owner fabrics,
+receiving contracts, proof shapes, and non-goals. The selector keeps each future
+slice reviewable and keeps landed adjacent evidence such as gh3134/gh3135 out
+of the open-packet queue.
 
 Related ADRs:
 - `docs/adrs/0226-keep-node-competitor-roadmap-milestones-evidence-gated.md`

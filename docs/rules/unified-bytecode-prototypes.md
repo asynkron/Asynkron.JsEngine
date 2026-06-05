@@ -286,6 +286,22 @@ all-or-nothing until a separate routing issue proves production readiness.
      settlement, and the control-cleanup opcode allowlist alignment.
      Related ADR:
      `docs/adrs/0330-keep-iterator-init-async-kind-and-awaited-source-gates-separate.md`.
+10h. When admitting captured per-iteration `let` / `const` loop bindings
+     through ordinary sync production `PushEnvironment`, keep the
+     CreatePerIterationEnvironment copy semantics descriptor-owned. A copied
+     per-iteration binding needs a flat slot, an explicit
+     `PerIterationCopySlotIndices` descriptor entry, a VM snapshot before scope
+     rebinding, and a write into the fresh scope environment after rebinding.
+     Do not fix this family by treating all lexical slots as ordinary TDZ entry
+     slots, by relying on dynamic lexical mirroring, or by inferring Annex B
+     block-function or resumable `PushEnvironment` safety from the sync A44
+     route. Positive tests must assert both captured closure values and
+     production routing, with adjacent boundaries kept explicit. WHY: issue
+     `planitem-planmanual1780639098493226000-full-unified-bytecode-execution-burndown-b-c99c23d77d`
+     / PR #3231 admitted A44 only after slot stamping, compiler descriptors,
+     and VM scope-entry handling agreed on per-iteration copy slots; the
+     earlier forced route left closure-visible bindings in TDZ. Related ADR:
+     `docs/adrs/0334-admit-captured-per-iteration-bindings-through-push-environment-copy-slots.md`.
 11. When updating docs, ADRs, roadmap text, or evidence reports for unified
     bytecode production routing, treat ADR 0253 as the current loop-control
     production widening layered on ADR 0210, and keep ADR 0204/#2227

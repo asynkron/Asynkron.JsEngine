@@ -4133,8 +4133,9 @@ internal static class UnifiedBytecodeProductionEligibility
         return false;
     }
 
-    // Exposed to the test assembly (AC-5 negative coverage): the async-kind and awaited-source
-    // arms must keep declining with their explicit reasons even though sync TDZ heads are admitted.
+    // Exposed to the test assembly (A48 gate coverage): sync iterator drivers must have
+    // exactly one source payload, while async-kind drivers stay explicitly declined until
+    // for-await-of settlement is VM-owned.
     internal static bool IsSupportedIteratorInit(IteratorInitInstruction instruction, out string reason)
     {
         if (instruction.IteratorKind != IteratorDriverKind.Sync)
@@ -4143,8 +4144,9 @@ internal static class UnifiedBytecodeProductionEligibility
             return false;
         }
 
-        if (instruction.IterableProgram is null && instruction.AwaitedProgram is null ||
-            instruction.IterableProgram is not null && instruction.AwaitedProgram is not null)
+        var hasIterableProgram = instruction.IterableProgram is not null;
+        var hasAwaitedProgram = instruction.AwaitedProgram is not null;
+        if (hasIterableProgram == hasAwaitedProgram)
         {
             reason = "Iterator driver sources must be lowered to exactly one expression bytecode payload.";
             return false;

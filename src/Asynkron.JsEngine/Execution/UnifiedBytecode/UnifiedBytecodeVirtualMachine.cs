@@ -3650,6 +3650,34 @@ internal static class UnifiedBytecodeVirtualMachine
                     programCounter++;
                     break;
 
+                case UnifiedBytecodeOpCode.LoadFunctionLiteral:
+                    {
+                        var descriptor = program.FunctionLiteralConstants[instruction.Operand >> 1];
+                        var isConstructorFunction = (instruction.Operand & 1) != 0;
+                        var closureEnvironment = RequireDynamicEnvironment(state.CallingEnvironment);
+                        var functionCallable = TypedAstEvaluator.CreateFunctionValueFromLiteral(
+                            descriptor.Function,
+                            closureEnvironment,
+                            context,
+                            isConstructorFunction,
+                            descriptor.PlanSeed);
+                        PushResumableValue(JsValue.FromObjectUnsafe(functionCallable));
+                        programCounter++;
+                        break;
+                    }
+
+                case UnifiedBytecodeOpCode.EnsureHasName:
+                    {
+                        var targetName = program.StringConstants[instruction.Operand];
+                        if (stack[stackPointer - 1] is { Kind: JsValueKind.Object, ObjectValue: TypedAstEvaluator.IFunctionNameTarget nameTarget })
+                        {
+                            nameTarget.EnsureHasName(targetName);
+                        }
+
+                        programCounter++;
+                        break;
+                    }
+
                 case UnifiedBytecodeOpCode.LoadDynamicIdentifier:
                     {
                         // Free variable READ (`yield outerVar`). Resolve by name against the live closure

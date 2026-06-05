@@ -74,6 +74,8 @@ internal readonly record struct UnifiedBytecodeProductionEligibilityResult(
 
 internal static class UnifiedBytecodeProductionEligibility
 {
+    private const string NestedFunctionDeclarationBoundary = "<function declaration>";
+
     internal static bool ContainsOnlyImplicitArgumentsObjectDynamicIdentifierDependency(ExecutionPlan plan)
     {
         if (plan.ActivationSlots is not { } activationSlots)
@@ -1126,7 +1128,16 @@ internal static class UnifiedBytecodeProductionEligibility
             // the resumable opcode allowlist (TryFindUnsupportedResumableOpcode) only admits the dynamic
             // read / call-target opcodes, so any write shape still routes to the interpreter.
             const bool allowsDynamicIdentifiers = true;
-            if (!IsSupportedResumableInstruction(instruction, out declineReason))
+            if (!IsSupportedResumableInstruction(instruction, activationSlots, out declineReason))
+            {
+                declineCode = UnifiedBytecodeProductionDeclineCode.UnsupportedPlanShape;
+                return true;
+            }
+
+            if (TryFindNestedFunctionActivationCaptureDecline(
+                    instruction,
+                    activationSlots,
+                    out declineReason))
             {
                 declineCode = UnifiedBytecodeProductionDeclineCode.UnsupportedPlanShape;
                 return true;
@@ -1222,7 +1233,10 @@ internal static class UnifiedBytecodeProductionEligibility
         return false;
     }
 
-    private static bool IsSupportedResumableInstruction(ExecutionInstruction instruction, out string declineReason)
+    private static bool IsSupportedResumableInstruction(
+        ExecutionInstruction instruction,
+        ActivationSlotShape activationSlots,
+        out string declineReason)
     {
         switch (instruction)
         {
@@ -1291,6 +1305,193 @@ internal static class UnifiedBytecodeProductionEligibility
                     $"Instruction '{instruction.GetType().Name}' is not eligible for resumable unified bytecode routing.";
                 return false;
         }
+    }
+
+    private static bool TryFindNestedFunctionActivationCaptureDecline(
+        ExecutionInstruction instruction,
+        ActivationSlotShape activationSlots,
+        out string declineReason)
+    {
+        if (TryGetResumableExpressionProgram(instruction, out var program) &&
+            ExpressionProgramHasActivationCapturingFunctionLiteral(
+                program,
+                activationSlots,
+                out var capturedName))
+        {
+            declineReason = capturedName == NestedFunctionDeclarationBoundary
+                ? "Nested function literal contains a function declaration and is not eligible for resumable unified bytecode routing until declaration instantiation is represented by the resumable route."
+                : $"Nested function literal captures activation binding '{capturedName}' and is not eligible for resumable unified bytecode routing until the resume state owns a materialized body environment.";
+            return true;
+        }
+
+        declineReason = string.Empty;
+        return false;
+    }
+
+    private static bool ExpressionProgramHasActivationCapturingFunctionLiteral(
+        ExpressionProgram program,
+        ActivationSlotShape activationSlots,
+        out string capturedName)
+    {
+        capturedName = string.Empty;
+        if (program.IsEmpty)
+        {
+            return false;
+        }
+
+        var objectConstants = program.ObjectConstants.AsSpan();
+        foreach (var operation in program.EnumerateOperations())
+        {
+            if (operation.Kind != ExpressionOpKind.LoadFunctionLiteral)
+            {
+                continue;
+            }
+
+            var descriptor = operation.GetObject<FunctionLiteralDescriptor>(objectConstants);
+            if (FunctionCapturesActivationSlot(descriptor.Function, activationSlots, out capturedName))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool FunctionCapturesActivationSlot(
+        FunctionExpression function,
+        ActivationSlotShape activationSlots,
+        out string capturedName)
+    {
+        capturedName = string.Empty;
+        var cache = ((IAstCacheable<ExecutionPlanCache>)function).GetOrCreateCache();
+        if (!cache.Succeeded || cache.Plan is not { } plan)
+        {
+            capturedName = "<unknown>";
+            return true;
+        }
+
+        if (plan.ActivationSlots is not { } nestedActivationSlots)
+        {
+            capturedName = "<unknown>";
+            return true;
+        }
+
+        foreach (var instruction in plan.Instructions)
+        {
+            if (TryGetExpressionProgram(instruction, out var nestedProgram) &&
+                ExpressionProgramReferencesOuterActivation(
+                    nestedProgram,
+                    nestedActivationSlots,
+                    activationSlots,
+                    out capturedName))
+            {
+                return true;
+            }
+
+            if (instruction is FunctionDeclarationInstruction { Descriptor: { } descriptor } &&
+                FunctionCapturesActivationSlot(descriptor.Function, activationSlots, out capturedName))
+            {
+                return true;
+            }
+
+            if (instruction is FunctionDeclarationInstruction)
+            {
+                capturedName = NestedFunctionDeclarationBoundary;
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool ExpressionProgramReferencesOuterActivation(
+        ExpressionProgram program,
+        ActivationSlotShape nestedActivationSlots,
+        ActivationSlotShape outerActivationSlots,
+        out string capturedName)
+    {
+        capturedName = string.Empty;
+        if (program.IsEmpty)
+        {
+            return false;
+        }
+
+        var identifierConstants = program.IdentifierConstants.AsSpan();
+        var objectConstants = program.ObjectConstants.AsSpan();
+        foreach (var operation in program.EnumerateOperations())
+        {
+            if (operation.Kind == ExpressionOpKind.LoadFunctionLiteral)
+            {
+                var descriptor = operation.GetObject<FunctionLiteralDescriptor>(objectConstants);
+                if (FunctionCapturesActivationSlot(descriptor.Function, outerActivationSlots, out capturedName))
+                {
+                    return true;
+                }
+
+                continue;
+            }
+
+            if (!TryGetIdentifierDependency(operation, identifierConstants, out var identifier))
+            {
+                continue;
+            }
+
+            if (ResolvesToActivationSlot(identifier, nestedActivationSlots))
+            {
+                continue;
+            }
+
+            if (identifier.ScopeId == outerActivationSlots.ScopeId ||
+                identifier.FlatSlotId < 0 && outerActivationSlots.SlotMap.ContainsKey(identifier.Name))
+            {
+                capturedName = identifier.Name.Name;
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool TryGetIdentifierDependency(
+        PackedExpressionOp operation,
+        ReadOnlySpan<IdentifierOperand> identifierConstants,
+        out IdentifierOperand identifier)
+    {
+        switch (operation.Kind)
+        {
+            case ExpressionOpKind.LoadIdentifier:
+            case ExpressionOpKind.LoadIdentifierCallTarget:
+            case ExpressionOpKind.ResolveIdentifierReference:
+            case ExpressionOpKind.StoreResolvedIdentifier:
+            case ExpressionOpKind.StoreIdentifier:
+            case ExpressionOpKind.UpdateIdentifier:
+            case ExpressionOpKind.TypeOfIdentifier:
+            case ExpressionOpKind.DeleteIdentifier:
+                identifier = operation.GetIdentifier(identifierConstants);
+                return true;
+            default:
+                identifier = default;
+                return false;
+        }
+    }
+
+    private static bool ResolvesToActivationSlot(
+        IdentifierOperand identifier,
+        ActivationSlotShape activationSlots)
+    {
+        if (identifier.FlatSlotId >= 0)
+        {
+            return true;
+        }
+
+        if (identifier.ScopeId == activationSlots.ScopeId &&
+            identifier.SlotIndex >= 0)
+        {
+            return true;
+        }
+
+        return identifier.ScopeId < 0 &&
+               activationSlots.SlotMap.ContainsKey(identifier.Name);
     }
 
     private static bool TryGetResumableExpressionProgram(
@@ -1581,6 +1782,8 @@ internal static class UnifiedBytecodeProductionEligibility
                 // matching handler (kept 1:1 with this allowlist).
                 UnifiedBytecodeOpCode.DeleteDynamicIdentifier or
                 UnifiedBytecodeOpCode.CallInvocationBoundary or
+                UnifiedBytecodeOpCode.LoadFunctionLiteral or
+                UnifiedBytecodeOpCode.EnsureHasName or
                 // Synchronous construct dispatch (non-optional `new C(args)`). Mirrors the admitted
                 // CallInvocationBoundary (#3108): the constructor value and its simple/spread arguments are
                 // lowered onto the operand stack by preceding ops in source order (a regular value load —

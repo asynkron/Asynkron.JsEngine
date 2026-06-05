@@ -7,28 +7,24 @@ namespace Asynkron.JsEngine.Tests;
 
 /// <summary>
 ///     Boundary pins for the resumable nested-function tier (B23 nested function LITERAL + B36 hoisted nested
-///     FUNCTION DECLARATION inside a generator/async body). Both shapes are INVESTIGATED-DECLINED: they stay on
-///     the IR runner (correct value) and must NOT route through the resumable VM fast path. These pins protect
-///     the boundary against a future naive opcode admission that would silently corrupt results.
+///     FUNCTION DECLARATION inside a generator/async body). Non-capturing nested functions now route through
+///     the resumable VM. Capturing nested functions remain declined until the resume state owns a materialized
+///     body environment that can alias closure captures with flat slots. Hoisted declarations remain declined
+///     until resumable invokers populate declaration bindings before execution.
 ///
 ///     Why declined (architecture, not a missing handler):
 ///
-///     B23 — a nested function literal that closes over the resumable VM closes over the activation's
-///     environment, but the generator/async body's own locals (`let`/`var`/params) are realised as FLAT SLOTS
-///     on the resume state, not as environment bindings. A nested function that CAPTURES such a local cannot see
-///     it through its environment chain (`function* g(){ var n=1; var f=()=&gt;n; yield f(); }` would throw
-///     `ReferenceError: n is not defined` on a naive resumable route), and a sync-on-create would still go stale
-///     on a post-capture mutation (`n=2`) because the body mutates the slot, not the env. The non-capturing
-///     subset happens to work, but it cannot be separated from the broken capturing subset without new
-///     free-variable capture analysis that the resumable route does not carry. Declining the whole tier keeps
-///     every shape correct on the runner.
+///     B23 — a nested function literal that does not close over the resumable activation can be created with
+///     the captured outer environment and stored in a flat slot. A nested function that CAPTURES a body local is
+///     still unsafe: the generator/async body's own locals (`let`/`var`/params) are realised as FLAT SLOTS on
+///     the resume state, not as environment bindings. The eligibility layer now detects such captures and keeps
+///     them on the runner.
 ///
 ///     B36 — a hoisted nested function declaration is materialised into its binding by
 ///     FunctionDeclarationInstantiation at call time. The resumable generator/async setup only copies parameters
 ///     into positional slots and TDZ-inits lexical slots; it does NOT run hoisted-function instantiation, so the
-///     declared name's slot stays `undefined` and a call (`yield helper()`) yields `undefined` / throws on a
-///     naive resumable route. Correct admission needs hoisted-declaration slot population threaded into all three
-///     resumable invokers — separate infrastructure, not a 1:1 opcode admission.
+///     declared name's slot stays `undefined` and a call (`yield helper()`) throws on a naive resumable route.
+///     Correct admission needs hoisted-declaration slot population threaded into all resumable invokers.
 /// </summary>
 [Category(TestCategories.RuntimeSemantics)]
 public sealed class UnifiedBytecodeResumableNestedFunctionTests(ITestOutputHelper output)
@@ -37,10 +33,9 @@ public sealed class UnifiedBytecodeResumableNestedFunctionTests(ITestOutputHelpe
     private const string ResumableGeneratorFastPathLog = "unified-bytecode-resumable-generator-fast-path";
     private const string ResumableAsyncFastPathLog = "unified-bytecode-resumable-async-fast-path";
 
-    // B23: a generator that defines and calls a nested function LITERAL is correct on the runner and stays off
-    // the resumable fast path.
+    // B23: a non-capturing nested function literal routes through the resumable fast path.
     [Fact(Timeout = 5000)]
-    public async Task GeneratorNestedFunctionLiteral_CorrectButDeclinesToRunner()
+    public async Task GeneratorNestedFunctionLiteral_RoutesResumable()
     {
         await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
@@ -50,7 +45,7 @@ public sealed class UnifiedBytecodeResumableNestedFunctionTests(ITestOutputHelpe
             """);
 
         Assert.Equal(6d, result);
-        AssertGeneratorNotRouted();
+        AssertGeneratorRouted();
     }
 
     // B23 capturing variant: the nested arrow CAPTURES a generator local across yields. Correct on the runner
@@ -71,8 +66,8 @@ public sealed class UnifiedBytecodeResumableNestedFunctionTests(ITestOutputHelpe
         AssertGeneratorNotRouted();
     }
 
-    // B36: a generator with a hoisted nested function DECLARATION is correct on the runner (5) and stays off the
-    // resumable fast path.
+    // B36: a generator with a hoisted nested function DECLARATION is correct on the runner and stays off the
+    // resumable fast path until invocation setup populates the declaration slot.
     [Fact(Timeout = 5000)]
     public async Task GeneratorHoistedFunctionDeclaration_CorrectButDeclinesToRunner()
     {
@@ -87,7 +82,7 @@ public sealed class UnifiedBytecodeResumableNestedFunctionTests(ITestOutputHelpe
         AssertGeneratorNotRouted();
     }
 
-    // B36 hoisting proof: a CALL textually BEFORE the declaration still works on the runner (7); no routing.
+    // B36 hoisting proof: a CALL textually BEFORE the declaration still works on the runner; no routing.
     [Fact(Timeout = 5000)]
     public async Task GeneratorHoistedFunctionDeclaration_CalledBeforeTextualDeclaration_CorrectButDeclinesToRunner()
     {
@@ -102,34 +97,31 @@ public sealed class UnifiedBytecodeResumableNestedFunctionTests(ITestOutputHelpe
         AssertGeneratorNotRouted();
     }
 
-    // B23 async variant: an async function defines and calls a nested function literal around an await. Correct
-    // on the runner (14); stays off the resumable fast path.
+    // B23 async variant: an async function materializes and name-infers a non-capturing nested function
+    // literal after an await and routes through the resumable fast path. Calling that literal inside a larger
+    // return expression remains a separate call-boundary gate.
     [Fact(Timeout = 5000)]
-    public async Task AsyncNestedFunctionLiteral_CorrectButDeclinesToRunner()
+    public async Task AsyncNestedFunctionLiteral_RoutesResumable()
     {
         await using var engine = CreateEngine();
         var result = await engine.EvaluateAndAwait("""
             var done = undefined;
-            async function run(){
+            async function run(p){
+                await p;
                 var dbl = function(a){ return a*2; };
-                var x = dbl(3);
-                await Promise.resolve(0);
-                return x + dbl(4);
+                return typeof dbl + "|" + dbl.name;
             }
-            run().then(v => done = v);
+            run(Promise.resolve(0)).then(v => done = v);
             done;
             """);
 
-        Assert.Equal(14d, result);
-        AssertAsyncNotRouted();
+        Assert.Equal("function|dbl", result);
+        AssertAsyncRouted();
     }
 
-    // Eligibility gate (the eligibility layer admits the program shape, but the resumable ROUTE still declines
-    // because the nested-function tier is not soundly routable — this pins that the decline is enforced at the
-    // route, keeping the boundary explicit). The function-literal shape compiles to a program containing the
-    // LoadFunctionLiteral opcode, which remains OFF the resumable allowlist.
+    // Eligibility gate: non-capturing nested function literals are now admitted and compile to LoadFunctionLiteral.
     [Fact]
-    public void EvaluateResumable_NestedFunctionLiteral_DeclinesOnLoadFunctionLiteralOpcode()
+    public void EvaluateResumable_NestedFunctionLiteral_AdmitsLoadFunctionLiteralOpcode()
     {
         var plan = TopLevelGeneratorPlan("""
             function* g(){ var h = function(a){ return a*2; }; yield h(3); }
@@ -139,12 +131,38 @@ public sealed class UnifiedBytecodeResumableNestedFunctionTests(ITestOutputHelpe
             plan,
             new UnifiedBytecodeProductionActivationDescriptor(IsGenerator: true));
 
-        Assert.False(result.IsEligible);
-        Assert.Contains("LoadFunctionLiteral", result.Reason, StringComparison.Ordinal);
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Contains(
+            result.Program.Instructions,
+            static instruction => instruction.OpCode == UnifiedBytecodeOpCode.LoadFunctionLiteral);
     }
 
-    // Eligibility gate: the hoisted function declaration shape declines at the resumable instruction gate (the
-    // FunctionDeclarationInstruction is not on the resumable instruction allowlist).
+    [Fact]
+    public void EvaluateResumable_AsyncNestedFunctionLiteral_AdmitsLoadFunctionLiteralOpcode()
+    {
+        var plan = TopLevelGeneratorPlan("""
+            async function run(p){
+                await p;
+                var dbl = function(a){ return a*2; };
+                return typeof dbl + "|" + dbl.name;
+            }
+            """, "run");
+
+        var result = UnifiedBytecodeProductionEligibility.EvaluateResumable(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor(IsAsyncLike: true));
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Contains(
+            result.Program.Instructions,
+            static instruction => instruction.OpCode == UnifiedBytecodeOpCode.LoadFunctionLiteral);
+        Assert.Contains(
+            result.Program.Instructions,
+            static instruction => instruction.OpCode == UnifiedBytecodeOpCode.EnsureHasName);
+    }
+
+    // Eligibility gate: hoisted function declarations still decline at the resumable instruction gate. The
+    // sync VM has a DeclareFunction handler, but the resumable route does not own declaration instantiation yet.
     [Fact]
     public void EvaluateResumable_HoistedFunctionDeclaration_Declines()
     {
@@ -157,7 +175,55 @@ public sealed class UnifiedBytecodeResumableNestedFunctionTests(ITestOutputHelpe
             new UnifiedBytecodeProductionActivationDescriptor(IsGenerator: true));
 
         Assert.False(result.IsEligible);
+        Assert.Contains("FunctionDeclarationInstruction", result.Reason, StringComparison.Ordinal);
     }
+
+    [Fact]
+    public void EvaluateResumable_NestedFunctionLiteralCapturingLocal_StillDeclines()
+    {
+        var plan = TopLevelGeneratorPlan("""
+            function* g(){ var n=1; var f=()=>n; yield f(); n=2; yield f(); }
+            """, "g");
+
+        var result = UnifiedBytecodeProductionEligibility.EvaluateResumable(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor(IsGenerator: true));
+
+        Assert.False(result.IsEligible);
+        Assert.Contains("captures activation binding 'n'", result.Reason, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void EvaluateResumable_NestedFunctionLiteralWithInnerDeclarationCapturingLocal_StillDeclines()
+    {
+        var plan = TopLevelGeneratorPlan("""
+            function* g(){
+                var n = 1;
+                var f = function(){
+                    function inner(){ return n; }
+                    return inner();
+                };
+                yield f();
+            }
+            """, "g");
+
+        var result = UnifiedBytecodeProductionEligibility.EvaluateResumable(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor(IsGenerator: true));
+
+        Assert.False(result.IsEligible);
+        Assert.Contains("contains a function declaration", result.Reason, StringComparison.Ordinal);
+    }
+
+    private void AssertGeneratorRouted() =>
+        Assert.Contains(
+            CurrentLogger!.Collector.Snapshot(),
+            record => record.Message.Contains(ResumableGeneratorFastPathLog, StringComparison.Ordinal));
+
+    private void AssertAsyncRouted() =>
+        Assert.Contains(
+            CurrentLogger!.Collector.Snapshot(),
+            record => record.Message.Contains(ResumableAsyncFastPathLog, StringComparison.Ordinal));
 
     private void AssertGeneratorNotRouted() =>
         Assert.DoesNotContain(

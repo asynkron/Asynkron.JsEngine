@@ -31,12 +31,10 @@ namespace Asynkron.JsEngine.Tests;
 ///     shorthand, object spread with getter-order observation, array holes, array spread, a FRESH
 ///     object/array per evaluation across a yield, and an async literal across an await.
 ///
-///     SCOPE BOUNDARY: object METHODS (<c>{ m(){} }</c>) and GET/SET accessors (<c>{ get x(){} }</c>) stay
-///     DECLINED — not because of the Define{Computed}ObjectMethod/Accessor opcodes (those are now
-///     allowlisted with handlers, 1:1 with ExecuteResumable), but because the method/accessor VALUE is a
-///     function literal that lowers to <see cref="UnifiedBytecodeOpCode.LoadFunctionLiteral" />, which has
-///     no resumable handler and is absent from the allowlist. Admitting nested function literals into the
-///     resumable VM is a separate foundation; the NEGATIVE proof below pins this boundary.
+///     Object METHODS (<c>{ m(){} }</c>) and GET/SET accessors (<c>{ get x(){} }</c>) are admitted for
+///     non-capturing function literals now that <see cref="UnifiedBytecodeOpCode.LoadFunctionLiteral" /> and
+///     <see cref="UnifiedBytecodeOpCode.EnsureHasName" /> have resumable handlers. Capturing nested function
+///     literals remain owned by <see cref="UnifiedBytecodeResumableNestedFunctionTests" /> and still decline.
 /// </summary>
 [Category(TestCategories.RuntimeSemantics)]
 public sealed class UnifiedBytecodeResumableLiteralTests(ITestOutputHelper output)
@@ -149,39 +147,45 @@ public sealed class UnifiedBytecodeResumableLiteralTests(ITestOutputHelper outpu
             static instruction => instruction.OpCode == UnifiedBytecodeOpCode.ArraySpread);
     }
 
-    // NEGATIVE gate: object METHODS and GET/SET accessors stay DECLINED. The method/accessor value is a
-    // function literal that lowers to LoadFunctionLiteral, which has no resumable handler and is absent
-    // from the resumable opcode allowlist — admitting nested function literals into the resumable VM is a
-    // separate foundation. This pins the boundary so a future change cannot silently route a function
-    // literal through an unverified path. (The Define{Computed}ObjectMethod/Accessor opcodes themselves are
-    // allowlisted with handlers, so once LoadFunctionLiteral is admitted these shapes flip to eligible
-    // without further VM work.)
+    // The method/accessor gate: non-capturing object METHODS and GET/SET accessors now route because
+    // LoadFunctionLiteral / EnsureHasName are admitted by ExecuteResumable. This covers the static and
+    // computed member-definition opcodes that were already allowlisted by the literal slice.
     [Fact]
-    public void EvaluateResumable_ObjectMethodAndAccessor_StaysDeclined()
+    public void EvaluateResumable_ObjectMethodAndAccessor_AdmitsFunctionLiteralMembers()
     {
-        var methodPlan = GetFunctionPlan("""
-            function* g() {
+        var plan = GetFunctionPlan("""
+            function* g(key) {
                 yield 0;
-                yield { m() { return 1; } };
+                yield {
+                    m() { return 1; },
+                    [key]() { return 2; },
+                    get x() { return 3; },
+                    set x(v) { this.saved = v; },
+                    get [key + "Value"]() { return 4; }
+                };
             }
             """,
             "g");
-        var methodResult = UnifiedBytecodeProductionEligibility.EvaluateResumable(
-            methodPlan,
+        var result = UnifiedBytecodeProductionEligibility.EvaluateResumable(
+            plan,
             new UnifiedBytecodeProductionActivationDescriptor(IsGenerator: true));
-        Assert.False(methodResult.IsEligible);
 
-        var accessorPlan = GetFunctionPlan("""
-            function* g() {
-                yield 0;
-                yield { get x() { return 1; }, set x(v) {} };
-            }
-            """,
-            "g");
-        var accessorResult = UnifiedBytecodeProductionEligibility.EvaluateResumable(
-            accessorPlan,
-            new UnifiedBytecodeProductionActivationDescriptor(IsGenerator: true));
-        Assert.False(accessorResult.IsEligible);
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Contains(
+            result.Program.Instructions,
+            static instruction => instruction.OpCode == UnifiedBytecodeOpCode.LoadFunctionLiteral);
+        Assert.Contains(
+            result.Program.Instructions,
+            static instruction => instruction.OpCode == UnifiedBytecodeOpCode.DefineObjectMethod);
+        Assert.Contains(
+            result.Program.Instructions,
+            static instruction => instruction.OpCode == UnifiedBytecodeOpCode.DefineComputedObjectMethod);
+        Assert.Contains(
+            result.Program.Instructions,
+            static instruction => instruction.OpCode == UnifiedBytecodeOpCode.DefineObjectAccessor);
+        Assert.Contains(
+            result.Program.Instructions,
+            static instruction => instruction.OpCode == UnifiedBytecodeOpCode.DefineComputedObjectAccessor);
     }
 
     // End-to-end: an object literal whose property value crosses a yield routes through the resumable fast
@@ -229,6 +233,31 @@ public sealed class UnifiedBytecodeResumableLiteralTests(ITestOutputHelper outpu
         AssertGeneratorFastPath("g", argc: 1);
     }
 
+    [Fact(Timeout = 5000)]
+    public async Task GeneratorObjectMethodAndAccessorLiteral_RoutesResumableAndDefinesMembers()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function* g(key) {
+                yield {
+                    m() { return 1; },
+                    [key]() { return 2; },
+                    get x() { return 3; },
+                    set x(v) { this.saved = v; },
+                    get [key + "Value"]() { return 4; }
+                };
+            }
+
+            var it = g("dyn");
+            var o = it.next().value;
+            o.x = 9;
+            o.m() + "|" + o.dyn() + "|" + o.x + "|" + o.saved + "|" + o.dynValue;
+            """);
+
+        Assert.Equal("1|2|3|9|4", result);
+        AssertGeneratorFastPath("g", argc: 1);
+    }
+
     // End-to-end: an object spread copying own-enumerable properties IN ORDER, with getters on the source
     // observed during the copy. Proves ApplyObjectLiteralSpread runs through the resumable handler with the
     // same own-enumerable + getter-invocation-order semantics as the sync path.
@@ -237,8 +266,8 @@ public sealed class UnifiedBytecodeResumableLiteralTests(ITestOutputHelper outpu
     {
         await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
-            // The getter source is built OUTSIDE the generator so the generator body itself contains no
-            // nested function literal (which would lower to LoadFunctionLiteral and decline the whole body).
+            // The getter source is built OUTSIDE the generator so this test isolates spread getter order
+            // from the separate nested-function-literal route.
             var order = [];
             var src = {};
             Object.defineProperty(src, "first", { enumerable: true, get: function () { order.push("first"); return 1; } });

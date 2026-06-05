@@ -373,7 +373,6 @@ the admitted subset stays 1:1 with `UnifiedBytecodeVirtualMachine.ExecuteResumab
 - `DeclareDynamicLexical`
 - `DeclareDynamicVar`
 - `DeclareFunction`
-- `EnsureHasName`
 - `EnsureSuperReference`
 - `EnterCatch`
 - `EnterWith`
@@ -386,8 +385,6 @@ the admitted subset stays 1:1 with `UnifiedBytecodeVirtualMachine.ExecuteResumab
 - `LeaveWith`
 - `LoadClassLiteral`
 - `LoadDynamicIdentifierReference`
-- `LoadFunctionLiteral`
-- `LoadTemplateObject`
 - `PopDynamicIdentifierReference`
 - `PopEnvironment`
 - `PrepareComputedSuperCallTarget`
@@ -749,28 +746,28 @@ predicates and proof tests.
   `super`/super-construct boundaries (`SuperConstructInvocationBoundary`, which
   needs the dynamic super-environment plumbing the resume state does not carry)
   inside resumable bodies remain outside it.
-  - NESTED FUNCTION LITERALS (`var h = function(){...}`, `let f = () => n`;
-    `LoadFunctionLiteral`/`EnsureHasName`) and HOISTED NESTED FUNCTION DECLARATIONS
-    (`function helper(){...}`; `FunctionDeclarationInstruction` /
-    `DeclareFunction`) inside a generator/async body are INVESTIGATED-DECLINED
-    (B23 + B36). They stay on the IR runner with the correct value; they must NOT
-    route resumable. Two distinct architecture gaps, neither a 1:1 opcode
-    admission: (1) a nested function closes over the resumable activation's
-    ENVIRONMENT, but the body's own locals are realised as FLAT SLOTS on the
-    resume state, so a nested function that CAPTURES a generator/async local cannot
-    see it through its environment chain (a naive resumable route makes
+  - NESTED FUNCTION LITERALS (`var h = function(){...}`) inside generator/async
+    bodies are now split by capture analysis. Non-capturing literals route through
+    `ExecuteResumable` via `LoadFunctionLiteral` and `EnsureHasName`; object
+    method/accessor literals use the same path. Capturing literals still decline:
+    the nested function closes over the resumable activation's ENVIRONMENT, but
+    the body's own locals are realised as FLAT SLOTS on the resume state, so a
+    nested function that captures a generator/async local cannot see it through
+    its environment chain (a naive resumable route makes
     `function* g(){ var n=1; var f=()=>n; yield f(); }` throw
     `ReferenceError: n is not defined`) and a sync-on-create would go stale on a
-    post-capture mutation; the non-capturing subset cannot be separated from the
-    broken capturing subset without free-variable capture analysis the resumable
-    route does not carry. (2) Hoisted declarations are materialised by
-    FunctionDeclarationInstantiation at call time, which the resumable setup does
-    not run, so the declared name's slot stays `undefined` on a naive route.
-    `LoadFunctionLiteral`, `EnsureHasName`, and `DeclareFunction` are therefore
-    kept OFF the resumable opcode allowlist (`TryFindUnsupportedResumableOpcode`)
-    and `FunctionDeclarationInstruction` OFF the resumable instruction allowlist
-    (`IsSupportedResumableInstruction`); the boundary is pinned by
-    `UnifiedBytecodeResumableNestedFunctionTests`.
+    post-capture mutation. Function declarations nested inside an otherwise
+    non-capturing function literal also stay declined until declaration
+    instantiation is represented by the resumable route. B23 remains partial until
+    the resume state owns a materialized body environment.
+  - HOISTED NESTED FUNCTION DECLARATIONS (`function helper(){...}`;
+    `FunctionDeclarationInstruction` / `DeclareFunction`) inside a generator/async
+    body remain investigated-declined (B36). Hoisted declarations are materialised
+    by FunctionDeclarationInstantiation at call time, which the resumable setup
+    does not run, so the declared name's slot stays `undefined` on a naive route.
+    `DeclareFunction` remains OFF the resumable opcode allowlist and
+    `FunctionDeclarationInstruction` OFF the resumable instruction allowlist; the
+    boundary is pinned by `UnifiedBytecodeResumableNestedFunctionTests`.
 - Captured function scopes outside the simple-return captured-closure route,
   unresolved non-with dynamic activation, arrow lexical `this` / `new.target`,
   and class-constructor activation outside the bounded constructor routes.
@@ -1698,16 +1695,14 @@ the final post-compile production subset check before VM entry.
   by `ExecuteResumable` through the same descriptor/callsite identity cache as the sync
   VM. Super/private/exotic tagged-template call-target variants still remain bounded by
   their existing super/private/call-target gates.
-  The B37 scaffolding opcodes `EnsureHasName` and `ThrowReferenceError` are likewise NOT
-  admitted: `EnsureHasName`'s only producer (`let f = function(){}`) co-emits
-  `LoadFunctionLiteral`, which has no resumable handler and declines the whole program, and
-  `ThrowReferenceError`'s only producer (`delete super[...]`) co-emits the unsupported
-  `EnsureSuperReference`, so neither opcode is reachable by an admitted resumable program;
-  an uninitialized-binding TDZ read is already surfaced by the existing resumable `LoadSlot`
-  handler (no new opcode) (proof: `UnifiedBytecodeResumableTemplateToStringTests`, including
-  the generator/async ToString admit gates, end-to-end coercion, a substitution evaluated
-  ACROSS a yield with operand restoration, non-string `String()` coercion parity, and an
-  async template returned after an await).
+  The B37 name-inference opcode `EnsureHasName` is now admitted for resumable function
+  literals: `let f = function(){}` / object method/accessor literals co-emit
+  `LoadFunctionLiteral`, and both opcodes are handled directly by `ExecuteResumable`.
+  `ThrowReferenceError` is still not admitted: its only producer (`delete super[...]`)
+  co-emits the unsupported `EnsureSuperReference`, so it is not reachable by an admitted
+  resumable program. An uninitialized-binding TDZ read is already surfaced by the existing
+  resumable `LoadSlot` handler (no new opcode) (proof: `UnifiedBytecodeResumableTemplateToStringTests`,
+  plus `UnifiedBytecodeResumableNestedFunctionTests` for `EnsureHasName`).
 - Accepted resumable bodies may now read the `import.meta` meta-property between suspension
   points (burndown B20). The `LoadImportMeta` opcode is ported into the `ExecuteResumable`
   switch and added to the `TryFindUnsupportedResumableOpcode` allowlist. The resumable
@@ -1750,19 +1745,18 @@ the final post-compile production subset check before VM entry.
   resumable Throw step (`state.IsCompleted = true; return
   UnifiedBytecodeStepResult.Throw(context.FlowValue)`). ECMAScript requires a fresh
   object/array per evaluation, so `Create*` allocates anew on every step (including
-  each loop turn across yields) rather than caching. BOUNDARY: object METHODS
-  (`{ m(){} }`) and GET/SET accessors (`{ get x(){} }`) still decline — the
-  method/accessor VALUE is a function literal that lowers to `LoadFunctionLiteral`,
-  which has no resumable handler and stays off the allowlist; admitting nested
-  function literals is a separate foundation. The `Define{Computed}ObjectMethod`/
-  `Define{Computed}ObjectAccessor` opcodes are nonetheless added now (kept 1:1 with
-  the `ExecuteResumable` switch so the drift guard holds) so those shapes flip to
-  eligible without further VM work once `LoadFunctionLiteral` is admitted. Separately,
+  each loop turn across yields) rather than caching. Object METHODS (`{ m(){} }`)
+  and GET/SET accessors (`{ get x(){} }`) now route when their function literals are
+  non-capturing: the value lowers to `LoadFunctionLiteral`, name inference lowers to
+  `EnsureHasName` when needed, and the `Define{Computed}ObjectMethod` /
+  `Define{Computed}ObjectAccessor` handlers attach the callable to the fresh object.
+  Capturing method/accessor literals remain covered by the B23 capture decline.
+  Separately,
   a `var x = <literal>` whose literal contains no suspension still declines at the
   resumable var-declaration lowering boundary (`SimpleVariableDeclarationInstruction`
   / template-literal span), independent of this opcode work (proof:
   `UnifiedBytecodeResumableLiteralTests`, including the object/computed/spread/array
-  admit gates, the method/accessor decline boundary gate, end-to-end object/array
+  admit gates, the method/accessor route gate, end-to-end object/array
   builds across a yield, computed-key + shorthand, an object spread with observed
   getter order and a skipped non-enumerable, array holes + spread, fresh-instance
   identity per loop turn for both object and array, a computed-key coercion throw, a

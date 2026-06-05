@@ -98,31 +98,31 @@ public sealed partial class IntlSegmenterPrototype
         }, realm, false);
 
         containingFn.DefineProperty("length",
-            new PropertyDescriptor { Value = 1d, Writable = false, Enumerable = false, Configurable = true });
+            new PropertyDescriptor { JsValue = 1d, Writable = false, Enumerable = false, Configurable = true });
         containingFn.DefineProperty("name",
             new PropertyDescriptor
             {
-                Value = "containing", Writable = false, Enumerable = false, Configurable = true
+                JsValue = "containing", Writable = false, Enumerable = false, Configurable = true
             });
         containingFn.Delete("prototype");
         segments.DefineProperty("containing",
-            new PropertyDescriptor { Value = containingFn, Writable = true, Enumerable = false, Configurable = true });
+            new PropertyDescriptor { JsValue = containingFn, Writable = true, Enumerable = false, Configurable = true });
 
         // [Symbol.iterator]() method
         var iteratorFn = new HostFunction((_, _) => new JsValue(CreateSegmentIterator(input, granularity, realm)), realm, false);
 
         iteratorFn.DefineProperty("length",
-            new PropertyDescriptor { Value = 0d, Writable = false, Enumerable = false, Configurable = true });
+            new PropertyDescriptor { JsValue = 0d, Writable = false, Enumerable = false, Configurable = true });
         iteratorFn.DefineProperty("name",
             new PropertyDescriptor
             {
-                Value = "[Symbol.iterator]", Writable = false, Enumerable = false, Configurable = true
+                JsValue = "[Symbol.iterator]", Writable = false, Enumerable = false, Configurable = true
             });
         iteratorFn.Delete("prototype");
         segments.DefineProperty(SymbolKeys.Iterator,
             new PropertyDescriptor
             {
-                Value = iteratorFn, Writable = true, Enumerable = false, Configurable = true
+                JsValue = iteratorFn, Writable = true, Enumerable = false, Configurable = true
             });
 
         return segments;
@@ -208,19 +208,19 @@ public sealed partial class IntlSegmenterPrototype
         }, realm, false);
 
         nextFn.DefineProperty("length",
-            new PropertyDescriptor { Value = 0d, Writable = false, Enumerable = false, Configurable = true });
+            new PropertyDescriptor { JsValue = 0d, Writable = false, Enumerable = false, Configurable = true });
         nextFn.DefineProperty("name",
-            new PropertyDescriptor { Value = "next", Writable = false, Enumerable = false, Configurable = true });
+            new PropertyDescriptor { JsValue = "next", Writable = false, Enumerable = false, Configurable = true });
         nextFn.Delete("prototype");
 
         iterator.DefineProperty("next",
-            new PropertyDescriptor { Value = nextFn, Writable = true, Enumerable = false, Configurable = true });
+            new PropertyDescriptor { JsValue = nextFn, Writable = true, Enumerable = false, Configurable = true });
 
         // @@toStringTag
         iterator.DefineProperty(SymbolKeys.ToStringTag,
             new PropertyDescriptor
             {
-                Value = "Segmenter String Iterator",
+                JsValue = "Segmenter String Iterator",
                 Writable = false,
                 Enumerable = false,
                 Configurable = true

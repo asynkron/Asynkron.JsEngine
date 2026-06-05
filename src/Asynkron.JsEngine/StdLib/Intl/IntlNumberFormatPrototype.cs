@@ -654,11 +654,11 @@ public sealed partial class IntlNumberFormatPrototype
     private static void DefineFormatFunctionMetadata(HostFunction function)
     {
         function.DefineProperty("length",
-            new PropertyDescriptor { Value = (JsValue)1d, Writable = false, Enumerable = false, Configurable = true });
+            new PropertyDescriptor { JsValue = 1d, Writable = false, Enumerable = false, Configurable = true });
         function.DefineProperty("name",
             new PropertyDescriptor
             {
-                Value = (JsValue)string.Empty,
+                JsValue = string.Empty,
                 Writable = false,
                 Enumerable = false,
                 Configurable = true

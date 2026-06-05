@@ -39,9 +39,9 @@ public sealed partial class IntlCollatorPrototype
     private static void DefineCompareFunctionMetadata(HostFunction function)
     {
         function.DefineProperty("length",
-            new PropertyDescriptor { Value = 2d, Writable = false, Enumerable = false, Configurable = true });
+            new PropertyDescriptor { JsValue = 2d, Writable = false, Enumerable = false, Configurable = true });
         function.DefineProperty("name",
-            new PropertyDescriptor { Value = string.Empty, Writable = false, Enumerable = false, Configurable = true });
+            new PropertyDescriptor { JsValue = string.Empty, Writable = false, Enumerable = false, Configurable = true });
     }
 
     [JsHostMethod("resolvedOptions", Length = 0d)]

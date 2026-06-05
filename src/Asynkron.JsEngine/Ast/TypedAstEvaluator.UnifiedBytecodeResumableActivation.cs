@@ -2,6 +2,7 @@ using System.Collections.Immutable;
 using Asynkron.JsEngine.Execution;
 using Asynkron.JsEngine.Execution.Instructions;
 using Asynkron.JsEngine.Execution.UnifiedBytecode;
+using Asynkron.JsEngine.Parser;
 
 namespace Asynkron.JsEngine.Ast;
 
@@ -80,6 +81,59 @@ public static partial class TypedAstEvaluator
         {
             slots = [];
             return false;
+        }
+
+        return true;
+    }
+
+    private static bool TryCreateMaterializedResumableBodyEnvironment(
+        ExecutionPlan plan,
+        UnifiedBytecodeProgram program,
+        JsValue[] slots,
+        JsEnvironment parent,
+        bool isStrict,
+        SourceReference? source,
+        out JsEnvironment environment)
+    {
+        environment = null!;
+        if (plan.ActivationSlots is not { } activationSlots)
+        {
+            return false;
+        }
+
+        environment = JsEnvironment.CreateInstance(
+            parent,
+            isFunctionScope: true,
+            isStrict,
+            creatingSource: source,
+            description: "resumable body activation",
+            isBodyEnvironment: true);
+        environment.InitializeSlots(activationSlots.SlotCount, activationSlots.ScopeId);
+        environment.SetSlotNames(activationSlots.SlotNames);
+        environment.SetSlotsLexicalUninitialized(activationSlots.LexicalSlotIndices);
+        environment.SetSlotsConst(activationSlots.ConstLexicalSlotIndices);
+
+        var slotNames = activationSlots.SlotNames;
+        for (var i = 0; i < slotNames.Length; i++)
+        {
+            var (name, activationSlotIndex) = slotNames[i];
+            if ((uint)activationSlotIndex >= (uint)environment.SlotCount ||
+                !TryResolveResumableRootFlatSlot(plan, program, name, out var flatSlotIndex) ||
+                (uint)flatSlotIndex >= (uint)slots.Length)
+            {
+                continue;
+            }
+
+            var value = slots[flatSlotIndex];
+            if (value.IsUninitialized)
+            {
+                ref var slot = ref environment.GetSlotByIndex(activationSlotIndex);
+                slot.Value = value;
+                slot.Flags |= SlotFlags.Uninitialized;
+                continue;
+            }
+
+            environment.SetSlotDirect(activationSlotIndex, value);
         }
 
         return true;

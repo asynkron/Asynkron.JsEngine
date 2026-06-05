@@ -40,6 +40,7 @@ internal readonly record struct UnifiedBytecodeProductionActivationDescriptor(
     bool AllowsOrdinaryDynamicIdentifierEnvironmentOperations = false,
     bool AllowsImplicitArgumentsObjectPropertyReadOperands = false,
     bool AllowsRootFunctionDeclarationInstructions = false,
+    bool AllowsMaterializedBodyEnvironmentFunctionLiterals = false,
     bool IsStrict = false);
 
 internal readonly record struct UnifiedBytecodeProductionEligibilityResult(
@@ -1129,6 +1130,7 @@ internal static class UnifiedBytecodeProductionEligibility
             if (TryFindNestedFunctionActivationCaptureDecline(
                     instruction,
                     activationSlots,
+                    activation,
                     out declineReason))
             {
                 declineCode = UnifiedBytecodeProductionDeclineCode.UnsupportedPlanShape;
@@ -1319,21 +1321,65 @@ internal static class UnifiedBytecodeProductionEligibility
     private static bool TryFindNestedFunctionActivationCaptureDecline(
         ExecutionInstruction instruction,
         ActivationSlotShape activationSlots,
+        UnifiedBytecodeProductionActivationDescriptor activation,
         out string declineReason)
     {
-        if (TryGetResumableExpressionProgram(instruction, out var program) &&
-            ExpressionProgramHasActivationCapturingFunctionLiteral(
-                program,
-                activationSlots,
-                out var capturedName))
+        if (!TryGetResumableExpressionProgram(instruction, out var program) ||
+            !ExpressionProgramHasActivationCapturingFunctionLiteral(
+                    program,
+                    activationSlots,
+                    out var capturedName))
         {
-            declineReason = capturedName == NestedFunctionDeclarationBoundary
-                ? "Nested function literal contains a function declaration and is not eligible for resumable unified bytecode routing until declaration instantiation is represented by the resumable route."
-                : $"Nested function literal captures activation binding '{capturedName}' and is not eligible for resumable unified bytecode routing until the resume state owns a materialized body environment.";
+            declineReason = string.Empty;
+            return false;
+        }
+
+        if (capturedName == NestedFunctionDeclarationBoundary)
+        {
+            declineReason =
+                "Nested function literal contains a function declaration and is not eligible for resumable unified bytecode routing until declaration instantiation is represented by the resumable route.";
             return true;
         }
 
-        declineReason = string.Empty;
+        if (capturedName.Length > 0 && capturedName[0] == '<')
+        {
+            declineReason =
+                $"Nested function literal depends on {capturedName} and is not eligible for resumable unified bytecode routing until the resumable route materializes that closure context.";
+            return true;
+        }
+
+        if (activation.AllowsMaterializedBodyEnvironmentFunctionLiterals)
+        {
+            declineReason = string.Empty;
+            return false;
+        }
+
+        declineReason =
+            $"Nested function literal captures activation binding '{capturedName}' and is not eligible for resumable unified bytecode routing until the resume state owns a materialized body environment.";
+        return true;
+    }
+
+    internal static bool PlanNeedsMaterializedResumableBodyEnvironment(ExecutionPlan plan)
+    {
+        if (plan.ActivationSlots is not { } activationSlots)
+        {
+            return false;
+        }
+
+        foreach (var instruction in plan.Instructions)
+        {
+            if (TryGetResumableExpressionProgram(instruction, out var program) &&
+                ExpressionProgramHasActivationCapturingFunctionLiteral(
+                    program,
+                    activationSlots,
+                    out var capturedName) &&
+                capturedName != NestedFunctionDeclarationBoundary &&
+                (capturedName.Length == 0 || capturedName[0] != '<'))
+            {
+                return true;
+            }
+        }
+
         return false;
     }
 

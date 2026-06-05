@@ -220,6 +220,7 @@ public sealed class UnifiedBytecodeFirstBoundaryStackDepthGuardTests(ITestOutput
             case UnifiedBytecodeOpCode.JumpIfShortCircuitFalse:
             case UnifiedBytecodeOpCode.JumpIfShortCircuitTrue:
             case UnifiedBytecodeOpCode.JumpIfShortCircuitNotNullish:
+            case UnifiedBytecodeOpCode.JumpIfShortCircuited:
                 return (0, true, false, instruction.Operand);
 
             // Function epilogue: consumes the return value (or operates on an empty stack

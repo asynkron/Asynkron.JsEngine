@@ -3707,20 +3707,22 @@ internal static class UnifiedBytecodeVirtualMachine
                         return UnifiedBytecodeStepResult.Throw(context.FlowValue);
                     }
 
+                    if (state.IsConstSlot(instruction.Operand))
+                    {
+                        SetConstantSlotTypeError(program, instruction.Operand, context);
+                        state.IsCompleted = true;
+                        return UnifiedBytecodeStepResult.Throw(context.FlowValue);
+                    }
+
                     slots[instruction.Operand] = stack[--stackPointer];
                     programCounter++;
                     break;
 
                 case UnifiedBytecodeOpCode.UpdateSlot:
                     {
-                        // `x++` / `x-- ` / `++x` / `--x` on a parameter or `var` slot. Eligibility
-                        // (TryFindResumablePlanDecline) only admits this opcode for non-lexical targets, so the
-                        // const-slot TypeError the sync VM raises (IsConstSlot) cannot apply here and is
-                        // intentionally absent — the resumable resume state has no const-slot metadata to check.
-                        // The numeric mutation is purely slot-local: read the slot, ToNumeric-coerce ++/--, write
-                        // it back, and push the prefix (new) or postfix (old) value. Nothing lands on the operand
-                        // stack across a suspension because an update expression cannot itself yield/await, so no
-                        // resume-state restoration is required.
+                        // `x++` / `x--` / `++x` / `--x` on an activation slot. Const-slot metadata is stored
+                        // on the resume state, matching the sync VM's const bitmap, so lexical `let` updates
+                        // can route while `const` updates still raise TypeError before numeric coercion.
                         var resumableUpdateIndex = DecodeUpdateIndex(instruction.Operand);
                         var resumableUpdateValue = slots[resumableUpdateIndex];
                         if (resumableUpdateValue.IsUninitialized)
@@ -3729,6 +3731,13 @@ internal static class UnifiedBytecodeVirtualMachine
                             // ReferenceError, identical to the sync VM. (Parameter / `var` slots are never
                             // uninitialized at an update site, so this guards the residual TDZ window only.)
                             SetUninitializedSlotReferenceError(program, resumableUpdateIndex, context);
+                            state.IsCompleted = true;
+                            return UnifiedBytecodeStepResult.Throw(context.FlowValue);
+                        }
+
+                        if (state.IsConstSlot(resumableUpdateIndex))
+                        {
+                            SetConstantSlotTypeError(program, resumableUpdateIndex, context);
                             state.IsCompleted = true;
                             return UnifiedBytecodeStepResult.Throw(context.FlowValue);
                         }
@@ -3829,18 +3838,19 @@ internal static class UnifiedBytecodeVirtualMachine
                         // Establish the loop-head temporal dead zone before the for-in/iterator source is
                         // evaluated: mark the flat head slots uninitialized so a read of `let x`/`const x`
                         // inside the source throws ReferenceError (the resumable LoadSlot handler raises it).
-                        // The sync handler additionally records const-slot / slot-environment metadata, but
-                        // the resumable VM carries neither (UnifiedBytecodeResumeState has no constSlots /
-                        // slotEnvironments). Const enforcement is unnecessary here: lexical-slot writes and
-                        // updates decline to the interpreter at eligibility time (#3115/#3116), so no const
-                        // reassignment can reach this path. This case was admitted to the resumable allowlist
-                        // by the for-in driver work without a matching executor case, tripping the
-                        // AllowsEveryResumableVmOpcode drift guard; this handler restores the invariant.
+                        // The sync handler additionally records const-slot / slot-environment metadata. The
+                        // resumable VM mirrors the const side on UnifiedBytecodeResumeState so later
+                        // StoreSlot/UpdateSlot can enforce const reassignment inside the VM.
                         var tdzDescriptor = program.DriverDescriptors[instruction.Operand];
                         var tdzHeadSlots = tdzDescriptor.TdzHeadSlots;
                         for (var tdzIndex = 0; tdzIndex < tdzHeadSlots.Length; tdzIndex++)
                         {
-                            slots[tdzHeadSlots[tdzIndex]] = JsValue.Uninitialized;
+                            var headSlot = tdzHeadSlots[tdzIndex];
+                            slots[headSlot] = JsValue.Uninitialized;
+                            if (tdzDescriptor.TdzHeadIsConst)
+                            {
+                                state.MarkConstSlot(headSlot);
+                            }
                         }
 
                         programCounter++;

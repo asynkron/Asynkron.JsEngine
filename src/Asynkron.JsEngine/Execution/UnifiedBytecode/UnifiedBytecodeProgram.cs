@@ -283,7 +283,10 @@ internal sealed class UnifiedBytecodeResumeState
         OperandStackShortCircuitFlags = program.RequiresShortCircuitStackFlags
             ? new ulong[(OperandStack.Length + 63) >> 6]
             : null;
+        _constSlots = CreateConstSlotBitmap(program, slots.Length);
     }
+
+    private bool[]? _constSlots;
 
     public UnifiedBytecodeProgram Program { get; }
     public JsTypes.JsValue[] Slots { get; }
@@ -326,6 +329,29 @@ internal sealed class UnifiedBytecodeResumeState
     public JsTypes.JsValue[] OperandStack { get; }
 
     /// <summary>
+    ///     Per-flat-slot const bitmap for the resumable activation. Seeded from the compiler-owned
+    ///     <see cref="UnifiedBytecodeProgram.ConstSlotIndices" /> and extended by loop-head TDZ setup for
+    ///     per-iteration <c>const</c> bindings. This mirrors the sync VM's const-slot tracking so
+    ///     resumable <c>StoreSlot</c> / <c>UpdateSlot</c> can raise the same <c>TypeError</c> for const
+    ///     reassignment instead of declining every lexical slot.
+    /// </summary>
+    public bool IsConstSlot(int slotIndex) =>
+        _constSlots is not null &&
+        (uint)slotIndex < (uint)_constSlots.Length &&
+        _constSlots[slotIndex];
+
+    public void MarkConstSlot(int slotIndex)
+    {
+        if ((uint)slotIndex >= (uint)Slots.Length)
+        {
+            return;
+        }
+
+        _constSlots ??= new bool[Slots.Length];
+        _constSlots[slotIndex] = true;
+    }
+
+    /// <summary>
     ///     Per-operand-slot short-circuit flags, index-aligned with <see cref="OperandStack" />. A set
     ///     bit at index <c>i</c> means the value at operand slot <c>i</c> is the synthetic
     ///     <c>undefined</c> produced by an optional-chain short-circuit, so downstream property reads /
@@ -340,6 +366,27 @@ internal sealed class UnifiedBytecodeResumeState
     ///     flag query reads as <c>false</c>.
     /// </summary>
     public ulong[]? OperandStackShortCircuitFlags { get; }
+
+    private static bool[]? CreateConstSlotBitmap(UnifiedBytecodeProgram program, int slotCount)
+    {
+        if (program.ConstSlotIndices.IsDefaultOrEmpty)
+        {
+            return null;
+        }
+
+        var constSlots = new bool[slotCount];
+        var constSlotIndices = program.ConstSlotIndices;
+        for (var i = 0; i < constSlotIndices.Length; i++)
+        {
+            var slotIndex = constSlotIndices[i];
+            if ((uint)slotIndex < (uint)constSlots.Length)
+            {
+                constSlots[slotIndex] = true;
+            }
+        }
+
+        return constSlots;
+    }
 
     /// <summary>
     ///     The private-name scopes (the class brand scope plus any enclosing captured scopes) that were

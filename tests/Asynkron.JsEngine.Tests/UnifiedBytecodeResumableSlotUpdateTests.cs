@@ -15,13 +15,10 @@ namespace Asynkron.JsEngine.Tests;
 ///     <see cref="UnifiedBytecodeOpCode.UpdateSlot" />, so any slot update in a generator / async body fell
 ///     back to the interpreter.
 ///
-///     The admitted surface is deliberately bounded to <b>parameter and <c>var</c> slots</b>. Const-ness is
-///     a runtime environment property the lowered plan does not preserve, and the resumable resume state
-///     carries no const-slot metadata, so the resumable VM cannot reproduce the
-///     <c>TypeError: Assignment to constant variable</c> that the sync VM raises for a <c>const</c> update.
-///     Every update whose target is a lexical (<c>let</c>/<c>const</c>) slot is therefore declined and keeps
-///     its interpreter route — see <c>EvaluateResumable_LetIncrement_StaysDeclined</c> and the end-to-end
-///     <c>ConstIncrementInGenerator_StaysOnInterpreterAndThrows</c> negative proofs.
+///     B8a extends that surface to lexical slots by threading a static const-slot bitmap onto
+///     <see cref="UnifiedBytecodeResumeState" />. A <c>let</c> update or assignment now routes, while a
+///     <c>const</c> update or assignment routes far enough to raise the same resumable VM
+///     <c>TypeError: Assignment to constant variable</c> that the sync VM raises.
 ///
 ///     Each proof asserts (a) ROUTING — eligibility via <c>EvaluateResumable</c> plus, for the end-to-end
 ///     runs, the resumable fast-path log (a fall-back to the interpreter fails the test) — and (b)
@@ -86,12 +83,10 @@ public sealed class UnifiedBytecodeResumableSlotUpdateTests(ITestOutputHelper ou
             static instruction => instruction.OpCode == UnifiedBytecodeOpCode.UpdateSlot);
     }
 
-    // NEGATIVE GATE: an update on a LEXICAL (`let`) slot stays declined — the resumable VM cannot enforce
-    // the const semantics a `let`/`const` slot might require, so it is kept off the fast path entirely.
-    // This pins the boundary so a future change cannot silently route a `const` update through the
-    // const-unaware resumable handler.
+    // B8a GATE: an update on a lexical `let` slot is now admitted and carries UpdateSlot. Const slots are
+    // guarded by the resume state's const bitmap at runtime instead of by a broad pre-VM lexical decline.
     [Fact]
-    public void EvaluateResumable_LetIncrement_StaysDeclined()
+    public void EvaluateResumable_LetIncrementAcrossYield_AdmitsUpdateSlot()
     {
         var plan = GetFunctionPlan("""
             function* g() {
@@ -107,7 +102,10 @@ public sealed class UnifiedBytecodeResumableSlotUpdateTests(ITestOutputHelper ou
             plan,
             new UnifiedBytecodeProductionActivationDescriptor(IsGenerator: true));
 
-        Assert.False(result.IsEligible);
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Contains(
+            result.Program.Instructions,
+            static instruction => instruction.OpCode == UnifiedBytecodeOpCode.UpdateSlot);
     }
 
     // End-to-end: a postfix `var` increment across a yield routes through the resumable fast path and the
@@ -170,6 +168,50 @@ public sealed class UnifiedBytecodeResumableSlotUpdateTests(ITestOutputHelper ou
 
         Assert.Equal("5|4", result);
         AssertGeneratorFastPath("g", argc: 1);
+    }
+
+    // End-to-end B8a: lexical `let` updates now route through the resumable fast path and mutate the flat
+    // slot exactly like the prior parameter/var update tier.
+    [Fact(Timeout = 5000)]
+    public async Task GeneratorLetPostfixIncrementAcrossYield_RoutesResumableAndIsCorrect()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function* g() {
+                let n = 10;
+                yield n;
+                yield n++;
+                yield n;
+            }
+
+            var it = g();
+            (it.next().value) + "|" + (it.next().value) + "|" + (it.next().value);
+            """);
+
+        Assert.Equal("10|10|11", result);
+        AssertGeneratorFastPath("g", argc: 0);
+    }
+
+    // End-to-end B8a: a plain lexical `let` assignment after a suspension now routes and stores through
+    // StoreSlot; this is the non-const half of the same const-slot bitmap widening.
+    [Fact(Timeout = 5000)]
+    public async Task GeneratorLetAssignmentAcrossYield_RoutesResumableAndIsCorrect()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function* g() {
+                let n = 1;
+                yield n;
+                n = 2;
+                yield n;
+            }
+
+            var it = g();
+            (it.next().value) + "|" + (it.next().value);
+            """);
+
+        Assert.Equal("1|2", result);
+        AssertGeneratorFastPath("g", argc: 0);
     }
 
     // End-to-end: a counter mutated across SEVERAL suspensions — the slot value must persist on the resume
@@ -251,38 +293,40 @@ public sealed class UnifiedBytecodeResumableSlotUpdateTests(ITestOutputHelper ou
         AssertAsyncFastPath("run", argc: 1);
     }
 
-    // NEGATIVE end-to-end: a `const` increment in a generator must keep its interpreter route and still
-    // throw the TypeError — the resumable fast-path log must be ABSENT (the const-unaware resumable handler
-    // never runs), proving the lexical-slot decline holds end to end.
+    // End-to-end B8a: a `const` increment now routes through the resumable fast path, but the VM catches the
+    // const slot before numeric coercion and throws the same TypeError as the sync path.
     [Fact(Timeout = 5000)]
-    public async Task ConstIncrementInGenerator_StaysOnInterpreterAndThrows()
+    public async Task ConstIncrementInGenerator_RoutesResumableAndThrows()
     {
         await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
             function* g() {
                 const x = 1;
                 yield x;
-                try { x++; } catch (e) { yield "THROW:" + e.constructor.name; return; }
+                x++;
                 yield "no-throw";
             }
 
             var it = g();
-            (it.next().value) + "|" + (it.next().value);
+            var first = it.next().value;
+            var caught = "none";
+            try {
+                it.next();
+            } catch (e) {
+                caught = e.constructor.name;
+            }
+
+            first + "|" + caught;
             """);
 
-        Assert.Equal("1|THROW:TypeError", result);
-        Assert.DoesNotContain(
-            CurrentLogger!.Collector.Snapshot(),
-            record => record.Message.Contains(ResumableGeneratorFastPathLog, StringComparison.Ordinal));
+        Assert.Equal("1|TypeError", result);
+        AssertGeneratorFastPath("g", argc: 0);
     }
 
-    // GATE (isolates the fix): a generator that PLAIN-ASSIGNS a `const` slot (`x = 2`, no try/catch) must
-    // be DECLINED by EvaluateResumable. The already-admitted StoreSlot opcode carries no const metadata, so
-    // without the AssignmentSlotInstruction lexical-slot guard this program was wrongly eligible and `x = 2`
-    // silently succeeded on the resumable fast path (yielding `1|2`). This is the direct, non-vacuous proof:
-    // it is eligible without the guard and declined with it.
+    // B8a GATE: a generator that plain-assigns a `const` slot is now eligible. StoreSlot owns const
+    // enforcement at runtime through the resume state's const bitmap.
     [Fact]
-    public void EvaluateResumable_ConstSlotAssignment_StaysDeclined()
+    public void EvaluateResumable_ConstSlotAssignmentAcrossYield_AdmitsStoreSlot()
     {
         var plan = GetFunctionPlan("""
             function* g() {
@@ -298,32 +342,40 @@ public sealed class UnifiedBytecodeResumableSlotUpdateTests(ITestOutputHelper ou
             plan,
             new UnifiedBytecodeProductionActivationDescriptor(IsGenerator: true));
 
-        Assert.False(result.IsEligible);
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Contains(
+            result.Program.Instructions,
+            static instruction => instruction.OpCode == UnifiedBytecodeOpCode.StoreSlot);
     }
 
-    // NEGATIVE end-to-end (mirrors ConstIncrementInGenerator, for plain assignment): a `const`
-    // reassignment in a generator keeps its interpreter route and throws TypeError; the resumable
-    // fast-path log must be ABSENT.
+    // End-to-end B8a: a `const` reassignment in a generator routes through the resumable fast path and
+    // throws from StoreSlot before mutating the slot.
     [Fact(Timeout = 5000)]
-    public async Task ConstAssignmentInGenerator_StaysOnInterpreterAndThrows()
+    public async Task ConstAssignmentInGenerator_RoutesResumableAndThrows()
     {
         await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
             function* g() {
                 const x = 1;
                 yield x;
-                try { x = 2; } catch (e) { yield "THROW:" + e.constructor.name; return; }
+                x = 2;
                 yield "no-throw";
             }
 
             var it = g();
-            (it.next().value) + "|" + (it.next().value);
+            var first = it.next().value;
+            var caught = "none";
+            try {
+                it.next();
+            } catch (e) {
+                caught = e.constructor.name;
+            }
+
+            first + "|" + caught;
             """);
 
-        Assert.Equal("1|THROW:TypeError", result);
-        Assert.DoesNotContain(
-            CurrentLogger!.Collector.Snapshot(),
-            record => record.Message.Contains(ResumableGeneratorFastPathLog, StringComparison.Ordinal));
+        Assert.Equal("1|TypeError", result);
+        AssertGeneratorFastPath("g", argc: 0);
     }
 
     private void AssertGeneratorFastPath(string functionName, int argc) =>

@@ -1132,70 +1132,10 @@ internal static class UnifiedBytecodeProductionEligibility
                 return true;
             }
 
-            // Slot-update const-safety guard. A `x++` / `x--` whose target resolves to a lexical
-            // (`let`/`const`) slot is declined: the resumable VM has no const-slot metadata
-            // (UnifiedBytecodeResumeState carries neither a const-slot bitmap nor slot environments), so it
-            // cannot reproduce the `TypeError: Assignment to constant variable` the sync VM raises for a
-            // `const` update. Because the lowered plan does not distinguish `let` from `const` (const-ness
-            // is a runtime environment property), the only statically provable non-const targets are
-            // parameters and `var`-declared slots — neither of which appears in
-            // ActivationSlotShape.LexicalSlotIndices. Declining every lexical-slot update therefore keeps
-            // exactly the const-unsafe shapes on the interpreter while admitting the provably-safe
-            // parameter/`var` updates. (This mirrors the const gap the already-admitted StoreSlot path has,
-            // but stays on the safe side of it rather than widening it.)
-            if (instruction is IncrementSlotInstruction
-                {
-                    TargetSymbol: { } updateTargetSymbol, FlatSlotId: var updateFlatSlotId, SlotIndex: var updateSlotIndex
-                })
-            {
-                if (!TryResolveActivationSymbolSlot(updateTargetSymbol, updateFlatSlotId, activationSlots))
-                {
-                    // Captured / free update target (`n++` where `n` is an enclosing-function local or a
-                    // module/script-level binding that escapes this activation's slots). The instruction
-                    // lowers to UpdateDynamicIdentifier, which resolves the name against the live closure
-                    // environment threaded onto UnifiedBytecodeResumeState.CallingEnvironment (#3108) —
-                    // captured at construction and stable across yield/await, so the update aliases the SAME
-                    // enclosing heap slot before and after each suspension. const-safety is enforced by the
-                    // environment itself (ResolveIdentifierAssignmentReference -> reference.SetValue throws the
-                    // `TypeError: Assignment to constant variable` for a captured `const`), so unlike the
-                    // resolved-slot path below this needs no const-slot metadata. The resumable opcode allowlist
-                    // (TryFindUnsupportedResumableOpcode) admits UpdateDynamicIdentifier, and the
-                    // ExecuteResumable switch carries its handler; both stay 1:1. Do NOT decline here — the
-                    // captured-write tier is admitted (mirrors the sync captured-closure route, commit
-                    // 1c0b30675). The one exception is a captured/free update sited INSIDE a finally that
-                    // protects a yield/await: TryFindTryFinallyRegionResumableSuspension declines that so the
-                    // generator keeps its IR-runner early-close finally semantics.
-                }
-                else if (IsLexicalSlotUpdateTarget(updateSlotIndex, updateFlatSlotId, activationSlots))
-                {
-                    declineCode = UnifiedBytecodeProductionDeclineCode.UnsupportedPlanShape;
-                    declineReason =
-                        $"Update target '{updateTargetSymbol.Name}' is a lexical (let/const) slot; the resumable VM cannot enforce const-assignment semantics and the update is not eligible for resumable unified bytecode routing.";
-                    return true;
-                }
-            }
-
-            // Plain slot assignment (`x = v`) to a lexical (`let`/`const`) slot keeps its interpreter route
-            // for the SAME reason as the slot-update guard above: the resumable VM
-            // (UnifiedBytecodeResumeState) carries no const-slot metadata, so it cannot raise the
-            // `TypeError: Assignment to constant variable` the sync VM enforces for a `const` reassignment.
-            // The already-admitted resumable StoreSlot opcode does not distinguish `const`, so without this
-            // guard `const x = 1; x = 2` inside a generator/async body silently succeeds (yields `1|2`).
-            // Declining every resolved lexical-slot assignment keeps the const-unsafe shapes on the
-            // interpreter while still admitting provably-non-const parameter/`var` assignments. (Unresolved
-            // free/dynamic stores already decline at the opcode level and are not affected here.)
-            if (instruction is AssignmentSlotInstruction
-                {
-                    TargetSymbol: { } assignTargetSymbol, FlatSlotId: var assignFlatSlotId, SlotIndex: var assignSlotIndex
-                }
-                && TryResolveActivationSymbolSlot(assignTargetSymbol, assignFlatSlotId, activationSlots)
-                && IsLexicalSlotUpdateTarget(assignSlotIndex, assignFlatSlotId, activationSlots))
-            {
-                declineCode = UnifiedBytecodeProductionDeclineCode.UnsupportedPlanShape;
-                declineReason =
-                    $"Assignment target '{assignTargetSymbol.Name}' is a lexical (let/const) slot; the resumable VM cannot enforce const-assignment semantics and the assignment is not eligible for resumable unified bytecode routing.";
-                return true;
-            }
+            // B8a const-slot metadata lives on UnifiedBytecodeResumeState, so resolved lexical-slot writes
+            // and updates no longer need a pre-VM decline here. Captured / free updates are still guarded by
+            // the environment reference itself; the only special case is a captured/free update inside a
+            // finally that protects a yield/await, declined below by the try/finally suspension guard.
 
             if (instruction is EnterTryInstruction enterTry &&
                 TryFindTryFinallyRegionResumableSuspension(
@@ -1231,14 +1171,6 @@ internal static class UnifiedBytecodeProductionEligibility
                         out declineCode,
                         out declineReason))
                 {
-                    return true;
-                }
-
-                if (TryFindLexicalSlotReferenceAssignment(program, activationSlots, out var lexicalReferenceTarget))
-                {
-                    declineCode = UnifiedBytecodeProductionDeclineCode.UnsupportedPlanShape;
-                    declineReason =
-                        $"Assignment target '{lexicalReferenceTarget.Name}' is a lexical (let/const) slot; the resumable VM cannot enforce const-assignment semantics and the assignment is not eligible for resumable unified bytecode routing.";
                     return true;
                 }
 
@@ -1318,14 +1250,11 @@ internal static class UnifiedBytecodeProductionEligibility
             // ExecuteResumable handler).
             case BindingVariableDeclarationInstruction { AwaitedProgram: not null, InitializerProgram: null }:
             case AssignmentSlotInstruction { AwaitedProgram: null, ValueProgram: { } }:
-            // Slot increment / decrement (`x++`, `x--`, `++x`, `--x`) over a parameter or `var`-declared
-            // slot. The instruction carries no AwaitedProgram (a prefix/postfix update on a slot cannot
-            // itself suspend — its operand is `slots[index]`, not a sub-expression that yields/awaits), so
-            // it always runs to completion inside one resumable step and never needs operand-stack
-            // restoration across a suspension. It is admitted here only structurally; the lexical-slot
-            // const-safety guard in TryFindResumablePlanDecline declines any update whose target is a
-            // lexical (`let`/`const`) slot, because the resumable VM carries no const-slot metadata and
-            // therefore cannot enforce the `TypeError` on a `const` reassignment the sync VM raises.
+            // Slot increment / decrement (`x++`, `x--`, `++x`, `--x`) over an activation slot. The
+            // instruction carries no AwaitedProgram (a prefix/postfix update on a slot cannot itself
+            // suspend — its operand is `slots[index]`, not a sub-expression that yields/awaits), so it
+            // always runs to completion inside one resumable step and never needs operand-stack restoration
+            // across a suspension. Const reassignment is enforced by the resume state's const-slot bitmap.
             case IncrementSlotInstruction:
             case EvaluateAndDiscardInstruction { ExpressionProgram: { } }:
             case BranchInstruction:
@@ -1469,13 +1398,11 @@ internal static class UnifiedBytecodeProductionEligibility
                 // (each evaluation yields a distinct RegExp with its own lastIndex) are preserved.
                 UnifiedBytecodeOpCode.LoadRegexLiteral or
                 UnifiedBytecodeOpCode.StoreSlot or
-                // Slot increment / decrement (`x++`, `x--`, `++x`, `--x`). Reaches this allowlist only for
-                // the parameter / `var` targets the instruction-level lexical-slot const-safety guard
-                // (TryFindResumablePlanDecline) admits — every lexical (`let`/`const`) target is declined
-                // before compilation because the resumable VM carries no const-slot metadata. The opcode
-                // reads `slots[index]`, computes the numeric ++/-- in place, and pushes the old or new
-                // value; it never touches the operand stack across a suspension (an update cannot itself
-                // yield/await), so no resume-state restoration is involved.
+                // Slot increment / decrement (`x++`, `x--`, `++x`, `--x`). The opcode reads
+                // `slots[index]`, checks the resume state's const-slot bitmap, computes the numeric ++/--
+                // in place, and pushes the old or new value; it never touches the operand stack across a
+                // suspension (an update cannot itself yield/await), so no resume-state restoration is
+                // involved.
                 UnifiedBytecodeOpCode.UpdateSlot or
                 UnifiedBytecodeOpCode.InitializeSlot or
                 // Declaration binding-target application for `let [a,b] = await p` / `const {x} = await p`
@@ -1623,10 +1550,10 @@ internal static class UnifiedBytecodeProductionEligibility
                 // sub-expression), so it never leaves a half-resolved reference on the operand stack across a
                 // suspension. const-safety is enforced by the environment itself
                 // (ResolveIdentifierAssignmentReference -> reference.SetValue throws the
-                // `TypeError: Assignment to constant variable` for a captured `const`), not by absent
-                // const-slot metadata, so admitting it is sound where the resolved-lexical-SLOT update stays
-                // declined. The ExecuteResumable switch carries the UpdateDynamicIdentifier handler (kept 1:1
-                // with this allowlist).
+                // `TypeError: Assignment to constant variable` for a captured `const`). Resolved lexical-slot
+                // updates enforce the same semantic through the resume state's const-slot bitmap. The
+                // ExecuteResumable switch carries the UpdateDynamicIdentifier handler (kept 1:1 with this
+                // allowlist).
                 //
                 // The captured/free plain and compound STORE (`n = v`, `n += v`) is NOT admitted: it lowers
                 // to the three-opcode ResolveDynamicIdentifierReference -> <RHS> ->
@@ -10560,33 +10487,6 @@ internal static class UnifiedBytecodeProductionEligibility
         return false;
     }
 
-    private static bool TryFindLexicalSlotReferenceAssignment(
-        ExpressionProgram program,
-        ActivationSlotShape activationSlots,
-        out Symbol target)
-    {
-        var identifierConstants = program.IdentifierConstants.AsSpan();
-        for (var operationIndex = 0; operationIndex < program.OperationCount; operationIndex++)
-        {
-            var operation = program.GetOperation(operationIndex);
-            if (operation.Kind != ExpressionOpKind.StoreResolvedIdentifier)
-            {
-                continue;
-            }
-
-            var identifier = operation.GetIdentifier(identifierConstants);
-            if (TryResolveExplicitActivationSlot(identifier, activationSlots, out var slotIndex) &&
-                IsLexicalSlotUpdateTarget(slotIndex, identifier.FlatSlotId, activationSlots))
-            {
-                target = identifier.Name;
-                return true;
-            }
-        }
-
-        target = default!;
-        return false;
-    }
-
     private static bool IsYieldStarSyntheticResult(Symbol symbol) =>
         symbol.Name.StartsWith("__yield_lower_resume", StringComparison.Ordinal);
 
@@ -10601,37 +10501,6 @@ internal static class UnifiedBytecodeProductionEligibility
         }
 
         return activationSlots.SlotMap.ContainsKey(symbol);
-    }
-
-    /// <summary>
-    ///     Conservatively reports whether a slot-update target (<c>x++</c> / <c>x--</c>) addresses a
-    ///     lexical (<c>let</c>/<c>const</c>) slot. Const-ness is a runtime environment property that the
-    ///     lowered plan does not preserve, so the only statically provable non-const slots are parameters
-    ///     and <c>var</c> bindings — neither of which is recorded in
-    ///     <see cref="ActivationSlotShape.LexicalSlotIndices" />. The update instruction may carry either a
-    ///     resolved flat slot id (<paramref name="flatSlotId" /> &gt;= 0) or a scope-relative
-    ///     <paramref name="slotIndex" />; because the two index spaces are not interchangeable here, this
-    ///     treats the target as lexical when <em>either</em> index appears in the lexical set. Returning
-    ///     <c>true</c> only ever causes an extra decline (the update keeps its interpreter route), so an
-    ///     over-broad match is safe; an under-broad one would not be, hence the union.
-    /// </summary>
-    private static bool IsLexicalSlotUpdateTarget(int slotIndex, int flatSlotId, ActivationSlotShape activationSlots)
-    {
-        var lexicalSlotIndices = activationSlots.LexicalSlotIndices;
-        if (lexicalSlotIndices.IsDefaultOrEmpty)
-        {
-            return false;
-        }
-
-        foreach (var lexicalSlotIndex in lexicalSlotIndices)
-        {
-            if (lexicalSlotIndex == slotIndex || (flatSlotId >= 0 && lexicalSlotIndex == flatSlotId))
-            {
-                return true;
-            }
-        }
-
-        return false;
     }
 
     private static bool CanUseMaterializedActivationDynamicLookup(

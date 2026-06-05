@@ -138,8 +138,8 @@ these allowlists — mechanical extensions against existing sync VM handlers.
 - [x] **B5** Computed property write `o[k]=v` — ☑/☑ ✅ #3114
 - [x] **B6** Property update `o.x++` / `o.x+=v` — ☑/☑ ✅ #3117
 - [x] **B7** Computed property update `o[k]++` — ☑/☑ ✅ #3117
-- [x] **B8** Slot update `x++` / `x+=v` (UpdateSlot) — ☑/◐ ✅ #3115 (var/param admitted; lexical `let`/`const` slot updates declined for const-safety — see B8a). Also fixed the latent const **plain-assignment** gap `const x=1; x=2` in #3116.
-- [ ] **B8a** *(follow-up, option a)* Thread a static const-slot bitmap from scope analysis → `ExecutionPlan`/`ActivationSlotShape` → `UnifiedBytecodeResumeState`, so the resumable VM can raise `TypeError: Assignment to constant variable` itself and restore `let`-write/`let`-update fast-path (currently `let`/`const` slot updates + assignments decline to the interpreter).
+- [x] **B8** Slot update `x++` / `x+=v` (UpdateSlot) — ☑/◐ ✅ #3115 (var/param admitted first; lexical `let`/`const` slot updates restored by B8a). Also fixed the latent const **plain-assignment** gap `const x=1; x=2` in #3116.
+- [x] **B8a** *(follow-up, option a)* Thread a static const-slot bitmap from scope analysis → `ExecutionPlan`/`ActivationSlotShape` → `UnifiedBytecodeResumeState`, so the resumable VM can raise `TypeError: Assignment to constant variable` itself and restore `let`-write/`let`-update fast-path. ✅ (Codex): `UnifiedBytecodeResumeState` now carries the const-slot bitmap seeded from `UnifiedBytecodeProgram.ConstSlotIndices` and extended by `TdzHeadInit`; resumable `StoreSlot`/`UpdateSlot` check it before mutation/coercion. The old lexical-slot assignment/update declines and expression-program slot-reference guard were removed, so `let` assignment/update routes while `const` assignment/update routes and throws from the VM.
 - [x] **B9** Property delete `delete o.x` — ☑/☑ ✅ #3117
 - [x] **B10** Computed property delete `delete o[k]` — ☑/☑ ✅ #3117
 - [x] **B11** `new C(args)` construct — ☑/☐ ✅ #3152
@@ -220,13 +220,13 @@ these allowlists — mechanical extensions against existing sync VM handlers.
 |---|---:|---|
 | 0 — Make list finite | 5 | 5 complete / 0 open; Phase 0 inventory closure is complete |
 | A — Sync admission | 69 | 44 complete / 25 open; by decline code / promoted compiler leaf |
-| B — Resumable parity + suspension | 57 | 31 complete / 26 open; class-expression decomposition added B24a-B24i |
+| B — Resumable parity + suspension | 57 | 32 complete / 25 open; class-expression decomposition added B24a-B24i |
 | C — Script route | 3 | 2 complete / 1 open; closes mostly via A/B |
 | D — Dynamic quarantine | 5 | 0 complete / 5 open; build the residue boundary |
 | E — Retire tiers | 6 | 3 complete / 3 open; E2/E3 = P0.2/P0.3 |
 | **Total** | **145** | finite current burn-down list after Phase 0 decomposition; future source drift must update audited inventories |
 
-**Status (129 concrete A+B+C checklist items):** 77 complete / 52 open. **Resumable is the bulk of the remaining work; class-expression creation, async-generator delegation, driver state, and fallback-tier retirement remain significant gaps.**
+**Status (129 concrete A+B+C checklist items):** 78 complete / 51 open. **Resumable is the bulk of the remaining work; class-expression creation, async-generator delegation, driver state, and fallback-tier retirement remain significant gaps.**
 
 ## Known soft spots
 1. **Named compiler-decline leaves** (A51a-A51m/B47a) are now source-inventoried in the expansion contract; future `TryCompile` reason drift must update that contract and the focused source gate.
@@ -234,4 +234,4 @@ these allowlists — mechanical extensions against existing sync VM handlers.
 
 ---
 
-_Checklist status: 88 / 145 complete after B21 tagged-template/template-object admission. Phase 0 inventory closure is complete; remaining work is semantic admission, dynamic quarantine, and fallback-tier retirement._
+_Checklist status: 89 / 145 complete after B8a resumable const-slot enforcement and lexical slot write/update admission. Phase 0 inventory closure is complete; remaining work is semantic admission, dynamic quarantine, and fallback-tier retirement._

@@ -728,16 +728,16 @@ predicates and proof tests.
   DELETE (`delete freeVar` via `DeleteDynamicIdentifier`, B28 — self-contained:
   name + environment + isStrict → bool, never touching the transient reference
   array, so no pending reference for the resume state to thread), PROPERTY WRITES (`o.x = v`, `o[k] = v`,
-  `this.x = v` via `SetNamedProperty`/`SetComputedProperty`), SLOT UPDATES
-  (`x++`/`x--`/`++x`/`--x` via `UpdateSlot`, restricted to parameter and `var`
-  targets by the `IsLexicalSlotUpdateTarget` const-safety guard), and PROPERTY
+  `this.x = v` via `SetNamedProperty`/`SetComputedProperty`), SLOT UPDATES and SLOT ASSIGNMENTS
+  (`x++`/`x--`/`++x`/`--x` via `UpdateSlot` and `x = v` via `StoreSlot`,
+  admitted for parameter, `var`, and lexical `let`/`const` targets; const writes are
+  enforced by `UnifiedBytecodeResumeState` const-slot metadata), and PROPERTY
   UPDATES/DELETES (`o.x++`, `o[k]--`, `delete o.x`, `delete o[k]` via
   `UpdateNamedProperty`/`UpdateComputedProperty`/`DeleteNamedProperty`/
   `DeleteComputedProperty`) between suspension points; the OPTIONAL-COMPUTED call
   `o?.[k]()` (a leading optional hop, declined at the shared plan walk as
   `OptionalChainDependency` — distinct from the now-admitted computed-member
-  optional call `o[k]?.()`, B15), lexical-slot updates (`let i; i++`, where the resume state has no
-  const-slot metadata to enforce a `const` reassignment `TypeError`),
+  optional call `o[k]?.()`, B15),
   free/dynamic plain and compound WRITES (`freeGlobal = v`, `freeGlobal += x`,
   B26/B29 — these lower via the
   `ResolveDynamicIdentifierReference` → `StoreDynamicIdentifierReference` sequence

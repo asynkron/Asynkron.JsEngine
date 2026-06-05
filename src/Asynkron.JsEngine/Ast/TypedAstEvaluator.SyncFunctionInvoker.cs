@@ -2840,28 +2840,12 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                     return TryCompleteIrFastExpressionResult(context, callingContext, ref result);
                 }
 
-                var runner = new ExecutionPlanRunner(
-                    _function,
-                    _closure,
-                    Array.Empty<JsValue>(),
+                result = InvokeOrdinarySyncRunnerResidue(
                     thisValue,
-                    this,
-                    RealmState,
-                    _isStrict,
-                    _hasFunctionNameEnvironment,
-                    _homeObject,
-                    PrivateNameScope,
-                    _capturedPrivateNameScopes,
                     newTarget,
-                    _lexicalThisEnvironment,
-                    _superConstructor,
-                    _superPrototype,
+                    plan,
                     context,
-                    planOverride: plan,
-                    planFailureOverride: _planSeed.Failure,
-                    executionEnvironmentOverride: executionEnvironment);
-
-                result = runner.RunSync();
+                    executionEnvironment);
                 return true;
             }
             catch (ThrowSignal signal) when (callingContext is not null)
@@ -2876,6 +2860,41 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                 // activation environments created above are owned by this fast path.
                 ReturnSimpleIrActivationEnvironment(executionEnvironment);
             }
+        }
+
+        private JsValue InvokeOrdinarySyncRunnerResidue(
+            JsValue thisValue,
+            JsValue newTarget,
+            ExecutionPlan plan,
+            EvaluationContext context,
+            JsEnvironment executionEnvironment)
+        {
+            RealmState.Logger?.LogInformation(
+                "ordinary-sync-runner-residue func={Function}",
+                _function.Name?.Name ?? "<anonymous>");
+
+            var runner = new ExecutionPlanRunner(
+                _function,
+                _closure,
+                Array.Empty<JsValue>(),
+                thisValue,
+                this,
+                RealmState,
+                _isStrict,
+                _hasFunctionNameEnvironment,
+                _homeObject,
+                PrivateNameScope,
+                _capturedPrivateNameScopes,
+                newTarget,
+                _lexicalThisEnvironment,
+                _superConstructor,
+                _superPrototype,
+                context,
+                planOverride: plan,
+                planFailureOverride: _planSeed.Failure,
+                executionEnvironmentOverride: executionEnvironment);
+
+            return runner.RunSync();
         }
 
         [MethodImpl(JsEngineConstants.Inlining)]

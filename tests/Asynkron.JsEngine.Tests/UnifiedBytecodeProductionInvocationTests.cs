@@ -9009,7 +9009,7 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
             StringComparison.Ordinal);
         Assert.True(routeStart >= 0, "Could not locate TryInvokeIrFast route method.");
         var routeEnd = invokerSource.IndexOf(
-            "private bool TryInvokeSimpleDerivedClassConstructorFastPath<TArgs>(",
+            "private JsValue InvokeOrdinarySyncRunnerResidue(",
             routeStart,
             StringComparison.Ordinal);
         Assert.True(routeEnd > routeStart, "Could not locate end boundary for TryInvokeIrFast.");
@@ -9027,7 +9027,9 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
         var syncIrTrampolineIndex = routeSource.IndexOf(
             "SyncIrCallTrampoline.TryInvoke(",
             StringComparison.Ordinal);
-        var genericRunnerIndex = routeSource.IndexOf("new ExecutionPlanRunner(", StringComparison.Ordinal);
+        var ordinarySyncResidueIndex = routeSource.IndexOf(
+            "InvokeOrdinarySyncRunnerResidue(",
+            StringComparison.Ordinal);
 
         Assert.True(
             unifiedBytecodeIndex >= 0,
@@ -9042,8 +9044,35 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
             syncIrTrampolineIndex > binaryChainFastPathIndex,
             "SyncIrCallTrampoline should stay behind production unified bytecode and simple binary fallbacks.");
         Assert.True(
-            genericRunnerIndex > syncIrTrampolineIndex,
-            "Generic ExecutionPlanRunner fallback should stay after production unified bytecode and SyncIrCallTrampoline.");
+            ordinarySyncResidueIndex > syncIrTrampolineIndex,
+            "Ordinary sync runner residue should stay after production unified bytecode and SyncIrCallTrampoline.");
+        Assert.DoesNotContain("new ExecutionPlanRunner(", routeSource, StringComparison.Ordinal);
+        Assert.DoesNotContain(".RunSync(", routeSource, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void SourceGate_OrdinarySyncRunnerResidue_IsIsolatedAndNamed()
+    {
+        var repositoryRoot = FindRepositoryRootForSourceGate();
+        var invokerPath = Path.Combine(
+            repositoryRoot.FullName,
+            "src",
+            "Asynkron.JsEngine",
+            "Ast",
+            "TypedAstEvaluator.SyncFunctionInvoker.cs");
+
+        var invokerSource = File.ReadAllText(invokerPath);
+        var residueSource = ExtractRequiredSourceSection(
+            invokerSource,
+            "private JsValue InvokeOrdinarySyncRunnerResidue(",
+            "        [MethodImpl(JsEngineConstants.Inlining)]\n        private bool ShouldDeferSimpleIrFastPathToProductionUnifiedBytecode(",
+            "ordinary sync runner residue helper");
+
+        Assert.Contains("ordinary-sync-runner-residue", residueSource, StringComparison.Ordinal);
+        Assert.Contains("new ExecutionPlanRunner(", residueSource, StringComparison.Ordinal);
+        Assert.Contains("runner.RunSync()", residueSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("TryInvokeProductionUnifiedBytecode(", residueSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("UnifiedBytecodeVirtualMachine.Execute", residueSource, StringComparison.Ordinal);
     }
 
     [Fact]

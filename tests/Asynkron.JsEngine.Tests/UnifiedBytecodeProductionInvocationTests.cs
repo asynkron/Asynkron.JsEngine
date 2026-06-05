@@ -10372,6 +10372,34 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
                 StringComparison.Ordinal));
     }
 
+    [Fact(Timeout = 5000)]
+    public async Task ClassExpressionComputedMemberAndFieldNames_UseUnifiedBytecodeProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function makeComputedClass(methodKey, instanceKey, staticKey, seed) {
+                return class {
+                    [methodKey]() {
+                        return this[instanceKey] + this.constructor[staticKey] + seed;
+                    }
+
+                    [instanceKey] = 10;
+                    static [staticKey] = 20;
+                };
+            }
+
+            var Computed = makeComputedClass("read", "instanceValue", "staticValue", 5);
+            var instance = new Computed();
+            instance.read() + Computed.staticValue + instance.instanceValue;
+            """);
+
+        Assert.Equal(65d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=makeComputedClass argc=4",
+                StringComparison.Ordinal));
+    }
+
     public static TheoryData<string, string, double, string, int> SupportedLoopControlFunctions =>
         new()
         {

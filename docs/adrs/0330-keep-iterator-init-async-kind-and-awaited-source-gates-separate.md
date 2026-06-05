@@ -50,6 +50,10 @@ subset, and missing/dual source payloads declined before compilation.
 - Async-kind tests should exercise `IsSupportedIteratorInit` directly where
   async-like activation pre-gates would otherwise hide the iterator-kind
   decision.
+- Async-kind admission must prove the full settlement surface, not just
+  `IteratorInit`: async iterator `next` results, yielded values, `return()`
+  close results, and control-flow cleanup jumps must all be owned by
+  `ExecuteResumable` and reflected in the resumable opcode allowlist.
 - ADR 0288 remains the record for admitting TDZ head environments, but its
   awaited-source row is historical. The current iterator-init boundary is the
   one above.
@@ -67,3 +71,11 @@ subset, and missing/dual source payloads declined before compilation.
   `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests.Evaluate_ForOfPlan_AcceptsIteratorDriverOpcodes"`
   passed 1 test.
 - Diff hygiene: `rtk git diff --check` passed.
+- B41 admission issue:
+  `planitem-planmanual1780639098493226000-full-unified-bytecode-execution-burndown-b-b462ae896c`
+- PR: #3220
+- Delivery commit:
+  `4ad2cf19d Agent: task planitem-planmanual1780639098493226000-full-unified-bytecode-execution-burndown-b-b462ae896c`
+- B41 focused tests:
+  `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~ExpressionProgramCoverageMapTests|FullyQualifiedName~UnifiedBytecodeResumableForOfTests"`
+  passed 19 tests across the coverage-map and resumable for-of proof packs.

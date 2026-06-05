@@ -448,6 +448,18 @@ all-or-nothing until a separate routing issue proves production readiness.
      narrow to catch accepted-route delegation drift. The repair restored broad
      forbidden-token checks while explicitly classifying async-generator
      result/kind type names and setup-only runner environment creation.
+     Faktorial issue
+     `planitem-planitem-planmanual1780639098493226000-full-unified-bytecode-execution-b-25237d6be1`
+     / PR #3284 reinforced that setup-only runner environment creation must be
+     named by route boundary. Declined async/generator/async-generator bodies
+     use `CreateClassified*DeclinedBodyRunner` helpers and remain fallback
+     inventory, while accepted `super` bodies use
+     `CreateResumableSuperEnvironmentBridgeRunner` only to materialize the
+     environment before `UnifiedBytecodeResumeState` owns execution. Source
+     gates should remove that narrow bridge marker from accepted setup sections
+     without allowing unclassified fallback runner construction or helper
+     definitions inside the accepted route body. Related ADR:
+     `docs/adrs/0347-keep-resumable-runner-construction-classified-by-route-boundary.md`.
 10k. When retiring ordinary sync runner residue, convert the source gate from
      a classified fallback allowance to a tombstone. `TryInvokeIrFast<TArgs>(...)`
      must not construct `ExecutionPlanRunner`, call `.RunSync(`, or silently

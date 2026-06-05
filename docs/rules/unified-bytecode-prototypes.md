@@ -186,11 +186,12 @@ all-or-nothing until a separate routing issue proves production readiness.
      `UnifiedBytecodeResumeState.CallingEnvironment` and the existing
      class-definition program cache owns the member/initializer execution.
      Extends expressions that read resumable activation slots, computed member
-     names, static elements, private methods/accessors, and broad static-field
-     creation must remain explicit pre-VM declines until the resumable route
-     owns that class-definition environment state directly. Future B24 widening
-     needs both positive route/runtime proof for the admitted element family and
-     nearby no-route proof for the still-unowned class-definition families.
+     names, static elements, broad static-field creation, and private
+     method/accessor bodies that capture activation slots must remain explicit
+     pre-VM declines until the resumable route owns that class-definition
+     environment state directly. Future B24 widening needs both positive
+     route/runtime proof for the admitted element family and nearby no-route
+     proof for the still-unowned class-definition families.
      WHY: issue
      `planitem-planmanual1780639098493226000-full-unified-bytecode-execution-burndown-b-f3d5eef198`
      / PR #3205 admitted public class-literal member `super` and public
@@ -201,6 +202,14 @@ all-or-nothing until a separate routing issue proves production readiness.
      routeable when existing class-definition machinery and the captured calling
      environment already own lookup, but the route must not infer broad
      class-expression safety from that narrow ownership proof.
+     Issue
+     `planitem-planmanual1780639098493226000-full-unified-bytecode-execution-burndown-b-7d0f3d6a80`
+     / PR #3194 then admitted the narrow B24f private method/accessor shape.
+     The durable lesson is the same classification discipline: private member
+     creation can reuse shared class creation only when the constructor and
+     private member bodies do not capture resumable activation slots; captured
+     bodies still need a future materialized body-environment route. Related
+     ADR: `docs/adrs/0327-admit-resumable-class-literal-private-members-through-shared-class-creation.md`.
 11. When updating docs, ADRs, roadmap text, or evidence reports for unified
     bytecode production routing, treat ADR 0253 as the current loop-control
     production widening layered on ADR 0210, and keep ADR 0204/#2227
@@ -1975,14 +1984,17 @@ avoids the build-back repair cycle that the sibling task (PR #2748) required.
     already safe to run through the captured calling environment:
     constructor-only class expressions, implicit base constructors, and implicit
     derived constructors whose `extends` value is resolved from the surrounding
-    environment rather than from resumable activation slots. The resumable
-    handler must synchronize unified slots into that environment before class
-    creation, call `CreateClassValueFromLiteral(...)`, synchronize back after
-    creation, and translate class-creation throws into the resumable throw
-    step. Keep fields, static elements/blocks, private members, accessors,
-    computed members, member `super`, and `extends` expressions that read
-    resumable activation slots as pre-VM declines until the VM owns those
-    class-definition environment semantics. Do not duplicate class-definition,
+    environment rather than from resumable activation slots, narrow private
+    instance fields, and narrow private method/accessor class literals whose
+    constructor/private member bodies do not capture activation slots. The
+    resumable handler must synchronize unified slots into that environment
+    before class creation, call `CreateClassValueFromLiteral(...)`, synchronize
+    back after creation, and translate class-creation throws into the resumable
+    throw step. Keep unproven fields, static elements/blocks, public accessors,
+    computed members, member `super`, activation-capturing private members, and
+    `extends` expressions that read resumable activation slots as pre-VM
+    declines until the VM owns those class-definition environment semantics. Do
+    not duplicate class-definition,
     `extends`, static-element, private-name, or name-inference semantics inside
     the VM, and do not satisfy the route by falling back to `ExpressionProgram`,
     `ExecutionPlanRunner`, or raw AST evaluation. Keep the opcode allowlist,
@@ -2001,6 +2013,12 @@ avoids the build-back repair cycle that the sibling task (PR #2748) required.
     is safe through the captured calling environment, but class elements and
     activation-slot-dependent `extends` still require later class-definition
     environment ownership.
+    Issue
+    `planitem-planmanual1780639098493226000-full-unified-bytecode-execution-burndown-b-7d0f3d6a80`
+    / PR #3194 widened that boundary for B24f private instance methods and
+    accessors only after adding activation-capture declines and focused
+    route/no-route proof. Related ADR:
+    `docs/adrs/0327-admit-resumable-class-literal-private-members-through-shared-class-creation.md`.
 
 51. When widening production unified-bytecode construct routing beyond the
     identifier-only `new F(...)` lane, keep constructor-target recognition

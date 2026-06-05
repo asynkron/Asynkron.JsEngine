@@ -369,14 +369,18 @@ internal static class ExpressionProgramCompiler
                         }
 
                         var optionalNamedShortCircuitIndex = builder.Count;
-                        builder.Add(PackedExpressionOp.JumpIfNullish(-1));
+                        builder.Add(optionalNamedDelete.IsOptional
+                            ? PackedExpressionOp.JumpIfNullish(-1)
+                            : PackedExpressionOp.JumpIfShortCircuited(-1));
                         builder.Add(PackedExpressionOp.DeleteNamedProperty(
                             builder.InternString(propertyLiteral.Value.AsString())));
                         var optionalNamedEndJumpIndex = builder.Count;
                         builder.Add(PackedExpressionOp.Jump(-1));
                         var optionalNamedShortCircuitTarget = builder.Count;
                         builder[optionalNamedShortCircuitIndex] =
-                            PackedExpressionOp.JumpIfNullish(optionalNamedShortCircuitTarget);
+                            optionalNamedDelete.IsOptional
+                                ? PackedExpressionOp.JumpIfNullish(optionalNamedShortCircuitTarget)
+                                : PackedExpressionOp.JumpIfShortCircuited(optionalNamedShortCircuitTarget);
                         builder.Add(PackedExpressionOp.Pop);
                         builder.Add(PackedExpressionOp.LoadLiteralConstant(
                             builder.InternLiteral(JsValue.True)));
@@ -399,7 +403,9 @@ internal static class ExpressionProgramCompiler
                         }
 
                         var optionalComputedShortCircuitIndex = builder.Count;
-                        builder.Add(PackedExpressionOp.JumpIfNullish(-1));
+                        builder.Add(optionalComputedDelete.IsOptional
+                            ? PackedExpressionOp.JumpIfNullish(-1)
+                            : PackedExpressionOp.JumpIfShortCircuited(-1));
 
                         if (!TryCompileExpression(optionalComputedDelete.Property, builder, out failureReason))
                         {
@@ -411,7 +417,9 @@ internal static class ExpressionProgramCompiler
                         builder.Add(PackedExpressionOp.Jump(-1));
                         var optionalComputedShortCircuitTarget = builder.Count;
                         builder[optionalComputedShortCircuitIndex] =
-                            PackedExpressionOp.JumpIfNullish(optionalComputedShortCircuitTarget);
+                            optionalComputedDelete.IsOptional
+                                ? PackedExpressionOp.JumpIfNullish(optionalComputedShortCircuitTarget)
+                                : PackedExpressionOp.JumpIfShortCircuited(optionalComputedShortCircuitTarget);
                         builder.Add(PackedExpressionOp.Pop);
                         builder.Add(PackedExpressionOp.LoadLiteralConstant(
                             builder.InternLiteral(JsValue.True)));

@@ -28,12 +28,8 @@ namespace Asynkron.JsEngine.Tests;
 public sealed class FinallyReturnCallAdmissionTests(ITestOutputHelper output) : InternalTestBase(output)
 {
     // A8 headline (sloppy finally-return overrides the protected try-return). The FREE-identifier callee `g`
-    // sits inside the finally region, which the with-depth reachability analysis does not traverse, so a body
-    // with NO dynamic dependency in its REACHABLE (non-finally) region never enables the ordinary-dynamic-name
-    // path needed to lower the free call target. That finally-reachability gating gap (noted when A8 was first
-    // declined) is out of scope here, so this exact shape still DECLINES — but it computes correctly via the IR
-    // runner, and crucially it is NO LONGER a forced decline by the strict A8 guard. A routing-positive variant
-    // (free callee + a reachable dynamic dependency) is proven below.
+    // sits inside a zero-with-depth finally region. A45 must still visit that finally entry so the ordinary
+    // dynamic-name scan sees the free call target and admits the production VM route.
     [Fact]
     public async Task SloppyFinallyReturnFreeCall_OverridesTryReturnAndComputes()
     {
@@ -41,6 +37,7 @@ public sealed class FinallyReturnCallAdmissionTests(ITestOutputHelper output) : 
         var result = await engine.Evaluate(
             "function g(){ return 7; } function f(){ try { return 1; } finally { return g(); } } f();");
         Assert.Equal(7d, Convert.ToDouble(result));
+        AssertRouted("unified-bytecode-production-fast-path func=f");
     }
 
     // A8 routing-positive for a FREE-identifier finally callee: once the REACHABLE region carries a dynamic
@@ -116,9 +113,9 @@ public sealed class FinallyReturnCallAdmissionTests(ITestOutputHelper output) : 
 
     // A8: a NON-STRICT (sloppy) self-recursive finally-return call is NEVER tail-call-optimized anywhere (the
     // IR runner's restart requires strict mode), so the strict-only A8 guard no longer force-declines it. The
-    // self-reference `countdown` is a free identifier inside the finally region with no reachable dynamic
-    // dependency, so the finally-reachability gating gap (see SloppyFinallyReturnFreeCall above) leaves it
-    // DECLINED to the IR runner — but it computes correctly. Shallow depth so neither path overflows.
+    // self-reference `countdown` is a free identifier inside a zero-with-depth finally region, so the ordinary
+    // finally free-call dynamic-name gate remains out of scope for A45 and this shape still DECLINES. Shallow
+    // depth so the IR runner computes without overflowing.
     [Fact(Timeout = 15000)]
     public async Task SloppySelfRecursiveFinallyReturnCall_Computes()
     {

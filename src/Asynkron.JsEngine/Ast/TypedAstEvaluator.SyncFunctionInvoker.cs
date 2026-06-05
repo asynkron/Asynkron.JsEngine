@@ -2825,11 +2825,13 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                 if (plan.IrCallShape == IrCallShape.SimpleReturnExpression &&
                     plan.SimpleReturnProgram is { } returnProgram)
                 {
+                    // E4 fallback-only expression-program bridge: production-accepted routes return through
+                    // UnifiedBytecodeVirtualMachine before this simple-IR fallback is considered.
                     RealmState.Logger?.LogInformation(
                         "simple-ir-return-fast-path func={Function} argc={ArgumentCount}",
                         _function.Name?.Name ?? "<anonymous>",
                         arguments.Count);
-                    result = ExecutionPlanRunner.EvaluateStandaloneExpressionProgram(
+                    result = EvaluateLoweredExpressionProgram(
                         returnProgram,
                         executionEnvironment,
                         context,

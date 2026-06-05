@@ -309,6 +309,95 @@ public sealed class ExecutionPlanDiagnosticsTests(ITestOutputHelper output) : In
     }
 
     [Fact]
+    public void SourceGate_E4_ProductionRoutes_DoNotCallStandaloneExpressionProgramEvaluator()
+    {
+        var repositoryRoot = FindRepositoryRoot();
+        var sourceRoot = Path.Combine(repositoryRoot.FullName, "src", "Asynkron.JsEngine");
+        var bridgeFile = "src/Asynkron.JsEngine/Ast/TypedAstEvaluator.ExpressionPrograms.cs";
+        var matches = Directory
+            .EnumerateFiles(sourceRoot, "*.cs", SearchOption.AllDirectories)
+            .SelectMany(file =>
+            {
+                var relativePath = Path.GetRelativePath(repositoryRoot.FullName, file).Replace('\\', '/');
+                return File.ReadAllLines(file)
+                    .Select((line, index) => new { line, index })
+                    .Where(entry =>
+                        entry.line.Contains("ExecutionPlanRunner.EvaluateStandaloneExpressionProgram(", StringComparison.Ordinal) ||
+                        entry.line.Contains("ExecutionPlanRunner.ProfileEvaluateExpressionProgramLoop(", StringComparison.Ordinal))
+                    .Select(entry => (relativePath, entry.index + 1, entry.line.Trim()));
+            })
+            .ToArray();
+
+        Assert.NotEmpty(matches);
+
+        var disallowed = matches
+            .Where(match => !string.Equals(match.relativePath, bridgeFile, StringComparison.Ordinal))
+            .Select(match => $"{match.relativePath}:{match.Item2}:{match.Item3}")
+            .ToArray();
+
+        Assert.True(
+            disallowed.Length == 0,
+            "E4 production route drift detected: standalone ExpressionProgram evaluator entry points must stay centralized in the bridge file and out of production routing code:\n" +
+            string.Join('\n', disallowed));
+    }
+
+    [Fact]
+    public void SourceGate_E4_LoweredExpressionProgramCallers_AreClassified()
+    {
+        var repositoryRoot = FindRepositoryRoot();
+        var sourceRoot = Path.Combine(repositoryRoot.FullName, "src", "Asynkron.JsEngine");
+        var allowedCallSites = new HashSet<string>(StringComparer.Ordinal)
+        {
+            "src/Asynkron.JsEngine/Ast/ClassDefinitionExtensions.cs",
+            "src/Asynkron.JsEngine/Ast/ClassFieldInitializer.cs",
+            "src/Asynkron.JsEngine/Ast/ClassPropertyNameResolver.cs",
+            "src/Asynkron.JsEngine/Ast/TypedAstEvaluator.ExpressionPrograms.cs",
+            "src/Asynkron.JsEngine/Ast/TypedAstEvaluator.SyncFunctionInvoker.cs"
+        };
+
+        var matches = Directory
+            .EnumerateFiles(sourceRoot, "*.cs", SearchOption.AllDirectories)
+            .SelectMany(file =>
+            {
+                var relativePath = Path.GetRelativePath(repositoryRoot.FullName, file).Replace('\\', '/');
+                var lines = File.ReadAllLines(file);
+                return lines
+                    .Select((line, index) => new { line, index })
+                    .Where(entry => entry.line.Contains("EvaluateLoweredExpressionProgram(", StringComparison.Ordinal))
+                    .Select(entry => (
+                        relativePath,
+                        LineNumber: entry.index + 1,
+                        Text: entry.line.Trim(),
+                        NearbyText: string.Join('\n', lines.Skip(Math.Max(0, entry.index - 8)).Take(9))));
+            })
+            .ToArray();
+
+        Assert.NotEmpty(matches);
+
+        var disallowed = matches
+            .Where(match => !allowedCallSites.Contains(match.relativePath))
+            .Select(match => $"{match.relativePath}:{match.LineNumber}:{match.Text}")
+            .ToArray();
+
+        Assert.True(
+            disallowed.Length == 0,
+            "EvaluateLoweredExpressionProgram call-site drift detected; classify new callers as dynamic, class-definition/class-field, profiling, or fallback-only:\n" +
+            string.Join('\n', disallowed));
+
+        var syncInvokerFallbackCalls = matches
+            .Where(static match => string.Equals(
+                match.relativePath,
+                "src/Asynkron.JsEngine/Ast/TypedAstEvaluator.SyncFunctionInvoker.cs",
+                StringComparison.Ordinal))
+            .Where(static match => match.NearbyText.Contains(
+                "E4 fallback-only expression-program bridge",
+                StringComparison.Ordinal))
+            .ToArray();
+
+        Assert.Single(syncInvokerFallbackCalls);
+    }
+
+    [Fact]
     public void SourceGate_ExpressionOpKind_RuntimeAndDiagnosticSurfaces_DoNotDrift()
     {
         var repositoryRoot = FindRepositoryRoot();

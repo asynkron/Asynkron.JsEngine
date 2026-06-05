@@ -3666,6 +3666,18 @@ internal static class UnifiedBytecodeVirtualMachine
                         break;
                     }
 
+                case UnifiedBytecodeOpCode.LoadClassLiteral:
+                    {
+                        var classExpression = program.ClassLiteralConstants[instruction.Operand];
+                        var closureEnvironment = RequireDynamicEnvironment(state.CallingEnvironment);
+                        PushResumableValue(TypedAstEvaluator.CreateClassValueFromLiteral(
+                            classExpression,
+                            closureEnvironment,
+                            context));
+                        programCounter++;
+                        break;
+                    }
+
                 case UnifiedBytecodeOpCode.EnsureHasName:
                     {
                         var targetName = program.StringConstants[instruction.Operand];

@@ -156,7 +156,7 @@ these allowlists — mechanical extensions against existing sync VM handlers.
 - [x] **B22** Regex literal — ☑/☑ ✅ #3118
 - [ ] **B23** Nested function literal — ☑/◐ — ◐ partial: non-capturing nested function literals inside generator/async bodies now route through `ExecuteResumable` via `LoadFunctionLiteral` and `EnsureHasName` (including object method/accessor literals from A35b-e). Capturing literals still decline: the body's locals are flat slots on the resume state, not env bindings, so a nested fn that captures a body local would resolve through the env chain and throw `ReferenceError`/go stale. Function declarations nested inside an otherwise non-capturing function literal also stay declined until declaration instantiation is represented by the resumable route. Correct for the remaining subset via IR until the resume state owns a materialized body environment.
 - [ ] **B24a** Class expression constructor/default-constructor creation — sync ◐ / res ☐ — `LoadClassLiteral` has sync VM coverage, but creation still delegates to class-definition machinery; resumable declines `LoadClassLiteral`.
-- [ ] **B24b** Class expression instance fields — sync ◐ / res ☐ — field name/initializer handling still runs through class-definition field programs during class creation; resumable declines before creation.
+- [x] **B24b** Class expression instance fields — sync ◐ / res ◐ ✅ (Codex): resumable generator/async bodies now admit `LoadClassLiteral` for the public non-computed instance-field class-expression subset whose field initializers do not capture activation slots, create the class value from the captured calling environment inside `ExecuteResumable`, and keep constructor-only, static, private, computed, accessor/member, extends/super, static-block, and activation-capturing field-initializer shapes declined for B24a/B24c-B24i and the remaining B24b closure follow-up.
 - [ ] **B24c** Class expression static fields — sync ◐ / res ☐ — static field initialization still runs during class-definition evaluation; resumable declines before creation.
 - [ ] **B24d** Class expression static blocks — sync ◐ / res ☐ — static blocks explicitly execute via `ExecutionPlanRunner.RunScript`; must become bytecode-owned before fallback-tier retirement.
 - [ ] **B24e** Class expression private fields / branding — sync ◐ / res ☐ — private scope/brand setup is owned by class-definition creation, not resumable bytecode.
@@ -220,13 +220,13 @@ these allowlists — mechanical extensions against existing sync VM handlers.
 |---|---:|---|
 | 0 — Make list finite | 5 | 5 complete / 0 open; Phase 0 inventory closure is complete |
 | A — Sync admission | 69 | 46 complete / 23 open; by decline code / promoted compiler leaf |
-| B — Resumable parity + suspension | 57 | 37 complete / 20 open; class-expression decomposition added B24a-B24i |
+| B — Resumable parity + suspension | 57 | 38 complete / 19 open; class-expression decomposition added B24a-B24i |
 | C — Script route | 3 | 2 complete / 1 open; closes mostly via A/B |
 | D — Dynamic quarantine | 5 | 0 complete / 5 open; build the residue boundary |
 | E — Retire tiers | 6 | 3 complete / 3 open; E2/E3 = P0.2/P0.3 |
 | **Total** | **145** | finite current burn-down list after Phase 0 decomposition; future source drift must update audited inventories |
 
-**Status (129 concrete A+B+C checklist items):** 85 complete / 44 open. **Resumable is the bulk of the remaining work; class-expression creation, async-generator delegation, driver state, and fallback-tier retirement remain significant gaps.**
+**Status (129 concrete A+B+C checklist items):** 86 complete / 43 open. **Resumable is the bulk of the remaining work; class-expression creation, async-generator delegation, driver state, and fallback-tier retirement remain significant gaps.**
 
 ## Known soft spots
 1. **Named compiler-decline leaves** (A51a-A51m/B47a) are now source-inventoried in the expansion contract; future `TryCompile` reason drift must update that contract and the focused source gate.

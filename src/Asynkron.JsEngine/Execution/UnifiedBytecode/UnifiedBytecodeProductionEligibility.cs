@@ -348,7 +348,7 @@ internal static class UnifiedBytecodeProductionEligibility
                 $"Plan is not eligible for resumable unified bytecode routing: {compileReason}");
         }
 
-        if (TryFindUnsupportedResumableOpcode(program, out declineReason))
+        if (TryFindUnsupportedResumableOpcode(program, activationSlots, out declineReason))
         {
             return UnifiedBytecodeProductionEligibilityResult.Decline(
                 UnifiedBytecodeProductionDeclineCode.UnsupportedPlanShape,
@@ -1657,10 +1657,22 @@ internal static class UnifiedBytecodeProductionEligibility
 
     private static bool TryFindUnsupportedResumableOpcode(
         UnifiedBytecodeProgram program,
+        ActivationSlotShape activationSlots,
         out string declineReason)
     {
         foreach (var instruction in program.Instructions)
         {
+            if (instruction.OpCode == UnifiedBytecodeOpCode.LoadClassLiteral)
+            {
+                var classExpression = program.ClassLiteralConstants[instruction.Operand];
+                if (IsB24bResumableClassLiteral(classExpression, activationSlots, out declineReason))
+                {
+                    continue;
+                }
+
+                return true;
+            }
+
             if (instruction.OpCode is
                 UnifiedBytecodeOpCode.LoadSlot or
                 UnifiedBytecodeOpCode.LoadLiteral or
@@ -1992,6 +2004,127 @@ internal static class UnifiedBytecodeProductionEligibility
         }
 
         declineReason = string.Empty;
+        return false;
+    }
+
+    private static bool IsB24bResumableClassLiteral(
+        ClassExpression classExpression,
+        ActivationSlotShape activationSlots,
+        out string declineReason)
+    {
+        var definition = classExpression.Definition;
+        if (definition.Extends is not null)
+        {
+            declineReason =
+                "Class literal extends/super semantics are not supported by B24b resumable production routing.";
+            return false;
+        }
+
+        if (definition.Fields.IsDefaultOrEmpty)
+        {
+            declineReason =
+                "Class literal constructor-only creation is not supported by B24b resumable production routing.";
+            return false;
+        }
+
+        if (!definition.Members.IsDefaultOrEmpty)
+        {
+            declineReason =
+                "Class literal methods/accessors are not supported by B24b resumable production routing.";
+            return false;
+        }
+
+        if (!definition.StaticBlocks.IsDefaultOrEmpty || !definition.StaticElements.IsDefaultOrEmpty)
+        {
+            declineReason =
+                "Class literal static elements are not supported by B24b resumable production routing.";
+            return false;
+        }
+
+        foreach (var field in definition.Fields)
+        {
+            if (field.IsStatic)
+            {
+                declineReason =
+                    "Class literal static fields are not supported by B24b resumable production routing.";
+                return false;
+            }
+
+            if (field.IsPrivate)
+            {
+                declineReason =
+                    "Class literal private fields are not supported by B24b resumable production routing.";
+                return false;
+            }
+
+            if (field.IsComputed)
+            {
+                declineReason =
+                    "Class literal computed fields are not supported by B24b resumable production routing.";
+                return false;
+            }
+        }
+
+        var cache = ((IAstCacheable<ClassDefinitionProgramCache>)definition).GetOrCreateCache();
+        if (!cache.Succeeded)
+        {
+            declineReason =
+                $"Class literal field programs could not lower for B24b resumable production routing: {cache.FailureReason ?? "unknown failure"}.";
+            return false;
+        }
+
+        var initializerPrograms = cache.FieldInitializerPrograms;
+        for (var i = 0; i < initializerPrograms.Length; i++)
+        {
+            if (initializerPrograms[i] is { } initializerProgram &&
+                ExpressionProgramReferencesActivationSlot(initializerProgram, activationSlots, out var capturedName))
+            {
+                declineReason =
+                    $"Class literal field initializer captures activation binding '{capturedName}' and is not supported by B24b resumable production routing until the resume state owns a materialized body environment.";
+                return false;
+            }
+        }
+
+        declineReason = string.Empty;
+        return true;
+    }
+
+    private static bool ExpressionProgramReferencesActivationSlot(
+        ExpressionProgram program,
+        ActivationSlotShape activationSlots,
+        out string capturedName)
+    {
+        capturedName = string.Empty;
+        if (program.IsEmpty)
+        {
+            return false;
+        }
+
+        var identifierConstants = program.IdentifierConstants.AsSpan();
+        var objectConstants = program.ObjectConstants.AsSpan();
+        foreach (var operation in program.EnumerateOperations())
+        {
+            if (operation.Kind == ExpressionOpKind.LoadFunctionLiteral)
+            {
+                var descriptor = operation.GetObject<FunctionLiteralDescriptor>(objectConstants);
+                if (FunctionCapturesActivationSlot(descriptor.Function, activationSlots, out capturedName))
+                {
+                    return true;
+                }
+
+                continue;
+            }
+
+            if (!TryGetIdentifierDependency(operation, identifierConstants, out var identifier) ||
+                !ResolvesToActivationSlot(identifier, activationSlots))
+            {
+                continue;
+            }
+
+            capturedName = identifier.Name.Name;
+            return true;
+        }
+
         return false;
     }
 

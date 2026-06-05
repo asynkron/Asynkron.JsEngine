@@ -57,7 +57,7 @@ statement interpretation.
   drift gate
   `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~ExpressionProgramCoverageMapTests&FullyQualifiedName~UnifiedBytecodeExpansionContract"`
   passed. The checked inventories remain current: 6 sync prototype opcode guard
-  gaps, 29 resumable opcode allowlist gaps, 9 resumable instruction allowlist
+  gaps, 19 resumable opcode allowlist gaps, 9 resumable instruction allowlist
   gaps, A35 split into 5 object-literal member leaves, B24 split into 9
   class-expression leaves, and no general expression lowering gaps.
 - Completing the decline-burndown plan did not make unified bytecode the only
@@ -86,9 +86,11 @@ statement interpretation.
   `### A35 Object Literal Member Leaves (current)` and
   `### B24 Class Expression Leaves (current)`. A35 is sync-admitted across its
   concrete object-member opcodes; B24 remains real work for full bytecode
-  execution because `LoadClassLiteral` is not resumable-admitted and the sync VM
-  handler still delegates class-definition evaluation to lower-level class
-  machinery that can run expression programs and static-block IR plans.
+  execution because only the B24b public non-computed instance-field class
+  expression subset without activation-capturing field initializers is
+  resumable-admitted, and the VM handler still delegates
+  class-definition evaluation to lower-level class machinery that can run
+  expression programs and static-block IR plans.
 - `UnifiedBytecodeCompiler` now has generated audit coverage for every declared
   IR instruction record. Function-scoped `FunctionDeclarationInstruction`
   entries compile as no-ops after fast activation hoisting installs the callable
@@ -342,13 +344,13 @@ statement interpretation.
 - `DeclareClass`
 - `DeclareFunction`
 - `LoadFunctionLiteral`
+- `LoadClassLiteral`
 - `Yield`
 - `StoreResumeValue`
 - `AwaitAndDiscard`
 - `AwaitValue`
 - `AwaitedReturn`
 - `YieldStar`
-- `LoadClassLiteral`
 - `ApplyBindingTarget`
 - `ApplyDeclarationBindingTarget`
 - `EnsureHasName`
@@ -388,7 +390,6 @@ the admitted subset stays 1:1 with `UnifiedBytecodeVirtualMachine.ExecuteResumab
 - `InitializeDynamicLexical`
 - `JumpWithDriverCleanup`
 - `LeaveWith`
-- `LoadClassLiteral`
 - `PopEnvironment`
 - `PushEnvironment`
 - `StoreDynamicIdentifier`
@@ -432,11 +433,14 @@ sync-admitted and pinned by `A35ComplexObjectLiteralTests`,
 ### B24 Class Expression Leaves (current)
 
 The former B24 class-expression coarse row is split by class-element semantics.
-`LoadClassLiteral` itself has sync VM and compiler coverage, but full bytecode
-execution is not done: resumable routing still declines `LoadClassLiteral`, and
-sync class-literal creation still calls class-definition machinery that resolves
-extends/computed names/field initializers through expression programs and static
-blocks through `ExecutionPlanRunner.RunScript`.
+`LoadClassLiteral` itself has sync VM and compiler coverage. Resumable routing
+now admits the B24b public non-computed instance-field subset whose field
+initializers do not capture activation slots, while full bytecode execution is
+still not done: class-literal creation still calls class-definition machinery
+that resolves extends/computed names/field initializers through expression
+programs and static blocks through
+`ExecutionPlanRunner.RunScript`, and B24a/B24c-B24i remain outside the admitted
+resumable subset.
 
 - `B24a:ClassExpressionConstructor`
 - `B24b:ClassExpressionInstanceFields`

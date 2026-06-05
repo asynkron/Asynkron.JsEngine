@@ -535,6 +535,87 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     }
 
     [Fact(Timeout = 5000)]
+    public async Task IdentifierCallWithChainedOptionalComputedReadArgument_UsesUnifiedBytecodeProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function invoke(fn, box, key) {
+                return fn(box?.[key]?.[key]);
+            }
+
+            function stringify(v) {
+                return "" + v;
+            }
+
+            var whenBaseNull = invoke(stringify, null, "k");
+            var whenFirstMissing = invoke(stringify, {}, "k");
+            var whenFirstNull = invoke(stringify, { k: null }, "k");
+            var whenPresent = invoke(stringify, { k: { k: 7 } }, "k");
+            whenBaseNull + ":" + whenFirstMissing + ":" + whenFirstNull + ":" + whenPresent;
+            """);
+
+        Assert.Equal("undefined:undefined:undefined:7", result?.ToString());
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=invoke argc=3",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task IdentifierCallWithOptionalComputedThenOptionalNamedReadArgument_UsesUnifiedBytecodeProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function invoke(fn, box, key) {
+                return fn(box?.[key]?.value);
+            }
+
+            function stringify(v) {
+                return "" + v;
+            }
+
+            var whenBaseNull = invoke(stringify, null, "k");
+            var whenFirstMissing = invoke(stringify, {}, "k");
+            var whenFirstNull = invoke(stringify, { k: null }, "k");
+            var whenPresent = invoke(stringify, { k: { value: 7 } }, "k");
+            whenBaseNull + ":" + whenFirstMissing + ":" + whenFirstNull + ":" + whenPresent;
+            """);
+
+        Assert.Equal("undefined:undefined:undefined:7", result?.ToString());
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=invoke argc=3",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task IdentifierCallWithOptionalNamedThenOptionalComputedReadArgument_UsesUnifiedBytecodeProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function invoke(fn, box, key) {
+                return fn(box?.prop?.[key]);
+            }
+
+            function stringify(v) {
+                return "" + v;
+            }
+
+            var whenBaseNull = invoke(stringify, null, "k");
+            var whenFirstMissing = invoke(stringify, {}, "k");
+            var whenFirstNull = invoke(stringify, { prop: null }, "k");
+            var whenPresent = invoke(stringify, { prop: { k: 9 } }, "k");
+            whenBaseNull + ":" + whenFirstMissing + ":" + whenFirstNull + ":" + whenPresent;
+            """);
+
+        Assert.Equal("undefined:undefined:undefined:9", result?.ToString());
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=invoke argc=3",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task LinearSlotReturnFunction_UsesUnifiedBytecodeProductionFastPath()
     {
         await using var engine = CreateEngine();

@@ -1253,10 +1253,8 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
-    public void Evaluate_IdentifierCallWithChainedOptionalComputedReadArgument_DeclinesWithOptionalChainDependency()
+    public void Evaluate_IdentifierCallWithChainedOptionalComputedReadArgument_AcceptsComputedReadChain()
     {
-        // `box?.[key]?.[key]` carries a second optional computed hop and stays outside
-        // the baseline optional computed call-argument boundary.
         var plan = GetFunctionPlan("""
             function invoke(fn, box, key) {
                 return fn(box?.[key]?.[key]);
@@ -1268,8 +1266,14 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
             plan,
             new UnifiedBytecodeProductionActivationDescriptor());
 
-        Assert.False(result.IsEligible, result.Reason);
-        Assert.Equal(UnifiedBytecodeProductionDeclineCode.OptionalChainDependency, result.Code);
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Equal(2, result.Program.Instructions.Count(instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.JumpIfNullishReplaceUndefined));
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.GetComputedProperty);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.CallInvocationBoundary);
     }
 
     [Fact]
@@ -1317,10 +1321,8 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
-    public void Evaluate_IdentifierCallWithOptionalComputedThenOptionalNamedReadArgument_DeclinesWithOptionalChainDependency()
+    public void Evaluate_IdentifierCallWithOptionalComputedThenOptionalNamedReadArgument_AcceptsNamedContinuation()
     {
-        // `box?.[key]?.value` has a SECOND optional hop and stays outside the
-        // optional-computed-then-plain chain boundary.
         var plan = GetFunctionPlan("""
             function invoke(fn, box, key) {
                 return fn(box?.[key]?.value);
@@ -1332,8 +1334,16 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
             plan,
             new UnifiedBytecodeProductionActivationDescriptor());
 
-        Assert.False(result.IsEligible, result.Reason);
-        Assert.Equal(UnifiedBytecodeProductionDeclineCode.OptionalChainDependency, result.Code);
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Equal(2, result.Program.Instructions.Count(instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.JumpIfNullishReplaceUndefined));
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.GetComputedProperty);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.GetNamedProperty);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.CallInvocationBoundary);
     }
 
     [Fact]
@@ -1405,11 +1415,8 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
-    public void Evaluate_IdentifierCallWithOptionalNamedThenOptionalComputedReadArgument_DeclinesWithOptionalChainDependency()
+    public void Evaluate_IdentifierCallWithOptionalNamedThenOptionalComputedReadArgument_AcceptsComputedContinuation()
     {
-        // `box?.prop?.[key]` carries a SECOND optional hop (the `?.[` introduces a
-        // JumpIfNullish), so it stays outside the optional-named-then-plain-computed
-        // call-argument boundary.
         var plan = GetFunctionPlan("""
             function invoke(fn, box, key) {
                 return fn(box?.prop?.[key]);
@@ -1421,8 +1428,16 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
             plan,
             new UnifiedBytecodeProductionActivationDescriptor());
 
-        Assert.False(result.IsEligible, result.Reason);
-        Assert.Equal(UnifiedBytecodeProductionDeclineCode.OptionalChainDependency, result.Code);
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Equal(2, result.Program.Instructions.Count(instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.JumpIfNullishReplaceUndefined));
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.GetNamedProperty);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.GetComputedProperty);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.CallInvocationBoundary);
     }
 
     [Fact]

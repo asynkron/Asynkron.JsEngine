@@ -84,7 +84,7 @@ Status: ☐ declined · ◐ partial · ☑ admitted (parity work remains on othe
 - [x] **A28** Optional-chain named read beyond single hop `a?.b?.c` — *OptionalChainDependency* — ◐/◐ — `:1464` ✅ #3161
 - [x] **A29** Optional-chain computed read beyond admitted `a?.[k]?.[j]` — *OptionalChainDependency* — ◐/◐ — `:1689` ✅ #3162
 - [x] **A30** Optional member/computed call beyond admitted `a?.b?.c()`, `o?.[k]()` — *OptionalChainDependency* — ◐/◐ — `:1232` ✅ #3165
-- [ ] **A31** Optional short-circuit guard outside admitted spans — *OptionalChainDependency* — ◐/☐ — `:1992` — note (2026-06-05): standalone multi-hop `o?.a?.b` already routes + correct, and named second-hop call arguments now route (`fn(box?.value?.nested)`, `fn(box?.child?.value)`). Concrete remaining gates are computed second-hop call arguments (`fn(box?.[key]?.[key])`, `fn(box?.[key]?.value)`, `fn(box?.prop?.[key])`) plus any optional short-circuit guard not covered by admitted standalone/read/call/delete spans.
+- [x] **A31** Optional short-circuit guard outside admitted spans — *OptionalChainDependency* — ◐/☐ — `:1992` ✅ (commit pending): standalone multi-hop optional named/computed reads route; named and computed second-hop call arguments route (`fn(box?.value?.nested)`, `fn(box?.child?.value)`, `fn(box?.[key]?.[key])`, `fn(box?.[key]?.value)`, `fn(box?.prop?.[key])`). Remaining concrete `OptionalChainDependency` tests are owned by other rows: chained optional delete (A32) and the documented resumable-only optional-computed-hop call boundary.
 - [ ] **A32** Optional-chain delete chained `delete a?.b?.c` — *OptionalChainDependency* — ☐/☐ — `:1619` — ⚠️ FOUNDATION: ExpressionProgram IR is lossy for optional-chain deletes (terminal-hop optionality not encoded; `delete a?.b?.c` == `delete a?.b.c` in bytecode). Needs an IR-lowering change preserving terminal-hop optionality (broad blast radius, both interpreter + VM). Not a sync-route slice.
 - [x] **A33** Array spread non-simple source `[...f().items]`, `[...gen()]` — *ObjectLiteralOrSpreadDependency* — ◐/◐ — `:2014` ✅ #3166
 - [x] **A34** Object spread non-simple source `{...f()}` — *ObjectLiteralOrSpreadDependency* — ◐/◐ — `:2036` ✅ #3167
@@ -234,4 +234,4 @@ these allowlists — mechanical extensions against existing sync VM handlers.
 
 ---
 
-_Checklist status: 84 / 145 complete after P0.4 coarse-leaf decomposition. Phase 0 inventory closure is complete; remaining work is semantic admission, dynamic quarantine, and fallback-tier retirement._
+_Checklist status: 85 / 145 complete after A31 computed optional-chain call-argument admission. Phase 0 inventory closure is complete; remaining work is semantic admission, dynamic quarantine, and fallback-tier retirement._

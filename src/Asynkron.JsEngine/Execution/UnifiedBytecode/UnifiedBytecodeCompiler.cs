@@ -9492,13 +9492,12 @@ internal static class UnifiedBytecodeCompiler
         return false;
     }
 
-    // Emits an optional-named-then-plain-computed read operand span used as a call
-    // argument (`box?.prop[key]`, `box?.prop[a + b]`, `box?.a.b[key]`): a simple base
-    // load, a JumpIfNullishReplaceUndefined short-circuit guard at the optional hop, the
-    // optional named hop read, plain named continuation reads, the computed key span, a
-    // GetComputedProperty, and any trailing plain named reads. A nullish base
-    // short-circuits the whole chain to undefined. Mirrors
-    // TryAppendFirstBoundaryOptionalNamedThenComputed for the call-argument boundary.
+    // Emits an optional-named-then-computed read operand span used as a call
+    // argument (`box?.prop[key]`, `box?.prop?.[key]`, `box?.prop[a + b]`,
+    // `box?.a.b[key]`): a simple base load, one JumpIfNullishReplaceUndefined per
+    // optional named/computed hop, the named reads, the computed key span, a
+    // GetComputedProperty, and trailing named reads. A nullish base/intermediate
+    // receiver short-circuits the whole chain to undefined.
     private static bool TryAppendSimpleOptionalNamedThenComputedReadOperandSpan(
         ExpressionProgram expressionProgram,
         int startIndex,
@@ -9549,6 +9548,18 @@ internal static class UnifiedBytecodeCompiler
             keyStart++;
         }
 
+        var optionalComputedJumpIndex = -1;
+        if (keyStart < endExclusive)
+        {
+            var maybeJump = expressionProgram.GetOperation(keyStart);
+            if (maybeJump.Kind == ExpressionOpKind.JumpIfNullish &&
+                maybeJump.ReplaceWithUndefined)
+            {
+                optionalComputedJumpIndex = keyStart;
+                keyStart++;
+            }
+        }
+
         // Locate the chain-short-circuit computed read after the key span.
         var computedIndex = -1;
         for (var candidate = keyStart + 1; candidate < endExclusive; candidate++)
@@ -9576,6 +9587,12 @@ internal static class UnifiedBytecodeCompiler
             return false;
         }
 
+        if (optionalComputedJumpIndex >= 0 &&
+            expressionProgram.GetOperation(optionalComputedJumpIndex).Target != computedIndex + 1)
+        {
+            return false;
+        }
+
         var unifiedCount = unified.Count;
         var literalCount = literalConstants.Count;
         var stringCount = stringConstants.Count;
@@ -9592,20 +9609,34 @@ internal static class UnifiedBytecodeCompiler
             return false;
         }
 
-        // The optional hop short-circuits the remaining chain to undefined when the base
-        // is nullish, so the boundary jump targets the instruction after the chain.
-        var boundaryJumpIndex = unified.Count;
-        unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.JumpIfNullishReplaceUndefined, 0));
+        var boundaryJumpIndices = new List<int>();
 
         // Optional hop read plus the plain named continuations up to the key span.
         for (var readIndex = startIndex + 1; readIndex < keyStart; readIndex++)
         {
             var read = expressionProgram.GetOperation(readIndex);
+            if (read.Kind == ExpressionOpKind.JumpIfNullish)
+            {
+                continue;
+            }
+
+            if (read.IsOptional)
+            {
+                boundaryJumpIndices.Add(unified.Count);
+                unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.JumpIfNullishReplaceUndefined, 0));
+            }
+
             var propertyNameIndex = stringConstants.Count;
             stringConstants.Add(read.GetString(expressionStringConstants));
             unified.Add(new UnifiedBytecodeInstruction(
                 UnifiedBytecodeOpCode.GetNamedProperty,
                 propertyNameIndex));
+        }
+
+        if (optionalComputedJumpIndex >= 0)
+        {
+            boundaryJumpIndices.Add(unified.Count);
+            unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.JumpIfNullishReplaceUndefined, 0));
         }
 
         if (!TryAppendComputedPropertyKeySpan(
@@ -9616,7 +9647,8 @@ internal static class UnifiedBytecodeCompiler
                 stringConstants,
                 startInclusive: keyStart,
                 endExclusive: computedIndex,
-                out reason))
+                out reason,
+                allowsDynamicIdentifiers))
         {
             RollBackUnifiedBuilder(unified, unifiedCount);
             RollBackUnifiedBuilder(literalConstants, literalCount);
@@ -9632,11 +9664,16 @@ internal static class UnifiedBytecodeCompiler
         {
             var continuation = expressionProgram.GetOperation(continuationIndex);
             if (continuation.Kind != ExpressionOpKind.GetNamedProperty ||
-                continuation.IsOptional ||
                 !continuation.ShortCircuitOnNullishTarget ||
                 continuation.GetString(expressionStringConstants).IsPrivateName())
             {
                 break;
+            }
+
+            if (continuation.IsOptional)
+            {
+                boundaryJumpIndices.Add(unified.Count);
+                unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.JumpIfNullishReplaceUndefined, 0));
             }
 
             var continuationNameIndex = stringConstants.Count;
@@ -9646,19 +9683,23 @@ internal static class UnifiedBytecodeCompiler
         }
 
         var chainEnd = unified.Count;
-        unified[boundaryJumpIndex] = new UnifiedBytecodeInstruction(
-            UnifiedBytecodeOpCode.JumpIfNullishReplaceUndefined,
-            chainEnd);
+        foreach (var jumpIndex in boundaryJumpIndices)
+        {
+            unified[jumpIndex] = new UnifiedBytecodeInstruction(
+                UnifiedBytecodeOpCode.JumpIfNullishReplaceUndefined,
+                chainEnd);
+        }
 
         spanLength = continuationIndex - startIndex;
         reason = string.Empty;
         return true;
     }
 
-    // Emits a baseline optional computed property-read operand span (`box?.[key]`):
-    // a simple base load, a JumpIfNullishReplaceUndefined short-circuit guard, the
-    // computed key span, and a GetComputedProperty. A nullish base short-circuits the
-    // read to undefined. Mirrors TryAppendFirstBoundaryOptionalComputedPropertyReadChain.
+    // Emits an optional computed property-read operand span (`box?.[key]`,
+    // `box?.[key]?.[key]`, `box?.[key]?.value`): a simple base load, one
+    // JumpIfNullishReplaceUndefined per optional computed/named hop, computed key spans,
+    // GetComputedProperty reads, and trailing named reads. A nullish base/intermediate
+    // receiver short-circuits the whole chain to undefined.
     private static bool TryAppendSimpleOptionalComputedPropertyReadOperandSpan(
         ExpressionProgram expressionProgram,
         int startIndex,
@@ -9683,36 +9724,73 @@ internal static class UnifiedBytecodeCompiler
             return false;
         }
 
-        var jumpOp = expressionProgram.GetOperation(startIndex + 1);
-        if (jumpOp.Kind != ExpressionOpKind.JumpIfNullish ||
-            !jumpOp.ReplaceWithUndefined)
+        var hopComputedIndices = new List<int>();
+        var index = startIndex + 1;
+        while (index < endExclusive)
+        {
+            var jumpOp = expressionProgram.GetOperation(index);
+            if (jumpOp.Kind != ExpressionOpKind.JumpIfNullish ||
+                !jumpOp.ReplaceWithUndefined)
+            {
+                break;
+            }
+
+            var keyStart = index + 1;
+            var computedIndex = keyStart;
+            while (computedIndex < endExclusive &&
+                   expressionProgram.GetOperation(computedIndex).Kind != ExpressionOpKind.GetComputedProperty)
+            {
+                computedIndex++;
+            }
+
+            if (computedIndex <= keyStart ||
+                computedIndex >= endExclusive ||
+                jumpOp.Target != computedIndex + 1)
+            {
+                return false;
+            }
+
+            var computedOp = expressionProgram.GetOperation(computedIndex);
+            var expectedShortCircuit = hopComputedIndices.Count > 0;
+            if (computedOp.Kind != ExpressionOpKind.GetComputedProperty ||
+                computedOp.IsOptional ||
+                computedOp.ShortCircuitOnNullishTarget != expectedShortCircuit)
+            {
+                return false;
+            }
+
+            if (!IsSupportedComputedPropertyKeySpan(
+                    expressionProgram,
+                    activationSlots,
+                    startInclusive: keyStart,
+                    endExclusive: computedIndex,
+                    allowsDynamicIdentifiers))
+            {
+                return false;
+            }
+
+            hopComputedIndices.Add(computedIndex);
+            index = computedIndex + 1;
+        }
+
+        if (hopComputedIndices.Count == 0)
         {
             return false;
         }
 
-        var computedIndex = jumpOp.Target - 1;
-        if (computedIndex <= startIndex + 1 ||
-            computedIndex >= endExclusive)
+        var expressionStringConstants = expressionProgram.StringConstants.AsSpan();
+        var continuationIndex = index;
+        while (continuationIndex < endExclusive)
         {
-            return false;
-        }
+            var continuation = expressionProgram.GetOperation(continuationIndex);
+            if (continuation.Kind != ExpressionOpKind.GetNamedProperty ||
+                !continuation.ShortCircuitOnNullishTarget ||
+                continuation.GetString(expressionStringConstants).IsPrivateName())
+            {
+                break;
+            }
 
-        var computedOp = expressionProgram.GetOperation(computedIndex);
-        if (computedOp.Kind != ExpressionOpKind.GetComputedProperty ||
-            computedOp.IsOptional ||
-            computedOp.ShortCircuitOnNullishTarget)
-        {
-            return false;
-        }
-
-        if (!IsSupportedComputedPropertyKeySpan(
-                expressionProgram,
-                activationSlots,
-                startInclusive: startIndex + 2,
-                endExclusive: computedIndex,
-                allowsDynamicIdentifiers))
-        {
-            return false;
+            continuationIndex++;
         }
 
         var unifiedCount = unified.Count;
@@ -9731,41 +9809,50 @@ internal static class UnifiedBytecodeCompiler
             return false;
         }
 
-        var boundaryJumpIndex = unified.Count;
-        unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.JumpIfNullishReplaceUndefined, 0));
-
-        if (!TryAppendComputedPropertyKeySpan(
-                expressionProgram,
-                activationSlots,
-                unified,
-                literalConstants,
-                stringConstants,
-                startInclusive: startIndex + 2,
-                endExclusive: computedIndex,
-                out reason))
+        var boundaryJumpIndices = new List<int>();
+        var keyStartIndex = startIndex + 2;
+        foreach (var computedIndex in hopComputedIndices)
         {
-            RollBackUnifiedBuilder(unified, unifiedCount);
-            RollBackUnifiedBuilder(literalConstants, literalCount);
-            RollBackUnifiedBuilder(stringConstants, stringCount);
-            return false;
+            boundaryJumpIndices.Add(unified.Count);
+            unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.JumpIfNullishReplaceUndefined, 0));
+
+            if (!TryAppendComputedPropertyKeySpan(
+                    expressionProgram,
+                    activationSlots,
+                    unified,
+                    literalConstants,
+                    stringConstants,
+                    startInclusive: keyStartIndex,
+                    endExclusive: computedIndex,
+                    out reason,
+                    allowsDynamicIdentifiers))
+            {
+                RollBackUnifiedBuilder(unified, unifiedCount);
+                RollBackUnifiedBuilder(literalConstants, literalCount);
+                RollBackUnifiedBuilder(stringConstants, stringCount);
+                return false;
+            }
+
+            unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.GetComputedProperty));
+            keyStartIndex = computedIndex + 2;
         }
 
-        unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.GetComputedProperty));
-
-        // Emit plain named continuation reads (`box?.[key].value`): they run on the
-        // computed-read result when the base was non-nullish, and are skipped by the head
-        // boundary jump (to chainEnd) when the base was nullish.
-        var expressionStringConstants = expressionProgram.StringConstants.AsSpan();
-        var continuationIndex = computedIndex + 1;
+        // Emit named continuation reads (`box?.[key].value`, `box?.[key]?.value`).
+        continuationIndex = hopComputedIndices[^1] + 1;
         while (continuationIndex < endExclusive)
         {
             var continuation = expressionProgram.GetOperation(continuationIndex);
             if (continuation.Kind != ExpressionOpKind.GetNamedProperty ||
-                continuation.IsOptional ||
                 !continuation.ShortCircuitOnNullishTarget ||
                 continuation.GetString(expressionStringConstants).IsPrivateName())
             {
                 break;
+            }
+
+            if (continuation.IsOptional)
+            {
+                boundaryJumpIndices.Add(unified.Count);
+                unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.JumpIfNullishReplaceUndefined, 0));
             }
 
             var continuationNameIndex = stringConstants.Count;
@@ -9775,9 +9862,12 @@ internal static class UnifiedBytecodeCompiler
         }
 
         var chainEnd = unified.Count;
-        unified[boundaryJumpIndex] = new UnifiedBytecodeInstruction(
-            UnifiedBytecodeOpCode.JumpIfNullishReplaceUndefined,
-            chainEnd);
+        foreach (var jumpIndex in boundaryJumpIndices)
+        {
+            unified[jumpIndex] = new UnifiedBytecodeInstruction(
+                UnifiedBytecodeOpCode.JumpIfNullishReplaceUndefined,
+                chainEnd);
+        }
 
         spanLength = continuationIndex - startIndex;
         reason = string.Empty;

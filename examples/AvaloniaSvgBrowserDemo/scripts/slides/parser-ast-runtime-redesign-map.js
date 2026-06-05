@@ -49,7 +49,7 @@ function slide16PartialOval(progress) {
 
 slide16AddWords("slide16-improved", ["Improved", "Lexer/Parser"], 362, 44, 17, "#f3f4f6");
 slide16AddWords("slide16-memory", ["Memory", "models"], 177, 110, 17, "#f3f4f6");
-slide16AddWords("slide16-sexpr", ["S-Expr", "to", "Typed", "AST"], 490, 100, 17, "#f3f4f6");
+slide16AddWords("slide16-typed-ast", ["Parser", "to", "Typed", "AST"], 490, 100, 17, "#f3f4f6");
 slide16AddWords("slide16-generators", ["Redesign", "Generators"], 328, 162, 17, "#f3f4f6");
 slide16AddWords("slide16-async", ["Redesign", "Async", "Await"], 168, 236, 16, "#f3f4f6");
 slide16AddWords("slide16-stdlib", ["The", "first", "steps", "towards", "a", "StdLib"], 407, 247, 16, "#f3f4f6");

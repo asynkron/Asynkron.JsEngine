@@ -373,7 +373,7 @@ before/after reduction signal.
 
 Issue #1431 / PR #1434 was the same docs/filesystem drift pattern on the
 top-level README demo list. `README.md` still omitted `EventQueueDemo`, pointed
-at the obsolete S-expression-era surface, and did not name the maintained Node
+at an obsolete parser-era surface, and did not name the maintained Node
 host demo path even though those runnable example directories and host scripts
 were present. Future README demo-list maintenance should compare the listed
 examples against `examples/` first, then update the README as the bounded slice

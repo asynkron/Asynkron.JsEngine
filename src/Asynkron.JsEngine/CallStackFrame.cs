@@ -4,7 +4,7 @@ namespace Asynkron.JsEngine;
 
 /// <summary>
 ///     Represents a single frame in the execution call stack.
-///     Tracks the S-expression being evaluated and provides context for debugging.
+///     Tracks the program location being evaluated and provides context for debugging.
 /// </summary>
 public sealed class CallStackFrame
 {

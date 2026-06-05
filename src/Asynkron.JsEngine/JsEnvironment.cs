@@ -3535,7 +3535,7 @@ public sealed class JsEnvironment : IRentable
 
     /// <summary>
     ///     Builds a call stack by traversing the enclosing environment chain
-    ///     and collecting information about the S-expressions that created each environment.
+    ///     and collecting information about the program locations that created each environment.
     /// </summary>
     public List<CallStackFrame> BuildCallStack()
     {

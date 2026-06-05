@@ -9,7 +9,7 @@ public sealed class MethodShorthandParsingTests(ITestOutputHelper output) : Inte
     [Fact(Timeout = 5000)]
     public async Task TestJ_ParseMethodShorthandVsRegularFunction()
     {
-        Output.WriteLine("=== Test J: Parse and Compare S-Expressions ===");
+        Output.WriteLine("=== Test J: Parse and Compare Typed AST ===");
 
         await using var engine = CreateDebugEngine();
         engine.SetGlobalFunction("log", args =>

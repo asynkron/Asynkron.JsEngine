@@ -113,7 +113,7 @@
         <text x="330" y="198" fill="white" font-size="12" font-weight="600" text-anchor="middle">JsEngine</text>
         <text x="330" y="218" fill="#94a3b8" font-size="9" text-anchor="middle">public facade</text>
         <text x="330" y="235" fill="#94a3b8" font-size="8" text-anchor="middle">Parse(source)</text>
-        <text x="330" y="249" fill="#94a3b8" font-size="8" text-anchor="middle">Evaluate(source | Cons)</text>
+        <text x="330" y="249" fill="#94a3b8" font-size="8" text-anchor="middle">Evaluate(source | ProgramNode)</text>
         <text x="330" y="263" fill="#22d3ee" font-size="8" text-anchor="middle">SetGlobal / SetGlobalFunction</text>
 
         <rect x="515" y="115" width="160" height="100" rx="6" fill="#0f172a"></rect>
@@ -132,16 +132,16 @@
 
         <rect x="770" y="165" width="150" height="120" rx="6" fill="#0f172a"></rect>
         <rect x="770" y="165" width="150" height="120" rx="6" fill="rgba(76, 29, 149, 0.4)" stroke="#a78bfa" stroke-width="1.5"></rect>
-        <text x="845" y="188" fill="white" font-size="12" font-weight="600" text-anchor="middle">S-expression IR</text>
-        <text x="845" y="209" fill="#94a3b8" font-size="9" text-anchor="middle">Cons cells</text>
-        <text x="845" y="226" fill="#94a3b8" font-size="9" text-anchor="middle">interned Symbol atoms</text>
+        <text x="845" y="188" fill="white" font-size="12" font-weight="600" text-anchor="middle">Typed AST</text>
+        <text x="845" y="209" fill="#94a3b8" font-size="9" text-anchor="middle">ProgramNode tree</text>
+        <text x="845" y="226" fill="#94a3b8" font-size="9" text-anchor="middle">interned identifiers</text>
         <text x="845" y="243" fill="#94a3b8" font-size="8" text-anchor="middle">JsSymbols contract</text>
         <text x="845" y="260" fill="#a78bfa" font-size="8" text-anchor="middle">(program (let ...) ...)</text>
 
         <rect x="520" y="370" width="290" height="115" rx="6" fill="#0f172a"></rect>
         <rect x="520" y="370" width="290" height="115" rx="6" fill="rgba(6, 78, 59, 0.4)" stroke="#34d399" stroke-width="1.5"></rect>
         <text x="665" y="394" fill="white" font-size="12" font-weight="600" text-anchor="middle">Evaluator</text>
-        <text x="665" y="415" fill="#94a3b8" font-size="9" text-anchor="middle">tree-walks Cons program</text>
+        <text x="665" y="415" fill="#94a3b8" font-size="9" text-anchor="middle">tree-walks typed program</text>
         <text x="665" y="432" fill="#94a3b8" font-size="8" text-anchor="middle">EvaluateProgram / EvaluateStatement / EvaluateExpression</text>
         <text x="665" y="449" fill="#94a3b8" font-size="8" text-anchor="middle">implements if, loops, switch, try/catch/finally</text>
         <text x="665" y="466" fill="#34d399" font-size="8" text-anchor="middle">returns object? and propagates control via signals</text>
@@ -194,14 +194,14 @@
         <div class="card-header"><div class="card-dot cyan"></div><h3>Pipeline</h3></div>
         <ul>
           <li>* `JsEngine.Parse` creates `Lexer`, tokenizes source, then feeds `Parser`.</li>
-          <li>* `Parser.ParseProgram` emits a `Cons` tree tagged by shared `JsSymbols`.</li>
-          <li>* `JsEngine.Evaluate` delegates the tree to `Evaluator.EvaluateProgram`.</li>
+          <li>* `Parser.ParseProgram` emits a typed program tree tagged by source references.</li>
+          <li>* `JsEngine.Evaluate` delegates the program to `Evaluator.EvaluateProgram`.</li>
         </ul>
       </div>
       <div class="card">
         <div class="card-header"><div class="card-dot emerald"></div><h3>Runtime Model</h3></div>
         <ul>
-          <li>* Execution is a direct S-expression tree walk returning `object?` values.</li>
+          <li>* Execution is a direct typed-AST tree walk returning `object?` values.</li>
           <li>* `Environment` stores symbol bindings and models lexical nesting.</li>
           <li>* `Return`, `throw`, `break`, and `continue` use dedicated C# signal exceptions.</li>
         </ul>

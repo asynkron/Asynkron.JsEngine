@@ -12,7 +12,8 @@ using Microsoft.Extensions.Logging;
 namespace Asynkron.JsEngine;
 
 /// <summary>
-///     High level façade that turns JavaScript source into S-expressions and evaluates them.
+///     High level facade that parses JavaScript source into a typed AST and evaluates it
+///     through the current IR and expression-bytecode execution paths.
 /// </summary>
 public sealed class JsEngine : IAsyncDisposable, IDisposable
 {
@@ -471,8 +472,8 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
 
     /// <summary>
     ///     Parses JavaScript source code into a typed AST without applying constant
-    ///     folding or CPS rewrites. This is primarily used by tests and tooling
-    ///     that need to inspect the raw syntax tree produced by the typed parser.
+    ///     folding or execution-plan warmup. This is primarily used by tests and
+    ///     tooling that need to inspect the raw syntax tree produced by the typed parser.
     /// </summary>
     public ProgramNode Parse(string source)
     {
@@ -482,8 +483,8 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
     /// <summary>
     ///     Parses JavaScript source code into a typed AST ready for execution.
     ///     Applies constant folding, scope analysis (for slot-based variable access),
-    ///     and CPS transformation (for async/await). Returns a ProgramNode that
-    ///     can be evaluated multiple times without re-parsing.
+    ///     and execution-plan cache warmup. Returns a ProgramNode that can be
+    ///     evaluated multiple times without re-parsing.
     /// </summary>
     public ProgramNode ParseProgram(
         string source,
@@ -518,7 +519,7 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
         // Warmup caches and build execution plans (which handle slot assignment)
         AstCacheWarmup.Warm(typedProgram);
 
-        // NOTE: CPS transformation is no longer used for async functions.
+        // NOTE: legacy async rewrites are no longer used for async functions.
         // Async functions now use the same IR executor as generators, with
         // _asyncStepMode=true for proper suspend/resume at await points.
         // This eliminates the overhead of AST rewriting and .then() chains.
@@ -527,9 +528,7 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
     }
 
     /// <summary>
-    ///     Executes a transformed program through the typed evaluator. The legacy
-    ///     cons interpreter is no longer part of the runtime path; cons data is only
-    ///     used earlier for parsing and transformation.
+    ///     Executes a prepared program through the typed evaluator.
     /// </summary>
     internal JsValue ExecuteProgram(
         ProgramNode program,
@@ -543,16 +542,16 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
     /// <summary>
     ///     <summary>
     ///         Parses JavaScript source code and returns the typed AST at each major
-    ///         transformation stage (original, constant folded, CPS-transformed).
+    ///         transformation stage (original, constant folded, execution-ready).
     ///     </summary>
-    public (ProgramNode original, ProgramNode constantFolded, ProgramNode cpsTransformed)
+    public (ProgramNode original, ProgramNode constantFolded, ProgramNode executionReady)
         ParseWithTransformationSteps(string source)
     {
         var original = ParseTypedProgram(source, options: Options);
         var constantFolded = _typedConstantTransformer.Transform(original);
-        var cpsTransformed = constantFolded;
+        var executionReady = constantFolded;
 
-        return (original, constantFolded, cpsTransformed);
+        return (original, constantFolded, executionReady);
     }
 
     private static ProgramNode ParseTypedProgram(

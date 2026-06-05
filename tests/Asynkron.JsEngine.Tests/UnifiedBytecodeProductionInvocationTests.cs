@@ -7379,6 +7379,46 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     }
 
     [Fact(Timeout = 5000)]
+    public async Task ChainedOptionalNamedPropertyDelete_UsesUnifiedBytecodeProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function remove(box) {
+                return delete box?.value?.leaf;
+            }
+
+            var value = { leaf: 42 };
+            var removed = remove({ value: value });
+            var skippedBase = remove(null);
+            var skippedValue = remove({ value: null });
+            removed + "|" +
+                skippedBase + "|" +
+                skippedValue + "|" +
+                Object.prototype.hasOwnProperty.call(value, "leaf");
+            """);
+
+        Assert.Equal("true|true|true|false", result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=remove argc=1",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task NonTerminalOptionalNamedPropertyDelete_NullIntermediateStillThrows()
+    {
+        await using var engine = CreateEngine();
+        await Assert.ThrowsAnyAsync<Exception>(async () =>
+            await engine.Evaluate("""
+                function remove(box) {
+                    return delete box?.value.leaf;
+                }
+
+                remove({ value: null });
+                """));
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task ComputedPropertyDelete_UsesUnifiedBytecodeProductionFastPathAndKeySemantics()
     {
         await using var engine = CreateEngine();
@@ -7506,6 +7546,40 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
             """);
 
         Assert.Equal("true|true|1|false", result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=remove argc=2",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task OptionalNamedThenComputedPropertyDelete_NullIntermediateEvaluatesKeyAndThrows()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            var hits = 0;
+            var threw = false;
+            var key = {
+                toString() {
+                    hits = hits + 1;
+                    return "value";
+                }
+            };
+
+            function remove(box, key) {
+                return delete box?.child[key];
+            }
+
+            try {
+                remove({ child: null }, key);
+            } catch (e) {
+                threw = e instanceof TypeError;
+            }
+
+            threw + "|" + hits;
+            """);
+
+        Assert.Equal("true|1", result);
         Assert.Contains(CurrentLogger!.Collector.Snapshot(),
             static record => record.Message.Contains(
                 "unified-bytecode-production-fast-path func=remove argc=2",

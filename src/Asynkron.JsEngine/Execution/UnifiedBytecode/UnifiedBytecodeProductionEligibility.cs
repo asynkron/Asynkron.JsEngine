@@ -3797,7 +3797,11 @@ internal static class UnifiedBytecodeProductionEligibility
                     return true;
 
                 case ExpressionOpKind.DeleteNamedProperty:
-                    if (TryIsFirstBoundaryOptionalNamedPropertyDeleteCandidate(program, identifierConstants, activationSlots))
+                    if (TryIsFirstBoundaryOptionalNamedThenOptionalNamedPropertyDeleteCandidate(
+                            program,
+                            identifierConstants,
+                            activationSlots) ||
+                        TryIsFirstBoundaryOptionalNamedPropertyDeleteCandidate(program, identifierConstants, activationSlots))
                     {
                         break;
                     }
@@ -4111,15 +4115,15 @@ internal static class UnifiedBytecodeProductionEligibility
     private static bool HasOptionalDeleteOperation(ExpressionProgram program)
     {
         var hasDelete = false;
-        var hasNullishJump = false;
+        var hasOptionalGuard = false;
         for (var operationIndex = 0; operationIndex < program.OperationCount; operationIndex++)
         {
             var operation = program.GetOperation(operationIndex);
             hasDelete |= operation.Kind is ExpressionOpKind.DeleteNamedProperty or ExpressionOpKind.DeleteComputedProperty;
-            hasNullishJump |= operation.Kind == ExpressionOpKind.JumpIfNullish;
+            hasOptionalGuard |= operation.Kind is ExpressionOpKind.JumpIfNullish or ExpressionOpKind.JumpIfShortCircuited;
         }
 
-        return hasDelete && hasNullishJump;
+        return hasDelete && hasOptionalGuard;
     }
 
     private static bool EndsWithComputedPropertyDelete(ExpressionProgram program) =>
@@ -5309,15 +5313,16 @@ internal static class UnifiedBytecodeProductionEligibility
     }
 
     // Admits delete a?.b[k]:
-    // [activation-resolved base, GetNamedProperty(IsOptional:true, !SC, non-private), simple key, DeleteComputedProperty].
-    // The compiler emits the nullish guard before the named hop so key evaluation is skipped when the base short-circuits.
+    // [activation-resolved base, GetNamedProperty(IsOptional:true, !SC, non-private),
+    //  JumpIfShortCircuited, simple key, DeleteComputedProperty, Jump, Pop, true].
+    // The guard skips key evaluation only when the named hop itself short-circuited, not when
+    // the terminal computed receiver is nullish through an ordinary property value.
     private static bool TryIsFirstBoundaryOptionalNamedThenComputedPropertyDeleteCandidate(
         ExpressionProgram program,
         ReadOnlySpan<IdentifierOperand> identifierConstants,
         ActivationSlotShape activationSlots)
     {
-        if (program.OperationCount < 4 ||
-            program.GetOperation(program.OperationCount - 1).Kind != ExpressionOpKind.DeleteComputedProperty)
+        if (program.OperationCount < 8)
         {
             return false;
         }
@@ -5332,12 +5337,19 @@ internal static class UnifiedBytecodeProductionEligibility
                firstHop.IsOptional &&
                !firstHop.ShortCircuitOnNullishTarget &&
                !firstHop.GetString(program.StringConstants.AsSpan()).IsPrivateName() &&
+               program.GetOperation(2) is { Kind: ExpressionOpKind.JumpIfShortCircuited } jumpIfShortCircuited &&
+               jumpIfShortCircuited.Target == program.OperationCount - 2 &&
                IsSupportedComputedPropertyKeySpan(
                    program,
-                   startInclusive: 2,
-                   endExclusive: program.OperationCount - 1,
+                   startInclusive: 3,
+                   endExclusive: program.OperationCount - 4,
                    identifierConstants,
-                   activationSlots);
+                   activationSlots) &&
+               program.GetOperation(program.OperationCount - 4).Kind == ExpressionOpKind.DeleteComputedProperty &&
+               program.GetOperation(program.OperationCount - 3).Kind == ExpressionOpKind.Jump &&
+               program.GetOperation(program.OperationCount - 3).Target == program.OperationCount &&
+               program.GetOperation(program.OperationCount - 2).Kind == ExpressionOpKind.Pop &&
+               IsTrueLiteral(program, program.OperationCount - 1);
     }
 
     // Admits delete a?.b and delete a.b?.c:
@@ -5382,6 +5394,65 @@ internal static class UnifiedBytecodeProductionEligibility
         var deleteProperty = program.GetOperation(deleteIndex);
 
         return deleteIndex == jumpIndex + 1 &&
+               program.GetOperation(jumpIndex) is { Kind: ExpressionOpKind.JumpIfNullish, ReplaceWithUndefined: false } jumpIfNullish &&
+               jumpIfNullish.Target == popIndex &&
+               deleteProperty.Kind == ExpressionOpKind.DeleteNamedProperty &&
+               !deleteProperty.GetString(stringConstants).IsPrivateName() &&
+               program.GetOperation(endJumpIndex).Kind == ExpressionOpKind.Jump &&
+               program.GetOperation(endJumpIndex).Target == program.OperationCount &&
+               program.GetOperation(popIndex).Kind == ExpressionOpKind.Pop &&
+               IsTrueLiteral(program, trueIndex);
+    }
+
+    // Admits delete a?.b?.c and delete a.b?.c?.d:
+    // [activation-resolved base, GetNamedProperty(non-optional, non-private)*,
+    //  GetNamedProperty(IsOptional:true, !SC, non-private),
+    //  JumpIfNullish, DeleteNamedProperty, Jump, Pop, true].
+    private static bool TryIsFirstBoundaryOptionalNamedThenOptionalNamedPropertyDeleteCandidate(
+        ExpressionProgram program,
+        ReadOnlySpan<IdentifierOperand> identifierConstants,
+        ActivationSlotShape activationSlots)
+    {
+        if (program.OperationCount < 7 ||
+            !TryGetActivationResolvedValue(program.GetOperation(0), identifierConstants, activationSlots))
+        {
+            return false;
+        }
+
+        var stringConstants = program.StringConstants.AsSpan();
+        var optionalHopIndex = 1;
+        while (optionalHopIndex < program.OperationCount)
+        {
+            var operation = program.GetOperation(optionalHopIndex);
+            if (operation.Kind != ExpressionOpKind.GetNamedProperty ||
+                operation.IsOptional ||
+                operation.ShortCircuitOnNullishTarget ||
+                operation.GetString(stringConstants).IsPrivateName())
+            {
+                break;
+            }
+
+            optionalHopIndex++;
+        }
+
+        if (optionalHopIndex >= program.OperationCount)
+        {
+            return false;
+        }
+
+        var optionalHop = program.GetOperation(optionalHopIndex);
+        var jumpIndex = optionalHopIndex + 1;
+        var deleteIndex = program.OperationCount - 4;
+        var endJumpIndex = program.OperationCount - 3;
+        var popIndex = program.OperationCount - 2;
+        var trueIndex = program.OperationCount - 1;
+        var deleteProperty = program.GetOperation(deleteIndex);
+
+        return deleteIndex == jumpIndex + 1 &&
+               optionalHop.Kind == ExpressionOpKind.GetNamedProperty &&
+               optionalHop.IsOptional &&
+               !optionalHop.ShortCircuitOnNullishTarget &&
+               !optionalHop.GetString(stringConstants).IsPrivateName() &&
                program.GetOperation(jumpIndex) is { Kind: ExpressionOpKind.JumpIfNullish, ReplaceWithUndefined: false } jumpIfNullish &&
                jumpIfNullish.Target == popIndex &&
                deleteProperty.Kind == ExpressionOpKind.DeleteNamedProperty &&

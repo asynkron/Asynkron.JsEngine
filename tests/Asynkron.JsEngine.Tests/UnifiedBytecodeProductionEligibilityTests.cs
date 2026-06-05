@@ -3040,6 +3040,44 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
         Assert.Equal(UnifiedBytecodeProductionDeclineCode.OptionalChainDependency, result.Code);
     }
 
+    [Fact]
+    public void Evaluate_OptionalNamedDeleteShapes_PreserveTerminalOptionality()
+    {
+        var terminalOptionalPlan = GetFunctionPlan("""
+            function remove(box) {
+                return delete box?.value?.leaf;
+            }
+            """,
+            "remove");
+        var terminalOptionalProgram = Assert.Single(
+            terminalOptionalPlan.Instructions.OfType<ReturnInstruction>(),
+            instruction => instruction.ReturnProgram is not null).ReturnProgram!.Value;
+
+        Assert.Contains(
+            terminalOptionalProgram.GetOps(),
+            op => op.Kind == ExpressionOpKind.JumpIfNullish);
+        Assert.DoesNotContain(
+            terminalOptionalProgram.GetOps(),
+            op => op.Kind == ExpressionOpKind.JumpIfShortCircuited);
+
+        var nonTerminalOptionalPlan = GetFunctionPlan("""
+            function remove(box) {
+                return delete box?.value.leaf;
+            }
+            """,
+            "remove");
+        var nonTerminalOptionalProgram = Assert.Single(
+            nonTerminalOptionalPlan.Instructions.OfType<ReturnInstruction>(),
+            instruction => instruction.ReturnProgram is not null).ReturnProgram!.Value;
+
+        Assert.Contains(
+            nonTerminalOptionalProgram.GetOps(),
+            op => op.Kind == ExpressionOpKind.JumpIfShortCircuited);
+        Assert.DoesNotContain(
+            nonTerminalOptionalProgram.GetOps(),
+            op => op.Kind == ExpressionOpKind.JumpIfNullish);
+    }
+
     [Theory]
     [InlineData(
         """
@@ -3052,6 +3090,13 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
         """
         function remove(box) {
             return delete box.child?.value;
+        }
+        """,
+        "remove")]
+    [InlineData(
+        """
+        function remove(box) {
+            return delete box?.value?.leaf;
         }
         """,
         "remove")]
@@ -3071,6 +3116,24 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
             instruction.OpCode == UnifiedBytecodeOpCode.JumpIfNullishReplaceUndefined);
         Assert.Contains(result.Program.Instructions, instruction =>
             instruction.OpCode == UnifiedBytecodeOpCode.DeleteNamedProperty);
+    }
+
+    [Fact]
+    public void Evaluate_NonTerminalOptionalNamedPropertyDelete_DeclinesAsOptionalChain()
+    {
+        var plan = GetFunctionPlan("""
+            function remove(box) {
+                return delete box?.value.leaf;
+            }
+            """,
+            "remove");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.False(result.IsEligible);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.OptionalChainDependency, result.Code);
     }
 
     [Theory]
@@ -3115,7 +3178,9 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
         Assert.True(result.IsEligible, result.Reason);
         Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
         Assert.Contains(result.Program.Instructions, instruction =>
-            instruction.OpCode == UnifiedBytecodeOpCode.JumpIfNullishReplaceUndefined);
+            instruction.OpCode is
+                UnifiedBytecodeOpCode.JumpIfNullishReplaceUndefined or
+                UnifiedBytecodeOpCode.JumpIfShortCircuited);
         Assert.Contains(result.Program.Instructions, instruction =>
             instruction.OpCode == UnifiedBytecodeOpCode.DeleteComputedProperty);
     }

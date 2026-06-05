@@ -75,13 +75,15 @@ public static partial class TypedAstEvaluator
             if (!TryCollectResumableRootHoistedFunctionDeclarations(
                     _function,
                     plan,
+                    allowCapturedActivationSlots: true,
                     out var hoistedFunctionDeclarations))
             {
                 return false;
             }
 
             var needsMaterializedBodyEnvironment =
-                UnifiedBytecodeProductionEligibility.PlanNeedsMaterializedResumableBodyEnvironment(plan);
+                UnifiedBytecodeProductionEligibility.PlanNeedsMaterializedResumableBodyEnvironment(plan) ||
+                HoistedFunctionDeclarationsNeedMaterializedBodyEnvironment(hoistedFunctionDeclarations);
             var activation = new UnifiedBytecodeProductionActivationDescriptor(
                 IsAsyncLike: false,
                 IsGenerator: true,
@@ -116,9 +118,6 @@ public static partial class TypedAstEvaluator
                     plan,
                     program,
                     arguments,
-                    hoistedFunctionDeclarations,
-                    resumableEnvironment,
-                    context,
                     out var slots))
             {
                 return false;
@@ -138,6 +137,17 @@ public static partial class TypedAstEvaluator
                 {
                     return false;
                 }
+            }
+
+            if (!TryPopulateResumableRootHoistedFunctionDeclarations(
+                    hoistedFunctionDeclarations,
+                    plan,
+                    program,
+                    slots,
+                    callingEnvironment,
+                    context))
+            {
+                return false;
             }
 
             if (RequiresResumableSuperEnvironment(program))

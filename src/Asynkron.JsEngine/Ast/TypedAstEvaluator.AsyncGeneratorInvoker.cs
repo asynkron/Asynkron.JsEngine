@@ -142,6 +142,7 @@ public static partial class TypedAstEvaluator
             if (!TryCollectResumableRootHoistedFunctionDeclarations(
                     function,
                     plan,
+                    allowCapturedActivationSlots: false,
                     out var hoistedFunctionDeclarations))
             {
                 return false;
@@ -175,9 +176,6 @@ public static partial class TypedAstEvaluator
                     plan,
                     program,
                     arguments,
-                    hoistedFunctionDeclarations,
-                    resumableEnvironment,
-                    context,
                     out var slots))
             {
                 return false;
@@ -192,6 +190,17 @@ public static partial class TypedAstEvaluator
                     planOverride: planSeed.Plan,
                     planFailureOverride: planSeed.Failure);
                 callingEnvironment = _inner.GetOrCreateExecutionEnvironmentForInternalUse();
+            }
+
+            if (!TryPopulateResumableRootHoistedFunctionDeclarations(
+                    hoistedFunctionDeclarations,
+                    plan,
+                    program,
+                    slots,
+                    callingEnvironment,
+                    context))
+            {
+                return false;
             }
 
             _unifiedState = new UnifiedBytecodeResumeState(

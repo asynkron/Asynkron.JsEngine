@@ -2811,6 +2811,16 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                 return false;
             }
 
+            if (plan.IrCallShape != IrCallShape.SimpleReturnExpression ||
+                plan.SimpleReturnProgram is not { } returnProgram)
+            {
+                RealmState.Logger?.LogInformation(
+                    "simple-ir-activation-runner-declined func={Function} argc={ArgumentCount}",
+                    _function.Name?.Name ?? "<anonymous>",
+                    arguments.Count);
+                return false;
+            }
+
             JsEnvironment? executionEnvironment = null;
             try
             {
@@ -2822,47 +2832,19 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                     _function.Name?.Name ?? "<anonymous>",
                     arguments.Count);
 
-                if (plan.IrCallShape == IrCallShape.SimpleReturnExpression &&
-                    plan.SimpleReturnProgram is { } returnProgram)
-                {
-                    // E4 fallback-only expression-program bridge: production-accepted routes return through
-                    // UnifiedBytecodeVirtualMachine before this simple-IR fallback is considered.
-                    RealmState.Logger?.LogInformation(
-                        "simple-ir-return-fast-path func={Function} argc={ArgumentCount}",
-                        _function.Name?.Name ?? "<anonymous>",
-                        arguments.Count);
-                    result = EvaluateLoweredExpressionProgram(
-                        returnProgram,
-                        executionEnvironment,
-                        context,
-                        newTarget);
-
-                    return TryCompleteIrFastExpressionResult(context, callingContext, ref result);
-                }
-
-                var runner = new ExecutionPlanRunner(
-                    _function,
-                    _closure,
-                    Array.Empty<JsValue>(),
-                    thisValue,
-                    this,
-                    RealmState,
-                    _isStrict,
-                    _hasFunctionNameEnvironment,
-                    _homeObject,
-                    PrivateNameScope,
-                    _capturedPrivateNameScopes,
-                    newTarget,
-                    _lexicalThisEnvironment,
-                    _superConstructor,
-                    _superPrototype,
+                // E4 fallback-only expression-program bridge: production-accepted routes return through
+                // UnifiedBytecodeVirtualMachine before this simple-IR fallback is considered.
+                RealmState.Logger?.LogInformation(
+                    "simple-ir-return-fast-path func={Function} argc={ArgumentCount}",
+                    _function.Name?.Name ?? "<anonymous>",
+                    arguments.Count);
+                result = EvaluateLoweredExpressionProgram(
+                    returnProgram,
+                    executionEnvironment,
                     context,
-                    planOverride: plan,
-                    planFailureOverride: _planSeed.Failure,
-                    executionEnvironmentOverride: executionEnvironment);
+                    newTarget);
 
-                result = runner.RunSync();
-                return true;
+                return TryCompleteIrFastExpressionResult(context, callingContext, ref result);
             }
             catch (ThrowSignal signal) when (callingContext is not null)
             {

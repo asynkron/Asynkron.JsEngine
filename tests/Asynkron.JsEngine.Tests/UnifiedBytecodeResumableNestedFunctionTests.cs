@@ -21,9 +21,10 @@ namespace Asynkron.JsEngine.Tests;
 ///     mutations across suspension. Async/async-generator captured-local literals remain declined.
 ///
 ///     B36 — direct root hoisted function declarations are materialised by the resumable invokers before
-///     `ExecuteResumable` starts. This slice is intentionally narrow: the helper must not capture a body local,
-///     use dynamic scope, depend on sibling/recursive declaration bindings, or require block-declaration runtime
-///     semantics.
+///     `ExecuteResumable` starts. The sync-generator path also admits helpers that capture root body locals
+///     once it owns a materialized body environment that mirrors flat-slot state across suspension. This slice
+///     is intentionally narrow: async/async-generator captured declarations, sibling/recursive declaration
+///     bindings, dynamic scope, and block-declaration runtime semantics remain declined.
 /// </summary>
 [Category(TestCategories.RuntimeSemantics)]
 public sealed class UnifiedBytecodeResumableNestedFunctionTests(ITestOutputHelper output)
@@ -98,10 +99,10 @@ public sealed class UnifiedBytecodeResumableNestedFunctionTests(ITestOutputHelpe
         AssertGeneratorRouted();
     }
 
-    // B36 boundary: a hoisted declaration that captures a resumable body local still needs a materialized
-    // body environment so the helper can alias the flat-slot state. It stays correct on the IR runner.
+    // B36 generator captured-helper slice: a hoisted declaration that captures a resumable body local uses
+    // the generator-owned materialized body environment and observes flat-slot mutations across suspension.
     [Fact(Timeout = 5000)]
-    public async Task GeneratorHoistedFunctionDeclarationCapturesLocal_CorrectButDeclinesToRunner()
+    public async Task GeneratorHoistedFunctionDeclarationCapturesLocal_RoutesResumable()
     {
         await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
@@ -119,6 +120,45 @@ public sealed class UnifiedBytecodeResumableNestedFunctionTests(ITestOutputHelpe
             """);
 
         Assert.Equal("3|4", result);
+        AssertGeneratorRouted();
+    }
+
+    // B36 boundary: recursive helper graphs are still outside this slice, even when the result is correct
+    // on the existing runner.
+    [Fact(Timeout = 5000)]
+    public async Task GeneratorHoistedFunctionDeclarationRecursiveHelper_CorrectButDeclinesToRunner()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function* g(){
+                function helper(n){ return n === 0 ? 1 : n * helper(n - 1); }
+                yield helper(4);
+            }
+            var it = g();
+            it.next().value;
+            """);
+
+        Assert.Equal(24d, result);
+        AssertGeneratorNotRouted();
+    }
+
+    // B36 boundary: sibling helper declaration graphs stay declined until declaration ordering is owned by
+    // the resumable route.
+    [Fact(Timeout = 5000)]
+    public async Task GeneratorHoistedFunctionDeclarationSiblingHelper_CorrectButDeclinesToRunner()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function* g(){
+                function helper(){ return other() + 1; }
+                function other(){ return 2; }
+                yield helper();
+            }
+            var it = g();
+            it.next().value;
+            """);
+
+        Assert.Equal(3d, result);
         AssertGeneratorNotRouted();
     }
 
@@ -220,6 +260,53 @@ public sealed class UnifiedBytecodeResumableNestedFunctionTests(ITestOutputHelpe
 
         Assert.Equal("11:false", result);
         AssertAsyncGeneratorRouted();
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task AsyncHoistedFunctionDeclarationCapturesLocal_CorrectButDeclinesToRunner()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.EvaluateAndAwait("""
+            var done = undefined;
+            async function run(p){
+                var n = 12;
+                await p;
+                function helper(){ return n; }
+                return helper();
+            }
+            run(Promise.resolve(0)).then(v => done = v, e => done = String(e));
+            done;
+            """);
+
+        Assert.Equal(12d, result);
+        AssertAsyncNotRouted();
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task AsyncGeneratorHoistedFunctionDeclarationCapturesLocal_CorrectButDeclinesToRunner()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.EvaluateAndAwait("""
+            var done = undefined;
+            async function* values(){
+                var n = 13;
+                function helper(){ return n; }
+                yield helper();
+                n = 14;
+                yield helper();
+            }
+            async function run(){
+                var it = values();
+                var a = await it.next();
+                var b = await it.next();
+                return a.value + "|" + b.value;
+            }
+            run().then(v => done = v);
+            done;
+            """);
+
+        Assert.Equal("13|14", result);
+        AssertAsyncGeneratorNotRouted();
     }
 
     // B23 async variant: an async function materializes and name-infers a non-capturing nested function
@@ -402,6 +489,11 @@ public sealed class UnifiedBytecodeResumableNestedFunctionTests(ITestOutputHelpe
         Assert.DoesNotContain(
             CurrentLogger!.Collector.Snapshot(),
             record => record.Message.Contains(ResumableAsyncFastPathLog, StringComparison.Ordinal));
+
+    private void AssertAsyncGeneratorNotRouted() =>
+        Assert.DoesNotContain(
+            CurrentLogger!.Collector.Snapshot(),
+            record => record.Message.Contains(ResumableAsyncGeneratorFastPathLog, StringComparison.Ordinal));
 
     private static ExecutionPlan TopLevelGeneratorPlan(string source, string name)
     {

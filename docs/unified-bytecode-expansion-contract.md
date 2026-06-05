@@ -771,17 +771,20 @@ predicates and proof tests.
   - HOISTED NESTED FUNCTION DECLARATIONS (`function helper(){...}`;
     `FunctionDeclarationInstruction` / `DeclareFunction`) inside a generator/async
     body are now partially admitted (B36): direct root function-scoped
-    declarations route when the declared helper is non-capturing and the
-    resumable invoker pre-populates the helper's compiled VM flat slot before
-    `ExecuteResumable` starts. Capturing helpers still remain declined in this
-    slice even though generator function literals now have a materialized
-    body-environment route: declaration graph ordering, recursive/sibling helper
-    dependencies, dynamic/eval helpers, descriptor-backed block/Annex B
-    declarations, and class declarations are separate B36 declaration
-    instantiation work. `DeclareFunction` remains OFF the resumable opcode allowlist and
-    `FunctionDeclarationInstruction` remains conditionally guarded by the
-    invoker-proof activation flag; the boundary is pinned by
-    `UnifiedBytecodeResumableNestedFunctionTests`.
+    declarations route when the resumable invoker pre-populates the helper's
+    compiled VM flat slot before `ExecuteResumable` starts. Non-capturing
+    helpers route in generators, async functions, and async generators. The
+    sync-generator route also admits helpers that capture root body locals after
+    invocation setup materializes the resumable body environment and creates the
+    helper against that environment, so the helper observes flat-slot mutations
+    across `yield`/resume. Async/async-generator captured helpers still remain
+    declined because those invokers do not yet prove the same materialized body
+    environment lifetime. Recursive/sibling helper graphs, dynamic/eval helpers,
+    descriptor-backed block/Annex B declarations, and class declarations are
+    separate B36 declaration-instantiation work. `DeclareFunction` remains OFF
+    the resumable opcode allowlist and `FunctionDeclarationInstruction` remains
+    conditionally guarded by the invoker-proof activation flag; the boundary is
+    pinned by `UnifiedBytecodeResumableNestedFunctionTests`.
 - Captured function scopes outside the simple-return captured-closure route,
   unresolved non-with dynamic activation, arrow lexical `this` / `new.target`,
   and class-constructor activation outside the bounded constructor routes.

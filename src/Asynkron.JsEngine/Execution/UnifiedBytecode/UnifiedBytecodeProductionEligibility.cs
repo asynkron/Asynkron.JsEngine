@@ -1432,7 +1432,7 @@ internal static class UnifiedBytecodeProductionEligibility
         return false;
     }
 
-    private static bool FunctionLiteralNeedsLexicalThisOrPrivateNameContext(
+    internal static bool FunctionLiteralNeedsLexicalThisOrPrivateNameContext(
         FunctionExpression function,
         out string capturedName)
     {
@@ -1458,6 +1458,79 @@ internal static class UnifiedBytecodeProductionEligibility
             if (instruction is FunctionDeclarationInstruction { Descriptor: { } descriptor } &&
                 FunctionLiteralNeedsLexicalThisOrPrivateNameContext(descriptor.Function, out capturedName))
             {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    internal static bool FunctionReferencesIdentifierNamed(
+        FunctionExpression function,
+        IReadOnlySet<Symbol> names,
+        out string referencedName)
+    {
+        referencedName = string.Empty;
+        if (names.Count == 0)
+        {
+            return false;
+        }
+
+        var cache = ((IAstCacheable<ExecutionPlanCache>)function).GetOrCreateCache();
+        if (!cache.Succeeded || cache.Plan is not { } plan)
+        {
+            referencedName = "<unknown>";
+            return true;
+        }
+
+        foreach (var instruction in plan.Instructions)
+        {
+            if (TryGetExpressionProgram(instruction, out var program) &&
+                ExpressionProgramReferencesIdentifierNamed(program, names, out referencedName))
+            {
+                return true;
+            }
+
+            if (instruction is FunctionDeclarationInstruction { Descriptor: { } descriptor } &&
+                FunctionReferencesIdentifierNamed(descriptor.Function, names, out referencedName))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool ExpressionProgramReferencesIdentifierNamed(
+        ExpressionProgram program,
+        IReadOnlySet<Symbol> names,
+        out string referencedName)
+    {
+        referencedName = string.Empty;
+        if (program.IsEmpty)
+        {
+            return false;
+        }
+
+        var identifierConstants = program.IdentifierConstants.AsSpan();
+        var objectConstants = program.ObjectConstants.AsSpan();
+        foreach (var operation in program.EnumerateOperations())
+        {
+            if (operation.Kind == ExpressionOpKind.LoadFunctionLiteral)
+            {
+                var descriptor = operation.GetObject<FunctionLiteralDescriptor>(objectConstants);
+                if (FunctionReferencesIdentifierNamed(descriptor.Function, names, out referencedName))
+                {
+                    return true;
+                }
+
+                continue;
+            }
+
+            if (TryGetIdentifierDependency(operation, identifierConstants, out var identifier) &&
+                names.Contains(identifier.Name))
+            {
+                referencedName = identifier.Name.Name;
                 return true;
             }
         }

@@ -4054,18 +4054,6 @@ internal static class UnifiedBytecodeCompiler
 
     private static bool IsSupportedBreakableEnter(BreakableEnterInstruction breakableEnter, out string reason)
     {
-        // Labeled breakable regions are admitted: loop-control targets are compiler-owned
-        // (ADR 0253), and a labeled break/continue resolves to a numeric target through the
-        // same resolved-jump path as the unlabeled case. The driver-crossing safety check
-        // (a labeled abrupt that exits an enclosing iterator/for-in/destructuring driver loop)
-        // is enforced conservatively during production eligibility, not here.
-        if (breakableEnter.ConstructKind != BreakableKind.ResetsCompletionValue)
-        {
-            reason =
-                "Unsupported breakable construct: only loop-style breakable wrappers are eligible for unified bytecode compilation.";
-            return false;
-        }
-
         reason = string.Empty;
         return true;
     }

@@ -498,7 +498,7 @@ counted as compiler-decline work here.
 
 | Leaf | Owner surface | Current fallback route | Sync / resumable applicability |
 |---|---|---|---|
-| `A51a` | Entrypoint, invalid target, loop-shaped topology, unsupported breakable/loop control | Existing execution-plan runner | both |
+| `A51a` | Entrypoint, invalid target, loop-shaped topology, and remaining loop-control diagnostics; switch-style breakable wrappers are sync-admitted | Existing execution-plan runner | both |
 | `A51b` | Activation-slot metadata, slot-layout, declaration / assignment / update storage targets | Existing execution-plan runner | both |
 | `A51c` | Catch binding, lexical dynamic declaration, active-with dynamic-name, TDZ-head binding storage | Existing environment-aware execution-plan runner | both |
 | `A51d` | Iterator, for-in, `yield*`, resume-target, and driver state slots | Existing iterator/generator/async IR drivers | both; `yield*`/resume-target are resumable-owned |
@@ -639,7 +639,6 @@ above in the same slice.
 - `Unsupported array destructuring state slot '{arrayDestructuringInit.IteratorSlot.Name}'.`
 - `Unsupported array destructuring state slot '{arrayDestructuringRest.IteratorSlot.Name}'.`
 - `Unsupported assignment target '{assignmentTargetSymbol.Name}'.`
-- `Unsupported breakable construct: only loop-style breakable wrappers are eligible for unified bytecode compilation.`
 - `Unsupported catch binding slot '{identifier.Name.Name}'.`
 - `Unsupported compound assignment target '{compoundTargetSymbol.Name}'.`
 - `Unsupported compound computed property binary operator '{binary.Operator}'.`

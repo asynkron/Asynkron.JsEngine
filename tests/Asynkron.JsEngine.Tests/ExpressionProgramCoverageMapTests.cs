@@ -101,13 +101,11 @@ public sealed class ExpressionProgramCoverageMapTests
     [
         "BreakInstruction",
         "ClassDeclarationInstruction",
-        "CompoundAssignmentSlotInstruction",
         "ContinueInstruction",
         "EnterCatchInstruction",
         "EnterWithInstruction",
         "FunctionDeclarationInstruction",
         "LeaveWithInstruction",
-        "LogicalCompoundAssignmentSlotInstruction",
         "PopEnvironmentInstruction",
         "PushEnvironmentInstruction",
         "SetCompletionValueInstruction"

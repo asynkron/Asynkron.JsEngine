@@ -32,21 +32,20 @@ namespace Asynkron.JsEngine.Tests;
 ///             It resolves against the live closure environment on
 ///             <see cref="UnifiedBytecodeResumeState.CallingEnvironment" /> (#3108, stable across yield/await).
 ///         </item>
-///     </list>
-///
-///     DECLINED (honest boundary, verified correct on the IR runner, NOT routed):
-///     <list type="bullet">
 ///         <item>
-///             B29 free COMPOUND (<c>freeVar += x</c>) declines even earlier, at the
-///             <c>CompoundAssignmentSlotInstruction</c> plan-shape gate, and needs separate read-modify-write proof
-///             beyond B26's reference persistence.
+///             B29 free COMPOUND / LOGICAL COMPOUND (<c>freeVar += x</c>, <c>freeVar &&= x</c>)
+///             lower through the same pending reference stack. The compiler emits
+///             <see cref="UnifiedBytecodeOpCode.ResolveDynamicIdentifierReference" /> ->
+///             <see cref="UnifiedBytecodeOpCode.LoadDynamicIdentifierReference" />, then the RHS / branch
+///             sequence, then <see cref="UnifiedBytecodeOpCode.StoreDynamicIdentifierReference" /> or
+///             <see cref="UnifiedBytecodeOpCode.PopDynamicIdentifierReference" /> for short-circuited logical
+///             assignments.
 ///         </item>
 ///     </list>
 ///
 ///     Each admitted proof asserts (a) ROUTING via the resumable fast-path log and (b) correctness for the
 ///     adversarial cases: mutate the SAME global across a suspension (mutate, yield, read after resume ->
-///     consistent), and the async variant. Each declined proof asserts the correct value AND the absence of the
-///     fast-path log (it ran on the IR runner).
+///     consistent), and the async variant.
 /// </summary>
 [Category(TestCategories.RuntimeSemantics)]
 public sealed class UnifiedBytecodeResumableFreeIdentifierMutationTests(ITestOutputHelper output)
@@ -120,10 +119,9 @@ public sealed class UnifiedBytecodeResumableFreeIdentifierMutationTests(ITestOut
             static instruction => instruction.OpCode == UnifiedBytecodeOpCode.StoreDynamicIdentifierReference);
     }
 
-    // B29: the free COMPOUND declines at the CompoundAssignmentSlotInstruction plan-shape gate (earlier than
-    // the opcode allowlist).
+    // B29: the free COMPOUND admits and carries the pre-resolved dynamic reference read-modify-write sequence.
     [Fact]
-    public void EvaluateResumable_FreeCompound_DeclinesAtPlanShapeGate()
+    public void EvaluateResumable_FreeCompound_AdmitsDynamicReferenceReadModifyWrite()
     {
         var plan = GetFunctionPlan("""
             var c = 1;
@@ -134,8 +132,64 @@ public sealed class UnifiedBytecodeResumableFreeIdentifierMutationTests(ITestOut
             plan,
             new UnifiedBytecodeProductionActivationDescriptor(IsGenerator: true));
 
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(
+            result.Program.Instructions,
+            static instruction => instruction.OpCode == UnifiedBytecodeOpCode.ResolveDynamicIdentifierReference);
+        Assert.Contains(
+            result.Program.Instructions,
+            static instruction => instruction.OpCode == UnifiedBytecodeOpCode.LoadDynamicIdentifierReference);
+        Assert.Contains(
+            result.Program.Instructions,
+            static instruction => instruction.OpCode == UnifiedBytecodeOpCode.StoreDynamicIdentifierReference);
+    }
+
+    // B29: a free LOGICAL COMPOUND admits and cleans up the pending reference on the short-circuit branch.
+    [Fact]
+    public void EvaluateResumable_FreeLogicalCompound_AdmitsDynamicReferenceCleanup()
+    {
+        var plan = GetFunctionPlan("""
+            var c = 1;
+            function* g() { c ||= 2; yield c; }
+            """, "g");
+
+        var result = UnifiedBytecodeProductionEligibility.EvaluateResumable(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor(IsGenerator: true));
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(
+            result.Program.Instructions,
+            static instruction => instruction.OpCode == UnifiedBytecodeOpCode.ResolveDynamicIdentifierReference);
+        Assert.Contains(
+            result.Program.Instructions,
+            static instruction => instruction.OpCode == UnifiedBytecodeOpCode.LoadDynamicIdentifierReference);
+        Assert.Contains(
+            result.Program.Instructions,
+            static instruction => instruction.OpCode == UnifiedBytecodeOpCode.PopDynamicIdentifierReference);
+    }
+
+    // B29 does not widen the known B32 early-close finally limitation. Dynamic mutations inside finally stay on
+    // the IR runner until the resumable VM owns finally execution for .return() / .throw().
+    [Fact]
+    public void EvaluateResumable_FreeCompoundInFinally_DeclinesForEarlyCloseCleanup()
+    {
+        var plan = GetFunctionPlan("""
+            var c = 0;
+            function* g() {
+                try { yield 1; }
+                finally { c += 2; }
+            }
+            """, "g");
+
+        var result = UnifiedBytecodeProductionEligibility.EvaluateResumable(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor(IsGenerator: true));
+
         Assert.False(result.IsEligible);
-        Assert.Contains("CompoundAssignmentSlotInstruction", result.Reason, StringComparison.Ordinal);
+        Assert.Contains("dynamic mutation", result.Reason, StringComparison.Ordinal);
     }
 
     // ----- B28 free DELETE: end-to-end routing + correctness -----
@@ -375,11 +429,11 @@ public sealed class UnifiedBytecodeResumableFreeIdentifierMutationTests(ITestOut
         AssertAsyncFastPath("run", argc: 0);
     }
 
-    // ----- B29 honest decline pin: correct value, NOT routed (ran on the IR runner) -----
+    // ----- B29 free COMPOUND / LOGICAL COMPOUND: end-to-end routing + correctness -----
 
-    // B29 free COMPOUND across a suspension: correct value, NOT routed.
+    // B29 free COMPOUND across a suspension: correct value and routed.
     [Fact(Timeout = 5000)]
-    public async Task GeneratorFreeCompound_CorrectButDeclinesToRunner()
+    public async Task GeneratorFreeCompound_RoutesResumableAndMutatesGlobal()
     {
         await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
@@ -397,6 +451,75 @@ public sealed class UnifiedBytecodeResumableFreeIdentifierMutationTests(ITestOut
             """);
 
         Assert.Equal("3|9|9", result);
+        AssertGeneratorFastPath("g", argc: 0);
+    }
+
+    // B29 logical assignment: short-circuit skips the RHS and assignment branch; assignment branch mutates.
+    [Fact(Timeout = 5000)]
+    public async Task GeneratorFreeLogicalCompound_RoutesAndPreservesShortCircuit()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            var c = 1;
+            var hits = 0;
+            function* g() {
+                c ||= (hits = 1);
+                yield c;
+                c &&= 5;
+                yield c;
+            }
+            var it = g();
+            var a = it.next().value;
+            var b = it.next().value;
+            a + "|" + b + "|" + hits + "|" + c;
+            """);
+
+        Assert.Equal("1|5|0|5", result);
+        AssertGeneratorFastPath("g", argc: 0);
+    }
+
+    // Async variant: a free compound assignment after an await routes and mutates the same outer binding.
+    [Fact(Timeout = 5000)]
+    public async Task AsyncFreeCompoundAcrossAwait_RoutesResumableAndMutatesGlobal()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.EvaluateAndAwait("""
+            var asyncResult = undefined;
+            var c = 10;
+            async function run() {
+                await Promise.resolve(0);
+                c += 5;
+                return c;
+            }
+            run().then(v => asyncResult = v + "|" + c);
+            asyncResult;
+            """);
+
+        Assert.Equal("15|15", result);
+        AssertAsyncFastPath("run", argc: 0);
+    }
+
+    // Guard proof: early-close finally cleanup with a newly-admitted dynamic compound stays on the IR runner.
+    [Fact(Timeout = 5000)]
+    public async Task GeneratorFreeCompoundInFinally_EarlyReturnRunsCleanupOnRunner()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            var c = 0;
+            function* g() {
+                try {
+                    yield 1;
+                } finally {
+                    c += 2;
+                }
+            }
+            var it = g();
+            var first = it.next().value;
+            it.return();
+            first + "|" + c;
+            """);
+
+        Assert.Equal("1|2", result);
         AssertNotResumableRouted();
     }
 

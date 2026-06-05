@@ -405,13 +405,11 @@ not yet proven for them.
 
 - `BreakInstruction`
 - `ClassDeclarationInstruction`
-- `CompoundAssignmentSlotInstruction`
 - `ContinueInstruction`
 - `EnterCatchInstruction`
 - `EnterWithInstruction`
 - `FunctionDeclarationInstruction`
 - `LeaveWithInstruction`
-- `LogicalCompoundAssignmentSlotInstruction`
 - `PopEnvironmentInstruction`
 - `PushEnvironmentInstruction`
 - `SetCompletionValueInstruction`
@@ -733,10 +731,11 @@ predicates and proof tests.
   `o?.[k]()` (a leading optional hop, declined at the shared plan walk as
   `OptionalChainDependency` — distinct from the now-admitted computed-member
   optional call `o[k]?.()`, B15),
-  free/dynamic compound/logical WRITES (`freeGlobal += x`, `freeGlobal &&= x`,
-  B29 — these decline at the `CompoundAssignmentSlotInstruction` /
-  `LogicalCompoundAssignmentSlotInstruction` plan-shape gates and need separate
-  read-modify-write proof beyond the now-admitted dynamic reference stack),
+  free/global and captured dynamic compound/logical WRITES (`freeGlobal += x`, `freeGlobal &&= x`,
+  B29 — the compiler now lowers these through
+  `ResolveDynamicIdentifierReference` / `LoadDynamicIdentifierReference` and
+  either `StoreDynamicIdentifierReference` or `PopDynamicIdentifierReference`
+  for short-circuit cleanup),
   super-property updates/deletes, and
   `super`/super-construct boundaries (`SuperConstructInvocationBoundary`, which
   needs the dynamic super-environment plumbing the resume state does not carry)
@@ -1568,10 +1567,10 @@ the final post-compile production subset check before VM entry.
   the sync VM threads into `Execute`) and applied via a single `ScopeKind.Function`
   scope frame pushed for the duration of each `ExecuteResumable` step (popped on
   every exit, so the scope stack stays balanced across `yield`/`await`). Super-property
-  writes and free dynamic compound/logical writes stay declined (proof:
+  writes stay declined; free/captured dynamic compound/logical writes are admitted by B29 (proof:
   `UnifiedBytecodeResumablePropertyWriteTests`, including the strict-throws /
   sloppy-ignored adversarial pair, plus `UnifiedBytecodeResumableFreeIdentifierMutationTests`
-  for the B26 plain-write route).
+  for the B26 plain-write route and B29 compound/logical route).
 - Accepted resumable bodies may now perform PROPERTY UPDATES and DELETES between
   suspension points: `o.x++`/`o[k]--` (prefix and postfix) and `delete o.x`/`delete o[k]`.
   The `UpdateNamedProperty`/`UpdateComputedProperty`/`DeleteNamedProperty`/

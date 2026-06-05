@@ -866,29 +866,24 @@ internal static class UnifiedBytecodeProductionEligibility
             return true;
         }
 
-        // SCOPED close-finally guard for the NEW captured/free dynamic-UPDATE admission only. The resumable
-        // VM's early-close path (`.return()`/`.throw()` while the generator is suspended at a yield protected
-        // by this try) does not re-drive a user finally body — a PRE-EXISTING limitation shared by every
-        // non-empty finally (property-write finallies included; those keep routing exactly as on main, so the
-        // B32 normal-completion pin stays green). This guard does NOT widen that limitation. It only declines
-        // the shapes THIS change newly admitted: a finally that performs a free/captured dynamic UPDATE
-        // (`n++` where `n` escapes the activation's slots, lowering to UpdateDynamicIdentifier). Before this
-        // change such a finally declined at the increment gate and ran on the IR runner (where early-close
-        // finallies execute correctly — see IteratorCloseGeneratorTests `finally { finallyCount++; }`);
-        // admitting UpdateDynamicIdentifier would otherwise newly route those generators and silently drop the
-        // finally on early close. Declining them here restores their IR-runner route. (A free/captured READ in
-        // the finally is unaffected — only the new dynamic UPDATE is gated.)
+        // SCOPED close-finally guard for the captured/free dynamic mutation admissions. The resumable VM's
+        // early-close path (`.return()`/`.throw()` while the generator is suspended at a yield protected by this
+        // try) does not re-drive a user finally body — a PRE-EXISTING limitation shared by every non-empty
+        // finally (property-write finallies included; those keep routing exactly as on main, so the B32
+        // normal-completion pin stays green). This guard does NOT widen that limitation. It only declines
+        // admitted dynamic mutations (`n++`, `n += rhs`, `n &&= rhs`) inside finally bodies when `n` escapes
+        // the activation's slots, keeping early-close cleanup on the IR runner until B32 owns it.
         if (enterTry.FinallyIndex >= 0 &&
-            FinallyRegionContainsFreeOrCapturedUpdate(instructions, enterTry, activationSlots))
+            FinallyRegionContainsFreeOrCapturedMutation(instructions, enterTry, activationSlots))
         {
-            instructionName = "finally body performs a captured/free dynamic update whose early-close execution the resumable VM does not drive";
+            instructionName = "finally body performs a captured/free dynamic mutation whose early-close execution the resumable VM does not drive";
             return true;
         }
 
         return false;
     }
 
-    private static bool FinallyRegionContainsFreeOrCapturedUpdate(
+    private static bool FinallyRegionContainsFreeOrCapturedMutation(
         ImmutableArray<ExecutionInstruction> instructions,
         EnterTryInstruction enterTry,
         ActivationSlotShape activationSlots)
@@ -909,10 +904,9 @@ internal static class UnifiedBytecodeProductionEligibility
             boundary.Add(enterTry.LeaveTryIndex);
         }
 
-        // Walk only the finally region (from its first instruction up to EndFinally). Detect an
-        // IncrementSlotInstruction whose target does NOT resolve to one of this activation's slots — that is
-        // the free/captured update (`n++`) that lowers to UpdateDynamicIdentifier and is the sole shape this
-        // change newly admitted into finally-on-close territory.
+        // Walk only the finally region (from its first instruction up to EndFinally). Detect mutations whose
+        // target does NOT resolve to one of this activation's slots — those lower through the dynamic
+        // reference/update opcodes newly admitted by the B27/B29 dynamic-mutation slices.
         var visited = new HashSet<int>();
         var pending = new Stack<int>();
         pending.Push(enterTry.FinallyIndex);
@@ -927,11 +921,7 @@ internal static class UnifiedBytecodeProductionEligibility
             }
 
             var instruction = instructions[index];
-            if (instruction is IncrementSlotInstruction
-                {
-                    TargetSymbol: { } targetSymbol, FlatSlotId: var flatSlotId
-                } &&
-                !TryResolveActivationSymbolSlot(targetSymbol, flatSlotId, activationSlots))
+            if (IsFreeOrCapturedMutationInstruction(instruction, activationSlots))
             {
                 return true;
             }
@@ -954,6 +944,22 @@ internal static class UnifiedBytecodeProductionEligibility
         }
 
         return false;
+    }
+
+    private static bool IsFreeOrCapturedMutationInstruction(
+        ExecutionInstruction instruction,
+        ActivationSlotShape activationSlots)
+    {
+        return instruction switch
+        {
+            IncrementSlotInstruction { TargetSymbol: { } targetSymbol, FlatSlotId: var flatSlotId } =>
+                !TryResolveActivationSymbolSlot(targetSymbol, flatSlotId, activationSlots),
+            CompoundAssignmentSlotInstruction { TargetSymbol: { } targetSymbol, FlatSlotId: var flatSlotId } =>
+                !TryResolveActivationSymbolSlot(targetSymbol, flatSlotId, activationSlots),
+            LogicalCompoundAssignmentSlotInstruction { TargetSymbol: { } targetSymbol, FlatSlotId: var flatSlotId } =>
+                !TryResolveActivationSymbolSlot(targetSymbol, flatSlotId, activationSlots),
+            _ => false
+        };
     }
 
     private static bool TryBodyContainsNestedFinally(
@@ -1123,10 +1129,12 @@ internal static class UnifiedBytecodeProductionEligibility
             // (#3108), which is captured at construction and stable across yield/await suspension, so a
             // resumed step observes the CURRENT value of a captured/outer binding (closure capture and
             // outer mutation between yields both resolve correctly) and an uninitialized free binding
-            // still throws ReferenceError. Free dynamic plain writes are also admitted through the
-            // pre-resolved assignment-reference sequence, whose pending AssignmentReference is persisted on
-            // UnifiedBytecodeResumeState across a suspending RHS. Dynamic declarations and compound/logical
-            // writes remain declined by their instruction/opcode gates until their own semantics are proven.
+            // still throws ReferenceError. Free dynamic plain writes are admitted through a pre-resolved
+            // assignment-reference sequence whose pending AssignmentReference is persisted on
+            // UnifiedBytecodeResumeState across a suspending RHS. Free dynamic compound and logical compound
+            // writes are admitted for the non-awaited instruction shapes through the same reference stack.
+            // Dynamic declarations remain declined by their instruction/opcode gates until their own semantics
+            // are proven.
             const bool allowsDynamicIdentifiers = true;
             if (!IsSupportedResumableInstruction(instruction, activationSlots, out declineReason))
             {
@@ -1264,6 +1272,13 @@ internal static class UnifiedBytecodeProductionEligibility
             // ExecuteResumable handler).
             case BindingVariableDeclarationInstruction { AwaitedProgram: not null, InitializerProgram: null }:
             case AssignmentSlotInstruction { AwaitedProgram: null, ValueProgram: { } }:
+            // Compound slot instructions with a non-static free/captured target lower through the same
+            // pre-resolved dynamic AssignmentReference stack as B26 plain writes: ResolveDynamicIdentifierReference
+            // -> LoadDynamicIdentifierReference -> RHS -> Binary/short-circuit -> StoreDynamicIdentifierReference.
+            // StoreDynamicIdentifierReference or PopDynamicIdentifierReference balances the pending reference;
+            // RHS expression payloads are screened separately before the compiler emits the sequence.
+            case CompoundAssignmentSlotInstruction { AwaitedProgram: null, RhsProgram: { } }:
+            case LogicalCompoundAssignmentSlotInstruction { AwaitedProgram: null, RhsProgram: { } }:
             // Slot increment / decrement (`x++`, `x--`, `++x`, `--x`) over an activation slot. The
             // instruction carries no AwaitedProgram (a prefix/postfix update on a slot cannot itself
             // suspend — its operand is `slots[index]`, not a sub-expression that yields/awaits), so it
@@ -1762,10 +1777,10 @@ internal static class UnifiedBytecodeProductionEligibility
                 // reference selected before suspension. This preserves §13.15.2 ordering: RHS side effects
                 // cannot change which binding the LHS originally resolved to. The Store handler leaves the
                 // assigned value on the operand stack for the following Pop, matching the sync VM. Compound
-                // and logical STORE shapes (`n += v`, `n &&= v`) still decline at their instruction gates:
-                // they need read-modify-write proof beyond reference persistence. Dynamic declarations and
-                // single-shot StoreDynamicIdentifier also stay omitted unless another proven shape requires
-                // them.
+                // and logical STORE shapes (`n += v`, `n &&= v`) use the same pending reference stack plus
+                // LoadDynamicIdentifierReference and either StoreDynamicIdentifierReference or
+                // PopDynamicIdentifierReference for short-circuit cleanup. Dynamic declarations and single-shot
+                // StoreDynamicIdentifier stay omitted unless another proven shape requires them.
                 UnifiedBytecodeOpCode.UpdateDynamicIdentifier or
                 UnifiedBytecodeOpCode.ResolveDynamicIdentifierReference or
                 UnifiedBytecodeOpCode.LoadDynamicIdentifierReference or

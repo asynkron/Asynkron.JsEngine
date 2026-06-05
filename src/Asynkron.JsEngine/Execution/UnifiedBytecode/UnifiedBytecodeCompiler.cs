@@ -1337,8 +1337,10 @@ internal static class UnifiedBytecodeCompiler
                             var dynamicTargetNameIndex = stringConstants.Count;
                             stringConstants.Add(compoundTargetSymbol.Name);
                             unified.Add(new UnifiedBytecodeInstruction(
-                                UnifiedBytecodeOpCode.LoadDynamicIdentifier,
+                                UnifiedBytecodeOpCode.ResolveDynamicIdentifierReference,
                                 dynamicTargetNameIndex));
+                            unified.Add(new UnifiedBytecodeInstruction(
+                                UnifiedBytecodeOpCode.LoadDynamicIdentifierReference));
                             if (!TryAppendExpressionProgramOps(
                                     rhsProgram,
                                     slotLayout,
@@ -1359,11 +1361,9 @@ internal static class UnifiedBytecodeCompiler
                             unified.Add(new UnifiedBytecodeInstruction(
                                 UnifiedBytecodeOpCode.Binary,
                                 (int)compoundAssignment.Operator));
-                            AppendDynamicStoreInstruction(
-                                compoundTargetSymbol,
-                                allowNameInference: false,
-                                unified,
-                                stringConstants);
+                            unified.Add(new UnifiedBytecodeInstruction(
+                                UnifiedBytecodeOpCode.StoreDynamicIdentifierReference,
+                                EncodeDynamicStoreOperand(dynamicTargetNameIndex, allowNameInference: false)));
                             unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.Pop));
                             maxStackDepth = Math.Max(maxStackDepth, GetCompiledExpressionMaxStackDepth(rhsProgram) + 1);
                             if (TryAppendJumpToCompiledTarget(
@@ -1428,8 +1428,71 @@ internal static class UnifiedBytecodeCompiler
                         } logicalAssignment:
                         if (!TryResolveInstructionSlot(logicalTargetSymbol, logicalAssignment.FlatSlotId, slotLayout, out var logicalSlot))
                         {
-                            reason = $"Unsupported logical assignment target '{logicalTargetSymbol.Name}'.";
-                            return false;
+                            if (!allowsDynamicIdentifiers)
+                            {
+                                reason = $"Unsupported logical assignment target '{logicalTargetSymbol.Name}'.";
+                                return false;
+                            }
+
+                            var dynamicLogicalNameIndex = stringConstants.Count;
+                            stringConstants.Add(logicalTargetSymbol.Name);
+                            var dynamicScJumpOpCode = logicalAssignment.Operator switch
+                            {
+                                BinaryOperator.LogicalAnd => UnifiedBytecodeOpCode.JumpIfShortCircuitFalse,
+                                BinaryOperator.LogicalOr => UnifiedBytecodeOpCode.JumpIfShortCircuitTrue,
+                                _ => UnifiedBytecodeOpCode.JumpIfShortCircuitNotNullish
+                            };
+
+                            unified.Add(new UnifiedBytecodeInstruction(
+                                UnifiedBytecodeOpCode.ResolveDynamicIdentifierReference,
+                                dynamicLogicalNameIndex));
+                            unified.Add(new UnifiedBytecodeInstruction(
+                                UnifiedBytecodeOpCode.LoadDynamicIdentifierReference));
+                            var dynamicScJumpIndex = unified.Count;
+                            unified.Add(new UnifiedBytecodeInstruction(dynamicScJumpOpCode, 0));
+                            unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.Pop));
+                            if (!TryAppendExpressionProgramOps(
+                                    logicalRhsProgram,
+                                    slotLayout,
+                                    allowsDynamicIdentifiers,
+                                    unified,
+                                    literalConstants,
+                                    stringConstants,
+                                    callTargetConstants,
+                                    functionLiteralConstants,
+                                    classLiteralConstants,
+                                    templateObjectConstants,
+                                    out reason,
+                                    bindingTargetConstants))
+                            {
+                                return false;
+                            }
+
+                            unified.Add(new UnifiedBytecodeInstruction(
+                                UnifiedBytecodeOpCode.StoreDynamicIdentifierReference,
+                                EncodeDynamicStoreOperand(dynamicLogicalNameIndex, logicalAssignment.AllowNameInference)));
+                            unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.Pop));
+                            var skipDynamicScPopIndex = unified.Count;
+                            unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.Jump, 0));
+                            PatchOperand(unified, dynamicScJumpIndex, unified.Count);
+                            unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.Pop));
+                            unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.PopDynamicIdentifierReference));
+                            PatchOperand(unified, skipDynamicScPopIndex, unified.Count);
+                            maxStackDepth = Math.Max(maxStackDepth, GetCompiledExpressionMaxStackDepth(logicalRhsProgram) + 1);
+                            if (TryAppendJumpToCompiledTarget(
+                                    instructionIndex,
+                                    logicalAssignment.Next,
+                                    instructions,
+                                    instructionPcMap,
+                                    activeInstructions,
+                                    unified,
+                                    out reason))
+                            {
+                                return true;
+                            }
+
+                            instructionIndex = logicalAssignment.Next;
+                            continue;
                         }
 
                         var scJumpOpCode = logicalAssignment.Operator switch

@@ -17,10 +17,10 @@ namespace Asynkron.JsEngine.Tests;
 ///     (ResolveIdentifierAssignmentReference -> SetValue throws on a captured `const`), so a captured-const
 ///     update raises TypeError.
 ///
-///     The captured plain/compound STORE (`n = v`, `n += v`) is intentionally NOT admitted by this proof pack:
-///     the free/global B26 dynamic-reference stack is available, but captured enclosing-local assignment still
-///     needs its own activation-aliasing proof before it can route. Those shapes stay correct on the IR runner
-///     (verified here: right value, NOT routed).
+///     Captured plain STORE (`n = v`), captured compound STORE (`n += v`), and captured logical compound STORE
+///     (`n &&= v`) also route through the same dynamic-reference stack used by the free/global mutation tier.
+///     The proof here checks that these forms alias the enclosing heap slot by reading the mutation through a
+///     sibling closure after each suspension.
 ///
 ///     Each admitted proof asserts (a) ROUTING via the resumable fast-path log and (b) correctness for the
 ///     adversarial cases: mutate-across-yield, mutation visible in the enclosing slot after suspension,
@@ -224,11 +224,9 @@ public sealed class UnifiedBytecodeResumableCapturedClosureWriteTests(ITestOutpu
         AssertAsyncFastPath("run", argc: 0);
     }
 
-    // Honest boundary: a captured plain assignment (`n = n + 1`) stays on the IR runner until captured
-    // enclosing-local assignment has a dedicated activation-aliasing proof. The value is still correct; it
-    // simply does NOT route through the resumable fast path.
+    // Captured plain assignment aliases the enclosing slot and routes through the resumable VM.
     [Fact(Timeout = 5000)]
-    public async Task GeneratorCapturedPlainAssign_CorrectButDeclinesToRunner()
+    public async Task GeneratorCapturedPlainAssign_RoutesAndAliasesEnclosingSlot()
     {
         await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
@@ -240,18 +238,82 @@ public sealed class UnifiedBytecodeResumableCapturedClosureWriteTests(ITestOutpu
                     n = n * 2;
                     yield n;
                 }
-                return g;
+                function peek() { return n; }
+                return { g: g, peek: peek };
             }
-            var it = mk()();
+            var o = mk();
+            var it = o.g();
             var a = it.next().value;
+            var afterFirst = o.peek();
             var b = it.next().value;
-            a + "|" + b;
+            var afterSecond = o.peek();
+            a + "|" + afterFirst + "|" + b + "|" + afterSecond;
             """);
 
-        Assert.Equal("15|30", result);
-        Assert.DoesNotContain(
-            CurrentLogger!.Collector.Snapshot(),
-            record => record.Message.Contains(ResumableGeneratorFastPathLog, StringComparison.Ordinal));
+        Assert.Equal("15|15|30|30", result);
+        AssertGeneratorFastPath("g", argc: 0);
+    }
+
+    // Captured compound assignment uses the same dynamic reference path and aliases the enclosing slot.
+    [Fact(Timeout = 5000)]
+    public async Task GeneratorCapturedCompoundAssign_RoutesAndAliasesEnclosingSlot()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function mk() {
+                let n = 10;
+                function* g() {
+                    n += 5;
+                    yield n;
+                    n *= 2;
+                    yield n;
+                }
+                function peek() { return n; }
+                return { g: g, peek: peek };
+            }
+            var o = mk();
+            var it = o.g();
+            var a = it.next().value;
+            var afterFirst = o.peek();
+            var b = it.next().value;
+            var afterSecond = o.peek();
+            a + "|" + afterFirst + "|" + b + "|" + afterSecond;
+            """);
+
+        Assert.Equal("15|15|30|30", result);
+        AssertGeneratorFastPath("g", argc: 0);
+    }
+
+    // Captured logical compound assignment short-circuits and assigns through the enclosing slot reference.
+    [Fact(Timeout = 5000)]
+    public async Task GeneratorCapturedLogicalCompoundAssign_RoutesAndAliasesEnclosingSlot()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function mk() {
+                let n = 1;
+                let hits = 0;
+                function* g() {
+                    n ||= (hits = 1);
+                    yield n;
+                    n &&= 5;
+                    yield n;
+                }
+                function peek() { return n; }
+                function hitCount() { return hits; }
+                return { g: g, peek: peek, hitCount: hitCount };
+            }
+            var o = mk();
+            var it = o.g();
+            var a = it.next().value;
+            var afterFirst = o.peek();
+            var b = it.next().value;
+            var afterSecond = o.peek();
+            a + "|" + afterFirst + "|" + b + "|" + afterSecond + "|" + o.hitCount();
+            """);
+
+        Assert.Equal("1|1|5|5|0", result);
+        AssertGeneratorFastPath("g", argc: 0);
     }
 
     // Close-finally boundary: a captured update (`n++`) sited INSIDE a finally that protects a yield must

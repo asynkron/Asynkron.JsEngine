@@ -268,7 +268,27 @@ public sealed class UnifiedBytecodeResumableClassExpressionTests(ITestOutputHelp
             return C.value;
         }
         """)]
-    public void EvaluateResumable_UnownedStaticClassExpressionShapes_DeclineBeforeVm(string source)
+    [InlineData("""
+        function* g(seed) {
+            yield 1;
+            var C = class {
+                static value = () => seed;
+            };
+            return C.value();
+        }
+        """)]
+    [InlineData("""
+        function* g(seed) {
+            yield 1;
+            var C = class {
+                static value = class {
+                    static read() { return seed; }
+                };
+            };
+            return C.value.read();
+        }
+        """)]
+    public void EvaluateResumable_UnownedClassExpressionShapes_DeclineBeforeVm(string source)
     {
         var plan = GetFunctionPlan(source, "g");
 
@@ -286,6 +306,34 @@ public sealed class UnifiedBytecodeResumableClassExpressionTests(ITestOutputHelp
             record => record.Message.Contains(
                 $"{ResumableGeneratorFastPathLog} func={functionName} argc={argc}",
                 StringComparison.Ordinal));
+
+    [Fact(Timeout = 5000)]
+    public async Task GeneratorStaticFieldClosureInitializer_FallsBackAndObservesLaterActivationMutation()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function* g(seed) {
+                yield "ready";
+                var current = seed;
+                var C = class {
+                    static read = () => current;
+                };
+                current = seed + 1;
+                return C.read();
+            }
+
+            var iterator = g(41);
+            var first = iterator.next();
+            var second = iterator.next();
+            first.value + ":" + first.done + "|" + second.value + ":" + second.done;
+            """);
+
+        Assert.Equal("ready:false|42:true", result);
+        Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                $"{ResumableGeneratorFastPathLog} func=g argc=1",
+                StringComparison.Ordinal));
+    }
 
     private static ExecutionPlan GetFunctionPlan(string source, string functionName)
     {

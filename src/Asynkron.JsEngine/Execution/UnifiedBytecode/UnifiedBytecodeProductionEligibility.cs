@@ -2121,7 +2121,8 @@ internal static class UnifiedBytecodeProductionEligibility
             if (!field.IsStatic ||
                 field.IsPrivate ||
                 field.IsComputed ||
-                field.ComputedName is not null)
+                field.ComputedName is not null ||
+                StaticFieldInitializerCanCaptureActivation(field.Initializer))
             {
                 return false;
             }
@@ -2133,6 +2134,38 @@ internal static class UnifiedBytecodeProductionEligibility
                !constructor.IsDefaultDerivedConstructor &&
                constructor.Parameters.IsDefaultOrEmpty &&
                constructor.Body.Statements.IsDefaultOrEmpty;
+    }
+
+    private static bool StaticFieldInitializerCanCaptureActivation(ExpressionNode? initializer) =>
+        initializer is not null &&
+        ClassStaticFieldInitializerCaptureDetector.ContainsClosureProducingExpression(initializer);
+
+    private sealed class ClassStaticFieldInitializerCaptureDetector : AstVisitor
+    {
+        [ThreadStatic] private static ClassStaticFieldInitializerCaptureDetector? _instance;
+
+        private bool _found;
+
+        public static bool ContainsClosureProducingExpression(ExpressionNode expression)
+        {
+            var detector = _instance ??= new ClassStaticFieldInitializerCaptureDetector();
+            detector._found = false;
+            detector.ShouldStop = false;
+            detector.Visit(expression);
+            return detector._found;
+        }
+
+        protected override void VisitFunctionExpression(FunctionExpression node)
+        {
+            _found = true;
+            ShouldStop = true;
+        }
+
+        protected override void VisitClassExpression(ClassExpression node)
+        {
+            _found = true;
+            ShouldStop = true;
+        }
     }
 
     private static bool IsB24fPrivateInstanceMemberClassLiteral(ClassDefinition definition)

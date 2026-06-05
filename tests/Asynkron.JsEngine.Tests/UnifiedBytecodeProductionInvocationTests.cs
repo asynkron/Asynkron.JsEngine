@@ -9354,6 +9354,8 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
             "new ExecutionPlanRunner(",
             "ExecutionPlanRunner.RunScript(",
             "ExecutionPlanRunner.RunSync(",
+            ".RunScript(",
+            ".RunSync(",
             "ExpressionProgram",
             ".ExecuteAsyncStep(",
             ".RunScriptInternal(",

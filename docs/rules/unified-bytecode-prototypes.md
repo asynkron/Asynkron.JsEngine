@@ -978,6 +978,15 @@ all-or-nothing until a separate routing issue proves production readiness.
     persisting inactive catch-binding slots, while keeping suspending finally
     and destructuring catch bindings out of the route. Related ADR:
     `docs/adrs/0332-admit-resumable-try-catch-with-owned-frame-state.md`.
+    Red-main follow-up issue #3228 / PR #3232 refined that contract: compiled
+    `PopEnvironment` must preserve the source `ScopeId` and mark catch slots
+    inactive only when the popped scope matches the active catch descriptor;
+    slot writes that initialize the catch binding must clear the inactive flag;
+    and throws produced while resuming iterator/delegation helper steps must be
+    routed through `TryHandleResumableAbruptCompletion` before the VM returns a
+    throw step to the generator caller. A resumable try/catch fix is incomplete
+    if it proves only direct `throw` statements and not helper-produced throws
+    plus catch-scope cleanup across suspension.
 
 35. When removing a pre-gate from `CanUseProductionUnifiedBytecodeFastPath`,
     verify that the plan-level decline taxonomy in

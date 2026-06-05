@@ -75,9 +75,11 @@ checks separate.
    For direct eval specifically, admit only the syntactic `eval(<literal>)`
    identifier shape with exactly one non-spread, declaration-free literal
    argument. Identifier-loaded eval source is runtime text whose declaration set
-   is not proven before VM execution, so it must stay on IR. Carry directness in
-   boundary-local metadata instead of inferring it from receiver/dynamic lookup
-   state, and keep the fast path same-engine guarded.
+   is not proven before VM execution, so it must stay on IR. Literal eval source
+   containing top-level `var`, `let`, `const`, `function`, or `class`
+   declarations can inject runtime bindings and must also stay on IR. Carry
+   directness in boundary-local metadata instead of inferring it from
+   receiver/dynamic lookup state, and keep the fast path same-engine guarded.
 10a. If a direct-eval boundary fast path bypasses the generic host-call setup,
     resynchronize the unified-bytecode frame's slot array from the active slot
     environments before returning to the VM. Sloppy direct eval can mutate
@@ -175,6 +177,17 @@ durable lesson is that widening executable call families must move three
 surfaces together — activation gating, boundary-local directness metadata, and
 VM state write-back — while auditing any shared operand-packing helpers that
 construct paths depend on.
+
+Issue
+`planitem-planmanual1780639098493226000-full-unified-bytecode-execution-burndown-b-b4a52d0bfe`
+/ PR #3261 closed the D2 eval-injected runtime binding quarantine as a ratchet
+slice. The existing eligibility code already declined declaration-bearing eval
+literals, but the proof only pinned `var`. The learn-stage lesson is to keep
+the direct-eval production boundary declaration-family complete: `var`, `let`,
+`const`, function declarations, and class declarations are all runtime-binding
+injection hazards for a VM frame compiled before eval declaration
+instantiation. Future direct-eval production work should preserve that whole
+negative set while keeping declaration-free literal eval route proof green.
 
 Issue
 `planitem-planmanual1780639098493226000-full-unified-bytecode-execution-burndown-b-43182f6ef4`

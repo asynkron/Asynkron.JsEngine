@@ -38,17 +38,19 @@ public static partial class TypedAstEvaluator
         IJsCallable callable,
         RealmState realmState,
         bool isLexicallyStrict,
+        bool hasFunctionNameEnvironment,
         IJsObjectLike? homeObject,
         PrivateNameScope? privateNameScope,
         ImmutableArray<PrivateNameScope> capturedPrivateNameScopes,
         FunctionExecutionPlanSeed planSeed)
     {
+        private ExecutionPlanRunner? _inner;
         private UnifiedBytecodeResumeState? _unifiedState;
 
         // Each .next/.return/.throw call drives one async-generator step and wraps
         // the step result in a Promise. Admitted bodies are VM-owned through
-        // UnifiedBytecodeVirtualMachine.ExecuteResumable; unsupported bodies fail fast
-        // here instead of constructing the retired runner fallback.
+        // UnifiedBytecodeVirtualMachine.ExecuteResumable; unsupported bodies remain
+        // classified fallback and use ExecutionPlanRunner.ExecuteAsyncStep.
         public void Initialize()
         {
             if (TryInitializeUnifiedBytecode())
@@ -56,8 +58,8 @@ public static partial class TypedAstEvaluator
                 return;
             }
 
-            throw new NotSupportedException(
-                "Async generator body is not eligible for the unified bytecode resumable route.");
+            _inner = CreateClassifiedAsyncGeneratorDeclinedBodyRunner();
+            _inner.Initialize();
         }
 
         public JsObject CreateAsyncIteratorObject()
@@ -243,13 +245,12 @@ public static partial class TypedAstEvaluator
             AsyncGeneratorResumeMode mode,
             JsValue argument)
         {
-            if (_unifiedState is not { } unifiedState)
+            if (_unifiedState is { } unifiedState)
             {
-                throw new InvalidOperationException(
-                    "Async generator unified bytecode state was not initialized.");
+                return ExecuteUnifiedBytecodeStep(ToUnifiedResumeMode(mode), argument, unifiedState);
             }
 
-            return ExecuteUnifiedBytecodeStep(ToUnifiedResumeMode(mode), argument, unifiedState);
+            return _inner!.ExecuteAsyncStep(ToRunnerResumeMode(mode), argument);
         }
 
         private ExecutionPlanRunner.AsyncGeneratorStepResult ExecuteUnifiedBytecodeStep(
@@ -313,11 +314,37 @@ public static partial class TypedAstEvaluator
                 _ => UnifiedBytecodeResumeMode.Next
             };
 
+        private static ExecutionPlanRunner.ResumeMode ToRunnerResumeMode(AsyncGeneratorResumeMode mode) =>
+            mode switch
+            {
+                AsyncGeneratorResumeMode.Throw => ExecutionPlanRunner.ResumeMode.Throw,
+                AsyncGeneratorResumeMode.Return => ExecutionPlanRunner.ResumeMode.Return,
+                _ => ExecutionPlanRunner.ResumeMode.Next
+            };
+
         private enum AsyncGeneratorResumeMode : byte
         {
             Next,
             Return,
             Throw
+        }
+
+        private ExecutionPlanRunner CreateClassifiedAsyncGeneratorDeclinedBodyRunner()
+        {
+            return new ExecutionPlanRunner(
+                function,
+                closure,
+                arguments,
+                thisValue,
+                callable,
+                realmState,
+                isLexicallyStrict,
+                hasFunctionNameEnvironment,
+                homeObject,
+                privateNameScope,
+                capturedPrivateNameScopes,
+                planOverride: planSeed.Plan,
+                planFailureOverride: planSeed.Failure);
         }
 
         private static JsValue CreateAsyncIteratorResult(JsValue value, bool done)

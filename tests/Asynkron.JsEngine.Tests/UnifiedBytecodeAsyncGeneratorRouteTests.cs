@@ -268,67 +268,64 @@ public sealed class UnifiedBytecodeAsyncGeneratorRouteTests(ITestOutputHelper ou
     }
 
     [Fact(Timeout = 5000)]
-    public async Task AsyncGeneratorDefaultParameter_FailFastInsteadOfRunnerFallback()
+    public async Task AsyncGeneratorDefaultParameter_DeclinesToRunnerFallback()
     {
         await using var engine = CreateEngine();
-        var exception = await Assert.ThrowsAsync<NotSupportedException>(async () =>
-            await engine.Evaluate("""
-                async function* values(x = 7) {
-                    yield x;
-                }
+        var result = await engine.EvaluateAndAwait("""
+            var output = undefined;
 
-                values();
-                """));
+            async function* values(x = 7) {
+                yield x;
+            }
 
-        Assert.Contains(
-            "not eligible for the unified bytecode resumable route",
-            exception.Message,
-            StringComparison.Ordinal);
+            values().next().then(result => output = result.value + ":" + result.done);
+            output;
+            """);
+
+        Assert.Equal("7:false", result);
         AssertNotRouted("func=values");
     }
 
     [Fact(Timeout = 5000)]
-    public async Task AsyncGeneratorNonSimpleParameters_FailFastInsteadOfRunnerFallback()
+    public async Task AsyncGeneratorNonSimpleParameters_DeclinesToRunnerFallback()
     {
         await using var engine = CreateEngine();
-        var exception = await Assert.ThrowsAsync<NotSupportedException>(async () =>
-            await engine.Evaluate("""
-                async function* values([x]) {
-                    yield x;
-                }
+        var result = await engine.EvaluateAndAwait("""
+            var output = undefined;
 
-                values([1]);
-                """));
+            async function* values([x]) {
+                yield x;
+            }
 
-        Assert.Contains(
-            "not eligible for the unified bytecode resumable route",
-            exception.Message,
-            StringComparison.Ordinal);
+            values([1]).next().then(result => output = result.value + ":" + result.done);
+            output;
+            """);
+
+        Assert.Equal("1:false", result);
         Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(),
             record => record.Message.Contains(ResumableAsyncGeneratorFastPathLog, StringComparison.Ordinal));
     }
 
     [Fact(Timeout = 5000)]
-    public async Task AsyncGeneratorCapturedHoistedHelper_FailFastInsteadOfRunnerFallback()
+    public async Task AsyncGeneratorCapturedHoistedHelper_DeclinesToRunnerFallback()
     {
         await using var engine = CreateEngine();
-        var exception = await Assert.ThrowsAsync<NotSupportedException>(async () =>
-            await engine.Evaluate("""
-                async function* values(x) {
-                    function addOne() {
-                        return x + 1;
-                    }
+        var result = await engine.EvaluateAndAwait("""
+            var output = undefined;
 
-                    yield addOne();
+            async function* values(x) {
+                function addOne() {
+                    return x + 1;
                 }
 
-                values(4);
-                """));
+                yield addOne();
+            }
 
-        Assert.Contains(
-            "not eligible for the unified bytecode resumable route",
-            exception.Message,
-            StringComparison.Ordinal);
+            values(4).next().then(result => output = result.value + ":" + result.done);
+            output;
+            """);
+
+        Assert.Equal("5:false", result);
         AssertNotRouted("func=values");
     }
 

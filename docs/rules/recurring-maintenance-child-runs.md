@@ -118,6 +118,13 @@ maintenance pass, keep the run small, repo-local, and directly reviewable.
   signal pair. Prefer redirecting readers to maintained source files over
   recreating stale status documents unless the issue explicitly asks for a new
   durable status artifact.
+- When a cleanup slice removes obsolete architecture-era terminology, start
+  with a targeted text inventory over maintained docs, source comments, tests,
+  examples, and tracked presentation text. Replace live comments with the
+  current owner terms (for example typed AST, IR, expression bytecode, or
+  source locations), delete obsolete demo/project artifacts only after their
+  docs references are removed, and avoid widening into runtime behavior unless
+  the stale term points at live code rather than wording drift.
 - When a tooling/docs slice needs agents to discover available options, prefer
   an explicit non-failing inventory command over making agents probe an invalid
   argument just to see an error message. Keep the listing path backed by the
@@ -378,6 +385,15 @@ host demo path even though those runnable example directories and host scripts
 were present. Future README demo-list maintenance should compare the listed
 examples against `examples/` first, then update the README as the bounded slice
 without widening into demo behavior or broad validation work.
+
+Faktorial issue `agentmanual1780666854898820000` / PR #3222 applied that drift
+pattern to obsolete Lisp/S-expression/cons/CPS-era wording. The accepted
+delivery removed the dead `examples/SExpressionDemo` project and stale
+presentation asset, then retargeted live source comments, tests, README text,
+and tracked presentation text to current typed-AST/IR/source-location wording.
+Without the targeted-inventory boundary, future cleanup agents can either leave
+stale architecture terms in user-visible artifacts or overreach into behavior
+changes when the actual defect is wording and dead-example drift.
 
 Issue `autrun-discmtuc3nyg-6afa45ba2d` / PR #2014 exposed the stronger
 roadmap-evidence version of the same problem. The delivery initially connected

@@ -36,10 +36,14 @@ or IR execution context setup, treat private names as lexical scope state.
 8. When admitting class literals or class expressions to resumable unified
    bytecode, materialize the class through the captured calling environment and
    synchronize VM slots into that environment before class creation. Private
-   field initializers, `this.#field` reads, and `#field in receiver` checks must
-   remain owned by the existing class-definition/private-name machinery, with no
-   VM fallback to AST or IR evaluation. Prove the route with an actual
-   suspension boundary and route-hit assertion, not only opcode eligibility.
+   field initializers, `this.#field` reads, `#field in receiver` checks, private
+   methods, and private accessors must remain owned by the existing
+   class-definition/private-name machinery, with no VM fallback to AST or IR
+   evaluation. Admit private methods/accessors only for the narrow
+   environment-safe shape whose constructor and private member bodies do not
+   capture resumable activation bindings. Prove the route with an actual
+   suspension boundary and route-hit assertion, plus no-route proof for
+   activation-slot captures and neighboring class-element families.
 
 ## Why
 
@@ -74,3 +78,13 @@ class creation, and delegates private-scope and brand setup to
 generator that suspends before returning a class with a private instance field,
 then checks both `this.#value` and `#value in receiver` through the
 `unified-bytecode-resumable-generator-fast-path` route.
+
+Issue
+`planitem-planmanual1780639098493226000-full-unified-bytecode-execution-burndown-b-7d0f3d6a80`
+/ PR #3194 admitted the B24f resumable class-expression private
+method/accessor slice. The reusable decision was to keep private member
+definition and invocation in the class-definition/private-name machinery while
+admitting only class literals whose constructor and private member bodies do not
+capture resumable activation slots. Activation captures still decline until a
+future route materializes the function body environment that private member
+callables would close over.

@@ -172,6 +172,22 @@ all-or-nothing until a separate routing issue proves production readiness.
     composed top-level runtime route test, and ratchet rows that distinguish the
     remaining lexical-destructuring safety decline from eval-injected dynamic
     residue.
+9e. Keep remaining script IR fallback classified by the production decline that
+    caused it. If `EvaluateScript` declines and script execution still delegates
+    to `ExecutionPlanRunner.RunScript`, the runner call must stay centralized
+    behind a classified helper that logs the stable production decline code and
+    reason. Do not replace a precise script-safety decline with a generic
+    fallback reason, and do not reintroduce direct runner calls outside the
+    classified helper. Future widening must prove both the route-hit for newly
+    admitted scripts and the preserved no-route/decline detail for nearby
+    non-admitted script shapes. WHY: Faktorial issue
+    `planitem-planitem-planmanual1780639098493226000-full-unified-bytecode-execution-b-1bdecc5080`
+    / PR #3282 classified the E5 script runner edge in
+    `RunScriptViaClassifiedIrFallback`; the review repair commit `f0588fdd1`
+    found that the helper also needed to preserve `EvaluateScript`'s exact
+    `Code` and `Reason` so top-level lexical destructuring and other
+    non-residue declines remain auditable. Related ADR:
+    `docs/adrs/0346-keep-script-ir-fallback-classified-with-production-decline-details.md`.
 10. When invoking production unified bytecode from sync calls, keep the bridge
     slot-layout owned and fast-path ordered. The production unified route runs
     before direct specialized simple-return binary/chain shortcuts and the

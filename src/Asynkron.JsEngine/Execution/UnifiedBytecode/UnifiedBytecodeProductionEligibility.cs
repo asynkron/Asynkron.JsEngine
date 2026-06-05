@@ -1989,7 +1989,7 @@ internal static class UnifiedBytecodeProductionEligibility
                 UnifiedBytecodeOpCode.ArraySpread)
             {
                 if (instruction.OpCode == UnifiedBytecodeOpCode.LoadClassLiteral &&
-                    !IsB24aConstructorOnlyClassLiteral(
+                    !IsResumableB24ClassLiteral(
                         program,
                         program.ClassLiteralConstants[instruction.Operand],
                         out declineReason))
@@ -2009,44 +2009,38 @@ internal static class UnifiedBytecodeProductionEligibility
         return false;
     }
 
-    private static bool IsB24aConstructorOnlyClassLiteral(
+    private static bool IsResumableB24ClassLiteral(
         UnifiedBytecodeProgram program,
         ClassExpression classExpression,
         out string declineReason)
     {
         var definition = classExpression.Definition;
-        if (!definition.Fields.IsDefaultOrEmpty)
+        if (ClassExtendsReadsUnifiedSlot(definition, program.SlotNames))
         {
-            if (IsB24ePrivateInstanceFieldClassLiteral(definition) &&
-                !ClassExtendsReadsUnifiedSlot(definition, program.SlotNames))
-            {
-                declineReason = string.Empty;
-                return true;
-            }
-
             declineReason =
-                "Class literal is outside B24a: class fields remain owned by later B24 field/private/computed-member slices.";
+                "Class literal is outside B24: extends expressions that read resumable activation slots need a later class-definition environment slice.";
             return false;
         }
 
         if (!definition.StaticBlocks.IsDefaultOrEmpty || !definition.StaticElements.IsDefaultOrEmpty)
         {
             declineReason =
-                "Class literal is outside B24a: static elements remain owned by later B24 static-field/static-block slices.";
+                "Class literal is outside B24: static elements remain owned by later B24 static-field/static-block slices.";
             return false;
         }
 
-        if (!definition.Members.IsDefaultOrEmpty)
+        if (!AreResumableB24ClassFieldsSupported(definition))
         {
             declineReason =
-                "Class literal is outside B24a: class methods, accessors, computed members, private members, and member super semantics remain later B24 slices.";
+                "Class literal is outside B24: class fields remain owned by later B24 static-field/computed-member slices.";
             return false;
         }
 
-        if (ClassExtendsReadsUnifiedSlot(definition, program.SlotNames))
+        var isPrivateInstanceFieldClassLiteral = IsB24ePrivateInstanceFieldClassLiteral(definition);
+        if (!AreResumableB24ClassMembersSupported(definition, isPrivateInstanceFieldClassLiteral))
         {
             declineReason =
-                "Class literal is outside B24a: extends expressions that read resumable activation slots need a later class-definition environment slice.";
+                "Class literal is outside B24: computed or static class members remain later B24 slices.";
             return false;
         }
 
@@ -2056,7 +2050,7 @@ internal static class UnifiedBytecodeProductionEligibility
 
     private static bool IsB24ePrivateInstanceFieldClassLiteral(ClassDefinition definition)
     {
-        if (!definition.StaticBlocks.IsDefaultOrEmpty || !definition.StaticElements.IsDefaultOrEmpty)
+        if (definition.Fields.IsDefaultOrEmpty)
         {
             return false;
         }
@@ -2069,15 +2063,65 @@ internal static class UnifiedBytecodeProductionEligibility
             }
         }
 
-        foreach (var member in definition.Members)
+        return true;
+    }
+
+    private static bool AreResumableB24ClassFieldsSupported(ClassDefinition definition)
+    {
+        foreach (var field in definition.Fields)
         {
-            if (member.IsStatic || member.IsComputed || member.IsPrivate)
+            if (field.IsStatic || field.IsComputed)
+            {
+                return false;
+            }
+
+            if (!field.IsPrivate &&
+                (field.Initializer is null || !ExpressionContainsSuper(field.Initializer)))
             {
                 return false;
             }
         }
 
         return true;
+    }
+
+    private static bool AreResumableB24ClassMembersSupported(
+        ClassDefinition definition,
+        bool isPrivateInstanceFieldClassLiteral)
+    {
+        foreach (var member in definition.Members)
+        {
+            if (member.IsStatic ||
+                member.IsComputed ||
+                member.IsPrivate ||
+                (!isPrivateInstanceFieldClassLiteral && !FunctionContainsSuper(member.Function)))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static bool FunctionContainsSuper(FunctionExpression function) =>
+        ExpressionContainsSuper(function);
+
+    private static bool ExpressionContainsSuper(ExpressionNode expression)
+    {
+        var visitor = new SuperExpressionDetector();
+        visitor.Visit(expression);
+        return visitor.Found;
+    }
+
+    private sealed class SuperExpressionDetector : AstVisitor
+    {
+        public bool Found { get; private set; }
+
+        protected override void VisitSuperExpression(SuperExpression node)
+        {
+            Found = true;
+            ShouldStop = true;
+        }
     }
 
     private static bool ClassExtendsReadsUnifiedSlot(

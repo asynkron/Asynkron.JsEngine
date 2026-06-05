@@ -10,7 +10,9 @@ and PR #2948 later narrowed this ADR. The bounded resumable-state and
 no-mixed-execution decisions still stand, but the `yield*` decline is no longer
 blanket: sync-generator `yield*` is admitted when the VM owns delegated
 `.next(value)`, `.return(value)`, and `.throw(value)` behavior. Async-generator
-`yield*`, awaited delegated sources, and unsupported delegated expression
+non-awaited `yield*` is also admitted when the VM owns delegated async iterator
+settlement through the resumable async-generator `PendingAwait` bridge. Awaited
+delegated sources (`yield* await ...`) and unsupported delegated expression
 payloads remain outside production resumable routing until separately modeled.
 
 ## Context
@@ -51,8 +53,9 @@ Keep production resumable unified bytecode as a separate decline-first route.
 - Keep `yield*` as a pre-VM resumable decline until delegated `.return()` and
   `.throw()` resume behavior is VM-owned with positive route proof and adjacent
   fallback/no-route proof. PR #2948 is the sync-generator narrowing of this
-  point; the remaining async-generator and awaited-delegate lanes still follow
-  the original decline-first rule.
+  point; PR #3221 is the non-awaited async-generator narrowing after delegated
+  async iterator settlement was modeled. The remaining awaited-delegate
+  (`yield* await ...`) lane still follows the original decline-first rule.
 - Until a given `yield*` lane is widened, observable delegated `.return()` and
   `.throw()` behavior must continue through the existing IR generator path.
 
@@ -87,6 +90,13 @@ Keep production resumable unified bytecode as a separate decline-first route.
   async-generator path and do not log a resumable unified-bytecode fast path
   until an async-generator VM bridge owns promise queueing and async-iterator
   settlement.
+- Faktorial issue
+  `planitem-planmanual1780639098493226000-full-unified-bytecode-execution-burndown-b-1747a4b32a`
+  / PR #3221 / commit `4961c4e71131d0d3290db97c577ba8e85314fa04` admitted
+  the non-awaited async-generator `yield*` lane after the VM initialized
+  `YieldStar` with an async iterator driver and resumed delegated
+  `next`/`return`/`throw` promises through `PendingAwait`, while keeping
+  `yield* await ...` declined for awaited delegated-source settlement.
 - Focused async-generator boundary proof passed:
   `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~YieldStar"`
   with 3 tests passing, and

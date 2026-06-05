@@ -4272,6 +4272,41 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
             instruction => instruction.OpCode == UnifiedBytecodeOpCode.LoadClassLiteral);
     }
 
+    [Fact]
+    public void EvaluateResumable_ClassExpressionPrivateFieldPlan_AcceptsClassLiteralOpcode()
+    {
+        var plan = GetFunctionPlan("""
+            function* makeBox() {
+                yield 0;
+                return class {
+                    #value = 42;
+
+                    read() {
+                        return this.#value;
+                    }
+
+                    has(receiver) {
+                        return #value in receiver;
+                    }
+                };
+            }
+            """,
+            "makeBox");
+
+        var result = UnifiedBytecodeProductionEligibility.EvaluateResumable(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor(IsGenerator: true));
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(
+            result.Program.Instructions,
+            instruction => instruction.OpCode == UnifiedBytecodeOpCode.LoadClassLiteral);
+        Assert.Contains(
+            result.Program.Instructions,
+            instruction => instruction.OpCode == UnifiedBytecodeOpCode.Yield);
+    }
+
     [Theory]
     [MemberData(nameof(AcceptedPropertyWriteAndUpdatePrograms))]
     public void Evaluate_AcceptedPropertyWriteAndUpdatePrograms_StayWithinOwnedOpcodeSubset(

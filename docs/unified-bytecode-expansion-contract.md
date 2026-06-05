@@ -343,6 +343,7 @@ statement interpretation.
 - `SuperConstructInvocationBoundary`
 - `DeclareClass`
 - `DeclareFunction`
+- `LoadClassLiteral`
 - `LoadFunctionLiteral`
 - `Yield`
 - `StoreResumeValue`
@@ -350,7 +351,6 @@ statement interpretation.
 - `AwaitValue`
 - `AwaitedReturn`
 - `YieldStar`
-- `LoadClassLiteral`
 - `ApplyBindingTarget`
 - `ApplyDeclarationBindingTarget`
 - `EnsureHasName`
@@ -434,13 +434,16 @@ sync-admitted and pinned by `A35ComplexObjectLiteralTests`,
 
 The former B24 class-expression coarse row is split by class-element semantics.
 `LoadClassLiteral` itself has sync VM and compiler coverage, including class
-expressions with static blocks, and B24a admits the constructor/default-constructor
-subset on the resumable route. Full bytecode execution is not done: class-literal
-creation still calls class-definition machinery that resolves extends/computed
-names/field initializers through expression programs and static blocks through
-`ExecutionPlanRunner.RunScript`; `extends` expressions that read resumable
-activation slots also remain declined until class-definition evaluation owns
-that environment bridge. B24b-B24i remain declined by the resumable shape gate.
+expressions with static blocks, and resumable routing admits B24a
+constructor/default-constructor class literals, narrow B24e private
+instance-field class literals, and the narrow B24f private
+method/accessor class-literal shape. Full bytecode execution is not done:
+class-literal creation still calls class-definition machinery that resolves
+extends/computed names/field initializers through expression programs and static
+blocks through `ExecutionPlanRunner.RunScript`; `extends` expressions that read
+resumable activation slots also remain declined until class-definition
+evaluation owns that environment bridge. B24b-B24d and B24g-B24i remain declined
+by the resumable shape gate.
 
 - `B24a:ClassExpressionConstructor`
 - `B24b:ClassExpressionInstanceFields`

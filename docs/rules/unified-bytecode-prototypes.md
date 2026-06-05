@@ -238,6 +238,22 @@ all-or-nothing until a separate routing issue proves production readiness.
      bridged for class creation, while the latter still needs a materialized
      body environment that outlives class creation. Related ADR:
      `docs/adrs/0329-admit-resumable-class-literal-static-fields-with-owned-environments.md`.
+10g. When admitting iterator init driver shapes, keep source-payload shape and
+     iterator driver kind as separate concepts. An iterator driver must carry
+     exactly one source payload (`IterableProgram` or `AwaitedProgram`), and a
+     sync driver with an awaited source is still synchronous driver state after
+     the resumable route owns the await step. `IteratorDriverKind.Await` is the
+     async iterator protocol boundary; B41 admits the simple resumable VM subset
+     only after protocol state, async iterator settlement, and close behavior
+     are VM-owned. Future proof packs should test the helper directly for sync
+     iterable admit, sync awaited-source admit, async-kind admit, and
+     missing/dual source declines, because async-like activation pre-gates can
+     otherwise hide the iterator-kind boundary. WHY: issue
+     `planitem-planmanual1780639098493226000-full-unified-bytecode-execution-burndown-b-7e33a72606`
+     / PR #3217 hardened `IsSupportedIteratorInit` after earlier ADR 0288
+     wording made awaited source and async iterator kind look like one boundary.
+     Related ADR:
+     `docs/adrs/0330-keep-iterator-init-async-kind-and-awaited-source-gates-separate.md`.
 11. When updating docs, ADRs, roadmap text, or evidence reports for unified
     bytecode production routing, treat ADR 0253 as the current loop-control
     production widening layered on ADR 0210, and keep ADR 0204/#2227

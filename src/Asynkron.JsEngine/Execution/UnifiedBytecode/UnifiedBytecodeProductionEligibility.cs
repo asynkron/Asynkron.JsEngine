@@ -4133,12 +4133,14 @@ internal static class UnifiedBytecodeProductionEligibility
         return false;
     }
 
-    // Exposed to the test assembly (AC-5 negative coverage): the source-payload arm must keep
-    // declining with its explicit reason even though sync TDZ heads and async drivers are admitted.
+    // Exposed to the test assembly: sync and async-kind iterator drivers must have
+    // exactly one source payload. Awaited source payloads are source evaluation;
+    // IteratorDriverKind.Await is the async iterator protocol boundary admitted by B41.
     internal static bool IsSupportedIteratorInit(IteratorInitInstruction instruction, out string reason)
     {
-        if (instruction.IterableProgram is null && instruction.AwaitedProgram is null ||
-            instruction.IterableProgram is not null && instruction.AwaitedProgram is not null)
+        var hasIterableProgram = instruction.IterableProgram is not null;
+        var hasAwaitedProgram = instruction.AwaitedProgram is not null;
+        if (hasIterableProgram == hasAwaitedProgram)
         {
             reason = "Iterator driver sources must be lowered to exactly one expression bytecode payload.";
             return false;

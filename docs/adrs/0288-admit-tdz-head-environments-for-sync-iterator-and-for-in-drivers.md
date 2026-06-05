@@ -71,6 +71,11 @@ The driver-state ownership boundary for the production path is therefore:
 | Sync kind, **awaited source** | Declined (Slice B) |
 | **Async kind** (`Await`) | Declined (Slice C) |
 
+Historical note: ADR 0330 supersedes the awaited-source row for
+`IteratorInitInstruction`. A sync iterator driver with exactly one
+`AwaitedProgram` payload may now route through the owned resumable path; the
+async-kind driver remains declined.
+
 ## Consequences
 
 - `for (const x of …)`, `for (let x of …)`, and `for (const k in …)` now execute on

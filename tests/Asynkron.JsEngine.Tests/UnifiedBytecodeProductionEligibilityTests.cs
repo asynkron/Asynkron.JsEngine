@@ -6690,8 +6690,21 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
             instruction.OpCode == UnifiedBytecodeOpCode.IteratorInit);
     }
 
-    // AC-5 payload proof (#2678/B41): sync TDZ heads and async iterator drivers are admitted,
-    // while invalid source payload shapes still decline before compilation.
+    // Payload proof (#2678/B41): sync TDZ heads, awaited sources, and async iterator
+    // drivers are admitted, while invalid source payload shapes still decline before compilation.
+
+    [Fact]
+    public void IsSupportedIteratorInit_SyncIterableSource_Accepts()
+    {
+        var instruction = new IteratorInitInstruction(
+            IteratorDriverKind.Sync,
+            Symbol.Synthetic("__iter_state"),
+            IteratorSlotIndex: 0,
+            Next: -1,
+            IterableProgram: ExpressionProgram.Empty);
+
+        Assert.True(UnifiedBytecodeProductionEligibility.IsSupportedIteratorInit(instruction, out var reason), reason);
+    }
 
     [Fact]
     public void IsSupportedIteratorInit_AsyncKind_Accepts()
@@ -6704,6 +6717,33 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
             IterableProgram: ExpressionProgram.Empty);
 
         Assert.True(UnifiedBytecodeProductionEligibility.IsSupportedIteratorInit(instruction, out var reason), reason);
+    }
+
+    [Fact]
+    public void IsSupportedIteratorInit_AsyncKindWithAwaitedSource_Accepts()
+    {
+        var instruction = new IteratorInitInstruction(
+            IteratorDriverKind.Await,
+            Symbol.Synthetic("__iter_state"),
+            IteratorSlotIndex: 0,
+            Next: -1,
+            IterableProgram: null,
+            AwaitedProgram: ExpressionProgram.Empty);
+
+        Assert.True(UnifiedBytecodeProductionEligibility.IsSupportedIteratorInit(instruction, out var reason), reason);
+    }
+
+    [Fact]
+    public void IsSupportedIteratorInit_MissingSourcePayload_Declines()
+    {
+        var instruction = new IteratorInitInstruction(
+            IteratorDriverKind.Sync,
+            Symbol.Synthetic("__iter_state"),
+            IteratorSlotIndex: 0,
+            Next: -1);
+
+        Assert.False(UnifiedBytecodeProductionEligibility.IsSupportedIteratorInit(instruction, out var reason));
+        Assert.Contains("exactly one expression bytecode payload", reason, StringComparison.Ordinal);
     }
 
     [Fact]

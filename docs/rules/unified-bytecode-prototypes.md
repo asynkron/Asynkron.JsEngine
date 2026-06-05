@@ -218,6 +218,22 @@ all-or-nothing until a separate routing issue proves production readiness.
      update, so future edits must update the contract, owner leaves, and counts
      together. Related ADR:
      `docs/adrs/0322-keep-unified-bytecode-compiler-decline-inventory-source-guarded.md`.
+11c. When refreshing route-hit tables or decline/gap inventories, re-run the
+     documented workload and contract-audit commands on the current
+     `origin/main` baseline after any source-affecting rebase before updating
+     `docs/bytecode-progress.md`,
+     `docs/unified-bytecode-expansion-contract.md`, or
+     `docs/plans/bytecode-burndown-checklist.md`. Treat specific route-hit
+     counts and checklist totals as time-sensitive evidence, not durable
+     architecture facts. Report the baseline commit or timestamp, changed rows,
+     aggregate route-hit delta when a table is being rebaselined, and the exact
+     contract/checklist inventory counts used for the edit. WHY: issue
+     `planitem-planmanual1780639098493226000-full-unified-bytecode-execution-burndown-b-003b4908a5`
+     / PR #3182 found the `aa93c7112` bytecode-progress snapshot stale after
+     subsequent source changes; rerunning the route-hit and
+     `ExpressionProgramCoverageMapTests` audits on current main changed several
+     documented rows and corrected the A/B/C checklist counts without changing
+     runtime behavior.
 12. When defining property-read production eligibility, keep candidate
     recognition separate from VM acceptance until the same slice adds compiler
     opcodes, VM semantics, route-priority proof, and negative no-route tests.

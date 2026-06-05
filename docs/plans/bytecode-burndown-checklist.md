@@ -132,7 +132,7 @@ sync-admitted ☑ but resumable-declined ☐ purely because they're absent from
 these allowlists — mechanical extensions against existing sync VM handlers.
 
 - [x] **B1** async / async-arrow ordinary body — extend await-body admission — sync n/a / res ☑ ✅ (commit 48ca3dc12): `var x = await p` now routes through the resumable VM — the awaited declaration lowers to `<awaited ops> → AwaitValue → InitializeSlot`, so the settled value lands in the flat slot after the suspension and a later `LoadSlot` reads it correctly. Multi-sequential-await sound. `__debug`-instrumented bodies decline resumable routing (introspection walks the env chain, not flat slots).
-- [ ] **B2** generator body — extend yield* / remaining yield shapes — n/a/◐ — note (audit a5b0c09): synchronous `yield*` over local/param and free/dynamic iterables now routes + correct, PINNED (`ResumableAlreadyRoutingPinTests`, `UnifiedBytecodeProductionInvocationTests`). Remaining generator-delegation work is represented by the async-generator delegation rows (B39) and broader generator-body rows rather than this old sync `yield*` carve-out.
+- [x] **B2** generator body — extend yield* / remaining yield shapes — n/a/☑ ✅ (Codex): the old synchronous generator `yield*` carve-out is closed. Local/param delegated iterables are pinned by `ResumableAlreadyRoutingPinTests`; free/dynamic delegated iterables and free call targets were closed by B38 and pinned by `UnifiedBytecodeProductionInvocationTests`. Remaining delegation declines are the async-generator rows B39/B47a, not this sync-generator gate.
 - [x] **B3** **async generator `async function*` — first EvaluateResumable route modeled** — n/a/◐ ✅ #3135 (simple-parameter direct-yield bodies can route through `UnifiedBytecodeVirtualMachine.ExecuteResumable`; async-generator `yield*` / `yield* await ...` delegation remains an explicit pre-VM decline on the IR runner).
 - [x] **B4** Property write `o.x=v` in resumable — ☑/☑ ✅ #3114
 - [x] **B5** Computed property write `o[k]=v` — ☑/☑ ✅ #3114
@@ -220,13 +220,13 @@ these allowlists — mechanical extensions against existing sync VM handlers.
 |---|---:|---|
 | 0 — Make list finite | 5 | 5 complete / 0 open; Phase 0 inventory closure is complete |
 | A — Sync admission | 69 | 44 complete / 25 open; by decline code / promoted compiler leaf |
-| B — Resumable parity + suspension | 57 | 32 complete / 25 open; class-expression decomposition added B24a-B24i |
+| B — Resumable parity + suspension | 57 | 33 complete / 24 open; class-expression decomposition added B24a-B24i |
 | C — Script route | 3 | 2 complete / 1 open; closes mostly via A/B |
 | D — Dynamic quarantine | 5 | 0 complete / 5 open; build the residue boundary |
 | E — Retire tiers | 6 | 3 complete / 3 open; E2/E3 = P0.2/P0.3 |
 | **Total** | **145** | finite current burn-down list after Phase 0 decomposition; future source drift must update audited inventories |
 
-**Status (129 concrete A+B+C checklist items):** 78 complete / 51 open. **Resumable is the bulk of the remaining work; class-expression creation, async-generator delegation, driver state, and fallback-tier retirement remain significant gaps.**
+**Status (129 concrete A+B+C checklist items):** 79 complete / 50 open. **Resumable is the bulk of the remaining work; class-expression creation, async-generator delegation, driver state, and fallback-tier retirement remain significant gaps.**
 
 ## Known soft spots
 1. **Named compiler-decline leaves** (A51a-A51m/B47a) are now source-inventoried in the expansion contract; future `TryCompile` reason drift must update that contract and the focused source gate.
@@ -234,4 +234,4 @@ these allowlists — mechanical extensions against existing sync VM handlers.
 
 ---
 
-_Checklist status: 89 / 145 complete after B8a resumable const-slot enforcement and lexical slot write/update admission. Phase 0 inventory closure is complete; remaining work is semantic admission, dynamic quarantine, and fallback-tier retirement._
+_Checklist status: 90 / 145 complete after closing the stale B2 sync-generator `yield*` gate. Phase 0 inventory closure is complete; remaining work is semantic admission, dynamic quarantine, and fallback-tier retirement._

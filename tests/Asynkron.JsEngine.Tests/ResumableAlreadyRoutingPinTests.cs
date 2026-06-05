@@ -12,7 +12,7 @@ public sealed class ResumableAlreadyRoutingPinTests(ITestOutputHelper output) : 
     private void AssertRouted(string log) =>
         Assert.Contains(CurrentLogger!.Collector.Snapshot(), r => r.Message.Contains(log, StringComparison.Ordinal));
 
-    // B2: yield* over a LOCAL/PARAM iterable routes through the resumable generator VM (free iterable == B38, still open).
+    // B2: yield* over a LOCAL/PARAM iterable routes through the resumable generator VM; B38 covers free iterables.
     [Fact]
     public async Task B2_YieldStarLocalIterable_Routes()
     {

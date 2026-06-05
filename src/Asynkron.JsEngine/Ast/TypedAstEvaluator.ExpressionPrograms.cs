@@ -11,9 +11,10 @@ public static partial class TypedAstEvaluator
     internal static JsValue EvaluateLoweredExpressionProgram(
         ExpressionProgram program,
         JsEnvironment environment,
-        EvaluationContext context)
+        EvaluationContext context,
+        JsValue newTarget = default)
     {
-        return ExecutionPlanRunner.EvaluateStandaloneExpressionProgram(program, environment, context);
+        return ExecutionPlanRunner.EvaluateStandaloneExpressionProgram(program, environment, context, newTarget);
     }
 
     internal static double ProfileEvaluateLoweredExpressionProgramLoop(

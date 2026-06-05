@@ -829,10 +829,10 @@ internal static class UnifiedBytecodeProductionEligibility
         // index order — the catch/finally blocks routinely sit at LOWER indices than the EnterTry. The
         // previous linear `enterTryIndex+1 .. endIndex` scan silently matched nothing whenever the finally
         // index was below the EnterTry (`endIndex < enterTryIndex` bailed). A suspension (yield/await)
-        // inside the CATCH or FINALLY block cannot be driven by the resumable VM's cleanup path —
-        // `.return()`/`.throw()` must run a *suspending* finally, which it does not support — so decline
-        // it. A suspension in the TRY BODY stays admitted: for-of lowers its yielding loop body into the
-        // try body with a NON-suspending iterator-close finally, which the resumable VM handles correctly.
+        // inside the FINALLY block still cannot be driven by the resumable VM's cleanup path —
+        // `.return()`/`.throw()` must run a *suspending* finally, which it does not support — so decline it.
+        // Suspensions in the TRY BODY and CATCH block stay admitted: the resumable try frame persists the
+        // thrown value, catch-used bit, and pending finally completion across the yield/await boundary.
 
         var finallyBoundary = new HashSet<int> { enterTryIndex };
         if (enterTry.EndFinallyIndex >= 0)
@@ -845,14 +845,7 @@ internal static class UnifiedBytecodeProductionEligibility
             finallyBoundary.Add(enterTry.LeaveTryIndex);
         }
 
-        var catchBoundary = new HashSet<int>(finallyBoundary);
-        if (enterTry.FinallyIndex >= 0)
-        {
-            catchBoundary.Add(enterTry.FinallyIndex);
-        }
-
-        if (CleanupBlockHasSuspension(instructions, enterTry.FinallyIndex, finallyBoundary, out instructionName)
-            || CleanupBlockHasSuspension(instructions, enterTry.HandlerIndex, catchBoundary, out instructionName))
+        if (CleanupBlockHasSuspension(instructions, enterTry.FinallyIndex, finallyBoundary, out instructionName))
         {
             return true;
         }
@@ -1310,6 +1303,8 @@ internal static class UnifiedBytecodeProductionEligibility
             case ReturnInstruction { AwaitedProgram: not null }:
             case StoreResumeValueInstruction:
             case EnterTryInstruction:
+            case EnterCatchInstruction { CatchBindingProgram: null or IdentifierBindingTargetProgram }:
+            case PopEnvironmentInstruction:
             case LeaveTryInstruction:
             case EndFinallyInstruction:
             case IteratorInitInstruction:
@@ -1866,6 +1861,8 @@ internal static class UnifiedBytecodeProductionEligibility
                 UnifiedBytecodeOpCode.Break or
                 UnifiedBytecodeOpCode.Continue or
                 UnifiedBytecodeOpCode.EnterTry or
+                UnifiedBytecodeOpCode.EnterCatch or
+                UnifiedBytecodeOpCode.PopEnvironment or
                 UnifiedBytecodeOpCode.LeaveTry or
                 UnifiedBytecodeOpCode.EndFinally or
                 UnifiedBytecodeOpCode.Return or

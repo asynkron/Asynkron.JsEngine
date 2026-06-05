@@ -171,7 +171,7 @@ these allowlists — mechanical extensions against existing sync VM handlers.
 - [x] **B29** Dynamic reference plumbing (compound free-var ops) — ☑/☑ ✅ (Codex): free/global and captured compound/logical writes now route through `ExecuteResumable`. The compiler lowers non-static targets through `ResolveDynamicIdentifierReference` -> `LoadDynamicIdentifierReference`, then RHS/binary or short-circuit branching, and finally `StoreDynamicIdentifierReference`; the logical short-circuit branch emits `PopDynamicIdentifierReference` so the pending reference stack is balanced without writing. Finally-body dynamic mutations still stay behind the existing early-close cleanup guard and belong to B32.
 - [x] **B30** `for-of` sync driver across suspension — ☑/☑ ✅ (Codex; #3123 hardened the guard: suspending/nested try-finally correctly declines, restoring 13 generator try/finally tests)
 - [x] **B31** `for-in` driver across suspension — ☑/☑ ✅ (Codex)
-- [ ] **B32** try/catch/finally across suspension — ☑/◐ — note (audit a5b0c09): try/**finally** with yield-in-try already routes + correct (empty + non-empty finally runs), PINNED (`ResumableAlreadyRoutingPinTests`). **Remaining = try/CATCH across suspension only.**
+- [x] **B32** try/catch/finally across suspension — ☑/☑ ✅ (Codex): try/**finally** with yield-in-try was already pinned; try/**catch** now routes through `ExecuteResumable` for optional/simple catch bindings. `UnifiedBytecodeResumeState` carries a resumable try-frame stack with descriptor index, thrown value, catch-used, finally scheduling, and pending completion so explicit throws and `.throw(...)` resumes enter catch, preserve catch bindings across suspension, and run following cleanup. Destructuring catch bindings still stay declined.
 - [x] **B33** `break`/`continue` across suspension (driver cleanup) — ☑/☑ ✅ (Codex): resumable generator/async bodies now admit `BreakInstruction` and `ContinueInstruction`, compiling them to the existing VM-owned `Break`/`Continue` control-flow opcodes. Driver cleanup stays on `TryCleanupDriverStatesForControlTargetResumable`; sync generator close cleanup now resolves plain `Iterator.return()` results synchronously while async functions/generators keep async-step scheduling. Labeled generator break/continue route-hit pins cover iterator close/target behavior.
 - [x] **B34** Array destructuring across suspension — ☑/☑ ✅ (Codex)
 - [x] **B35** Object destructuring across suspension — ☑/☑ ✅ (Codex)
@@ -184,8 +184,8 @@ these allowlists — mechanical extensions against existing sync VM handlers.
 - [x] **B42** `for(k in await p)` awaited for-in source — n/a/☑ ✅ (Codex)
 - [ ] **B43** Awaited with-object `with(await x){}` — ☐/☐
 - [x] **B44** Awaited binding/destructuring decl `let [a]=await x` — ☑/☑ ✅ (commit 48ca3dc12): awaited destructuring lowers to `<awaited ops> → AwaitValue → ApplyDeclarationBindingTarget` (new resumable VM handler that runs the synchronous destructuring against the resume state's CallingEnvironment after the suspension and writes each binding to its flat slot). Allowlist 1:1.
-- [x] **B45** Resumable instruction-allowlist default (master plan-level gap) *(→ P0.3)* — n/a/n/a ✅ decomposed by P0.3: the 9 non-allowlisted instruction records are now named and drift-checked under `Resumable Instruction Allowlist Gaps`.
-- [x] **B46** Resumable opcode-allowlist default (master opcode-level gap) *(→ P0.3)* — n/a/n/a ✅ decomposed by P0.3: the 19 non-allowlisted opcodes are now named and drift-checked under `Resumable Opcode Allowlist Gaps`; the admitted allowlist remains 1:1 with `ExecuteResumable`.
+- [x] **B45** Resumable instruction-allowlist default (master plan-level gap) *(→ P0.3)* — n/a/n/a ✅ decomposed by P0.3: the 7 non-allowlisted instruction records are now named and drift-checked under `Resumable Instruction Allowlist Gaps`.
+- [x] **B46** Resumable opcode-allowlist default (master opcode-level gap) *(→ P0.3)* — n/a/n/a ✅ decomposed by P0.3: the 14 non-allowlisted opcodes are now named and drift-checked under `Resumable Opcode Allowlist Gaps`; the admitted allowlist remains 1:1 with `ExecuteResumable`.
 - [x] **B47** Resumable compiler `TryCompile` wrap *(decomposed by P0.2)* — n/a/see A51a-A51m plus B47a.
 - [x] **B47a** Resumable-only compiler declines for `yield*` state slots and synthetic resume targets — n/a/☑ ✅ (Codex): current compiler slot layout adds generator-lowered synthetic resume/result and `yield*` driver-state symbols before flat-slot mapping, so sync generator `yield*` compiles and routes through `ExecuteResumable` instead of declining on missing activation-slot metadata. Existing focused coverage pins `YieldStar`, `StoreResumeValue`, public generator route hits, delegated return/throw, non-awaited async-generator `yield*` route hits, and the remaining async-generator `yield* await` pre-VM decline.
 
@@ -220,13 +220,13 @@ these allowlists — mechanical extensions against existing sync VM handlers.
 |---|---:|---|
 | 0 — Make list finite | 5 | 5 complete / 0 open; Phase 0 inventory closure is complete |
 | A — Sync admission | 69 | 47 complete / 22 open; by decline code / promoted compiler leaf |
-| B — Resumable parity + suspension | 57 | 39 complete / 18 open; class-expression decomposition added B24a-B24i |
+| B — Resumable parity + suspension | 57 | 40 complete / 17 open; class-expression decomposition added B24a-B24i |
 | C — Script route | 3 | 2 complete / 1 open; closes mostly via A/B |
 | D — Dynamic quarantine | 5 | 0 complete / 5 open; build the residue boundary |
 | E — Retire tiers | 6 | 3 complete / 3 open; E2/E3 = P0.2/P0.3 |
 | **Total** | **145** | finite current burn-down list after Phase 0 decomposition; future source drift must update audited inventories |
 
-**Status (129 concrete A+B+C checklist items):** 88 complete / 41 open. **Resumable is the bulk of the remaining work; class-expression creation, async-generator delegation, driver state, and fallback-tier retirement remain significant gaps.**
+**Status (129 concrete A+B+C checklist items):** 89 complete / 40 open. **Resumable is the bulk of the remaining work; class-expression creation, async-generator delegation, driver state, and fallback-tier retirement remain significant gaps.**
 
 ## Known soft spots
 1. **Named compiler-decline leaves** (A51a-A51m/B47a) are now source-inventoried in the expansion contract; future `TryCompile` reason drift must update that contract and the focused source gate.

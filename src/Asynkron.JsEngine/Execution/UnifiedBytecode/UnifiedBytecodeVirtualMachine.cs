@@ -3411,8 +3411,8 @@ internal static class UnifiedBytecodeVirtualMachine
         var slots = state.Slots;
         var stackPointer = state.StackPointer;
         var programCounter = state.ProgramCounter;
-        var resumableTryDescriptorIndices = state.ResumableTryDescriptorIndices;
-        var resumableTryResumeTargets = state.ResumableTryResumeTargets;
+        var resumableTryFrames = state.ResumableTryFrames;
+        var resumableInactiveCatchBindingSlots = state.ResumableInactiveCatchBindingSlots;
 
         // Short-circuit flag column, index-aligned with the operand stack. Stored on the resume state
         // (not a loop local) so it persists across yield/await suspension in lockstep with OperandStack:
@@ -3465,6 +3465,165 @@ internal static class UnifiedBytecodeVirtualMachine
         {
             stack[stackPointer - 1] = value;
             SetResumableShortCircuitFlag(stackPointer - 1, wasShortCircuited);
+        }
+
+        void SaveResumableState()
+        {
+            state.ProgramCounter = programCounter;
+            state.StackPointer = stackPointer;
+        }
+
+        bool TryHandleResumableAbruptCompletion(
+            UnifiedBytecodeAbruptCompletionKind kind,
+            JsValue value,
+            int controlTarget,
+            bool hasControlTarget)
+        {
+            if (resumableTryFrames is null)
+            {
+                return false;
+            }
+
+            while (resumableTryFrames.Count > 0)
+            {
+                var frame = resumableTryFrames.Peek();
+                var descriptor = program.TryDescriptors[frame.DescriptorIndex];
+                if (kind == UnifiedBytecodeAbruptCompletionKind.Throw &&
+                    descriptor.HandlerTarget >= 0 &&
+                    !frame.CatchUsed &&
+                    !frame.FinallyScheduled)
+                {
+                    frame.CatchUsed = true;
+                    frame.ThrownValue = value;
+                    programCounter = descriptor.HandlerTarget;
+                    return true;
+                }
+
+                if (descriptor.FinallyTarget >= 0)
+                {
+                    if (hasControlTarget &&
+                        kind == UnifiedBytecodeAbruptCompletionKind.Continue &&
+                        descriptor.LoopContinueTarget >= 0 &&
+                        (IsSameLoopControlTarget(program, controlTarget, descriptor.LoopContinueTarget) ||
+                         IsSameLoopControlTarget(program, descriptor.LoopContinueTarget, controlTarget)))
+                    {
+                        return false;
+                    }
+
+                    if (hasControlTarget &&
+                        kind == UnifiedBytecodeAbruptCompletionKind.Continue &&
+                        descriptor.LoopBreakTarget >= 0 &&
+                        IsContinueTargetInsideLoopFrame(program, controlTarget, descriptor.LoopBreakTarget))
+                    {
+                        return false;
+                    }
+
+                    if (hasControlTarget &&
+                        kind == UnifiedBytecodeAbruptCompletionKind.Break &&
+                        descriptor.LoopBreakTarget >= 0 &&
+                        !IsSameLoopControlTarget(program, controlTarget, descriptor.LoopBreakTarget) &&
+                        IsBreakTargetInsideLoopFrame(program, controlTarget, descriptor.LoopBreakTarget))
+                    {
+                        return false;
+                    }
+
+                    if (!frame.FinallyScheduled)
+                    {
+                        frame.FinallyScheduled = true;
+                        frame.PendingCompletion = new UnifiedBytecodePendingAbruptCompletion(
+                            kind,
+                            value,
+                            hasControlTarget ? controlTarget : -1,
+                            ResumeTarget: -1,
+                            OriginatedInFinally: false);
+                        programCounter = descriptor.FinallyTarget;
+                        return true;
+                    }
+
+                    frame.PendingCompletion = new UnifiedBytecodePendingAbruptCompletion(
+                        kind,
+                        value,
+                        hasControlTarget ? controlTarget : -1,
+                        ResumeTarget: -1,
+                        OriginatedInFinally: true);
+                    if (descriptor.EndFinallyTarget >= 0)
+                    {
+                        programCounter = descriptor.EndFinallyTarget;
+                        return true;
+                    }
+
+                    resumableTryFrames.Pop();
+                    continue;
+                }
+
+                resumableTryFrames.Pop();
+            }
+
+            return false;
+        }
+
+        bool TryCompleteResumableFinally(int nextTarget, out UnifiedBytecodeStepResult stepResult)
+        {
+            stepResult = default;
+            if (resumableTryFrames is null || resumableTryFrames.Count == 0)
+            {
+                programCounter = nextTarget;
+                return false;
+            }
+
+            var completedFrame = resumableTryFrames.Pop();
+            var pending = completedFrame.PendingCompletion;
+            if (pending.Kind == UnifiedBytecodeAbruptCompletionKind.None)
+            {
+                programCounter = pending.ResumeTarget >= 0 ? pending.ResumeTarget : nextTarget;
+                return false;
+            }
+
+            if (pending.Kind == UnifiedBytecodeAbruptCompletionKind.Return)
+            {
+                if (TryHandleResumableAbruptCompletion(
+                        UnifiedBytecodeAbruptCompletionKind.Return,
+                        pending.Value,
+                        -1,
+                        hasControlTarget: false))
+                {
+                    return false;
+                }
+
+                state.IsCompleted = true;
+                SaveResumableState();
+                stepResult = UnifiedBytecodeStepResult.Completed(pending.Value);
+                return true;
+            }
+
+            if (pending.Kind is UnifiedBytecodeAbruptCompletionKind.Break or UnifiedBytecodeAbruptCompletionKind.Continue)
+            {
+                if (TryHandleResumableAbruptCompletion(
+                        pending.Kind,
+                        JsValue.Undefined,
+                        pending.Target,
+                        hasControlTarget: true))
+                {
+                    return false;
+                }
+
+                programCounter = pending.Target >= 0 ? pending.Target : nextTarget;
+                return false;
+            }
+
+            if (TryHandleResumableAbruptCompletion(
+                    UnifiedBytecodeAbruptCompletionKind.Throw,
+                    pending.Value,
+                    -1,
+                    hasControlTarget: false))
+            {
+                return false;
+            }
+
+            state.IsCompleted = true;
+            SaveResumableState();
+            stepResult = UnifiedBytecodeStepResult.Throw(pending.Value);
+            return true;
         }
 
         // Mirrors the sync Execute path's CopyShortCircuitFlag/SwapShortCircuitFlags/
@@ -3535,6 +3694,14 @@ internal static class UnifiedBytecodeVirtualMachine
             switch (instruction.OpCode)
             {
                 case UnifiedBytecodeOpCode.LoadSlot:
+                    if (IsInactiveCatchBindingSlot(resumableInactiveCatchBindingSlots, instruction.Operand))
+                    {
+                        SetInactiveCatchBindingReferenceError(program, instruction.Operand, context);
+                        state.IsCompleted = true;
+                        SaveResumableState();
+                        return UnifiedBytecodeStepResult.Throw(context.FlowValue);
+                    }
+
                     var slotValue = slots[instruction.Operand];
                     if (slotValue.IsUninitialized)
                     {
@@ -3872,6 +4039,14 @@ internal static class UnifiedBytecodeVirtualMachine
                         // on the resume state, matching the sync VM's const bitmap, so lexical `let` updates
                         // can route while `const` updates still raise TypeError before numeric coercion.
                         var resumableUpdateIndex = DecodeUpdateIndex(instruction.Operand);
+                        if (IsInactiveCatchBindingSlot(resumableInactiveCatchBindingSlots, resumableUpdateIndex))
+                        {
+                            SetInactiveCatchBindingReferenceError(program, resumableUpdateIndex, context);
+                            state.IsCompleted = true;
+                            SaveResumableState();
+                            return UnifiedBytecodeStepResult.Throw(context.FlowValue);
+                        }
+
                         var resumableUpdateValue = slots[resumableUpdateIndex];
                         if (resumableUpdateValue.IsUninitialized)
                         {
@@ -4410,6 +4585,13 @@ internal static class UnifiedBytecodeVirtualMachine
                     break;
 
                 case UnifiedBytecodeOpCode.TypeOfIdentifier:
+                    if (IsInactiveCatchBindingSlot(resumableInactiveCatchBindingSlots, instruction.Operand))
+                    {
+                        stack[stackPointer++] = new JsValue("undefined");
+                        programCounter++;
+                        break;
+                    }
+
                     var resumableTypeOfValue = slots[instruction.Operand];
                     if (resumableTypeOfValue.IsUninitialized)
                     {
@@ -4966,30 +5148,74 @@ internal static class UnifiedBytecodeVirtualMachine
                     break;
 
                 case UnifiedBytecodeOpCode.EnterTry:
-                    resumableTryDescriptorIndices ??= state.ResumableTryDescriptorIndices = new Stack<int>();
-                    resumableTryResumeTargets ??= state.ResumableTryResumeTargets = new Stack<int>();
-                    resumableTryDescriptorIndices.Push(instruction.Operand);
-                    resumableTryResumeTargets.Push(-1);
+                    resumableTryFrames ??= state.ResumableTryFrames = new Stack<UnifiedBytecodeResumableTryFrame>();
+                    resumableTryFrames.Push(new UnifiedBytecodeResumableTryFrame(instruction.Operand));
+                    programCounter++;
+                    break;
+
+                case UnifiedBytecodeOpCode.EnterCatch:
+                    {
+                        var catchDescriptor = program.CatchDescriptors[instruction.Operand];
+                        var thrownValue = resumableTryFrames is { Count: > 0 }
+                            ? resumableTryFrames.Peek().ThrownValue
+                            : JsValue.Undefined;
+                        if (resumableTryFrames is { Count: > 0 })
+                        {
+                            resumableTryFrames.Peek().ActiveCatchDescriptor = catchDescriptor;
+                        }
+
+                        if (catchDescriptor.BindingSlot >= 0)
+                        {
+                            slots[catchDescriptor.BindingSlot] = thrownValue;
+                        }
+
+                        MarkCatchBindingSlots(
+                            ref resumableInactiveCatchBindingSlots,
+                            slots.Length,
+                            catchDescriptor,
+                            isInactive: false);
+                        state.ResumableInactiveCatchBindingSlots = resumableInactiveCatchBindingSlots;
+                        programCounter++;
+                        break;
+                    }
+
+                case UnifiedBytecodeOpCode.PopEnvironment:
+                    if (resumableTryFrames is { Count: > 0 } &&
+                        resumableTryFrames.Peek().ActiveCatchDescriptor is { } activeCatchDescriptor)
+                    {
+                        MarkCatchBindingSlots(
+                            ref resumableInactiveCatchBindingSlots,
+                            slots.Length,
+                            activeCatchDescriptor,
+                            isInactive: true);
+                        state.ResumableInactiveCatchBindingSlots = resumableInactiveCatchBindingSlots;
+                        resumableTryFrames.Peek().ActiveCatchDescriptor = null;
+                    }
+
                     programCounter++;
                     break;
 
                 case UnifiedBytecodeOpCode.LeaveTry:
-                    if (resumableTryDescriptorIndices is { Count: > 0 } &&
-                        resumableTryResumeTargets is { Count: > 0 })
+                    if (resumableTryFrames is { Count: > 0 })
                     {
-                        var descriptor = program.TryDescriptors[resumableTryDescriptorIndices.Peek()];
+                        var frame = resumableTryFrames.Peek();
+                        var descriptor = program.TryDescriptors[frame.DescriptorIndex];
                         if (descriptor.LeaveTryTarget == programCounter &&
                             descriptor.FinallyTarget >= 0 &&
-                            resumableTryResumeTargets.Peek() < 0)
+                            !frame.FinallyScheduled)
                         {
-                            resumableTryResumeTargets.Pop();
-                            resumableTryResumeTargets.Push(instruction.Operand);
+                            frame.FinallyScheduled = true;
+                            frame.PendingCompletion = new UnifiedBytecodePendingAbruptCompletion(
+                                UnifiedBytecodeAbruptCompletionKind.None,
+                                JsValue.Undefined,
+                                Target: -1,
+                                ResumeTarget: instruction.Operand,
+                                OriginatedInFinally: false);
                             programCounter = descriptor.FinallyTarget;
                         }
                         else if (descriptor.LeaveTryTarget == programCounter)
                         {
-                            resumableTryDescriptorIndices.Pop();
-                            resumableTryResumeTargets.Pop();
+                            resumableTryFrames.Pop();
                             programCounter = instruction.Operand;
                         }
                         else
@@ -5005,20 +5231,11 @@ internal static class UnifiedBytecodeVirtualMachine
                     break;
 
                 case UnifiedBytecodeOpCode.EndFinally:
-                    if (resumableTryDescriptorIndices is null ||
-                        resumableTryDescriptorIndices.Count == 0 ||
-                        resumableTryResumeTargets is null ||
-                        resumableTryResumeTargets.Count == 0)
+                    if (TryCompleteResumableFinally(instruction.Operand, out var endFinallyStep))
                     {
-                        programCounter = instruction.Operand;
-                        break;
+                        return endFinallyStep;
                     }
 
-                    resumableTryDescriptorIndices.Pop();
-                    var resumeTarget = resumableTryResumeTargets.Pop();
-                    programCounter = resumeTarget >= 0
-                        ? resumeTarget
-                        : instruction.Operand;
                     break;
 
                 case UnifiedBytecodeOpCode.Yield:
@@ -5039,6 +5256,15 @@ internal static class UnifiedBytecodeVirtualMachine
                     switch (resumeKind)
                     {
                         case UnifiedBytecodeResumePayloadKind.Throw:
+                            if (TryHandleResumableAbruptCompletion(
+                                UnifiedBytecodeAbruptCompletionKind.Throw,
+                                payload,
+                                -1,
+                                hasControlTarget: false))
+                            {
+                                break;
+                            }
+
                             state.PendingAbruptCompletion = new UnifiedBytecodePendingAbruptCompletion(
                                 UnifiedBytecodeAbruptCompletionKind.Throw,
                                 payload,
@@ -5046,8 +5272,18 @@ internal static class UnifiedBytecodeVirtualMachine
                                 ResumeTarget: programCounter + 1,
                                 OriginatedInFinally: false);
                             state.IsCompleted = true;
+                            SaveResumableState();
                             return UnifiedBytecodeStepResult.Throw(payload);
                         case UnifiedBytecodeResumePayloadKind.Return:
+                            if (TryHandleResumableAbruptCompletion(
+                                UnifiedBytecodeAbruptCompletionKind.Return,
+                                payload,
+                                -1,
+                                hasControlTarget: false))
+                            {
+                                break;
+                            }
+
                             state.PendingAbruptCompletion = new UnifiedBytecodePendingAbruptCompletion(
                                 UnifiedBytecodeAbruptCompletionKind.Return,
                                 payload,
@@ -5055,6 +5291,7 @@ internal static class UnifiedBytecodeVirtualMachine
                                 ResumeTarget: programCounter + 1,
                                 OriginatedInFinally: false);
                             state.IsCompleted = true;
+                            SaveResumableState();
                             return UnifiedBytecodeStepResult.Completed(payload);
                         default:
                             if (instruction.Operand >= 0)
@@ -5073,7 +5310,17 @@ internal static class UnifiedBytecodeVirtualMachine
                     {
                         if (awaitedDiscardThrow)
                         {
+                            if (TryHandleResumableAbruptCompletion(
+                                    UnifiedBytecodeAbruptCompletionKind.Throw,
+                                    awaitedDiscard,
+                                    -1,
+                                    hasControlTarget: false))
+                            {
+                                break;
+                            }
+
                             state.IsCompleted = true;
+                            SaveResumableState();
                             return UnifiedBytecodeStepResult.Throw(awaitedDiscard);
                         }
 
@@ -5100,7 +5347,18 @@ internal static class UnifiedBytecodeVirtualMachine
 
                     if (context.IsThrow)
                     {
+                        if (TryHandleResumableAbruptCompletion(
+                                UnifiedBytecodeAbruptCompletionKind.Throw,
+                                context.FlowValue,
+                                -1,
+                                hasControlTarget: false))
+                        {
+                            context.Clear();
+                            break;
+                        }
+
                         state.IsCompleted = true;
+                        SaveResumableState();
                         return UnifiedBytecodeStepResult.Throw(context.FlowValue);
                     }
 
@@ -5112,7 +5370,17 @@ internal static class UnifiedBytecodeVirtualMachine
                     {
                         if (awaitedValueThrow)
                         {
+                            if (TryHandleResumableAbruptCompletion(
+                                    UnifiedBytecodeAbruptCompletionKind.Throw,
+                                    awaitedValue,
+                                    -1,
+                                    hasControlTarget: false))
+                            {
+                                break;
+                            }
+
                             state.IsCompleted = true;
+                            SaveResumableState();
                             return UnifiedBytecodeStepResult.Throw(awaitedValue);
                         }
 
@@ -5140,7 +5408,18 @@ internal static class UnifiedBytecodeVirtualMachine
 
                     if (context.IsThrow)
                     {
+                        if (TryHandleResumableAbruptCompletion(
+                                UnifiedBytecodeAbruptCompletionKind.Throw,
+                                context.FlowValue,
+                                -1,
+                                hasControlTarget: false))
+                        {
+                            context.Clear();
+                            break;
+                        }
+
                         state.IsCompleted = true;
+                        SaveResumableState();
                         return UnifiedBytecodeStepResult.Throw(context.FlowValue);
                     }
 
@@ -5747,6 +6026,16 @@ internal static class UnifiedBytecodeVirtualMachine
                         : UnifiedBytecodeStepResult.YieldIteratorResult(delegatedIteratorResult);
 
                 case UnifiedBytecodeOpCode.Return:
+                    var returnValue = stack[--stackPointer];
+                    if (TryHandleResumableAbruptCompletion(
+                            UnifiedBytecodeAbruptCompletionKind.Return,
+                            returnValue,
+                            -1,
+                            hasControlTarget: false))
+                    {
+                        break;
+                    }
+
                     if (!TryCleanupActiveDriverStatesResumable(
                             slots,
                             context,
@@ -5766,12 +6055,20 @@ internal static class UnifiedBytecodeVirtualMachine
                     }
 
                     state.IsCompleted = true;
-                    var returnValue = stack[--stackPointer];
                     state.ProgramCounter = programCounter + 1;
                     state.StackPointer = stackPointer;
                     return UnifiedBytecodeStepResult.Completed(returnValue);
 
                 case UnifiedBytecodeOpCode.ReturnUndefined:
+                    if (TryHandleResumableAbruptCompletion(
+                            UnifiedBytecodeAbruptCompletionKind.Return,
+                            JsValue.Undefined,
+                            -1,
+                            hasControlTarget: false))
+                    {
+                        break;
+                    }
+
                     if (!TryCleanupActiveDriverStatesResumable(
                             slots,
                             context,
@@ -5797,6 +6094,15 @@ internal static class UnifiedBytecodeVirtualMachine
 
                 case UnifiedBytecodeOpCode.Throw:
                     var throwValue = stack[--stackPointer];
+                    if (TryHandleResumableAbruptCompletion(
+                            UnifiedBytecodeAbruptCompletionKind.Throw,
+                            throwValue,
+                            -1,
+                            hasControlTarget: false))
+                    {
+                        break;
+                    }
+
                     context.SetThrow(throwValue);
                     if (!TryCleanupActiveDriverStatesResumable(
                             slots,
@@ -5826,6 +6132,14 @@ internal static class UnifiedBytecodeVirtualMachine
                         {
                             throw new InvalidOperationException(
                                 "Identifier call-target preparation requires an identifier call target constant.");
+                        }
+
+                        if (IsInactiveCatchBindingSlot(resumableInactiveCatchBindingSlots, resumableCallTarget.SlotIndex))
+                        {
+                            SetInactiveCatchBindingReferenceError(program, resumableCallTarget.SlotIndex, context);
+                            state.IsCompleted = true;
+                            SaveResumableState();
+                            return UnifiedBytecodeStepResult.Throw(context.FlowValue);
                         }
 
                         var resumableCallableValue = slots[resumableCallTarget.SlotIndex];

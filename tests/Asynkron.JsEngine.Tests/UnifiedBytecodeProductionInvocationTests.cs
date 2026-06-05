@@ -42,6 +42,37 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     }
 
     [Fact(Timeout = 5000)]
+    public async Task TopLevelLexicalDestructuring_UsesClassifiedScriptIrFallback()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            const source = { value: 7 };
+            const { value } = source;
+            value;
+            """);
+
+        Assert.Equal(7d, result);
+        var snapshot = CurrentLogger!.Collector.Snapshot();
+        Assert.Contains(snapshot,
+            static record => record.Message.Contains(
+                "classified-script-ir-fallback reason=production-unified-bytecode-declined",
+                StringComparison.Ordinal));
+        Assert.Contains(snapshot,
+            static record => record.Message.Contains(
+                "code=UnsupportedPlanShape",
+                StringComparison.Ordinal));
+        Assert.Contains(snapshot,
+            static record => record.Message.Contains(
+                "detail=Plan is not eligible for production unified bytecode routing",
+                StringComparison.Ordinal) &&
+                record.Message.Contains("destructuring target", StringComparison.Ordinal));
+        Assert.DoesNotContain(snapshot,
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path script",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task SyncUsingDeclaration_UsesUnifiedBytecodeProductionFastPathAndDisposes()
     {
         await using var engine = CreateEngine();
@@ -9093,6 +9124,40 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
 
         var vmSource = File.ReadAllText(vmPath);
         AssertUnifiedBytecodeAcceptedSectionDoesNotDelegate(vmSource, "unified bytecode VM");
+    }
+
+    [Fact]
+    public void SourceGate_TopLevelScriptIrFallback_IsClassifiedOutsideAcceptedPath()
+    {
+        var repositoryRoot = FindRepositoryRootForSourceGate();
+        var sourcePath = Path.Combine(
+            repositoryRoot.FullName,
+            "src",
+            "Asynkron.JsEngine",
+            "Ast",
+            "Legacy",
+            "StatementNodeExtensions.cs");
+
+        Assert.True(File.Exists(sourcePath), $"Expected script source at '{sourcePath}'.");
+        var source = File.ReadAllText(sourcePath);
+        var helperSection = ExtractRequiredSourceSection(
+            source,
+            "private static JsValue RunScriptViaClassifiedIrFallback(",
+            "private static bool TryRunScriptViaProductionUnifiedBytecode(",
+            "classified script IR fallback");
+        var sourceOutsideHelper = source.Replace(helperSection, string.Empty, StringComparison.Ordinal);
+
+        Assert.Contains("return RunScriptViaClassifiedIrFallback(", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("return ExecutionPlanRunner.RunScript(", sourceOutsideHelper, StringComparison.Ordinal);
+        Assert.Contains(
+            "classified-script-ir-fallback reason=production-unified-bytecode-declined",
+            helperSection,
+            StringComparison.Ordinal);
+        Assert.Contains("code={DeclineCode}", helperSection, StringComparison.Ordinal);
+        Assert.Contains("detail={DeclineReason}", helperSection, StringComparison.Ordinal);
+        Assert.Contains("eligibility.Code", helperSection, StringComparison.Ordinal);
+        Assert.Contains("eligibility.Reason", helperSection, StringComparison.Ordinal);
+        Assert.Contains("ExecutionPlanRunner.RunScript(", helperSection, StringComparison.Ordinal);
     }
 
     [Fact]

@@ -2981,16 +2981,9 @@ internal static class UnifiedBytecodeProductionEligibility
 
         var cache = descriptor.ProgramCache;
         var definition = cache.Definition;
-        if (definition.StaticBlockPlans is { IsDefaultOrEmpty: false })
-        {
-            declineReason =
-                "Class declaration is outside B36: static blocks remain owned by later class-definition slices.";
-            return false;
-        }
-
         if (cache.ExtendsProgram is { } extendsProgram)
         {
-            if (!IsB36PlainExtendsClassDeclaration(definition, activationSlots, out var plainExtendsDeclineReason))
+            if (!IsB36PlainExtendsClassDeclaration(cache, activationSlots, out var plainExtendsDeclineReason))
             {
                 declineReason = plainExtendsDeclineReason;
                 return false;
@@ -3006,6 +2999,19 @@ internal static class UnifiedBytecodeProductionEligibility
                     $"Class declaration superclass expression is outside B36: {extendsCompileReason}";
                 return false;
             }
+
+            declineReason = string.Empty;
+            return true;
+        }
+
+        if (TryAdmitB36StaticBlockClassDeclaration(cache, out var staticBlockCandidate, out declineReason))
+        {
+            return true;
+        }
+
+        if (staticBlockCandidate)
+        {
+            return false;
         }
 
         if (HasClassExpressionProgram(descriptor.ProgramCache.MemberNamePrograms) ||
@@ -3043,18 +3049,22 @@ internal static class UnifiedBytecodeProductionEligibility
     }
 
     private static bool IsB36PlainExtendsClassDeclaration(
-        LoweredClassDefinition definition,
+        ClassDefinitionProgramCache cache,
         ActivationSlotShape activationSlots,
         out string declineReason)
     {
+        var definition = cache.Definition;
         declineReason = string.Empty;
         if (!definition.Members.IsDefaultOrEmpty ||
-            !definition.Fields.IsDefaultOrEmpty ||
-            !definition.StaticElements.IsDefaultOrEmpty ||
-            !definition.StaticBlockPlans.IsDefaultOrEmpty)
+            !definition.Fields.IsDefaultOrEmpty)
         {
             declineReason =
-                "Class declaration is outside B36: only plain extends class declarations without member, field, static element, or static block class-definition state are admitted by the current class-definition slice.";
+                "Class declaration is outside B36: only plain extends class declarations without member or field class-definition state are admitted by the current class-definition slice.";
+            return false;
+        }
+
+        if (!TryValidateB36StaticBlockClassDeclaration(cache, out declineReason))
+        {
             return false;
         }
 
@@ -3062,6 +3072,94 @@ internal static class UnifiedBytecodeProductionEligibility
             definition.Constructor,
             activationSlots,
             out declineReason);
+    }
+
+    private static bool TryAdmitB36StaticBlockClassDeclaration(
+        ClassDefinitionProgramCache cache,
+        out bool candidate,
+        out string declineReason)
+    {
+        var definition = cache.Definition;
+        candidate = false;
+        declineReason = string.Empty;
+
+        if (definition.StaticBlockPlans.IsDefaultOrEmpty)
+        {
+            return false;
+        }
+
+        if (!definition.Members.IsDefaultOrEmpty || !definition.Fields.IsDefaultOrEmpty)
+        {
+            return false;
+        }
+
+        candidate = true;
+        return TryValidateB36StaticBlockClassDeclaration(cache, out declineReason);
+    }
+
+    private static bool TryValidateB36StaticBlockClassDeclaration(
+        ClassDefinitionProgramCache cache,
+        out string declineReason)
+    {
+        var definition = cache.Definition;
+        declineReason = string.Empty;
+        if (definition.StaticElements.IsDefaultOrEmpty)
+        {
+            if (definition.StaticBlockPlans.IsDefaultOrEmpty)
+            {
+                return true;
+            }
+
+            declineReason =
+                "Class declaration is outside B36: static block plans are missing their static element order metadata.";
+            return false;
+        }
+
+        if (definition.StaticBlockPlans.IsDefaultOrEmpty ||
+            definition.StaticElements.Length != definition.StaticBlockPlans.Length)
+        {
+            declineReason =
+                "Class declaration is outside B36: static elements outside the static-block-only subset remain owned by later class-definition slices.";
+            return false;
+        }
+
+        foreach (var element in definition.StaticElements)
+        {
+            if (element.Kind == ClassStaticElementKind.Block)
+            {
+                continue;
+            }
+
+            declineReason =
+                "Class declaration is outside B36: static elements outside the static-block-only subset remain owned by later class-definition slices.";
+            return false;
+        }
+
+        foreach (var staticBlockPlan in definition.StaticBlockPlans)
+        {
+            if (StaticBlockPlanCreatesClosure(staticBlockPlan))
+            {
+                declineReason =
+                    "Class declaration is outside B36: static block creates a closure that needs the materialized class-definition environment route.";
+                return false;
+            }
+
+            var result = Evaluate(
+                staticBlockPlan,
+                new UnifiedBytecodeProductionActivationDescriptor(
+                    AllowsOrdinaryDynamicIdentifierEnvironmentOperations: true,
+                    IsStrict: true));
+            if (result.IsEligible)
+            {
+                continue;
+            }
+
+            declineReason =
+                $"Class declaration static block is outside B36 production routing: {result.Reason}";
+            return false;
+        }
+
+        return true;
     }
 
     private static bool IsB36AdmittedPlainExtendsConstructor(
@@ -3170,6 +3268,34 @@ internal static class UnifiedBytecodeProductionEligibility
         }
 
         return hasSuperConstruct;
+    }
+
+    private static bool StaticBlockPlanCreatesClosure(ExecutionPlan plan)
+    {
+        foreach (var instruction in plan.Instructions)
+        {
+            switch (instruction)
+            {
+                case FunctionDeclarationInstruction:
+                case ClassDeclarationInstruction:
+                    return true;
+            }
+
+            if (!TryGetExpressionProgram(instruction, out var program))
+            {
+                continue;
+            }
+
+            foreach (var operation in program.EnumerateOperations())
+            {
+                if (operation.Kind is ExpressionOpKind.LoadFunctionLiteral or ExpressionOpKind.LoadClassLiteral)
+                {
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 
     private static bool TryAdmitB36ComputedPublicClassDeclaration(

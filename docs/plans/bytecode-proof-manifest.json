@@ -277,15 +277,29 @@
           "reasonContains": "explicit derived constructor body captures activation binding 'outer'"
         },
         {
-          "id": "B36-class-declaration-extends-static-block-declines",
+          "id": "B36-class-declaration-extends-static-block-routes",
+          "claim": "admitted",
+          "kind": "runtime",
+          "source": "class Base {}\nfunction* g(seed) {\n  var observed = 0;\n  yield 'ready';\n  class Box extends Base {\n    static {\n      this.seed = seed + 1;\n      observed = this.seed + 1;\n    }\n  }\n  var box = new Box();\n  yield Box.seed + '|' + observed + '|' + (box instanceof Base);\n}\nvar iterator = g(40);\nvar first = iterator.next();\nvar second = iterator.next();\nfirst.value + ':' + first.done + '|' + second.value + ':' + second.done;",
+          "expectedResult": "ready:false|41|42|true:false",
+          "requiredLogs": [
+            "unified-bytecode-resumable-generator-fast-path func=g",
+            "unified-bytecode-production-fast-path static-block"
+          ],
+          "forbiddenLogs": [
+            "classified-static-block-ir-fallback"
+          ]
+        },
+        {
+          "id": "B36-class-declaration-static-block-closure-declines",
           "claim": "open",
           "kind": "eligibility",
           "subject": "resumable-generator",
           "functionName": "g",
-          "source": "class Base {}\nfunction* g() {\n  yield 'ready';\n  class Box extends Base {\n    static { this.seed = 1; }\n  }\n  yield typeof Box;\n}",
+          "source": "class Base {}\nfunction* g(seed) {\n  yield 'ready';\n  class Box extends Base {\n    static {\n      this.read = () => seed;\n    }\n  }\n  yield typeof Box;\n}",
           "expectedEligible": false,
           "declineCode": "UnsupportedPlanShape",
-          "reasonContains": "static blocks remain owned"
+          "reasonContains": "static block creates a closure"
         }
       ]
     },

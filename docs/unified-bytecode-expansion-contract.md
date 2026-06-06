@@ -862,9 +862,14 @@ predicates and proof tests.
     unified bytecode (including activation-dependent `class Box extends Base {}`
     and activation-safe explicit public derived constructors), and activation-safe
     computed public class declarations now route through `DeclareClass` after the resumable
-    invoker materializes the body environment; dynamic/eval helpers plus otherwise
-    complex class declaration neighbors (computed names with `extends`, static
-    blocks, and computed/static shapes outside the public B24h-compatible subset)
+    invoker materializes the body environment. Static-block-only class declarations
+    now route through the same `DeclareClass` path when every static block body is
+    production-unified-bytecode eligible and creates no nested closures; the block
+    body must log `unified-bytecode-production-fast-path static-block`, not the
+    classified static-block IR fallback. Dynamic/eval helpers plus otherwise
+    complex class declaration neighbors (computed names with `extends`,
+    closure-producing static blocks, static elements outside the static-block-only
+    subset, and computed/static shapes outside the public B24h-compatible subset)
     are the remaining separate B36
     declaration-instantiation work.
     `DeclareFunction` remains off the resumable opcode allowlist because

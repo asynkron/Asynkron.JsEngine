@@ -235,6 +235,65 @@ public sealed class UnifiedBytecodeResumableClassDeclarationTests(ITestOutputHel
             StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void EvaluateResumable_ClassDeclarationExtendsStaticBlock_AdmitsDeclareClass()
+    {
+        var plan = GetFunctionPlan("""
+            class Base {}
+            function* g(seed) {
+                var observed = 0;
+                yield "ready";
+                class Box extends Base {
+                    static {
+                        this.seed = seed + 1;
+                        observed = this.seed + 1;
+                    }
+                }
+                yield Box.seed + "|" + observed;
+            }
+            """,
+            "g");
+
+        var result = UnifiedBytecodeProductionEligibility.EvaluateResumable(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor(IsGenerator: true));
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(
+            result.Program.Instructions,
+            static instruction => instruction.OpCode == UnifiedBytecodeOpCode.DeclareClass);
+    }
+
+    [Fact]
+    public void EvaluateResumable_ClassDeclarationStaticBlockClosure_DeclinesBeforeVm()
+    {
+        var plan = GetFunctionPlan("""
+            class Base {}
+            function* g(seed) {
+                yield "ready";
+                class Box extends Base {
+                    static {
+                        this.read = () => seed;
+                    }
+                }
+                yield typeof Box;
+            }
+            """,
+            "g");
+
+        var result = UnifiedBytecodeProductionEligibility.EvaluateResumable(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor(IsGenerator: true));
+
+        Assert.False(result.IsEligible);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.UnsupportedPlanShape, result.Code);
+        Assert.Contains(
+            "static block creates a closure",
+            result.Reason,
+            StringComparison.Ordinal);
+    }
+
     [Fact(Timeout = 5000)]
     public async Task GeneratorClassDeclaration_RoutesResumableAndKeepsBodyScope()
     {
@@ -441,6 +500,48 @@ public sealed class UnifiedBytecodeResumableClassDeclarationTests(ITestOutputHel
                         message.Contains("SyncFunctionInvoker", StringComparison.Ordinal) ||
                         message.Contains("simple-ir", StringComparison.Ordinal) ||
                         message.Contains("unified-bytecode-production", StringComparison.Ordinal))));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task GeneratorClassDeclarationExtendsStaticBlock_RoutesResumableAndStaticBlockFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            class Base {
+            }
+
+            function* g(seed) {
+                var observed = 0;
+                yield "ready";
+                class Box extends Base {
+                    static {
+                        this.seed = seed + 1;
+                        observed = this.seed + 1;
+                    }
+                }
+                var box = new Box();
+                yield Box.seed + "|" + observed + "|" + (box instanceof Base);
+            }
+
+            var iterator = g(40);
+            var first = iterator.next();
+            var second = iterator.next();
+            first.value + ":" + first.done + "|" + second.value + ":" + second.done;
+            """);
+
+        Assert.Equal("ready:false|41|42|true:false", result);
+        AssertGeneratorFastPath("g", argc: 1);
+        var logs = CurrentLogger!.Collector.Snapshot();
+        Assert.Contains(
+            logs,
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path static-block",
+                StringComparison.Ordinal));
+        Assert.DoesNotContain(
+            logs,
+            static record => record.Message.Contains(
+                "classified-static-block-ir-fallback",
+                StringComparison.Ordinal));
     }
 
     [Fact(Timeout = 5000)]

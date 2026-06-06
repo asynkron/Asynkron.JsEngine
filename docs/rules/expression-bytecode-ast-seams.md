@@ -163,14 +163,15 @@ fallback or cleanup.
     with an AST fallback, by rolling back sync current-environment `with`
     admission, or by treating retained `with` closures as ordinary captured
     lexical closures.
-27. Keep standalone `ExpressionProgram` runner calls centralized behind the
-    expression-program bridge. Production routing code must not call
-    `ExecutionPlanRunner.EvaluateStandaloneExpressionProgram(...)` directly.
-    `ExecutionPlanRunner.ProfileEvaluateExpressionProgramLoop(...)` is
-    tombstoned; profiler cases that can compile standalone should execute
-    through `UnifiedBytecodeVirtualMachine`, and the deleted loop must stay
-    source-gated as absent. New `EvaluateLoweredExpressionProgram(...)` callers
-    must be source-gated and classified by role, not only by source file, as
+27. Keep standalone `ExpressionProgram` execution centralized behind the
+    expression-program bridge, but do not route it through the IR runner.
+    `ExecutionPlanRunner.EvaluateStandaloneExpressionProgram(...)` and
+    `ExecutionPlanRunner.ProfileEvaluateExpressionProgramLoop(...)` are
+    tombstoned. `EvaluateLoweredExpressionProgram(...)` now compiles standalone
+    expression payloads to standalone unified bytecode and executes
+    `UnifiedBytecodeVirtualMachine`; profiler cases that can compile standalone
+    should do the same. New `EvaluateLoweredExpressionProgram(...)` callers must
+    be source-gated and classified by role, not only by source file, as
     class-definition/class-field, bridge, dynamic-boundary, or fallback-only
     surfaces. If multiple roles can live in the same owner file, match the
     defining line or nearby marker that proves the specific purpose. If the

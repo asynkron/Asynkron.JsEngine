@@ -1,4 +1,4 @@
-# ADR 0345: Keep standalone ExpressionProgram evaluation behind bridge
+# ADR 0345: Keep standalone ExpressionProgram evaluation on unified bytecode
 
 ## Status
 
@@ -28,6 +28,13 @@ surface. The profiler-only bridge was later retired by compiling the synthetic
 `ProfileRunner` bytecode cases to standalone unified bytecode and executing the
 unified VM directly.
 
+Later E4 work deleted `ExecutionPlanRunner.EvaluateStandaloneExpressionProgram(...)`.
+The remaining `EvaluateLoweredExpressionProgram(...)` helper is still an E4
+bridge surface, but it now compiles standalone `ExpressionProgram` payloads to
+standalone unified bytecode and executes `UnifiedBytecodeVirtualMachine`
+directly. This keeps the source-level bridge visible while removing the old
+runner-backed standalone expression execution path.
+
 PR #3360 tightened the E4 source gate after the initial guard still used broad
 file-level permission for `EvaluateLoweredExpressionProgram(...)` callers. That
 was too coarse for files such as `TypedAstEvaluator.ExpressionPrograms.cs` and
@@ -37,17 +44,20 @@ can coexist.
 
 ## Decision
 
-Keep direct standalone `ExpressionProgram` runner calls centralized in
-`TypedAstEvaluator.ExpressionPrograms`.
+Keep standalone `ExpressionProgram` execution centralized in
+`TypedAstEvaluator.ExpressionPrograms`, and keep that bridge on unified bytecode
+rather than the IR runner.
 
 - Normal callers should use `EvaluateLoweredExpressionProgram(...)` or
-  `EvaluateDynamicExpressionProgram(...)` instead of calling
-  `ExecutionPlanRunner.EvaluateStandaloneExpressionProgram(...)` directly.
-- `EvaluateLoweredExpressionProgram(...)` owns forwarding `newTarget` to the
-  standalone runner so constructor/class fallback surfaces do not lose
-  constructor metadata while using the bridge.
+  `EvaluateDynamicExpressionProgram(...)`; direct calls to
+  `ExecutionPlanRunner.EvaluateStandaloneExpressionProgram(...)` are tombstoned.
+- `EvaluateLoweredExpressionProgram(...)` owns compiling standalone expression
+  payloads to standalone unified bytecode and forwarding `newTarget` into
+  `UnifiedBytecodeVirtualMachine.Execute` so constructor/class surfaces do not
+  lose constructor metadata while using the bridge.
 - Production routing code must not call
-  `ExecutionPlanRunner.EvaluateStandaloneExpressionProgram(...)` directly.
+  `ExecutionPlanRunner.EvaluateStandaloneExpressionProgram(...)` directly, and
+  that method must not be reintroduced.
 - `ExecutionPlanRunner.ProfileEvaluateExpressionProgramLoop(...)` is
   tombstoned and must not be reintroduced; profiler cases that can compile
   standalone should execute through `UnifiedBytecodeVirtualMachine`.
@@ -68,9 +78,9 @@ Keep direct standalone `ExpressionProgram` runner calls centralized in
 
 - E4 can be tracked as a fallback-boundary guardrail instead of a vague
   "ExpressionProgram means AST fallback" bucket.
-- Source-gate tests can prove direct standalone runner calls stay out of
-  production routing code while still allowing intended lowered payload
-  execution.
+- Source-gate tests can prove direct standalone runner calls are absent while
+  still allowing intended lowered payload execution through standalone unified
+  bytecode.
 - Future expression-bytecode refactors must update the bridge or the source
   gate classification when adding a new lowered expression-program caller.
 - A file-level allowlist can hide role drift inside a legitimate owner file.

@@ -537,6 +537,7 @@ double RunBytecodeCase(
 {
     if (!UnifiedBytecodeCompiler.TryCompileStandaloneExpressionProgram(
             profileCase.Program,
+            allowsDynamicIdentifiers: false,
             out var program,
             out var reason))
     {

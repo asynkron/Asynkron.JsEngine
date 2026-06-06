@@ -46,17 +46,23 @@ internal static class UnifiedBytecodeCompiler
         }
     }
 
-    // CallInvocationBoundary operand packing for spread calls (gh2676) and direct eval:
-    // low 16 bits hold the pushed argument value count, the high bits hold
-    // spreadMaskIndex + 1 (0 means "no spread"). Bit 30 marks syntactic direct eval.
+    // CallInvocationBoundary operand packing for spread calls (gh2676), bare calls, and direct eval:
+    // low 16 bits hold the pushed argument value count, bits 16..28 hold
+    // spreadMaskIndex + 1 (0 means "no spread"). Bit 29 marks an implicit undefined receiver
+    // (`callee(args)`, stack shape [callee, args...]); bit 30 marks syntactic direct eval.
     private const int CallBoundaryArgumentMask = 0xFFFF;
     private const int CallBoundarySpreadShift = 16;
-    private const int CallBoundarySpreadMask = 0x3FFF;
+    private const int CallBoundarySpreadMask = 0x1FFF;
+    private const int CallBoundaryImplicitUndefinedReceiverFlag = 1 << 29;
     private const int CallBoundaryDirectEvalFlag = 1 << 30;
     private const int FunctionDeclarationIndexMask = 0xFFFF;
     private const int FunctionDeclarationNameIndexShift = 16;
 
-    private static int EncodeCallBoundaryOperand(int argumentValueCount, int spreadMaskIndex, bool isDirectEval)
+    private static int EncodeCallBoundaryOperand(
+        int argumentValueCount,
+        int spreadMaskIndex,
+        bool isDirectEval,
+        bool hasExplicitThis = true)
     {
         var operand = argumentValueCount & CallBoundaryArgumentMask;
         if (spreadMaskIndex >= 0)
@@ -68,6 +74,11 @@ internal static class UnifiedBytecodeCompiler
             }
 
             operand |= encodedSpreadMask << CallBoundarySpreadShift;
+        }
+
+        if (!hasExplicitThis)
+        {
+            operand |= CallBoundaryImplicitUndefinedReceiverFlag;
         }
 
         return isDirectEval ? operand | CallBoundaryDirectEvalFlag : operand;
@@ -248,6 +259,7 @@ internal static class UnifiedBytecodeCompiler
 
     internal static bool TryCompileStandaloneExpressionProgram(
         ExpressionProgram expressionProgram,
+        bool allowsDynamicIdentifiers,
         out UnifiedBytecodeProgram program,
         out string reason)
     {
@@ -268,7 +280,7 @@ internal static class UnifiedBytecodeCompiler
             ImmutableArray<int>.Empty,
             ImmutableArray<int>.Empty,
             ImmutableArray<string?>.Empty,
-            false,
+            allowsDynamicIdentifiers,
             ImmutableArray<int>.Empty);
         var unified = ImmutableArray.CreateBuilder<UnifiedBytecodeInstruction>();
         var literalConstants = ImmutableArray.CreateBuilder<JsValue>();
@@ -281,7 +293,7 @@ internal static class UnifiedBytecodeCompiler
         if (!TryAppendExpressionProgramOps(
                 expressionProgram,
                 slotLayout,
-                allowsDynamicIdentifiers: false,
+                allowsDynamicIdentifiers,
                 unified,
                 literalConstants,
                 stringConstants,
@@ -5544,9 +5556,12 @@ internal static class UnifiedBytecodeCompiler
                     break;
 
                 case ExpressionOpKind.Call:
-                    if (!operation.HasExplicitThis || operation.IsDirectEval)
+                    if (operation.IsDirectEval &&
+                        (!operation.HasExplicitThis ||
+                         operation.ArgumentCount != 1 ||
+                         operation.SpreadMaskConstantIndex >= 0))
                     {
-                        reason = "Only ordinary explicit-this calls are supported in the general expression loop.";
+                        reason = "Only one-argument explicit-this non-spread direct eval is supported in the general expression loop.";
                         return false;
                     }
 
@@ -5556,7 +5571,11 @@ internal static class UnifiedBytecodeCompiler
                         : slotLayout.RegisterSpreadMask(callSpreadIndices);
                     unified.Add(new UnifiedBytecodeInstruction(
                         UnifiedBytecodeOpCode.CallInvocationBoundary,
-                        EncodeCallBoundaryOperand(operation.ArgumentCount, callSpreadMaskIndex, isDirectEval: false)));
+                        EncodeCallBoundaryOperand(
+                            operation.ArgumentCount,
+                            callSpreadMaskIndex,
+                            operation.IsDirectEval,
+                            operation.HasExplicitThis)));
                     break;
 
                 case ExpressionOpKind.SuperConstruct:
@@ -5718,12 +5737,6 @@ internal static class UnifiedBytecodeCompiler
             var call = lastOp;
             if (!RequiresFirstBoundaryCallTargetPreparation(expressionProgram, call))
             {
-                return false;
-            }
-
-            if (!call.HasExplicitThis && !call.IsDirectEval)
-            {
-                reason = "Only direct identifier and member calls with explicit receiver records are supported.";
                 return false;
             }
 
@@ -5905,11 +5918,7 @@ internal static class UnifiedBytecodeCompiler
             return false;
         }
 
-        if (string.IsNullOrEmpty(reason))
-        {
-            reason = "Call target preparation is only supported for activation-resolved identifier and direct member calls.";
-        }
-
+        reason = string.Empty;
         return false;
     }
 
@@ -5925,16 +5934,29 @@ internal static class UnifiedBytecodeCompiler
         for (var operationIndex = 0; operationIndex < expressionProgram.OperationCount; operationIndex++)
         {
             var operation = expressionProgram.GetOperation(operationIndex);
-            if (operation.Kind == ExpressionOpKind.JumpIfShortCircuited ||
-                operation is { Kind: ExpressionOpKind.JumpIfNullish, ReplaceWithUndefined: true } ||
-                operation.IsOptional ||
-                operation.ShortCircuitOnNullishTarget)
+            if (IsOptionalChainSignalOperation(operation))
             {
                 return true;
             }
         }
 
         return false;
+    }
+
+    private static bool IsOptionalChainSignalOperation(PackedExpressionOp operation)
+    {
+        if (operation.Kind == ExpressionOpKind.JumpIfShortCircuited ||
+            operation is { Kind: ExpressionOpKind.JumpIfNullish, ReplaceWithUndefined: true })
+        {
+            return true;
+        }
+
+        var canCarryOptionalChainFlags = operation.Kind is ExpressionOpKind.GetNamedProperty
+            or ExpressionOpKind.GetComputedProperty
+            or ExpressionOpKind.LoadNamedCallTarget
+            or ExpressionOpKind.LoadComputedCallTarget;
+        return canCarryOptionalChainFlags &&
+               (operation.IsOptional || operation.ShortCircuitOnNullishTarget);
     }
 
     // A12: a "general chained call" is a call whose TARGET is a member access on the result of an
@@ -5964,10 +5986,7 @@ internal static class UnifiedBytecodeCompiler
             var operation = expressionProgram.GetOperation(operationIndex);
 
             // Any genuine optional-chain structure keeps the program with the optional appenders.
-            if (operation.Kind == ExpressionOpKind.JumpIfShortCircuited ||
-                operation is { Kind: ExpressionOpKind.JumpIfNullish, ReplaceWithUndefined: true } ||
-                operation.ShortCircuitOnNullishTarget ||
-                (operation.Kind != ExpressionOpKind.Call && operation.IsOptional))
+            if (IsOptionalChainSignalOperation(operation))
             {
                 return false;
             }
@@ -5995,6 +6014,12 @@ internal static class UnifiedBytecodeCompiler
         var activationSlots = slotLayout.ActivationSlots;
         var callTarget = expressionProgram.GetOperation(0);
         if (callTarget.Kind != ExpressionOpKind.LoadIdentifierCallTarget)
+        {
+            reason = string.Empty;
+            return false;
+        }
+
+        if (!call.HasExplicitThis && !call.IsDirectEval)
         {
             reason = string.Empty;
             return false;
@@ -8271,18 +8296,22 @@ internal static class UnifiedBytecodeCompiler
                 }
 
                 case ExpressionOpKind.Call:
-                    if (!op.HasExplicitThis ||
-                        op.IsDirectEval ||
+                    var requiredOperands = op.ArgumentCount + (op.HasExplicitThis ? 2 : 1);
+                    if (op.IsDirectEval ||
                         op.SpreadMaskConstantIndex >= 0 ||
-                        depth < op.ArgumentCount + 2)
+                        depth < requiredOperands)
                     {
                         { RollBack(); reason = "Unsupported nested call in complex call argument."; return false; }
                     }
 
                     unified.Add(new UnifiedBytecodeInstruction(
                         UnifiedBytecodeOpCode.CallInvocationBoundary,
-                        EncodeCallBoundaryOperand(op.ArgumentCount, -1, isDirectEval: false)));
-                    depth -= op.ArgumentCount + 1;
+                        EncodeCallBoundaryOperand(
+                            op.ArgumentCount,
+                            spreadMaskIndex: -1,
+                            isDirectEval: false,
+                            op.HasExplicitThis)));
+                    depth -= op.ArgumentCount + (op.HasExplicitThis ? 1 : 0);
                     break;
 
                 default:

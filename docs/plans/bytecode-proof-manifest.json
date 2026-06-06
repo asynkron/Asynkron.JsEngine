@@ -153,9 +153,9 @@
       "status": "open",
       "proofs": [
         {
-          "id": "E4-standalone-expression-program-bridge-still-present",
-          "claim": "open",
-          "kind": "source-presence",
+          "id": "E4-standalone-expression-program-runner-removed",
+          "claim": "retired-fallback",
+          "kind": "source-absence",
           "path": "src/Asynkron.JsEngine/Ast/TypedAstEvaluator.ExpressionPrograms.cs",
           "pattern": "EvaluateStandaloneExpressionProgram("
         },

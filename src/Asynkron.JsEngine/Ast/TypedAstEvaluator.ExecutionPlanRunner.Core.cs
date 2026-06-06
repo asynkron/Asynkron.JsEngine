@@ -142,28 +142,6 @@ public static partial class TypedAstEvaluator
             _capturedPrivateNameScopes = ImmutableArray<PrivateNameScope>.Empty;
         }
 
-        internal static JsValue EvaluateStandaloneExpressionProgram(
-            ExpressionProgram program,
-            JsEnvironment environment,
-            EvaluationContext context,
-            JsValue newTarget = default)
-        {
-            var runner = new ExecutionPlanRunner(environment, context, newTarget);
-            var previousContext = EvaluationContext.Current;
-            var previousEnvironment = JsEnvironment.Current;
-            EvaluationContext.Current = context;
-            JsEnvironment.Current = environment;
-            try
-            {
-                return runner.EvaluateExpressionProgram(program, environment, context);
-            }
-            finally
-            {
-                JsEnvironment.Current = previousEnvironment;
-                EvaluationContext.Current = previousContext;
-            }
-        }
-
         internal static void ApplyStandaloneBindingTargetProgram(
             BindingTargetProgram target,
             JsValue value,

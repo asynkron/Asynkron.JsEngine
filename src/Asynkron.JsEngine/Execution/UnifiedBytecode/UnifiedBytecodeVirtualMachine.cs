@@ -686,6 +686,7 @@ internal static class UnifiedBytecodeVirtualMachine
                             DecodeCallBoundaryArgumentCount(instruction.Operand),
                             DecodeCallBoundarySpreadMask(program, instruction.Operand),
                             DecodeCallBoundaryIsDirectEval(instruction.Operand),
+                            DecodeCallBoundaryHasExplicitThis(instruction.Operand),
                             stack,
                             stackPointer,
                             slots,
@@ -6791,6 +6792,7 @@ internal static class UnifiedBytecodeVirtualMachine
                             DecodeCallBoundaryArgumentCount(instruction.Operand),
                             DecodeCallBoundarySpreadMask(program, instruction.Operand),
                             DecodeCallBoundaryIsDirectEval(instruction.Operand),
+                            DecodeCallBoundaryHasExplicitThis(instruction.Operand),
                             stack,
                             stackPointer,
                             slots,
@@ -10275,6 +10277,7 @@ internal static class UnifiedBytecodeVirtualMachine
         int argumentCount,
         ImmutableArray<int> spreadMask,
         bool isDirectEval,
+        bool hasExplicitThis,
         Span<JsValue> stack,
         int stackPointer,
         Span<JsValue> slots,
@@ -10283,10 +10286,10 @@ internal static class UnifiedBytecodeVirtualMachine
         JsEnvironment? callingEnvironment)
     {
         var calleeIndex = stackPointer - argumentCount - 1;
-        var receiverIndex = calleeIndex - 1;
-        var baseIndex = receiverIndex;
+        var receiverIndex = hasExplicitThis ? calleeIndex - 1 : -1;
+        var baseIndex = hasExplicitThis ? receiverIndex : calleeIndex;
         var calleeValue = stack[calleeIndex];
-        var thisValue = stack[receiverIndex];
+        var thisValue = hasExplicitThis ? stack[receiverIndex] : JsValue.Undefined;
 
         if (!calleeValue.TryGetObject<IJsCallable>(out var callable))
         {
@@ -10882,14 +10885,18 @@ internal static class UnifiedBytecodeVirtualMachine
 
     // Invocation-boundary operand packing for spread calls/constructs. Mirrors
     // UnifiedBytecodeCompiler.EncodeCallBoundaryOperand: low 16 bits are the pushed
-    // argument value count, high bits are spreadMaskIndex + 1 (0 means "no spread"),
-    // and bit 30 marks syntactic direct eval.
-    private const int CallBoundarySpreadMask = 0x3FFF;
+    // argument value count, bits 16..28 are spreadMaskIndex + 1 (0 means "no spread"),
+    // bit 29 marks an implicit undefined receiver, and bit 30 marks syntactic direct eval.
+    private const int CallBoundarySpreadMask = 0x1FFF;
+    private const int CallBoundaryImplicitUndefinedReceiverFlag = 1 << 29;
     private const int CallBoundaryDirectEvalFlag = 1 << 30;
 
     private static int DecodeCallBoundaryArgumentCount(int operand) => operand & 0xFFFF;
 
     private static bool DecodeCallBoundaryIsDirectEval(int operand) => (operand & CallBoundaryDirectEvalFlag) != 0;
+
+    private static bool DecodeCallBoundaryHasExplicitThis(int operand) =>
+        (operand & CallBoundaryImplicitUndefinedReceiverFlag) == 0;
 
     private static ImmutableArray<int> DecodeCallBoundarySpreadMask(
         UnifiedBytecodeProgram program,

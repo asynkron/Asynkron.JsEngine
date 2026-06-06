@@ -9589,17 +9589,19 @@ internal static class UnifiedBytecodeProductionEligibility
                 return true;
 
             case ExpressionOpKind.Call:
-                // pops <this, callee, arg0..arg(n-1)> and pushes the result: net -(argc + 1).
-                // Reject spread/eval/non-explicit-this; require enough operands on the stack.
-                if (!op.HasExplicitThis ||
-                    op.IsDirectEval ||
+                // Explicit-this calls pop <this, callee, arg0..arg(n-1)> and push the result:
+                // net -(argc + 1). Bare calls pop <callee, arg0..arg(n-1)> and push the result:
+                // net -argc, with undefined supplied as the receiver by the invocation boundary.
+                // Reject spread/eval; require enough operands on the stack for the selected shape.
+                var requiredOperands = op.ArgumentCount + (op.HasExplicitThis ? 2 : 1);
+                if (op.IsDirectEval ||
                     op.SpreadMaskConstantIndex >= 0 ||
-                    depthBefore < op.ArgumentCount + 2)
+                    depthBefore < requiredOperands)
                 {
                     return false;
                 }
 
-                depthAfter = depthBefore - (op.ArgumentCount + 1);
+                depthAfter = depthBefore - (op.ArgumentCount + (op.HasExplicitThis ? 1 : 0));
                 return true;
 
             default:

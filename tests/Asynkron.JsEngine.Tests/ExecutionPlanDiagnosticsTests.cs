@@ -309,11 +309,10 @@ public sealed class ExecutionPlanDiagnosticsTests(ITestOutputHelper output) : In
     }
 
     [Fact]
-    public void SourceGate_E4_ProductionRoutes_DoNotCallStandaloneExpressionProgramEvaluator()
+    public void SourceGate_E4_StandaloneExpressionProgramRunner_IsCompletelyRemoved()
     {
         var repositoryRoot = FindRepositoryRoot();
         var sourceRoot = Path.Combine(repositoryRoot.FullName, "src", "Asynkron.JsEngine");
-        var bridgeFile = "src/Asynkron.JsEngine/Ast/TypedAstEvaluator.ExpressionPrograms.cs";
         var matches = Directory
             .EnumerateFiles(sourceRoot, "*.cs", SearchOption.AllDirectories)
             .SelectMany(file =>
@@ -325,19 +324,10 @@ public sealed class ExecutionPlanDiagnosticsTests(ITestOutputHelper output) : In
                         entry.line.Contains("ExecutionPlanRunner.EvaluateStandaloneExpressionProgram(", StringComparison.Ordinal))
                     .Select(entry => (relativePath, entry.index + 1, entry.line.Trim()));
             })
-            .ToArray();
-
-        Assert.NotEmpty(matches);
-
-        var disallowed = matches
-            .Where(match => !string.Equals(match.relativePath, bridgeFile, StringComparison.Ordinal))
             .Select(match => $"{match.relativePath}:{match.Item2}:{match.Item3}")
             .ToArray();
 
-        Assert.True(
-            disallowed.Length == 0,
-            "E4 production route drift detected: standalone ExpressionProgram evaluator entry points must stay centralized in the bridge file and out of production routing code:\n" +
-            string.Join('\n', disallowed));
+        Assert.Empty(matches);
     }
 
     [Fact]

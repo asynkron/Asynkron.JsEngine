@@ -1,4 +1,5 @@
 using System.Runtime.CompilerServices;
+using Asynkron.JsEngine.Execution.UnifiedBytecode;
 using Asynkron.JsEngine.Execution.Instructions;
 
 namespace Asynkron.JsEngine.Ast;
@@ -14,7 +15,26 @@ public static partial class TypedAstEvaluator
         EvaluationContext context,
         JsValue newTarget = default)
     {
-        return ExecutionPlanRunner.EvaluateStandaloneExpressionProgram(program, environment, context, newTarget);
+        if (!UnifiedBytecodeCompiler.TryCompileStandaloneExpressionProgram(
+                program,
+                allowsDynamicIdentifiers: true,
+                out var unifiedProgram,
+                out var reason))
+        {
+            throw new NotSupportedException(
+                $"Lowered expression program could not be compiled to standalone unified bytecode: {reason}");
+        }
+
+        var slots = unifiedProgram.SlotCount == 0
+            ? Array.Empty<JsValue>()
+            : new JsValue[unifiedProgram.SlotCount];
+        return UnifiedBytecodeVirtualMachine.Execute(
+            unifiedProgram,
+            slots,
+            context,
+            environment,
+            newTarget: newTarget,
+            isStrict: environment.IsStrict);
     }
 
     private static JsValue EvaluateDynamicExpressionProgram(

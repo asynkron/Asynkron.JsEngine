@@ -4098,6 +4098,17 @@ internal static class UnifiedBytecodeProductionEligibility
                 var descriptor = operation.GetObject<FunctionLiteralDescriptor>(objectConstants);
                 if (FunctionCapturesActivationSlot(descriptor.Function, activationSlots, out capturedName))
                 {
+                    if (allowDirectActivationCall &&
+                        TrySkipAdmittedClassComputedNameImmediateFunctionCall(
+                            program,
+                            operationIndex,
+                            descriptor,
+                            out var callOperationIndex))
+                    {
+                        operationIndex = callOperationIndex;
+                        continue;
+                    }
+
                     dependencyReason = "nested function literal activation capture";
                     return true;
                 }
@@ -4155,6 +4166,41 @@ internal static class UnifiedBytecodeProductionEligibility
         }
 
         return false;
+    }
+
+    private static bool TrySkipAdmittedClassComputedNameImmediateFunctionCall(
+        ExpressionProgram program,
+        int functionLiteralOperationIndex,
+        FunctionLiteralDescriptor descriptor,
+        out int callOperationIndex)
+    {
+        callOperationIndex = functionLiteralOperationIndex;
+        if (descriptor.Function.IsAsync ||
+            descriptor.Function.IsGenerator ||
+            descriptor.PlanSeed.Plan is not { } plan ||
+            StaticBlockPlanCreatesClosure(plan))
+        {
+            return false;
+        }
+
+        var candidateIndex = functionLiteralOperationIndex + 1;
+        if (candidateIndex >= program.OperationCount)
+        {
+            return false;
+        }
+
+        var callOperation = program.GetOperation(candidateIndex);
+        if (callOperation.Kind != ExpressionOpKind.Call ||
+            callOperation.ArgumentCount != 0 ||
+            callOperation.HasExplicitThis ||
+            callOperation.IsDirectEval ||
+            callOperation.SpreadMaskConstantIndex >= 0)
+        {
+            return false;
+        }
+
+        callOperationIndex = candidateIndex;
+        return true;
     }
 
     private static bool TrySkipAdmittedClassComputedNameActivationCall(

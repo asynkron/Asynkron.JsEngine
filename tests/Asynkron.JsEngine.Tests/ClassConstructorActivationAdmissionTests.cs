@@ -163,10 +163,11 @@ public sealed class ClassConstructorActivationAdmissionTests(ITestOutputHelper o
     }
 
     [Fact(Timeout = 5000)]
-    public async Task BaseCtor_WithPrivateName_DeclinesButIsCorrect()
+    public async Task BaseCtor_WithPrivateFieldAccess_DeclinesButIsCorrect()
     {
         await using var engine = CreateEngine();
-        // A private name/field touches the private-name scope and declines downstream (PrivateFieldDependency).
+        // A private name/field touches the private-name scope and is explicitly kept off the class-ctor
+        // production route until that activation bridge owns private-name lexical state.
         var result = await engine.Evaluate("""
             class C { #p; constructor(v) { this.#p = v; this.q = this.#p + 1; } }
             new C(10).q;
@@ -174,6 +175,40 @@ public sealed class ClassConstructorActivationAdmissionTests(ITestOutputHelper o
 
         Assert.Equal(11d, result);
         Assert.False(Routed("C"), "a class ctor using a private name must NOT route");
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task BaseCtor_WithPrivateBrandOnly_DeclinesButIsCorrect()
+    {
+        await using var engine = CreateEngine();
+        // The constructor body itself has no private expression op. This pins the selector-side A7
+        // boundary: private-name class state must not sneak into the production VM merely because the
+        // body would otherwise satisfy the ordinary base-constructor route.
+        var result = await engine.Evaluate("""
+            class C { #p = 1; constructor(v) { this.q = v; } getP() { return this.#p; } }
+            var c = new C(10);
+            c.q + c.getP();
+            """);
+
+        Assert.Equal(11d, result);
+        Assert.False(Routed("C"), "a private-name base ctor must decline even when the body has no private ops");
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task DerivedCtor_WithPrivateBrandOnly_DeclinesButIsCorrect()
+    {
+        await using var engine = CreateEngine();
+        // Mirrors the base-constructor boundary for derived constructors: super(...) remains admitted for
+        // public state, but private-name class state stays on the existing class-construction route.
+        var result = await engine.Evaluate("""
+            class B { constructor(v) { this.base = v; } }
+            class D extends B { #p = 1; constructor(v) { super(v); this.q = v + 1; } getP() { return this.#p; } }
+            var d = new D(10);
+            d.base + d.q + d.getP();
+            """);
+
+        Assert.Equal(22d, result);
+        Assert.False(Routed("D"), "a private-name derived ctor must decline even when the body has no private ops");
     }
 
     [Fact(Timeout = 5000)]

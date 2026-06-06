@@ -85,6 +85,20 @@ public static partial class TypedAstEvaluator
         return false;
     }
 
+    private static bool HasResumableCapturedOrDynamicActivationDecline(
+        FunctionExpression function,
+        JsEnvironment closure) =>
+        closure.HasWithObjectInChain() ||
+        DynamicScopeDetector.ContainsDirectEvalInParameters(function.Parameters) ||
+        DynamicScopeDetector.ContainsDirectEval(function.Body);
+
+    private static bool HasResumableArgumentsObjectDependency(FunctionExpression function) =>
+        !function.IsArrow &&
+        (ArgumentsReferenceDetector.ContainsArgumentsReference(function.Body) ||
+         ArgumentsReferenceDetector.ContainsArgumentsReferenceInParameters(function.Parameters) ||
+         DynamicScopeDetector.ContainsDirectEvalInParameters(function.Parameters) ||
+         DynamicScopeDetector.ContainsDirectEval(function.Body));
+
     private static bool TryInitializeResumableSlots(
         ExecutionPlan plan,
         UnifiedBytecodeProgram program,

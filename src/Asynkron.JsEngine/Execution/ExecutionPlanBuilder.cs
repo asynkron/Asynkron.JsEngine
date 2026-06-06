@@ -192,8 +192,9 @@ internal sealed partial class ExecutionPlanBuilder
         var slotSymbols = _slotSymbols.ToImmutableArray();
         var layoutId = ComputeLayoutId(rootSlotCount, rootSlotMap, slotSymbols);
         var materializedBindingNames = BuildMaterializedActivationBindingNames(function, Instructions);
+        var synthesizeMaterializedRootSlots = !IsScriptLevel && analysis is null;
         var activationSlots = BuildActivationSlotShape(function, mappedRootScopeId, rootSlotCount, layoutId, rootSlotMap,
-            rootLexicalBindings, rootConstBindings, materializedBindingNames);
+            rootLexicalBindings, rootConstBindings, materializedBindingNames, synthesizeMaterializedRootSlots);
         var flatSlotCount = rewriter?.FlatSlotCount ?? 0;
         var flatSlotMappings = rewriter?.BuildFlatSlotMappings();
 
@@ -345,10 +346,41 @@ internal sealed partial class ExecutionPlanBuilder
         ImmutableDictionary<Symbol, int> rootSlotMap,
         ImmutableHashSet<Symbol> rootLexicalBindings,
         ImmutableHashSet<Symbol> rootConstBindings,
-        ImmutableHashSet<Symbol> materializedBindingNames)
+        ImmutableHashSet<Symbol> materializedBindingNames,
+        bool synthesizeMaterializedRootSlots)
     {
         var parameterNames = ((IAstCacheable<FunctionParameterNamesPlan>)function).GetOrCreateCache()
             .ParameterNames;
+        if (synthesizeMaterializedRootSlots &&
+            rootSlotMap.IsEmpty &&
+            (!parameterNames.IsDefaultOrEmpty || !materializedBindingNames.IsEmpty))
+        {
+            var slotMap = ImmutableDictionary.CreateBuilder<Symbol, int>(
+                ReferenceEqualityComparer<Symbol>.Instance);
+            var seen = new HashSet<Symbol>(ReferenceEqualityComparer<Symbol>.Instance);
+            var nextSlotIndex = 0;
+
+            AddSymbols(parameterNames);
+            AddSymbols(materializedBindingNames
+                .OrderBy(static symbol => symbol.Name, StringComparer.Ordinal));
+
+            rootSlotMap = slotMap.ToImmutable();
+            rootSlotCount = nextSlotIndex;
+
+            void AddSymbols(IEnumerable<Symbol> symbols)
+            {
+                foreach (var symbol in symbols)
+                {
+                    if (!seen.Add(symbol))
+                    {
+                        continue;
+                    }
+
+                    slotMap[symbol] = nextSlotIndex++;
+                }
+            }
+        }
+
         var parameterSlotIndices = BuildParameterSlotIndices(rootSlotMap, parameterNames);
         var lexicalSlotIndices = BuildLexicalSlotIndices(rootSlotMap, rootLexicalBindings);
         var constLexicalSlotIndices = BuildLexicalSlotIndices(rootSlotMap, rootConstBindings);

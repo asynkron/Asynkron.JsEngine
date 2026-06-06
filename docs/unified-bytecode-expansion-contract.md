@@ -57,7 +57,7 @@ statement interpretation.
   drift gate
   `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~ExpressionProgramCoverageMapTests&FullyQualifiedName~UnifiedBytecodeExpansionContract"`
   passed. The checked inventories remain current: 6 sync prototype opcode guard
-  gaps, 7 resumable opcode allowlist gaps, 2 resumable instruction allowlist
+  gaps, 5 resumable opcode allowlist gaps, 0 resumable instruction allowlist
   gaps, A35 split into 5 object-literal member leaves, B24 split into 9
   class-expression leaves, and no general expression lowering gaps.
 - Completing the decline-burndown plan did not make unified bytecode the only
@@ -397,24 +397,15 @@ the admitted subset stays 1:1 with `UnifiedBytecodeVirtualMachine.ExecuteResumab
 - `DeclareDynamicLexical`
 - `DeclareDynamicVar`
 - `DeclareFunction`
-- `EnterWith`
 - `InitializeDynamicLexical`
-- `LeaveWith`
 - `SuperConstructInvocationBoundary`
 
 ### Resumable Instruction Allowlist Gaps (current)
 
 These are declared `ExecutionInstruction` records not admitted by
-`IsSupportedResumableInstruction`. Some compile to opcode families that already
-exist on the sync VM, but the plan-level resumable setup or suspension state is
-not yet proven for them. `FunctionDeclarationInstruction` and the direct root
-simple `ClassDeclarationInstruction` subset are no longer in this gap inventory,
-but both remain conditionally guarded by the resumable invoker/body-environment
-proof needed by their declaration-instantiation semantics. Complex class
-definition state still declines through the B36 class-declaration predicate.
-
-- `EnterWithInstruction`
-- `LeaveWithInstruction`
+`IsSupportedResumableInstruction`. The current source-derived inventory is
+empty; the remaining resumable blockers are opcode/semantic gates rather than
+statement-record allowlist gaps.
 
 ### A35 Object Literal Member Leaves (current)
 
@@ -804,16 +795,18 @@ predicates and proof tests.
     created against the shared closure/body environment, then the invoker fills
     each helper's VM flat slot and environment slot before `ExecuteResumable`
     starts, so self/sibling references resolve at call time from that environment.
-    A43 now admits descriptor-backed block/Annex B declarations through
-    materialized block environments. Direct root simple class declarations now
+    A43 admits descriptor-backed block/Annex B declarations on the sync route
+    through materialized block environments. Direct root simple class declarations now
     route through `DeclareClass` after the resumable invoker materializes the
     body environment; dynamic/eval helpers and complex class declarations
     (`extends`, computed names, static elements, and static blocks) are the
     remaining separate B36 declaration-instantiation work.
-    `DeclareFunction` remains OFF the resumable opcode allowlist and
+    `DeclareFunction` remains off the resumable opcode allowlist because
+    descriptor-backed block/Annex B declarations still need persisted
+    materialized block environments across suspension; direct root
     `FunctionDeclarationInstruction` remains conditionally guarded by the
-    invoker-proof activation flag; the boundary is pinned by
-    `UnifiedBytecodeResumableNestedFunctionTests`.
+    invoker-proof activation flag and compiles to a no-op after pre-population.
+    The boundary is pinned by `UnifiedBytecodeResumableNestedFunctionTests`.
 - Captured function scopes outside the simple-return captured-closure route,
   unresolved non-with dynamic activation, arrow lexical `this` / `new.target`,
   and class-constructor activation outside the bounded constructor routes.

@@ -263,6 +263,10 @@ public sealed class ProductionRouteCoverageRatchetTests(ITestOutputHelper output
     // RegisterDisposable and dispose when the resumable frame completes.
     [InlineData("function* g(r){ using value=r; yield 1; return 2; } var it=g({[Symbol.dispose](){}}); it.next(); it.next();", "unified-bytecode-resumable-generator-fast-path func=g")]
     [InlineData("async function f(r){ await Promise.resolve(0); using value=r; return 2; } f({[Symbol.dispose](){}});", "unified-bytecode-resumable-async-fast-path func=f")]
+    // B40: non-awaited `with` in resumable bodies. The active with environment is carried in
+    // UnifiedBytecodeResumeState.CurrentEnvironment across yield/await and restored by LeaveWith.
+    [InlineData("function* g(o){ yield 0; with(o){ yield value; } yield typeof value; } var it=g({value:3}); it.next(); it.next(); it.next();", "unified-bytecode-resumable-generator-fast-path func=g")]
+    [InlineData("async function f(o){ await Promise.resolve(0); with(o){ value++; } return value; } f({value:3});", "unified-bytecode-resumable-async-fast-path func=f")]
     public async Task AdmittedShape_StillRoutesThroughProduction(string source, string expectedLog)
     {
         await using var engine = CreateEngine();

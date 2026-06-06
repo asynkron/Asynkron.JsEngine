@@ -4036,7 +4036,7 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
-    public void EvaluateResumable_WithDynamicIdentifierLoad_DeclinesD3Residue()
+    public void EvaluateResumable_WithDynamicIdentifierLoad_AcceptsBoundedCurrentEnvironment()
     {
         var plan = GetFunctionPlan("""
             function* dynamic(box) {
@@ -4051,9 +4051,13 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
             plan,
             new UnifiedBytecodeProductionActivationDescriptor(IsGenerator: true));
 
-        Assert.False(result.IsEligible);
-        Assert.Equal(UnifiedBytecodeProductionDeclineCode.UnsupportedPlanShape, result.Code);
-        Assert.Contains("D3 dynamic residue: with statements in resumable bodies", result.Reason, StringComparison.Ordinal);
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction => instruction.OpCode == UnifiedBytecodeOpCode.EnterWith);
+        Assert.Contains(result.Program.Instructions, instruction => instruction.OpCode == UnifiedBytecodeOpCode.LeaveWith);
+        Assert.Contains(
+            result.Program.Instructions,
+            instruction => instruction.OpCode == UnifiedBytecodeOpCode.LoadDynamicIdentifier);
     }
 
     [Fact]
@@ -4077,7 +4081,7 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
 
         Assert.False(result.IsEligible);
         Assert.Equal(UnifiedBytecodeProductionDeclineCode.UnsupportedPlanShape, result.Code);
-        Assert.Contains("including awaited with-object evaluation", result.Reason, StringComparison.Ordinal);
+        Assert.Contains("awaited with-object evaluation", result.Reason, StringComparison.Ordinal);
     }
 
     [Fact]

@@ -3503,6 +3503,7 @@ internal static class UnifiedBytecodeVirtualMachine
         var programCounter = state.ProgramCounter;
         var resumableTryFrames = state.ResumableTryFrames;
         var resumableInactiveCatchBindingSlots = state.ResumableInactiveCatchBindingSlots;
+        var currentEnvironment = state.CurrentEnvironment ?? state.CallingEnvironment;
         var slotEnvironments = state.CallingEnvironment is null || !state.HasMaterializedBodyEnvironment
             ? null
             : InitializeSlotEnvironments(program, state.CallingEnvironment);
@@ -3918,7 +3919,7 @@ internal static class UnifiedBytecodeVirtualMachine
                     {
                         var descriptor = program.FunctionLiteralConstants[instruction.Operand >> 1];
                         var isConstructorFunction = (instruction.Operand & 1) != 0;
-                        var closureEnvironment = RequireDynamicEnvironment(state.CallingEnvironment);
+                        var closureEnvironment = RequireDynamicEnvironment(currentEnvironment);
                         var functionCallable = TypedAstEvaluator.CreateFunctionValueFromLiteral(
                             descriptor.Function,
                             closureEnvironment,
@@ -3933,7 +3934,7 @@ internal static class UnifiedBytecodeVirtualMachine
                 case UnifiedBytecodeOpCode.DeclareClass:
                     {
                         var classDeclaration = program.ClassDeclarationConstants[instruction.Operand];
-                        var classDeclarationEnvironment = RequireDynamicEnvironment(state.CallingEnvironment);
+                        var classDeclarationEnvironment = RequireDynamicEnvironment(currentEnvironment);
                         SyncUnifiedSlotsToEnvironment(
                             program,
                             slots,
@@ -3976,7 +3977,7 @@ internal static class UnifiedBytecodeVirtualMachine
                 case UnifiedBytecodeOpCode.LoadClassLiteral:
                     {
                         var classExpression = program.ClassLiteralConstants[instruction.Operand];
-                        var callingEnvironment = RequireDynamicEnvironment(state.CallingEnvironment);
+                        var callingEnvironment = RequireDynamicEnvironment(currentEnvironment);
                         var classEnvironment = RequiresResumableClassLiteralSlotEnvironment(classExpression)
                             ? CreateResumableClassLiteralEnvironment(
                                 program,
@@ -4031,7 +4032,7 @@ internal static class UnifiedBytecodeVirtualMachine
                         // closure captured and mutates across yields, or one outer code mutated while this
                         // frame was suspended, is observed correctly, and an uninitialized binding throws a
                         // ReferenceError (via GetDynamicIdentifierValue -> SetThrow).
-                        var resumableDynamicLoadEnvironment = RequireDynamicEnvironment(state.CallingEnvironment);
+                        var resumableDynamicLoadEnvironment = RequireDynamicEnvironment(currentEnvironment);
                         PushResumableValue(GetDynamicIdentifierValue(
                             program.StringConstants[instruction.Operand],
                             resumableDynamicLoadEnvironment,
@@ -4053,7 +4054,7 @@ internal static class UnifiedBytecodeVirtualMachine
                         // environment, pushing the <thisValue, callee> pair the CallInvocationBoundary
                         // consumes. Resolution is live, so the binding observed after a resume reflects any
                         // reassignment/shadowing performed by outer code between yields.
-                        var resumableDynamicCallEnvironment = RequireDynamicEnvironment(state.CallingEnvironment);
+                        var resumableDynamicCallEnvironment = RequireDynamicEnvironment(currentEnvironment);
                         PrepareDynamicIdentifierCallTarget(
                             program.StringConstants[instruction.Operand],
                             resumableDynamicCallEnvironment,
@@ -4080,7 +4081,7 @@ internal static class UnifiedBytecodeVirtualMachine
                         // target selected before the suspension.
                         state.DynamicIdentifierReferences ??= new AssignmentReference[instructions.Length];
                         state.DynamicIdentifierReferences[state.DynamicIdentifierReferenceCount++] =
-                            RequireDynamicEnvironment(state.CallingEnvironment)
+                            RequireDynamicEnvironment(currentEnvironment)
                                 .ResolveIdentifierAssignmentReference(
                                     Symbol.Intern(program.StringConstants[instruction.Operand]),
                                     context);
@@ -4242,7 +4243,7 @@ internal static class UnifiedBytecodeVirtualMachine
                 case UnifiedBytecodeOpCode.RegisterDisposable:
                     {
                         var resumableDisposableValue = stack[--stackPointer];
-                        RegisterDisposableResource(resumableDisposableValue, state.CallingEnvironment, context);
+                        RegisterDisposableResource(resumableDisposableValue, currentEnvironment, context);
                         if (context.ShouldStopEvaluation)
                         {
                             state.IsCompleted = true;
@@ -4260,7 +4261,7 @@ internal static class UnifiedBytecodeVirtualMachine
                         // resumable calling environment, run the lowered binding-target program, then sync
                         // identifier writes back into flat slots for later VM reads.
                         var bindingTargetValue = stack[--stackPointer];
-                        var bindingEnvironment = RequireDynamicEnvironment(state.CallingEnvironment);
+                        var bindingEnvironment = RequireDynamicEnvironment(currentEnvironment);
                         SyncUnifiedSlotsToEnvironment(program, slots, slotEnvironments, bindingEnvironment);
                         TypedAstEvaluator.ApplyLoweredAssignmentBindingTargetProgram(
                             program.BindingTargetConstants[instruction.Operand],
@@ -4292,7 +4293,7 @@ internal static class UnifiedBytecodeVirtualMachine
                         // non-coercible source or a throwing element getter surfaces as the resumable Throw
                         // step.
                         var declarationBindingValue = stack[--stackPointer];
-                        var declarationBindingEnvironment = RequireDynamicEnvironment(state.CallingEnvironment);
+                        var declarationBindingEnvironment = RequireDynamicEnvironment(currentEnvironment);
                         SyncUnifiedSlotsToEnvironment(program, slots, slotEnvironments, declarationBindingEnvironment);
                         TypedAstEvaluator.ApplyLoweredDeclarationBindingTargetProgram(
                             program.BindingTargetConstants[DecodeDeclarationBindingTargetIndex(instruction.Operand)],
@@ -4331,7 +4332,7 @@ internal static class UnifiedBytecodeVirtualMachine
                             program.StringConstants[DecodeStringOperand(instruction.Operand)],
                             DecodeIsIncrement(instruction.Operand),
                             DecodeIsPrefix(instruction.Operand),
-                            RequireDynamicEnvironment(state.CallingEnvironment),
+                            RequireDynamicEnvironment(currentEnvironment),
                             context));
                         if (context.ShouldStopEvaluation)
                         {
@@ -4844,7 +4845,7 @@ internal static class UnifiedBytecodeVirtualMachine
                         // is defensive — it only fires for a non-ReferenceError throw (e.g. a thrown getter on
                         // the global object), which surfaces as the resumable Throw step. Literal twin of the
                         // sync VM's TypeOfDynamicIdentifier handler.
-                        var resumableDynamicTypeOfEnvironment = RequireDynamicEnvironment(state.CallingEnvironment);
+                        var resumableDynamicTypeOfEnvironment = RequireDynamicEnvironment(currentEnvironment);
                         PushResumableValue(TypeOfDynamicIdentifier(
                             program.StringConstants[instruction.Operand],
                             resumableDynamicTypeOfEnvironment,
@@ -4879,7 +4880,7 @@ internal static class UnifiedBytecodeVirtualMachine
                         // strict delete of a non-configurable global property returns false / throws per the
                         // sync DeleteDynamicIdentifier helper, surfacing a throw as the resumable Throw step.
                         // Literal twin of the sync VM's DeleteDynamicIdentifier handler.
-                        var resumableDynamicDeleteEnvironment = RequireDynamicEnvironment(state.CallingEnvironment);
+                        var resumableDynamicDeleteEnvironment = RequireDynamicEnvironment(currentEnvironment);
                         PushResumableValue(DeleteDynamicIdentifier(
                             program.StringConstants[instruction.Operand],
                             resumableDynamicDeleteEnvironment,
@@ -5408,6 +5409,45 @@ internal static class UnifiedBytecodeVirtualMachine
                         break;
                     }
 
+                case UnifiedBytecodeOpCode.EnterWith:
+                    {
+                        var withObjectValue = stack[--stackPointer];
+                        if (TypedAstEvaluator.TryConvertToWithBindingObject(
+                                withObjectValue,
+                                context,
+                                out var withObject))
+                        {
+                            currentEnvironment = JsEnvironment.CreateInstance(
+                                RequireDynamicEnvironment(currentEnvironment),
+                                isFunctionScope: false,
+                                isStrict: context.CurrentScope.IsStrict || state.IsStrict,
+                                description: "unified-bytecode-resumable-with",
+                                withObject: withObject);
+                            state.CurrentEnvironment = currentEnvironment;
+                        }
+
+                        if (context.ShouldStopEvaluation)
+                        {
+                            state.IsCompleted = true;
+                            return UnifiedBytecodeStepResult.Throw(context.FlowValue);
+                        }
+
+                        programCounter++;
+                        break;
+                    }
+
+                case UnifiedBytecodeOpCode.LeaveWith:
+                    {
+                        if (currentEnvironment is { Enclosing: { } enclosing })
+                        {
+                            currentEnvironment = enclosing;
+                            state.CurrentEnvironment = currentEnvironment;
+                        }
+
+                        programCounter++;
+                        break;
+                    }
+
                 case UnifiedBytecodeOpCode.PushEnvironment:
                     {
                         var scopeDescriptor = program.ScopeDescriptors[instruction.Operand];
@@ -5754,7 +5794,7 @@ internal static class UnifiedBytecodeVirtualMachine
                                 descriptor,
                                 slots,
                                 slotEnvironments,
-                                state.CallingEnvironment,
+                                currentEnvironment,
                                 context,
                                 ref state.NextActiveDriverOrdinal,
                                 out var nextProgramCounter))
@@ -5872,7 +5912,7 @@ internal static class UnifiedBytecodeVirtualMachine
                                 program.StringConstants[descriptor.TargetNameConstantIndex],
                                 false,
                                 value,
-                                RequireDynamicEnvironment(state.CallingEnvironment),
+                                RequireDynamicEnvironment(currentEnvironment),
                                 context);
                             if (context.ShouldStopEvaluation)
                             {
@@ -5910,7 +5950,7 @@ internal static class UnifiedBytecodeVirtualMachine
                                 program.StringConstants[descriptor.TargetNameConstantIndex],
                                 false,
                                 restValue,
-                                RequireDynamicEnvironment(state.CallingEnvironment),
+                                RequireDynamicEnvironment(currentEnvironment),
                                 context);
                             if (context.ShouldStopEvaluation)
                             {
@@ -5989,7 +6029,7 @@ internal static class UnifiedBytecodeVirtualMachine
                                 program.StringConstants[descriptor.TargetNameConstantIndex],
                                 false,
                                 value,
-                                RequireDynamicEnvironment(state.CallingEnvironment),
+                                RequireDynamicEnvironment(currentEnvironment),
                                 context);
                             if (context.ShouldStopEvaluation)
                             {
@@ -6027,7 +6067,7 @@ internal static class UnifiedBytecodeVirtualMachine
                                 program.StringConstants[descriptor.TargetNameConstantIndex],
                                 false,
                                 restValue,
-                                RequireDynamicEnvironment(state.CallingEnvironment),
+                                RequireDynamicEnvironment(currentEnvironment),
                                 context);
                             if (context.ShouldStopEvaluation)
                             {
@@ -6758,7 +6798,7 @@ internal static class UnifiedBytecodeVirtualMachine
                         // The packed operand carries the name constant index (low 16) and the chain-end jump
                         // target (high) — identical encoding to the sync VM's handler. Literal twin of the
                         // sync VM case; resolution is live, so a resumed step reflects any reassignment.
-                        var resumableDynamicOptionalCallEnvironment = RequireDynamicEnvironment(state.CallingEnvironment);
+                        var resumableDynamicOptionalCallEnvironment = RequireDynamicEnvironment(currentEnvironment);
                         var dynamicOptionalNameIndex = instruction.Operand & 0xFFFF;
                         var dynamicOptionalJumpTarget = instruction.Operand >> 16;
                         PrepareDynamicIdentifierCallTarget(
@@ -6804,7 +6844,7 @@ internal static class UnifiedBytecodeVirtualMachine
                             slots,
                             slotEnvironments: null,
                             context,
-                            state.CallingEnvironment);
+                            currentEnvironment);
                         // Clear the flag on the call result slot, matching the sync VM. A non-short-circuited
                         // call result must never inherit a stale short-circuit flag from a prior chain.
                         SetResumableShortCircuitFlag(stackPointer - 1, false);

@@ -1134,11 +1134,11 @@ internal static class UnifiedBytecodeProductionEligibility
                 continue;
             }
 
-            if (instruction is EnterWithInstruction or LeaveWithInstruction)
+            if (instruction is EnterWithInstruction { AwaitedProgram: not null })
             {
                 declineCode = UnifiedBytecodeProductionDeclineCode.UnsupportedPlanShape;
                 declineReason =
-                    "D3 dynamic residue: with statements in resumable bodies, including awaited with-object evaluation, are not eligible for resumable unified bytecode routing.";
+                    "D3 dynamic residue: awaited with-object evaluation is not eligible for resumable unified bytecode routing.";
                 return true;
             }
 
@@ -1391,6 +1391,11 @@ internal static class UnifiedBytecodeProductionEligibility
             case StoreResumeValueInstruction:
             case EnterTryInstruction:
             case EnterCatchInstruction { CatchBindingProgram: null or IdentifierBindingTargetProgram }:
+            // Plain `with (obj) { ... }` in resumable bodies. The awaited-object form is declined earlier by
+            // the D3 gate; the non-awaited form lowers to EnterWith / LeaveWith, and ExecuteResumable persists
+            // the active with environment on UnifiedBytecodeResumeState.CurrentEnvironment across suspension.
+            case EnterWithInstruction { AwaitedProgram: null, ObjectProgram: { } }:
+            case LeaveWithInstruction:
             case PushEnvironmentInstruction:
             case PopEnvironmentInstruction:
             case LeaveTryInstruction:
@@ -1496,6 +1501,14 @@ internal static class UnifiedBytecodeProductionEligibility
 
         foreach (var instruction in plan.Instructions)
         {
+            if (instruction is EnterWithInstruction { AwaitedProgram: null, ObjectProgram: { } })
+            {
+                // The with-object expression is compiled before the with environment exists. If it lowers
+                // to dynamic identifier ops, parameters and locals must already be visible through the
+                // resumable invocation environment as well as the flat slot array.
+                return true;
+            }
+
             if (!TryGetResumableExpressionProgram(instruction, out var program))
             {
                 continue;
@@ -2436,6 +2449,14 @@ internal static class UnifiedBytecodeProductionEligibility
                 UnifiedBytecodeOpCode.Continue or
                 UnifiedBytecodeOpCode.EnterTry or
                 UnifiedBytecodeOpCode.EnterCatch or
+                // Dynamic `with` scopes in resumable bodies. EnterWith converts the object to a with-binding
+                // environment and stores that active environment on UnifiedBytecodeResumeState.CurrentEnvironment;
+                // LeaveWith restores the enclosing environment. Because dynamic reads/writes/calls and closure
+                // creation resolve against the persisted current environment, a yield/await inside the with body
+                // resumes with the same dynamic scope chain the sync VM would keep in its local current
+                // environment. Awaited with-object evaluation remains declined at the instruction gate.
+                UnifiedBytecodeOpCode.EnterWith or
+                UnifiedBytecodeOpCode.LeaveWith or
                 // Flat-slot lexical block scopes in resumable bodies. The plan-level gate admits only
                 // scopes whose lexical slots are mapped into the resume state's flat slot array and whose
                 // body does not need a materialized body environment. ExecuteResumable therefore owns the
@@ -12132,6 +12153,7 @@ internal static class UnifiedBytecodeProductionEligibility
         }
 
         return activationSlots.SlotMap.ContainsKey(identifier.Name) ||
+               TryResolveActivationSlotByUniqueName(identifier.Name, activationSlots, out _) ||
                IsYieldStarSyntheticResult(identifier.Name);
     }
 
@@ -12169,7 +12191,41 @@ internal static class UnifiedBytecodeProductionEligibility
             return true;
         }
 
-        return activationSlots.SlotMap.ContainsKey(symbol);
+        return activationSlots.SlotMap.ContainsKey(symbol) ||
+               TryResolveActivationSlotByUniqueName(symbol, activationSlots, out _);
+    }
+
+    private static bool TryResolveActivationSlotByUniqueName(
+        Symbol symbol,
+        ActivationSlotShape activationSlots,
+        out int slotIndex)
+    {
+        slotIndex = -1;
+        var name = symbol.Name;
+        if (string.IsNullOrEmpty(name) || activationSlots.SlotNames.IsDefaultOrEmpty)
+        {
+            return false;
+        }
+
+        var found = false;
+        foreach (var (candidate, candidateSlotIndex) in activationSlots.SlotNames)
+        {
+            if (!string.Equals(candidate.Name, name, StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            if (found)
+            {
+                slotIndex = -1;
+                return false;
+            }
+
+            found = true;
+            slotIndex = candidateSlotIndex;
+        }
+
+        return found;
     }
 
     private static bool CanUseMaterializedActivationDynamicLookup(

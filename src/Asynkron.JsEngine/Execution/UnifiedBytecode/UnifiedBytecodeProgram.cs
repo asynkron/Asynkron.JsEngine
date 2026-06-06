@@ -322,6 +322,13 @@ internal sealed class UnifiedBytecodeResumeState
     public SuperBinding? ResumableSuperBinding { get; set; }
 
     /// <summary>
+    ///     The currently-active dynamic environment for resumable execution. Normally this is the same as
+    ///     <see cref="CallingEnvironment" />, but dynamic scopes such as <c>with</c> can temporarily replace
+    ///     it and must survive <c>yield</c>/<c>await</c> suspension.
+    /// </summary>
+    public JsEnvironment? CurrentEnvironment { get; set; }
+
+    /// <summary>
     ///     The strict/sloppy-coerced <c>this</c> binding for the resumable activation. Captured at
     ///     construction so it survives suspension/resume across <c>yield</c>/<c>await</c> boundaries.
     /// </summary>

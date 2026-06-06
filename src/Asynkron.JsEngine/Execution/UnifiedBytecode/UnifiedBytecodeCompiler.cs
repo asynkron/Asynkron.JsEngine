@@ -16900,7 +16900,8 @@ internal static class UnifiedBytecodeCompiler
             return false;
         }
 
-        if (activationSlots.SlotMap.TryGetValue(identifier.Name, out var mappedSlot))
+        if (activationSlots.SlotMap.TryGetValue(identifier.Name, out var mappedSlot) ||
+            TryResolveActivationSlotByUniqueName(identifier.Name, activationSlots, out mappedSlot))
         {
             slotIndex = mappedSlot;
             return true;
@@ -16974,7 +16975,8 @@ internal static class UnifiedBytecodeCompiler
             return false;
         }
 
-        if (activationSlots.SlotMap.TryGetValue(identifier.Name, out var mappedSlotByName))
+        if (activationSlots.SlotMap.TryGetValue(identifier.Name, out var mappedSlotByName) ||
+            TryResolveActivationSlotByUniqueName(identifier.Name, activationSlots, out mappedSlotByName))
         {
             if (TryMapSlot(activationSlots.ScopeId, mappedSlotByName, slotLayout.FlatSlotMappings, out var mappedFlatSlot))
             {
@@ -16996,6 +16998,39 @@ internal static class UnifiedBytecodeCompiler
 
         slotIndex = -1;
         return false;
+    }
+
+    private static bool TryResolveActivationSlotByUniqueName(
+        Symbol symbol,
+        ActivationSlotShape activationSlots,
+        out int slotIndex)
+    {
+        slotIndex = -1;
+        var name = symbol.Name;
+        if (string.IsNullOrEmpty(name) || activationSlots.SlotNames.IsDefaultOrEmpty)
+        {
+            return false;
+        }
+
+        var found = false;
+        foreach (var (candidate, candidateSlotIndex) in activationSlots.SlotNames)
+        {
+            if (!string.Equals(candidate.Name, name, StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            if (found)
+            {
+                slotIndex = -1;
+                return false;
+            }
+
+            found = true;
+            slotIndex = candidateSlotIndex;
+        }
+
+        return found;
     }
 
     private static bool TryResolveExplicitActivationSlot(

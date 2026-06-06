@@ -157,8 +157,9 @@ execution.
 The helper keeps the existing semantics: lower and cache the dynamic expression
 once, execute it as an expression program when supported, and throw on lowering
 failure instead of falling back to raw AST expression evaluation. Non-dynamic
-callers that already hold lowered payloads remain on
-`EvaluateLoweredExpressionProgram`.
+callers that already hold lowered payloads now use
+`UnifiedBytecodeExpressionProgramExecutor.ExecuteStandalone`; the older
+`EvaluateLoweredExpressionProgram` helper has been retired.
 
 The follow-up guardrail is
 `SourceGate_DynamicExpressionProgramBridge_StaysInsideApprovedBoundarySurface`.

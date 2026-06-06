@@ -357,7 +357,7 @@ public sealed class ExecutionPlanDiagnosticsTests(ITestOutputHelper output) : In
     }
 
     [Fact]
-    public void SourceGate_E4_LoweredExpressionProgramCallers_AreClassified()
+    public void SourceGate_E4_LoweredExpressionProgramBridge_IsCompletelyRemoved()
     {
         var repositoryRoot = FindRepositoryRoot();
         var sourceRoot = Path.Combine(repositoryRoot.FullName, "src", "Asynkron.JsEngine");
@@ -373,63 +373,12 @@ public sealed class ExecutionPlanDiagnosticsTests(ITestOutputHelper output) : In
                     .Select(entry => (
                         relativePath,
                         LineNumber: entry.index + 1,
-                        Text: entry.line.Trim(),
-                        NearbyText: string.Join('\n', lines.Skip(Math.Max(0, entry.index - 8)).Take(9))));
+                        Text: entry.line.Trim()));
             })
-            .ToArray();
-
-        Assert.NotEmpty(matches);
-
-        var classifiedMatches = matches
-            .Select(match => (
-                match.relativePath,
-                match.LineNumber,
-                match.Text,
-                Classification: ClassifyLoweredExpressionProgramCaller(
-                    match.relativePath,
-                    match.Text,
-                    match.NearbyText)))
-            .ToArray();
-
-        var unclassified = classifiedMatches
-            .Where(static match => match.Classification is null)
             .Select(static match => $"{match.relativePath}:{match.LineNumber}:{match.Text}")
             .ToArray();
 
-        Assert.True(
-            unclassified.Length == 0,
-            "EvaluateLoweredExpressionProgram call-site drift detected; classify new callers as bridge, dynamic, class-definition/class-field, profiling, or fallback-only:\n" +
-            string.Join('\n', unclassified));
-
-        Assert.DoesNotContain(
-            classifiedMatches,
-            static match => string.Equals(match.Classification, "fallback-only", StringComparison.Ordinal));
-    }
-
-    private static string? ClassifyLoweredExpressionProgramCaller(
-        string relativePath,
-        string text,
-        string nearbyText)
-    {
-        return relativePath switch
-        {
-            "src/Asynkron.JsEngine/Ast/TypedAstEvaluator.ExpressionPrograms.cs"
-                when text.Contains("internal static JsValue EvaluateLoweredExpressionProgram(", StringComparison.Ordinal) =>
-                    "bridge-definition",
-            "src/Asynkron.JsEngine/Ast/TypedAstEvaluator.ExpressionPrograms.cs"
-                when text.Contains("return EvaluateLoweredExpressionProgram(cache.Program, environment, context);", StringComparison.Ordinal) =>
-                    "dynamic-boundary",
-            "src/Asynkron.JsEngine/Ast/ClassDefinitionExtensions.cs" =>
-                "class-definition",
-            "src/Asynkron.JsEngine/Ast/ClassFieldInitializer.cs" =>
-                "class-field",
-            "src/Asynkron.JsEngine/Ast/ClassPropertyNameResolver.cs" =>
-                "class-property-name",
-            "src/Asynkron.JsEngine/Ast/TypedAstEvaluator.SyncFunctionInvoker.cs"
-                when nearbyText.Contains("resolvedField.InitializerProgram", StringComparison.Ordinal) =>
-                    "class-field",
-            _ => null
-        };
+        Assert.Empty(matches);
     }
 
     [Fact]

@@ -30,10 +30,10 @@ See `/agents/how-to-architecture.md` for detailed information about the executio
   AST evaluation to lowered `ExpressionProgram` execution. It lowers once, caches
   success/failure per node, and throws when lowering fails. It must not fall back
   to raw AST expression evaluation on compile failure.
-- `EvaluateLoweredExpressionProgram` is allowed outside this directory only for
-  already-lowered expression-program payloads (for example computed class member
-  names and class field initializers). That path is lowered-program execution,
-  not a runtime AST fallback.
+- Already-lowered expression-program payloads outside this directory should use
+  `UnifiedBytecodeExpressionProgramExecutor.ExecuteStandalone` (for example
+  computed class member names and class field initializers). That path is
+  lowered-program execution, not a runtime AST fallback.
 
 ## Deprecation
 

@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted
+Accepted, amended by the E4 lowered-expression bridge retirement.
 
 ## Context
 
@@ -29,11 +29,12 @@ surface. The profiler-only bridge was later retired by compiling the synthetic
 unified VM directly.
 
 Later E4 work deleted `ExecutionPlanRunner.EvaluateStandaloneExpressionProgram(...)`.
-The remaining `EvaluateLoweredExpressionProgram(...)` helper is still an E4
-bridge surface, but it now compiles standalone `ExpressionProgram` payloads to
-standalone unified bytecode and executes `UnifiedBytecodeVirtualMachine`
-directly. This keeps the source-level bridge visible while removing the old
-runner-backed standalone expression execution path.
+A follow-up slice also deleted `TypedAstEvaluator.EvaluateLoweredExpressionProgram(...)`.
+Standalone `ExpressionProgram` payloads now execute through
+`UnifiedBytecodeExpressionProgramExecutor`, which compiles them to standalone
+unified bytecode and executes `UnifiedBytecodeVirtualMachine` directly. This
+keeps standalone expression-program execution centralized without preserving an
+AST-evaluator bridge method.
 
 PR #3360 tightened the E4 source gate after the initial guard still used broad
 file-level permission for `EvaluateLoweredExpressionProgram(...)` callers. That
@@ -45,30 +46,30 @@ can coexist.
 ## Decision
 
 Keep standalone `ExpressionProgram` execution centralized in
-`TypedAstEvaluator.ExpressionPrograms`, and keep that bridge on unified bytecode
-rather than the IR runner.
+`UnifiedBytecodeExpressionProgramExecutor`, and keep that executor on unified
+bytecode rather than the AST evaluator or IR runner.
 
-- Normal callers should use `EvaluateLoweredExpressionProgram(...)` or
-  `EvaluateDynamicExpressionProgram(...)`; direct calls to
-  `ExecutionPlanRunner.EvaluateStandaloneExpressionProgram(...)` are tombstoned.
-- `EvaluateLoweredExpressionProgram(...)` owns compiling standalone expression
+- Normal already-lowered callers should use
+  `UnifiedBytecodeExpressionProgramExecutor.ExecuteStandalone(...)`.
+  Quarantined legacy AST expression callers still use
+  `EvaluateDynamicExpressionProgram(...)` until that dynamic bridge is retired.
+  Direct calls to `ExecutionPlanRunner.EvaluateStandaloneExpressionProgram(...)`
+  are tombstoned.
+- `UnifiedBytecodeExpressionProgramExecutor.ExecuteStandalone(...)` owns compiling standalone expression
   payloads to standalone unified bytecode and forwarding `newTarget` into
   `UnifiedBytecodeVirtualMachine.Execute` so constructor/class surfaces do not
-  lose constructor metadata while using the bridge.
+  lose constructor metadata while using the executor.
 - Production routing code must not call
   `ExecutionPlanRunner.EvaluateStandaloneExpressionProgram(...)` directly, and
   that method must not be reintroduced.
+- `TypedAstEvaluator.EvaluateLoweredExpressionProgram(...)` is tombstoned and
+  must not be reintroduced.
 - `ExecutionPlanRunner.ProfileEvaluateExpressionProgramLoop(...)` is
   tombstoned and must not be reintroduced; profiler cases that can compile
   standalone should execute through `UnifiedBytecodeVirtualMachine`.
-- Remaining lowered expression-program call sites must stay source-gated and
-  owner-classified. A new caller should name whether it is a
-  class-definition/class-field surface, bridge helper, dynamic-boundary helper,
-  or fallback-only path.
-- Source gates should classify by role, not only by source file. When multiple
-  roles can live in the same file, match the defining line or nearby marker
-  that proves the specific bridge, dynamic-boundary, class-field, or
-  fallback-only purpose.
+- Remaining dynamic expression-program call sites must stay source-gated and
+  owner-classified. Already-lowered call sites should call the unified executor
+  directly, not revive an AST-evaluator helper.
 - The simple-IR return expression path in `SyncFunctionInvoker` remains
   fallback-only. Production-accepted routes are considered first and return
   through `UnifiedBytecodeVirtualMachine` before this simple-IR fallback is
@@ -78,14 +79,12 @@ rather than the IR runner.
 
 - E4 can be tracked as a fallback-boundary guardrail instead of a vague
   "ExpressionProgram means AST fallback" bucket.
-- Source-gate tests can prove direct standalone runner calls are absent while
-  still allowing intended lowered payload execution through standalone unified
-  bytecode.
-- Future expression-bytecode refactors must update the bridge or the source
-  gate classification when adding a new lowered expression-program caller.
-- A file-level allowlist can hide role drift inside a legitimate owner file.
-  Treat a new `EvaluateLoweredExpressionProgram(...)` line in an existing owner
-  file as unclassified until its purpose is proven.
+- Source-gate tests can prove direct standalone runner and lowered evaluator
+  calls are absent while still allowing intended lowered payload execution
+  through standalone unified bytecode.
+- Future expression-bytecode refactors must use the unified executor or update
+  the dynamic bridge source gate when adding a new dynamic expression-program
+  caller.
 - If a future slice deletes the simple-IR fallback call, the guardrail should be
   moved from "fallback-only classified" to "tombstoned" rather than silently
   leaving an allowlist entry.
@@ -102,6 +101,8 @@ rather than the IR runner.
 - Focused guardrails added:
   - `SourceGate_E4_ProductionRoutes_DoNotCallStandaloneExpressionProgramEvaluator`
   - `SourceGate_E4_LoweredExpressionProgramCallers_AreClassified`
+  - Later replacement:
+    `SourceGate_E4_LoweredExpressionProgramBridge_IsCompletelyRemoved`
 - Focused verification from the delivery:
   - `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~ExecutionPlanDiagnosticsTests.SourceGate_E4|FullyQualifiedName~ExecutionPlanDiagnosticsTests.SourceGate_DynamicExpressionProgramBridge|FullyQualifiedName~ExecutionPlanDiagnosticsTests.SourceGate_ExecutionPlanRunner"` passed: 4 tests.
   - `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~BytecodeNonResidueDeclineRatchetTests"` passed: 20 tests.

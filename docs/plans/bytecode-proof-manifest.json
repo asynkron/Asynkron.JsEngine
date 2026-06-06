@@ -160,10 +160,10 @@
           "pattern": "EvaluateStandaloneExpressionProgram("
         },
         {
-          "id": "E4-lowered-expression-program-bridge-still-present",
-          "claim": "open",
-          "kind": "source-presence",
-          "path": "src/Asynkron.JsEngine/Ast/ClassPropertyNameResolver.cs",
+          "id": "E4-lowered-expression-program-bridge-removed",
+          "claim": "retired-fallback",
+          "kind": "source-absence",
+          "path": "src/Asynkron.JsEngine/Ast/TypedAstEvaluator.ExpressionPrograms.cs",
           "pattern": "EvaluateLoweredExpressionProgram("
         },
         {

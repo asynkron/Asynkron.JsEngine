@@ -77,7 +77,7 @@ fallback or cleanup.
     Quarantined legacy or dynamic callers should route through
     `EvaluateDynamicExpressionProgram`, which lowers/caches the dynamic
     expression and throws on lowering failure. Already-lowered payloads should
-    continue to use `EvaluateLoweredExpressionProgram`; do not blur these
+    use `UnifiedBytecodeExpressionProgramExecutor.ExecuteStandalone`; do not blur these
     surfaces under generic cached-helper naming or add raw AST expression
     fallback on compile failure.
 16. When retiring dynamic operand AST seams, migrate one operand family at a
@@ -163,21 +163,17 @@ fallback or cleanup.
     with an AST fallback, by rolling back sync current-environment `with`
     admission, or by treating retained `with` closures as ordinary captured
     lexical closures.
-27. Keep standalone `ExpressionProgram` execution centralized behind the
-    expression-program bridge, but do not route it through the IR runner.
+27. Keep standalone `ExpressionProgram` execution centralized behind
+    `UnifiedBytecodeExpressionProgramExecutor`, and do not route it through the
+    AST evaluator or IR runner.
     `ExecutionPlanRunner.EvaluateStandaloneExpressionProgram(...)` and
     `ExecutionPlanRunner.ProfileEvaluateExpressionProgramLoop(...)` are
-    tombstoned. `EvaluateLoweredExpressionProgram(...)` now compiles standalone
-    expression payloads to standalone unified bytecode and executes
-    `UnifiedBytecodeVirtualMachine`; profiler cases that can compile standalone
-    should do the same. New `EvaluateLoweredExpressionProgram(...)` callers must
-    be source-gated and classified by role, not only by source file, as
-    class-definition/class-field, bridge, dynamic-boundary, or fallback-only
-    surfaces. If multiple roles can live in the same owner file, match the
-    defining line or nearby marker that proves the specific purpose. If the
-    fallback-only `SyncFunctionInvoker` caller or any other quarantined helper
-    is deleted, change its guard from classified allowlist to tombstone instead
-    of leaving stale permission. See ADR 0345.
+    tombstoned. `EvaluateLoweredExpressionProgram(...)` is also tombstoned; new
+    standalone expression-program callers should use the unified-bytecode
+    executor directly, and new occurrences of the deleted helper must fail the
+    source gate. If any other quarantined helper is deleted, change its guard
+    from classified allowlist to tombstone instead of leaving stale permission.
+    See ADR 0345.
 
 ## Dynamic Boundary Classification (#1405 Retry)
 

@@ -4991,7 +4991,7 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                 var valueJs = JsValue.Undefined;
                 if (resolvedField.InitializerProgram is { } initializerProgram)
                 {
-                    valueJs = EvaluateLoweredExpressionProgram(
+                    valueJs = UnifiedBytecodeExpressionProgramExecutor.ExecuteStandalone(
                         initializerProgram,
                         initEnv,
                         context);

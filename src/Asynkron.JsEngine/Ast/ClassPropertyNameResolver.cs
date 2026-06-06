@@ -1,6 +1,7 @@
 using System.Globalization;
 using Asynkron.JsEngine.Execution;
 using Asynkron.JsEngine.Execution.Instructions;
+using Asynkron.JsEngine.Execution.UnifiedBytecode;
 using Asynkron.JsEngine.Runtime;
 
 namespace Asynkron.JsEngine.Ast;
@@ -63,7 +64,7 @@ internal static class ClassPropertyNameResolver
                 throw new InvalidOperationException($"Computed {elementType} is missing lowered name program.");
             }
 
-            var nameValue = TypedAstEvaluator.EvaluateLoweredExpressionProgram(
+            var nameValue = UnifiedBytecodeExpressionProgramExecutor.ExecuteStandalone(
                 computedNameProgram.Value,
                 environment,
                 context);

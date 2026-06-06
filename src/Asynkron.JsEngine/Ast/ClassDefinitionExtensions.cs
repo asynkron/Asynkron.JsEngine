@@ -1,6 +1,7 @@
 using System.Collections.Immutable;
 using Asynkron.JsEngine.Execution;
 using Asynkron.JsEngine.Execution.Instructions;
+using Asynkron.JsEngine.Execution.UnifiedBytecode;
 using Asynkron.JsEngine.Parser;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.StdLib;
@@ -98,7 +99,10 @@ public static partial class TypedAstEvaluator
             return (null, null);
         }
 
-        var baseJsValue = EvaluateLoweredExpressionProgram(extendsProgram.Value, environment, context);
+        var baseJsValue = UnifiedBytecodeExpressionProgramExecutor.ExecuteStandalone(
+            extendsProgram.Value,
+            environment,
+            context);
         if (context.ShouldStopEvaluation)
         {
             return (null, null);

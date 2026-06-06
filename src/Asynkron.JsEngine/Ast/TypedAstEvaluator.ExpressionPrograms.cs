@@ -1,6 +1,6 @@
 using System.Runtime.CompilerServices;
-using Asynkron.JsEngine.Execution.UnifiedBytecode;
 using Asynkron.JsEngine.Execution.Instructions;
+using Asynkron.JsEngine.Execution.UnifiedBytecode;
 
 namespace Asynkron.JsEngine.Ast;
 
@@ -8,34 +8,6 @@ public static partial class TypedAstEvaluator
 {
     private static readonly ConditionalWeakTable<ExpressionNode, ExpressionProgramCache>
         ExpressionPrograms = new();
-
-    internal static JsValue EvaluateLoweredExpressionProgram(
-        ExpressionProgram program,
-        JsEnvironment environment,
-        EvaluationContext context,
-        JsValue newTarget = default)
-    {
-        if (!UnifiedBytecodeCompiler.TryCompileStandaloneExpressionProgram(
-                program,
-                allowsDynamicIdentifiers: true,
-                out var unifiedProgram,
-                out var reason))
-        {
-            throw new NotSupportedException(
-                $"Lowered expression program could not be compiled to standalone unified bytecode: {reason}");
-        }
-
-        var slots = unifiedProgram.SlotCount == 0
-            ? Array.Empty<JsValue>()
-            : new JsValue[unifiedProgram.SlotCount];
-        return UnifiedBytecodeVirtualMachine.Execute(
-            unifiedProgram,
-            slots,
-            context,
-            environment,
-            newTarget: newTarget,
-            isStrict: environment.IsStrict);
-    }
 
     private static JsValue EvaluateDynamicExpressionProgram(
         ExpressionNode expression,
@@ -59,7 +31,7 @@ public static partial class TypedAstEvaluator
                 $"{failureLabel} could not be lowered to expression bytecode: {cache.FailureReason}");
         }
 
-        return EvaluateLoweredExpressionProgram(cache.Program, environment, context);
+        return UnifiedBytecodeExpressionProgramExecutor.ExecuteStandalone(cache.Program, environment, context);
     }
 
     private sealed class ExpressionProgramCache

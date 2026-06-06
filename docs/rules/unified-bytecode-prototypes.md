@@ -194,6 +194,12 @@ all-or-nothing until a separate routing issue proves production readiness.
     `Code` and `Reason` so top-level lexical destructuring and other
     non-residue declines remain auditable. Related ADR:
     `docs/adrs/0346-keep-script-ir-fallback-classified-with-production-decline-details.md`.
+    Faktorial issue
+    `planitem-planitem-planmanual1780730299657353000-unified-bytecode-remaining-burndo-e2513c6104`
+    / PR #3365 pinned the direct-eval-injected top-level binding neighbor:
+    `eval("var injected = 1"); injected;` must keep computing through the
+    classified IR fallback, must not log the script production fast path, and
+    must preserve the `CallDependency` decline detail with eval context.
 9f. Classify entrypoint rejects by builder provenance before treating them as
     active production residue. `Unsupported entrypoint.` is a malformed-plan
     integrity backstop when the plan comes from `ExecutionPlanBuilder`, because

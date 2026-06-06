@@ -7729,7 +7729,15 @@ internal static class UnifiedBytecodeVirtualMachine
 
         foreach (var field in definition.Fields)
         {
-            if (field.IsStatic)
+            if (field.IsStatic || field.IsComputed)
+            {
+                return true;
+            }
+        }
+
+        foreach (var member in definition.Members)
+        {
+            if (member.IsComputed)
             {
                 return true;
             }

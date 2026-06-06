@@ -2955,10 +2955,14 @@ internal static class UnifiedBytecodeProductionEligibility
                 return false;
             }
 
-            if (ExpressionProgramReferencesActivationSlot(nameProgram, activationSlots, out var capturedName))
+            if (ExpressionProgramHasUnsupportedClassComputedNameActivationDependency(
+                    nameProgram,
+                    activationSlots,
+                    out var capturedName,
+                    out var dependencyReason))
             {
                 declineReason =
-                    $"Class literal computed member name captures activation binding '{capturedName}' and is not supported by B24h resumable production routing until the resume state owns a materialized body environment.";
+                    $"Class literal computed member name captures activation binding '{capturedName}' through {dependencyReason} and is not supported by B24h resumable production routing until the class-definition environment route owns that dependency.";
                 return false;
             }
         }
@@ -2977,10 +2981,14 @@ internal static class UnifiedBytecodeProductionEligibility
                 return false;
             }
 
-            if (ExpressionProgramReferencesActivationSlot(nameProgram, activationSlots, out var capturedName))
+            if (ExpressionProgramHasUnsupportedClassComputedNameActivationDependency(
+                    nameProgram,
+                    activationSlots,
+                    out var capturedName,
+                    out var dependencyReason))
             {
                 declineReason =
-                    $"Class literal computed field name captures activation binding '{capturedName}' and is not supported by B24h resumable production routing until the resume state owns a materialized body environment.";
+                    $"Class literal computed field name captures activation binding '{capturedName}' through {dependencyReason} and is not supported by B24h resumable production routing until the class-definition environment route owns that dependency.";
                 return false;
             }
         }
@@ -3008,6 +3016,78 @@ internal static class UnifiedBytecodeProductionEligibility
 
         return true;
     }
+
+    private static bool ExpressionProgramHasUnsupportedClassComputedNameActivationDependency(
+        ExpressionProgram program,
+        ActivationSlotShape activationSlots,
+        out string capturedName,
+        out string dependencyReason)
+    {
+        capturedName = string.Empty;
+        dependencyReason = string.Empty;
+        if (program.IsEmpty)
+        {
+            return false;
+        }
+
+        var identifierConstants = program.IdentifierConstants.AsSpan();
+        var objectConstants = program.ObjectConstants.AsSpan();
+        var hasActivationReference = false;
+        var hasCallDependency = false;
+        foreach (var operation in program.EnumerateOperations())
+        {
+            if (operation.Kind == ExpressionOpKind.LoadFunctionLiteral)
+            {
+                var descriptor = operation.GetObject<FunctionLiteralDescriptor>(objectConstants);
+                if (FunctionCapturesActivationSlot(descriptor.Function, activationSlots, out capturedName))
+                {
+                    dependencyReason = "nested function literal activation capture";
+                    return true;
+                }
+
+                continue;
+            }
+
+            if (operation.Kind is ExpressionOpKind.Call or ExpressionOpKind.Construct or ExpressionOpKind.SuperConstruct)
+            {
+                hasCallDependency = true;
+                continue;
+            }
+
+            if (!TryGetIdentifierDependency(operation, identifierConstants, out var identifier) ||
+                !ResolvesToActivationSlot(identifier, activationSlots))
+            {
+                continue;
+            }
+
+            capturedName = identifier.Name.Name;
+            hasActivationReference = true;
+            if (!IsClassComputedNameActivationReadOperation(operation.Kind))
+            {
+                dependencyReason = operation.Kind switch
+                {
+                    ExpressionOpKind.LoadIdentifierCallTarget => "call-target preparation",
+                    ExpressionOpKind.ResolveIdentifierReference => "reference materialization",
+                    ExpressionOpKind.StoreResolvedIdentifier or ExpressionOpKind.StoreIdentifier => "activation binding write",
+                    ExpressionOpKind.UpdateIdentifier => "activation binding update",
+                    ExpressionOpKind.DeleteIdentifier => "activation binding delete",
+                    _ => $"unsupported {operation.Kind} operation"
+                };
+                return true;
+            }
+        }
+
+        if (hasActivationReference && hasCallDependency)
+        {
+            dependencyReason = "activation-dependent call or construct";
+            return true;
+        }
+
+        return false;
+    }
+
+    private static bool IsClassComputedNameActivationReadOperation(ExpressionOpKind kind) =>
+        kind is ExpressionOpKind.LoadIdentifier or ExpressionOpKind.TypeOfIdentifier;
 
     private static bool IsB24cPublicStaticFieldClassLiteral(ClassDefinition definition)
     {

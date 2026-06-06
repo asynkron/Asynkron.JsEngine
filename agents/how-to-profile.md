@@ -42,7 +42,7 @@ override them:
 - `--filter Asynkron.JsEngine`
 - `--root ExecuteInstructionLoop` for most IR script profiles
 - `--root InvokeWithContextSlow` for `activation-*` profiles
-- `--root EvaluateExpressionProgram` for `bytecode`
+- `--root UnifiedBytecodeVirtualMachine.Execute` for `bytecode`
 
 Override the root when the default hides the relevant frame:
 

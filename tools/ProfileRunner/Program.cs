@@ -7,6 +7,7 @@ using Asynkron.JsEngine;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.Execution;
 using Asynkron.JsEngine.Execution.Instructions;
+using Asynkron.JsEngine.Execution.UnifiedBytecode;
 using Asynkron.JsEngine.JsTypes;
 using Jint;
 using Microsoft.Extensions.Logging;
@@ -534,13 +535,37 @@ double RunBytecodeCase(
     JsEnvironment environment,
     EvaluationContext context)
 {
+    if (!UnifiedBytecodeCompiler.TryCompileStandaloneExpressionProgram(
+            profileCase.Program,
+            out var program,
+            out var reason))
+    {
+        throw new InvalidOperationException(
+            $"Could not compile bytecode profile case '{profileCase.Name}' to unified bytecode: {reason}");
+    }
+
+    var slots = program.SlotCount == 0
+        ? Array.Empty<JsValue>()
+        : new JsValue[program.SlotCount];
     var sw = Stopwatch.StartNew();
-    var checksum = TypedAstEvaluator.ProfileEvaluateLoweredExpressionProgramLoop(
-        profileCase.Program,
-        environment,
-        context,
-        profileCase.Iterations,
-        profileCase.ExpectsNumericResult);
+    var checksum = 0d;
+    for (var i = 0; i < profileCase.Iterations; i++)
+    {
+        var result = UnifiedBytecodeVirtualMachine.Execute(
+            program,
+            slots,
+            context,
+            environment);
+        if (result.TryGetDouble(out var number))
+        {
+            checksum += number;
+        }
+        else if (!profileCase.ExpectsNumericResult)
+        {
+            checksum += result.Kind == JsValueKind.Object ? 1d : 0d;
+        }
+    }
+
     sw.Stop();
     Console.WriteLine(string.Create(
         CultureInfo.InvariantCulture,

@@ -165,16 +165,18 @@ fallback or cleanup.
     lexical closures.
 27. Keep standalone `ExpressionProgram` runner calls centralized behind the
     expression-program bridge. Production routing code must not call
-    `ExecutionPlanRunner.EvaluateStandaloneExpressionProgram(...)` or
-    `ExecutionPlanRunner.ProfileEvaluateExpressionProgramLoop(...)` directly.
-    New `EvaluateLoweredExpressionProgram(...)` callers must be source-gated
-    and classified by role, not only by source file, as
-    class-definition/class-field, bridge/profiling, dynamic-boundary, or
-    fallback-only surfaces. If multiple roles can live in the same owner file,
-    match the defining line or nearby marker that proves the specific purpose.
-    If the fallback-only `SyncFunctionInvoker` caller is deleted, change its
-    guard from classified allowlist to tombstone instead of leaving stale
-    permission. See ADR 0345.
+    `ExecutionPlanRunner.EvaluateStandaloneExpressionProgram(...)` directly.
+    `ExecutionPlanRunner.ProfileEvaluateExpressionProgramLoop(...)` is
+    tombstoned; profiler cases that can compile standalone should execute
+    through `UnifiedBytecodeVirtualMachine`, and the deleted loop must stay
+    source-gated as absent. New `EvaluateLoweredExpressionProgram(...)` callers
+    must be source-gated and classified by role, not only by source file, as
+    class-definition/class-field, bridge, dynamic-boundary, or fallback-only
+    surfaces. If multiple roles can live in the same owner file, match the
+    defining line or nearby marker that proves the specific purpose. If the
+    fallback-only `SyncFunctionInvoker` caller or any other quarantined helper
+    is deleted, change its guard from classified allowlist to tombstone instead
+    of leaving stale permission. See ADR 0345.
 
 ## Dynamic Boundary Classification (#1405 Retry)
 

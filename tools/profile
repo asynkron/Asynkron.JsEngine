@@ -127,7 +127,7 @@ has_profiler_flag() {
   local long_flag=$1
   local short_flag=${2:-}
   local arg=""
-  for arg in "${profiler_args[@]-}"; do
+  for arg in "${profiler_args[@]+"${profiler_args[@]}"}"; do
     if [[ "$arg" == "$long_flag" || "$arg" == "$long_flag="* ]]; then
       return 0
     fi
@@ -142,7 +142,7 @@ default_cpu_root_for_profile() {
   local profile_key=$1
   case "$profile_key" in
     bytecode)
-      printf '%s\n' "EvaluateExpressionProgram"
+      printf '%s\n' "UnifiedBytecodeVirtualMachine.Execute"
       ;;
     activation-*)
       printf '%s\n' "InvokeWithContextSlow"
@@ -155,8 +155,8 @@ default_cpu_root_for_profile() {
 
 run_default_split_profile() {
   local profile_key=$1
-  local cpu_args=("${profiler_args[@]}")
-  local memory_args=("${profiler_args[@]}")
+  local cpu_args=("${profiler_args[@]+"${profiler_args[@]}"}")
+  local memory_args=("${profiler_args[@]+"${profiler_args[@]}"}")
   local cpu_root
   cpu_root=$(default_cpu_root_for_profile "$profile_key")
 
@@ -177,7 +177,7 @@ run_default_split_profile() {
 
 run_mode_profile_with_scope_defaults() {
   local profile_key=$1
-  local scoped_args=("${profiler_args[@]}")
+  local scoped_args=("${profiler_args[@]+"${profiler_args[@]}"}")
   local cpu_requested=false
   local cpu_root
   cpu_root=$(default_cpu_root_for_profile "$profile_key")
@@ -375,7 +375,7 @@ default_split = not has_cpu and not has_memory
 
 def default_cpu_root_for_profile(profile_key: str) -> str:
     if profile_key == "bytecode":
-        return "EvaluateExpressionProgram"
+        return "UnifiedBytecodeVirtualMachine.Execute"
     if profile_key.startswith("activation-"):
         return "InvokeWithContextSlow"
     if profile_key in {

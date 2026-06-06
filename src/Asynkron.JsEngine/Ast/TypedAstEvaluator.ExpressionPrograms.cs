@@ -17,21 +17,6 @@ public static partial class TypedAstEvaluator
         return ExecutionPlanRunner.EvaluateStandaloneExpressionProgram(program, environment, context, newTarget);
     }
 
-    internal static double ProfileEvaluateLoweredExpressionProgramLoop(
-        ExpressionProgram program,
-        JsEnvironment environment,
-        EvaluationContext context,
-        int iterations,
-        bool expectsNumericResult)
-    {
-        return ExecutionPlanRunner.ProfileEvaluateExpressionProgramLoop(
-            program,
-            environment,
-            context,
-            iterations,
-            expectsNumericResult);
-    }
-
     private static JsValue EvaluateDynamicExpressionProgram(
         ExpressionNode expression,
         JsEnvironment environment,

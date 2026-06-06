@@ -322,8 +322,7 @@ public sealed class ExecutionPlanDiagnosticsTests(ITestOutputHelper output) : In
                 return File.ReadAllLines(file)
                     .Select((line, index) => new { line, index })
                     .Where(entry =>
-                        entry.line.Contains("ExecutionPlanRunner.EvaluateStandaloneExpressionProgram(", StringComparison.Ordinal) ||
-                        entry.line.Contains("ExecutionPlanRunner.ProfileEvaluateExpressionProgramLoop(", StringComparison.Ordinal))
+                        entry.line.Contains("ExecutionPlanRunner.EvaluateStandaloneExpressionProgram(", StringComparison.Ordinal))
                     .Select(entry => (relativePath, entry.index + 1, entry.line.Trim()));
             })
             .ToArray();
@@ -339,6 +338,32 @@ public sealed class ExecutionPlanDiagnosticsTests(ITestOutputHelper output) : In
             disallowed.Length == 0,
             "E4 production route drift detected: standalone ExpressionProgram evaluator entry points must stay centralized in the bridge file and out of production routing code:\n" +
             string.Join('\n', disallowed));
+    }
+
+    [Fact]
+    public void SourceGate_E4_ProfileExpressionProgramLoop_IsCompletelyRemoved()
+    {
+        var repositoryRoot = FindRepositoryRoot();
+        var sourceRoot = Path.Combine(repositoryRoot.FullName, "src", "Asynkron.JsEngine");
+        var deletedMethods = new[]
+        {
+            "ProfileEvaluateLoweredExpressionProgramLoop(",
+            "ProfileEvaluateExpressionProgramLoop("
+        };
+        var matches = Directory
+            .EnumerateFiles(sourceRoot, "*.cs", SearchOption.AllDirectories)
+            .SelectMany(file =>
+            {
+                var relativePath = Path.GetRelativePath(repositoryRoot.FullName, file).Replace('\\', '/');
+                return File.ReadAllLines(file)
+                    .Select((line, index) => new { line, index })
+                    .Where(entry => deletedMethods.Any(method => entry.line.Contains(method, StringComparison.Ordinal)))
+                    .Select(entry => (relativePath, entry.index + 1, entry.line.Trim()));
+            })
+            .Select(match => $"{match.relativePath}:{match.Item2}:{match.Item3}")
+            .ToArray();
+
+        Assert.Empty(matches);
     }
 
     [Fact]

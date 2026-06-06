@@ -246,6 +246,85 @@ internal static class UnifiedBytecodeCompiler
             ImmutableArray<UnifiedBytecodeCatchDescriptor>.Empty,
             ImmutableArray<UnifiedBytecodeDriverDescriptor>.Empty);
 
+    internal static bool TryCompileStandaloneExpressionProgram(
+        ExpressionProgram expressionProgram,
+        out UnifiedBytecodeProgram program,
+        out string reason)
+    {
+        var activationSlots = new ActivationSlotShape(
+            0,
+            0,
+            0,
+            ImmutableDictionary<Symbol, int>.Empty,
+            ImmutableArray<(Symbol Name, int SlotIndex)>.Empty,
+            ImmutableArray<int>.Empty,
+            ImmutableArray<int>.Empty,
+            ImmutableHashSet<Symbol>.Empty,
+            ImmutableArray<int>.Empty);
+        var slotLayout = new UnifiedBytecodeSlotLayout(
+            0,
+            activationSlots,
+            ImmutableDictionary<int, ImmutableArray<(int SlotIndex, int FlatSlotId)>>.Empty,
+            ImmutableArray<int>.Empty,
+            ImmutableArray<int>.Empty,
+            ImmutableArray<string?>.Empty,
+            false,
+            ImmutableArray<int>.Empty);
+        var unified = ImmutableArray.CreateBuilder<UnifiedBytecodeInstruction>();
+        var literalConstants = ImmutableArray.CreateBuilder<JsValue>();
+        var stringConstants = ImmutableArray.CreateBuilder<string>();
+        var callTargetConstants = ImmutableArray.CreateBuilder<UnifiedBytecodeCallTarget>();
+        var functionLiteralConstants = ImmutableArray.CreateBuilder<FunctionLiteralDescriptor>();
+        var classLiteralConstants = ImmutableArray.CreateBuilder<ClassExpression>();
+        var templateObjectConstants = ImmutableArray.CreateBuilder<TaggedTemplateDescriptor>();
+
+        if (!TryAppendExpressionProgramOps(
+                expressionProgram,
+                slotLayout,
+                allowsDynamicIdentifiers: false,
+                unified,
+                literalConstants,
+                stringConstants,
+                callTargetConstants,
+                functionLiteralConstants,
+                classLiteralConstants,
+                templateObjectConstants,
+                out reason))
+        {
+            program = EmptyProgram();
+            return false;
+        }
+
+        unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.Return));
+        var compiledInstructions = unified.ToImmutable();
+        program = new UnifiedBytecodeProgram(
+            compiledInstructions,
+            GetCompiledExpressionMaxStackDepth(expressionProgram),
+            0,
+            literalConstants.ToImmutable(),
+            stringConstants.ToImmutable(),
+            ImmutableArray<string?>.Empty,
+            ImmutableArray<int>.Empty,
+            ImmutableArray<int>.Empty,
+            callTargetConstants.ToImmutable(),
+            ImmutableArray<UnifiedBytecodeScopeDescriptor>.Empty,
+            ImmutableArray<UnifiedBytecodeTryDescriptor>.Empty,
+            ImmutableArray<UnifiedBytecodeCatchDescriptor>.Empty,
+            ImmutableArray<UnifiedBytecodeDriverDescriptor>.Empty,
+            FunctionLiteralConstants: functionLiteralConstants.Count == 0
+                ? ImmutableArray<FunctionLiteralDescriptor>.Empty
+                : functionLiteralConstants.ToImmutable(),
+            ClassLiteralConstants: classLiteralConstants.Count == 0
+                ? ImmutableArray<ClassExpression>.Empty
+                : classLiteralConstants.ToImmutable(),
+            TemplateObjectConstants: templateObjectConstants.Count == 0
+                ? ImmutableArray<TaggedTemplateDescriptor>.Empty
+                : templateObjectConstants.ToImmutable(),
+            RequiresShortCircuitStackFlags: RequiresShortCircuitStackFlags(compiledInstructions));
+        reason = string.Empty;
+        return true;
+    }
+
     private static UnifiedBytecodeSlotLayout WithScriptCompletionSlot(UnifiedBytecodeSlotLayout slotLayout)
     {
         var completionSlot = slotLayout.SlotCount;

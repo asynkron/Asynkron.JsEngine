@@ -13,7 +13,7 @@ filter="${PERF_FILTER:-Asynkron.JsEngine}"
 depth="${PERF_CALLTREE_DEPTH:-14}"
 width="${PERF_CALLTREE_WIDTH:-8}"
 sibling_cutoff="${PERF_CALLTREE_SIBLING_CUTOFF:-1}"
-profiles="${PERF_PROFILES:-bytecode:EvaluateExpressionProgram ir-arithmetic:ExecuteInstructionLoop forloop:ExecuteInstructionLoop activation-noargs:InvokeWithContextSlow activation-params:InvokeWithContextSlow activation-arguments:InvokeWithContextSlow activation-closures:InvokeWithContextSlow activation-evalscope:InvokeWithContextSlow functioncalls-lite:ExecuteInstructionLoop objectcreation:ExecuteInstructionLoop arrayops:ExecuteInstructionLoop}"
+profiles="${PERF_PROFILES:-bytecode:UnifiedBytecodeVirtualMachine.Execute ir-arithmetic:ExecuteInstructionLoop forloop:ExecuteInstructionLoop activation-noargs:InvokeWithContextSlow activation-params:InvokeWithContextSlow activation-arguments:InvokeWithContextSlow activation-closures:InvokeWithContextSlow activation-evalscope:InvokeWithContextSlow functioncalls-lite:ExecuteInstructionLoop objectcreation:ExecuteInstructionLoop arrayops:ExecuteInstructionLoop}"
 
 mkdir -p "$output_dir"
 
@@ -113,7 +113,7 @@ noise = (
 
 def profile_label(profile: str) -> str:
     if profile == "bytecode":
-        return "Bytecode expression VM"
+        return "Standalone unified bytecode VM"
     if profile == "simplearithmetic":
         return "IR expression dispatch"
     if profile == "ir-arithmetic":
@@ -201,7 +201,7 @@ def hints(profile: str, cpu_rows, mem_rows):
     top_types = " ".join(type_name for type_name, _, _ in mem_rows[:5])
     result = []
     if profile == "bytecode":
-        result.append("This is the direct expression VM loop; parser/lowering/statement dispatch are intentionally outside the hot loop.")
+        result.append("This is the standalone unified bytecode VM loop over synthetic ExpressionProgram profile cases; parser/lowering/statement dispatch are intentionally outside the hot loop.")
     if profile == "ir-arithmetic":
         result.append("This is a valid repeated IR arithmetic loop; it uses var bindings so repeated iterations do not trip redeclaration errors.")
     if "ProfileApplyBinaryOperator" in names or "ApplyBinaryOperator" in names:
@@ -258,7 +258,7 @@ lines.append("Asynkron.JsEngine profiling insights")
 lines.append(f"Output: {output_dir}")
 lines.append("")
 lines.append("How to read this:")
-lines.append("- BYTECODE profiles isolate hand-built ExpressionProgram execution.")
+lines.append("- BYTECODE profiles isolate hand-built ExpressionProgram cases compiled to standalone unified bytecode.")
 lines.append("- ACTIVATION profiles isolate function-call setup costs (environment/context/arguments/parameter binding).")
 lines.append("- IR profiles execute real script profiles and root CPU call trees at the statement runner or expression VM.")
 lines.append("- Memory numbers are sampled allocation totals by type; use them for direction, not byte-perfect accounting.")
@@ -336,7 +336,7 @@ write_header() {
     printf 'CPU filter: %s\n' "$filter"
     printf 'Call tree: depth=%s width=%s sibling_cutoff=%s\n' "$depth" "$width" "$sibling_cutoff"
     printf '\nRead this first:\n'
-    printf '%s\n' '- bytecode uses hand-built ExpressionProgram payloads and profiles the expression VM loop directly.'
+    printf '%s\n' '- bytecode uses hand-built ExpressionProgram payloads, compiles them to standalone unified bytecode, and profiles UnifiedBytecodeVirtualMachine.Execute directly.'
     printf '%s\n' '- IR profiles use normal script profiles and root the CPU call tree at ExecuteInstructionLoop.'
     printf '%s\n' '- Memory reports are sampled allocation-by-type tables; current profiler output does not include allocation call stacks.'
     printf '%s\n' '- Full CPU call trees and complete allocation tables are in the per-profile report files next to this summary.'

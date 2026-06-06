@@ -23,8 +23,10 @@ fallback-only lowered expression execution.
 Production-accepted routes should return through
 `UnifiedBytecodeVirtualMachine`. Lowered expression-program execution that
 remains outside that route must be explicitly classified, either as a bridge,
-class-definition/class-field support, profiling, dynamic-boundary work, or a
-fallback-only surface.
+class-definition/class-field support, dynamic-boundary work, or a fallback-only
+surface. The profiler-only bridge was later retired by compiling the synthetic
+`ProfileRunner` bytecode cases to standalone unified bytecode and executing the
+unified VM directly.
 
 PR #3360 tightened the E4 source gate after the initial guard still used broad
 file-level permission for `EvaluateLoweredExpressionProgram(...)` callers. That
@@ -45,12 +47,14 @@ Keep direct standalone `ExpressionProgram` runner calls centralized in
   standalone runner so constructor/class fallback surfaces do not lose
   constructor metadata while using the bridge.
 - Production routing code must not call
-  `ExecutionPlanRunner.EvaluateStandaloneExpressionProgram(...)` or
-  `ExecutionPlanRunner.ProfileEvaluateExpressionProgramLoop(...)` directly.
+  `ExecutionPlanRunner.EvaluateStandaloneExpressionProgram(...)` directly.
+- `ExecutionPlanRunner.ProfileEvaluateExpressionProgramLoop(...)` is
+  tombstoned and must not be reintroduced; profiler cases that can compile
+  standalone should execute through `UnifiedBytecodeVirtualMachine`.
 - Remaining lowered expression-program call sites must stay source-gated and
   owner-classified. A new caller should name whether it is a
-  class-definition/class-field surface, bridge/profiling helper,
-  dynamic-boundary helper, or fallback-only path.
+  class-definition/class-field surface, bridge helper, dynamic-boundary helper,
+  or fallback-only path.
 - Source gates should classify by role, not only by source file. When multiple
   roles can live in the same file, match the defining line or nearby marker
   that proves the specific bridge, dynamic-boundary, class-field, or
@@ -75,6 +79,8 @@ Keep direct standalone `ExpressionProgram` runner calls centralized in
 - If a future slice deletes the simple-IR fallback call, the guardrail should be
   moved from "fallback-only classified" to "tombstoned" rather than silently
   leaving an allowlist entry.
+- If a future slice deletes any other quarantined helper, add or update the
+  matching tombstone source gate in the same commit.
 
 ## Evidence
 

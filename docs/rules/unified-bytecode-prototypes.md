@@ -2613,6 +2613,31 @@ avoids the build-back repair cycle that the sibling task (PR #2748) required.
     added a production-fast-path regression. ADR 0318 records the bounded bridge
     decision.
 
+55. When admitting object-literal shorthand method or accessor members inside a
+    simple object-literal span, treat the eligibility measurer and compiler
+    appender as one coupled grammar. The span vocabulary is not just
+    `DefineObjectMethod` / `DefineObjectAccessor`: the compiler also needs
+    `LoadFunctionLiteral` emission, `FunctionLiteralConstants` population,
+    object-member opcode emission, computed-key `ResolvePropertyKey` ordering,
+    rollback for unified instructions/literal constants/string constants/
+    function-literal constants, and stack-depth sizing for the expanded member
+    sequence. Static members are
+    `LoadFunctionLiteral, DefineObjectMethod|DefineObjectAccessor`; computed
+    members are `<key span>, ResolvePropertyKey, LoadFunctionLiteral,
+    DefineComputedObjectMethod|DefineComputedObjectAccessor`. Keep method or
+    accessor admission scoped to the measured object-literal span where the
+    object member is owned by the VM, and keep unrelated capture,
+    name-inference, private-name, and arbitrary computed-key shapes behind their
+    existing declines. Prove the route with a later-member continuation such as
+    trailing object spread; terminal method members can already look admitted
+    even when span continuation is broken. WHY: issue
+    `planitem-planmanual1780730299657353000-unified-bytecode-remaining-burndown-03-com-d8620d63a8`
+    / PR #3340 found an A51h mismatch where eligibility measured object
+    method/accessor members inside a first-boundary object-literal RHS, but
+    `UnifiedBytecodeCompiler.TryAppendSimpleObjectLiteralSpan` could not emit
+    the same method/accessor sequence when a trailing spread kept scanning the
+    same literal span. ADR 0356 records the bounded compiler admission.
+
 Related ADRs:
 - `docs/adrs/0181-keep-unified-bytecode-prototype-ir-owned-and-all-or-nothing.md`
 - `docs/adrs/0186-keep-unified-bytecode-function-kind-eligibility-explicit.md`
@@ -2666,3 +2691,4 @@ Related ADRs:
 - `docs/adrs/0316-admit-nested-named-receiver-computed-delete-in-unified-bytecode.md`
 - `docs/adrs/0318-admit-apply-binding-target-assignment-destructuring-bridge-in-unified-bytecode.md`
 - `docs/adrs/0332-admit-resumable-try-catch-with-owned-frame-state.md`
+- `docs/adrs/0356-admit-object-method-literal-spans-through-mirrored-compiler-emission.md`

@@ -44,6 +44,15 @@ or IR execution context setup, treat private names as lexical scope state.
    capture resumable activation bindings. Prove the route with an actual
    suspension boundary and route-hit assertion, plus no-route proof for
    activation-slot captures and neighboring class-element families.
+9. When admitting class constructors to production unified bytecode, decline any
+   constructor callable that carries a private-name scope or captured
+   private-name scopes until the constructor activation bridge owns that lexical
+   state directly. Do not rely only on private expression operations in the
+   constructor body: a private-brand-only class can have an otherwise public
+   constructor body while still requiring class private-name state for branding
+   and private member access. Prove future widening with both direct private
+   field/method constructor use and private-brand-only base and derived
+   constructor neighbors.
 
 ## Why
 
@@ -88,3 +97,12 @@ admitting only class literals whose constructor and private member bodies do not
 capture resumable activation slots. Activation captures still decline until a
 future route materializes the function body environment that private member
 callables would close over.
+
+Issue
+`planitem-planmanual1780730299657353000-unified-bytecode-remaining-burndown-02-cla-ec8d71f1da`
+/ PR #3321 hard-quarantined A7 private-name class constructors from production
+unified bytecode. The repair added private-name scope checks to both base and
+derived class-constructor route predicates after stale construct-call tests had
+expected private-brand classes to route. The durable lesson is that constructor
+admission must check callable private-name lexical state, not just whether the
+constructor body contains a private expression op.

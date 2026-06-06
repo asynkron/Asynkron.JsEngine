@@ -155,8 +155,14 @@ fallback or cleanup.
     generator, async, and async-generator bodies must still decline any
     reachable `EnterWithInstruction` or `LeaveWithInstruction`, including
     awaited with-object evaluation, until the VM owns active dynamic-scope
-    suspension state explicitly. Do not repair this boundary with an AST
-    fallback or by rolling back sync `with` admission.
+    suspension state explicitly. Closure-retained live `with` environments are
+    a separate dynamic-residue boundary: a function created inside `with` and
+    returned after the active statement ends must still decline production
+    routing until the VM owns retained with-object environment lookup and
+    receiver-sensitive call-target preparation. Do not repair these boundaries
+    with an AST fallback, by rolling back sync current-environment `with`
+    admission, or by treating retained `with` closures as ordinary captured
+    lexical closures.
 27. Keep standalone `ExpressionProgram` runner calls centralized behind the
     expression-program bridge. Production routing code must not call
     `ExecutionPlanRunner.EvaluateStandaloneExpressionProgram(...)` or
@@ -219,6 +225,15 @@ preserving sync non-awaited `with` admission. The incident matters because
 nearby B40/B43 rows looked like ordinary resumable parity work, but admitting
 them safely requires VM-owned dynamic-scope suspension state rather than an
 allowlist extension or AST callback. See ADR 0344.
+
+Issue
+`planitem-planitem-planmanual1780730299657353000-unified-bytecode-remaining-burndo-8acd1c43ab`
+/ PR #3314 pinned closure-retained live-`with` environments as precise
+dynamic residue. The incident matters because ordinary captured lexical
+closures already route, and active current-environment `with` can route, but a
+closure that retains a with-object environment needs a different ownership
+model. Receiver-sensitive calls supplied by the retained with object are the
+observable tripwire. See ADR 0351.
 
 Issue #1408 added execution-plan diagnostics drift gates. Review found the
 runner seam source-gate test could pass vacuously if no

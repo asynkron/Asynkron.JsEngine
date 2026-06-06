@@ -92,12 +92,15 @@ statement interpretation.
   static-field subset, the mixed public non-computed static+instance-field
   subset whose instance initializers do not capture activation slots, and the
   B24g public non-computed instance-accessor subset whose accessor bodies do not
-  capture activation slots, including accessor bodies that use `super`, are
-  resumable-admitted. The VM handler still delegates
+  capture activation slots, including accessor bodies that use `super`, plus
+  the B24h public instance computed-field/method/accessor subset whose computed
+  names, field initializers, constructor bodies, and member bodies do not
+  capture activation slots, are resumable-admitted. The VM handler still delegates
   class-definition evaluation to lower-level class machinery that can run
-  expression programs and static-block IR plans, and B24d/B24h plus remaining
-  B24i keep static-block, computed-member, member-super, and activation-slot
-  `extends` shapes declined.
+  expression programs and static-block IR plans, and B24d plus the remaining
+  B24h/B24i shapes keep static-block, static-computed, computed-super,
+  materialized-environment, member-super, and activation-slot `extends` shapes
+  declined.
 - `UnifiedBytecodeCompiler` now has generated audit coverage for every declared
   IR instruction record. Function-scoped `FunctionDeclarationInstruction`
   entries compile as no-ops after fast activation hoisting installs the callable
@@ -433,14 +436,17 @@ non-computed static+instance-field subset whose instance initializers do not
 capture activation slots, narrow B24e private instance-field class literals, and
 the narrow B24f private method/accessor class-literal shape, plus the B24g
 public non-computed instance-accessor subset whose accessor bodies do not
-capture activation slots, including accessor bodies that use `super`. Full bytecode execution is not done: class-literal creation still calls
+capture activation slots, including accessor bodies that use `super`, plus the
+B24h public instance computed-field/method/accessor subset whose computed name
+programs, field initializer programs, constructor bodies, and member bodies do
+not capture activation slots. Full bytecode execution is not done: class-literal creation still calls
 class-definition machinery that resolves extends/computed names/field
 initializers through expression programs and static blocks through
 `ExecutionPlanRunner.RunScript`; `extends` expressions that read resumable
 activation slots also remain declined until class-definition evaluation owns
-that environment bridge. B24d, B24h, and remaining B24i shapes remain declined
-by the resumable shape gate, and static/computed/private/capturing public
-accessor neighbors remain outside the B24g subset.
+that environment bridge. B24d plus the remaining B24h and B24i shapes remain
+declined by the resumable shape gate, and static/private/capturing public
+accessor neighbors remain outside the B24g/B24h subsets.
 
 - `B24a:ClassExpressionConstructor`
 - `B24b:ClassExpressionInstanceFields`

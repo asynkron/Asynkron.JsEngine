@@ -9,7 +9,8 @@ namespace Asynkron.JsEngine.Tests;
 ///     Proof pack for the narrow B24 class-expression field slices in the resumable VM.
 ///     Public non-computed instance fields without activation-capturing initializers and public
 ///     non-computed static fields may route, including the mixed public static+instance field subset,
-///     while nearby class-element families remain pre-VM declines.
+///     plus activation-safe computed public instance class elements, while nearby class-element
+///     families remain pre-VM declines.
 /// </summary>
 [Category(TestCategories.RuntimeSemantics)]
 public sealed class UnifiedBytecodeResumableClassExpressionTests(ITestOutputHelper output)
@@ -176,6 +177,68 @@ public sealed class UnifiedBytecodeResumableClassExpressionTests(ITestOutputHelp
                 var c = new C();
                 c.value = 41;
                 return c.value;
+            }
+            """,
+            "run");
+
+        var result = UnifiedBytecodeProductionEligibility.EvaluateResumable(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor(IsAsyncLike: true));
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(
+            result.Program.Instructions,
+            static instruction => instruction.OpCode == UnifiedBytecodeOpCode.LoadClassLiteral);
+    }
+
+    [Fact]
+    public void EvaluateResumable_ClassExpressionComputedPublicInstanceElements_AdmitLoadClassLiteral()
+    {
+        var plan = GetFunctionPlan("""
+            function* g() {
+                yield 0;
+                var C = class {
+                    ["field"] = 40;
+
+                    [("read")]() {
+                        return this.field + 1;
+                    }
+
+                    get [("value")]() {
+                        return this.read() + 1;
+                    }
+                };
+                return C;
+            }
+            """,
+            "g");
+
+        var result = UnifiedBytecodeProductionEligibility.EvaluateResumable(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor(IsGenerator: true));
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(
+            result.Program.Instructions,
+            static instruction => instruction.OpCode == UnifiedBytecodeOpCode.LoadClassLiteral);
+    }
+
+    [Fact]
+    public void EvaluateResumable_AsyncClassExpressionComputedPublicInstanceElements_AdmitLoadClassLiteral()
+    {
+        var plan = GetFunctionPlan("""
+            async function run() {
+                await 0;
+                var C = class {
+                    ["field"] = 41;
+
+                    get [("value")]() {
+                        return this.field + 1;
+                    }
+                };
+                return new C().value;
             }
             """,
             "run");
@@ -371,6 +434,43 @@ public sealed class UnifiedBytecodeResumableClassExpressionTests(ITestOutputHelp
     }
 
     [Fact(Timeout = 5000)]
+    public async Task GeneratorComputedPublicInstanceClassElements_RouteResumableAndResolveNames()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function* g() {
+                yield "ready";
+                var C = class {
+                    ["field"] = 40;
+
+                    [("read")]() {
+                        return this.field + 1;
+                    }
+
+                    get [("value")]() {
+                        return this.read() + 1;
+                    }
+                };
+                var c = new C();
+                var descriptor = Object.getOwnPropertyDescriptor(C.prototype, "value");
+                return c.read() + "|" +
+                    c.value + "|" +
+                    descriptor.enumerable + "|" +
+                    descriptor.configurable + "|" +
+                    (descriptor.get !== undefined);
+            }
+
+            var iterator = g();
+            var first = iterator.next();
+            var second = iterator.next();
+            first.value + ":" + first.done + "|" + second.value + ":" + second.done;
+            """);
+
+        Assert.Equal("ready:false|41|42|false|true|true:true", result);
+        AssertGeneratorFastPath("g", argc: 0);
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task GeneratorClassExpressionPublicAccessorsWithSuper_RoutesResumableAndPreservesReceiver()
     {
         await using var engine = CreateEngine();
@@ -470,7 +570,7 @@ public sealed class UnifiedBytecodeResumableClassExpressionTests(ITestOutputHelp
     }
 
     [Fact]
-    public void EvaluateResumable_ClassExpressionComputedPublicAccessor_DeclinesBeforeVm() =>
+    public void EvaluateResumable_ClassExpressionComputedPublicAccessorWithActivationKey_DeclinesBeforeVm() =>
         AssertClassExpressionDeclines("""
         function* g(key) {
             yield 1;

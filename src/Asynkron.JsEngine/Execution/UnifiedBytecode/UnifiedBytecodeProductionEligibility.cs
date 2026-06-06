@@ -2722,6 +2722,20 @@ internal static class UnifiedBytecodeProductionEligibility
             return false;
         }
 
+        if (TryAdmitB24hComputedPublicInstanceClassLiteral(
+                definition,
+                activationSlots,
+                out var b24hCandidate,
+                out declineReason))
+        {
+            return true;
+        }
+
+        if (b24hCandidate)
+        {
+            return false;
+        }
+
         if (!AreResumableB24ClassFieldsSupported(definition, activationSlots, out declineReason))
         {
             return false;
@@ -2849,6 +2863,131 @@ internal static class UnifiedBytecodeProductionEligibility
                 member.IsComputed ||
                 member.IsPrivate)
             {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static bool TryAdmitB24hComputedPublicInstanceClassLiteral(
+        ClassDefinition definition,
+        ActivationSlotShape activationSlots,
+        out bool candidate,
+        out string declineReason)
+    {
+        candidate = false;
+        declineReason = string.Empty;
+        if (definition.Extends is not null ||
+            !definition.StaticBlocks.IsDefaultOrEmpty ||
+            !definition.StaticElements.IsDefaultOrEmpty)
+        {
+            return false;
+        }
+
+        var hasComputedElement = false;
+        foreach (var field in definition.Fields)
+        {
+            if (!field.IsComputed)
+            {
+                return false;
+            }
+
+            if (field.IsStatic || field.IsPrivate || field.ComputedName is null)
+            {
+                return false;
+            }
+
+            hasComputedElement = true;
+        }
+
+        foreach (var member in definition.Members)
+        {
+            if (!member.IsComputed)
+            {
+                return false;
+            }
+
+            if (member.IsStatic || member.IsPrivate || member.ComputedName is null)
+            {
+                return false;
+            }
+
+            hasComputedElement = true;
+        }
+
+        if (!hasComputedElement)
+        {
+            return false;
+        }
+
+        candidate = true;
+        var cache = ((IAstCacheable<ClassDefinitionProgramCache>)definition).GetOrCreateCache();
+        if (!cache.Succeeded)
+        {
+            declineReason =
+                $"Class literal computed-name programs could not lower for B24h resumable production routing: {cache.FailureReason ?? "unknown failure"}.";
+            return false;
+        }
+
+        if (FunctionCapturesActivationSlot(definition.Constructor, activationSlots, out var constructorCapturedName))
+        {
+            declineReason =
+                $"Class literal is outside B24h: constructor body captures activation binding '{constructorCapturedName}' and needs the materialized body environment route.";
+            return false;
+        }
+
+        for (var i = 0; i < cache.MemberNamePrograms.Length; i++)
+        {
+            if (cache.MemberNamePrograms[i] is not { } nameProgram)
+            {
+                declineReason =
+                    "Class literal is outside B24h: computed member name is missing its lowered expression program.";
+                return false;
+            }
+
+            if (ExpressionProgramReferencesActivationSlot(nameProgram, activationSlots, out var capturedName))
+            {
+                declineReason =
+                    $"Class literal computed member name captures activation binding '{capturedName}' and is not supported by B24h resumable production routing until the resume state owns a materialized body environment.";
+                return false;
+            }
+        }
+
+        for (var i = 0; i < cache.FieldNamePrograms.Length; i++)
+        {
+            if (cache.FieldNamePrograms[i] is not { } nameProgram)
+            {
+                declineReason =
+                    "Class literal is outside B24h: computed field name is missing its lowered expression program.";
+                return false;
+            }
+
+            if (ExpressionProgramReferencesActivationSlot(nameProgram, activationSlots, out var capturedName))
+            {
+                declineReason =
+                    $"Class literal computed field name captures activation binding '{capturedName}' and is not supported by B24h resumable production routing until the resume state owns a materialized body environment.";
+                return false;
+            }
+        }
+
+        for (var i = 0; i < cache.FieldInitializerPrograms.Length; i++)
+        {
+            if (cache.FieldInitializerPrograms[i] is { } initializerProgram &&
+                ExpressionProgramReferencesActivationSlot(initializerProgram, activationSlots, out var capturedName))
+            {
+                declineReason =
+                    $"Class literal computed field initializer captures activation binding '{capturedName}' and is not supported by B24h resumable production routing until the resume state owns a materialized body environment.";
+                return false;
+            }
+        }
+
+        foreach (var member in definition.Members)
+        {
+            if (FunctionCapturesActivationSlot(member.Function, activationSlots, out var capturedName))
+            {
+                declineReason =
+                    $"Class literal computed member body captures activation binding '{capturedName}' and needs the materialized body environment route.";
                 return false;
             }
         }

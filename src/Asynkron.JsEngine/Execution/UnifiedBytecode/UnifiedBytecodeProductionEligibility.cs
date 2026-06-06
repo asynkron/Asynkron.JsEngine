@@ -2953,10 +2953,12 @@ internal static class UnifiedBytecodeProductionEligibility
             return true;
         }
 
-        if (!AreResumableB24ClassMembersSupported(definition, isPrivateInstanceFieldClassLiteral))
+        if (!AreResumableB24ClassMembersSupported(
+                definition,
+                isPrivateInstanceFieldClassLiteral,
+                activationSlots,
+                out declineReason))
         {
-            declineReason =
-                "Class literal is outside B24: computed or static class members remain later B24 slices; admitted subsets include the B24c public static-field subset.";
             return false;
         }
 
@@ -3807,6 +3809,15 @@ internal static class UnifiedBytecodeProductionEligibility
                 return false;
             }
 
+            if (field.IsPrivate &&
+                field.Initializer is not null &&
+                ExpressionContainsSuper(field.Initializer))
+            {
+                declineReason =
+                    "Class literal is outside B24i: private super-bearing field initializers remain owned by later class-definition environment slices.";
+                return false;
+            }
+
             if (!field.IsPrivate &&
                 (field.Initializer is null || !ExpressionContainsSuper(field.Initializer)))
             {
@@ -3816,7 +3827,7 @@ internal static class UnifiedBytecodeProductionEligibility
             }
         }
 
-        return true;
+        return AreB24bFieldInitializersActivationSafe(definition, activationSlots, out declineReason);
     }
 
     private static bool IsB24bPublicInstanceFieldClassLiteral(ClassDefinition definition)
@@ -3861,7 +3872,7 @@ internal static class UnifiedBytecodeProductionEligibility
                 ExpressionProgramReferencesActivationSlot(initializerProgram, activationSlots, out var capturedName))
             {
                 declineReason =
-                    $"Class literal field initializer captures activation binding '{capturedName}' and is not supported by B24b resumable production routing until the resume state owns a materialized body environment.";
+                    $"Class literal field initializer captures activation binding '{capturedName}' and is not supported by B24b/B24i resumable production routing until the resume state owns a materialized body environment.";
                 return false;
             }
         }
@@ -3872,8 +3883,11 @@ internal static class UnifiedBytecodeProductionEligibility
 
     private static bool AreResumableB24ClassMembersSupported(
         ClassDefinition definition,
-        bool isPrivateInstanceFieldClassLiteral)
+        bool isPrivateInstanceFieldClassLiteral,
+        ActivationSlotShape activationSlots,
+        out string declineReason)
     {
+        declineReason = string.Empty;
         foreach (var member in definition.Members)
         {
             if (member.IsStatic ||
@@ -3881,6 +3895,15 @@ internal static class UnifiedBytecodeProductionEligibility
                 member.IsPrivate ||
                 (!isPrivateInstanceFieldClassLiteral && !FunctionContainsSuper(member.Function)))
             {
+                declineReason =
+                    "Class literal is outside B24: computed or static class members remain later B24 slices; admitted subsets include the B24c public static-field subset.";
+                return false;
+            }
+
+            if (FunctionCapturesActivationSlot(member.Function, activationSlots, out var capturedName))
+            {
+                declineReason =
+                    $"Class literal member body captures activation binding '{capturedName}' and is outside B24i until the materialized body environment route owns that dependency.";
                 return false;
             }
         }

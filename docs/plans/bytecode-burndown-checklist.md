@@ -169,7 +169,7 @@ these allowlists — mechanical extensions against existing sync VM handlers.
 - [x] **B24f** Class expression private methods / private accessors — sync ◐ / res ☑ ✅ (Codex): resumable routing now conditionally admits `LoadClassLiteral` for class literals with private instance methods/accessors and no extends, fields, static blocks/elements, static members, computed members, public members, or activation-slot captures in constructor/member bodies; neighboring non-B24f class-literal shapes remain owned by their B24 rows.
 - [x] **B24g** Class expression public accessors — sync ◐ / res ☑ ✅ (Codex): resumable generator/async bodies now admit `LoadClassLiteral` for the public non-computed instance getter/setter class-expression subset whose accessor bodies do not capture activation slots, including accessor bodies that use `super`; descriptor and receiver behavior still reuse class-definition member assignment, while static/computed/private/capturing accessor neighbors and mixed field/accessor shapes remain declined for B24h/B24i or materialized-body-environment follow-ups.
 - [ ] **B24h** Class expression computed member names / computed field names — sync ◐ / res ◐ — public static/instance computed fields/methods/accessors now route through resumable `LoadClassLiteral` when computed name programs either avoid resumable activation slots or use owned activation read/write/update/reference-store operations, field initializer programs plus constructor/member bodies do not capture resumable activation slots, and neighboring public non-computed fields/methods/accessors stay inside the same subset. Remaining B24h work: computed names that delete activation bindings or prepare/call activation-dependent targets; nested computed-name literals that capture activation; computed-super overlap; private/capturing neighbors; static blocks; and the broader class-definition environment bridge.
-- [ ] **B24i** Class expression `super` in members/field initializers — sync ◐ / res ◐ — activation-safe public non-computed instance methods, field initializers, and accessor bodies that use `super` now route through resumable `LoadClassLiteral`; remaining static/computed/private/capturing or otherwise mixed super-bearing class-definition shapes still decline before creation until bytecode owns more of class-definition evaluation.
+- [x] **B24i** Class expression `super` in members/field initializers — sync ◐ / res ☑ ✅ (Codex): activation-safe public non-computed instance methods, field initializers, and accessor bodies that use `super` now route through resumable `LoadClassLiteral`; static/computed/private/capturing or otherwise mixed super-bearing class-definition shapes still decline before creation until bytecode owns more of class-definition evaluation.
 - [x] **B25** `typeof unresolvedFreeVar` — ☑/☑ ✅ #3163
 - [x] **B26** Dynamic free write `freeVar=v` — ☑/☑ ✅ (Codex): free/global plain writes now route through `ExecuteResumable`. The pending `AssignmentReference` from `ResolveDynamicIdentifierReference` is stored on `UnifiedBytecodeResumeState`, so `freeVar = yield` resumes with the exact target resolved before the suspension; `StoreDynamicIdentifierReference` keeps sync name-inference and strict/unresolvable-reference semantics.
 - [x] **B27** Dynamic free update `freeVar++` — ☑/☑ ✅ (commit 0c2707532): `UpdateDynamicIdentifier` admitted to the resumable route (commit 71be17015), free/global update routes; pinned.
@@ -226,20 +226,21 @@ these allowlists — mechanical extensions against existing sync VM handlers.
 |---|---:|---|
 | 0 — Make list finite | 5 | 5 complete / 0 open; Phase 0 inventory closure is complete |
 | A — Sync admission | 69 | 54 complete / 15 open; by decline code / promoted compiler leaf |
-| B — Resumable parity + suspension | 57 | 53 complete / 4 open; class-expression decomposition added B24a-B24i |
+| B — Resumable parity + suspension | 57 | 54 complete / 3 open; class-expression decomposition added B24a-B24i |
 | C — Script route | 3 | 3 complete / 0 open; closes mostly via A/B |
 | D — Dynamic quarantine | 5 | 5 complete / 0 open; D1-D5 now pin terminal dynamic-residue boundaries |
 | E — Retire tiers | 6 | 3 complete / 3 open; E2/E3 = P0.2/P0.3 |
 | **Total** | **145** | finite current burn-down list after Phase 0 decomposition; future source drift must update audited inventories |
 
-**Status (134 concrete A+B+C+D checklist items):** 116 complete / 18 open. **The remaining non-retirement work is now concentrated in activation/dynamic residue boundaries (A1/A2), constructor/private-name activation boundaries (A7), remaining A51 compiler leaves, class-expression computed/super-neighbor rows (B24h/B24i), and B36 nested declaration/class contexts.**
+**Status (134 concrete A+B+C+D checklist items):** 116 complete / 18 open. **The remaining non-retirement work is now concentrated in activation/dynamic residue boundaries (A1/A2), constructor/private-name activation boundaries (A7), remaining A51 compiler leaves, class-expression computed/super-neighbor work (B24h), and B36 nested declaration/class contexts.**
 
-Latest proof evidence (2026-06-06, B24d static-block-only class expressions):
-focused `UnifiedBytecodeResumableClassExpressionTests` 52 passed. The broader
-`UnifiedBytecodeProduction` / `UnifiedBytecodeResumable` pack 1652 and the
-selected eligibility/coverage pack 686 passed; `git diff --check` was clean,
-the runner AST-eval seam scan returned no matches, and `forloop --memory`
-reported 6.96 MB total allocated.
+Latest proof evidence (2026-06-06, B24i class-expression `super` members):
+focused `UnifiedBytecodeResumableClassExpressionTests` 62 passed after the
+negative-neighbor additions, and the focused
+`UnifiedBytecodeResumableClassExpressionTests` /
+`UnifiedBytecodeResumableClassDeclarationTests` proof passed 74 tests. The
+`git diff --check` proof was clean, and the runner AST-eval seam scan returned
+no matches.
 
 ## Known soft spots
 1. **Named compiler-decline leaves** (A51a-A51m/B47a) are now source-inventoried in the expansion contract; future `TryCompile` reason drift must update that contract and the focused source gate.
@@ -247,4 +248,4 @@ reported 6.96 MB total allocated.
 
 ---
 
-_Checklist status: 123 / 145 complete. The latest retrospective recount leaves A7 open for constructor/private-name activation boundaries and B36 partial for dynamic/eval helpers and complex class declarations instead of closing those rows. Phase B stands at 53 / 57 complete. A+B+C+D stands at 115 / 134 complete; the D5 known-open non-residue ratchet count remains 0. The resumable opcode gap inventory is 5, and the instruction gap inventory is 0._
+_Checklist status: 124 / 145 complete. The latest retrospective recount leaves A7 open for constructor/private-name activation boundaries and B36 partial for dynamic/eval helpers and complex class declarations instead of closing those rows. Phase B stands at 54 / 57 complete. A+B+C+D stands at 116 / 134 complete; the D5 known-open non-residue ratchet count remains 0. The resumable opcode gap inventory is 5, and the instruction gap inventory is 0._

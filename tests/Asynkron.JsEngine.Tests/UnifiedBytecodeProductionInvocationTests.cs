@@ -3399,6 +3399,27 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     }
 
     [Fact(Timeout = 5000)]
+    public async Task DirectEvalArgumentsAndActivationRead_UsesCallerEnvironmentOnProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function invokeEval(first, second) {
+                var local = 40;
+                local = local + 2;
+                return eval("arguments[0] + ':' + arguments.length + ':' + local + ':' + second");
+            }
+
+            invokeEval(7, 9);
+            """);
+
+        Assert.Equal("7:2:42:9", result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=invokeEval argc=2",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task DirectEvalMultipleArguments_StaysOnIrPath()
     {
         await using var engine = CreateEngine();

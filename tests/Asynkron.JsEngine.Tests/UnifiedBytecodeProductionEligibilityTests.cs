@@ -5064,6 +5064,33 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
             instruction.OpCode == UnifiedBytecodeOpCode.CallInvocationBoundary);
     }
 
+    [Theory]
+    [InlineData("arguments[0]")]
+    [InlineData("arguments.length")]
+    [InlineData("local + arguments[1]")]
+    public void Evaluate_DirectEvalLiteralReadsArgumentsAndActivationBinding_AcceptsExecutableInvocationBoundary(
+        string evalSource)
+    {
+        var plan = GetFunctionPlan($$"""
+            function invokeEval(first, second) {
+                var local = 40;
+                return eval("{{evalSource}}");
+            }
+            """,
+            "invokeEval");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.PrepareDynamicIdentifierCallTarget);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.CallInvocationBoundary);
+    }
+
     [Fact]
     public void Evaluate_DirectEvalMultipleArguments_DeclinesProductionRoute()
     {

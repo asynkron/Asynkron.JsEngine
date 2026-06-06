@@ -111,6 +111,16 @@ public sealed class UnifiedBytecodeResumableLiteralTests(ITestOutputHelper outpu
             """);
     }
 
+    [Fact]
+    public void EvaluateResumable_ClassLiteralComputedActivationName_AdmitsLoadClassLiteral()
+    {
+        _ = AssertClassLiteralEligible("""
+            function* g(name) {
+                yield class { [name]() { return 1; } };
+            }
+            """);
+    }
+
     [Theory]
     [MemberData(nameof(DeclinedB24ClassLiteralPrograms))]
     public void EvaluateResumable_ClassLiteralOutsideB24_DeclinesForLaterB24Leaves(string source)
@@ -715,11 +725,6 @@ public sealed class UnifiedBytecodeResumableLiteralTests(ITestOutputHelper outpu
         """
         function* g() {
             yield class { static {} };
-        }
-        """,
-        """
-        function* g(name) {
-            yield class { [name]() { return 1; } };
         }
         """,
         """

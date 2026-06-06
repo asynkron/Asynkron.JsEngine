@@ -1435,13 +1435,35 @@ internal static class UnifiedBytecodeProductionEligibility
 
         foreach (var instruction in plan.Instructions)
         {
-            if (TryGetResumableExpressionProgram(instruction, out var program) &&
-                ExpressionProgramHasActivationCapturingFunctionLiteral(
+            if (!TryGetResumableExpressionProgram(instruction, out var program))
+            {
+                continue;
+            }
+
+            if (ExpressionProgramContainsApplyBindingTarget(program))
+            {
+                return true;
+            }
+
+            if (ExpressionProgramHasActivationCapturingFunctionLiteral(
                     program,
                     activationSlots,
                     out var capturedName) &&
                 capturedName != NestedFunctionDeclarationBoundary &&
                 (capturedName.Length == 0 || capturedName[0] != '<'))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool ExpressionProgramContainsApplyBindingTarget(ExpressionProgram program)
+    {
+        for (var operationIndex = 0; operationIndex < program.OperationCount; operationIndex++)
+        {
+            if (program.GetOperation(operationIndex).Kind == ExpressionOpKind.ApplyBindingTarget)
             {
                 return true;
             }
@@ -1969,6 +1991,7 @@ internal static class UnifiedBytecodeProductionEligibility
                 // BindingVariableDeclarationInstruction is the only resumable shape that emits it; a plain
                 // (non-awaited) destructuring inside a resumable body lowers to the ArrayDestructuring* /
                 // ObjectDestructuring* opcode family instead.
+                UnifiedBytecodeOpCode.ApplyBindingTarget or
                 UnifiedBytecodeOpCode.ApplyDeclarationBindingTarget or
                 UnifiedBytecodeOpCode.Binary or
                 UnifiedBytecodeOpCode.GetNamedProperty or

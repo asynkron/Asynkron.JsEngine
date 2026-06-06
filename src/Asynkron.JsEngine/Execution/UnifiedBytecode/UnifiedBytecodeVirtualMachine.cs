@@ -4260,6 +4260,32 @@ internal static class UnifiedBytecodeVirtualMachine
                     programCounter++;
                     break;
 
+                case UnifiedBytecodeOpCode.ApplyBindingTarget:
+                    {
+                        // Assignment destructuring (`({x: y} = source)`) inside a resumable body. The value is
+                        // already on the stable operand stack; pop it, sync flat slots into the materialized
+                        // resumable calling environment, run the lowered binding-target program, then sync
+                        // identifier writes back into flat slots for later VM reads.
+                        var bindingTargetValue = stack[--stackPointer];
+                        var bindingEnvironment = RequireDynamicEnvironment(state.CallingEnvironment);
+                        SyncUnifiedSlotsToEnvironment(program, slots, slotEnvironments, bindingEnvironment);
+                        TypedAstEvaluator.ApplyLoweredAssignmentBindingTargetProgram(
+                            program.BindingTargetConstants[instruction.Operand],
+                            bindingTargetValue,
+                            bindingEnvironment,
+                            context,
+                            allowNameInference: false);
+                        SyncEnvironmentToUnifiedSlots(program, slots, slotEnvironments, bindingEnvironment);
+                        if (context.ShouldStopEvaluation)
+                        {
+                            state.IsCompleted = true;
+                            return UnifiedBytecodeStepResult.Throw(context.FlowValue);
+                        }
+
+                        programCounter++;
+                        break;
+                    }
+
                 case UnifiedBytecodeOpCode.ApplyDeclarationBindingTarget:
                     {
                         // B44: `let [a,b] = await p` / `const {x} = await p`. Reached only after AwaitValue has

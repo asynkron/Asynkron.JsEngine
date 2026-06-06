@@ -390,7 +390,6 @@ These are the declared `UnifiedBytecodeOpCode` names not admitted by
 `TryFindUnsupportedResumableOpcode`. The existing drift gate also verifies that
 the admitted subset stays 1:1 with `UnifiedBytecodeVirtualMachine.ExecuteResumable`.
 
-- `ApplyBindingTarget`
 - `DeclareDynamicLexical`
 - `DeclareDynamicVar`
 - `DeclareFunction`

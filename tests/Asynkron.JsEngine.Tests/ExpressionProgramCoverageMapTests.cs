@@ -66,7 +66,6 @@ public sealed class ExpressionProgramCoverageMapTests
 
     private static readonly string[] UnifiedBytecodeResumableOpcodeAllowListGapNames =
     [
-        "ApplyBindingTarget",
         "DeclareDynamicLexical",
         "DeclareDynamicVar",
         "DeclareFunction",

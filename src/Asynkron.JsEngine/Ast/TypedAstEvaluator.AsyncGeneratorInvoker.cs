@@ -38,28 +38,25 @@ public static partial class TypedAstEvaluator
         IJsCallable callable,
         RealmState realmState,
         bool isLexicallyStrict,
-        bool hasFunctionNameEnvironment,
         IJsObjectLike? homeObject,
         PrivateNameScope? privateNameScope,
         ImmutableArray<PrivateNameScope> capturedPrivateNameScopes,
         FunctionExecutionPlanSeed planSeed)
     {
-        private ExecutionPlanRunner? _inner;
         private UnifiedBytecodeResumeState? _unifiedState;
 
         // Each .next/.return/.throw call drives one async-generator step and wraps
         // the step result in a Promise. Admitted bodies are VM-owned through
-        // UnifiedBytecodeVirtualMachine.ExecuteResumable; declined bodies remain on
-        // the classified runner fallback until their semantics are admitted.
+        // UnifiedBytecodeVirtualMachine.ExecuteResumable.
         public void Initialize()
         {
-            if (TryInitializeUnifiedBytecode())
+            if (TryInitializeUnifiedBytecode(out var declineReason))
             {
                 return;
             }
 
-            _inner = CreateClassifiedAsyncGeneratorDeclinedBodyRunner();
-            _inner.Initialize();
+            throw new NotSupportedException(
+                $"Async-generator body is not eligible for unified bytecode routing after IR fallback retirement: {declineReason}");
         }
 
         public JsObject CreateAsyncIteratorObject()
@@ -119,19 +116,22 @@ public static partial class TypedAstEvaluator
             return promiseCtor.Invoke(new SingleValueArgs(JsValue.FromObjectUnsafe(executor)), JsValue.Undefined);
         }
 
-        private bool TryInitializeUnifiedBytecode()
+        private bool TryInitializeUnifiedBytecode(out string declineReason)
         {
             // Non-simple parameter lists (destructuring patterns, defaults, rest) require eager
             // FunctionDeclarationInstantiation effects before the async iterator object is produced.
             // The resumable route copies arguments straight into positional slots, so it must decline
-            // those shapes and leave them on the runner path.
+            // those shapes until it owns IteratorBindingInitialization.
             if (!function.HasOnlySimpleIdentifierParameters())
             {
+                declineReason =
+                    "Non-simple async-generator parameter lists are not eligible until resumable invocation owns IteratorBindingInitialization.";
                 return false;
             }
 
             if (!TryGetExecutionPlan(out var plan))
             {
+                declineReason = planSeed.Failure?.ToString() ?? "Execution plan is not available.";
                 return false;
             }
 
@@ -141,6 +141,8 @@ public static partial class TypedAstEvaluator
                     allowCapturedActivationSlots: true,
                     out var hoistedFunctionDeclarations))
             {
+                declineReason =
+                    "Root hoisted function declarations are not eligible for async-generator resumable routing.";
                 return false;
             }
 
@@ -159,10 +161,10 @@ public static partial class TypedAstEvaluator
                 HasCapturedOrDynamicActivation: HasResumableCapturedOrDynamicActivationDecline(
                     function,
                     closure,
-                    allowDeclarationFreeDirectEval: false),
+                    allowDeclarationFreeDirectEval: true),
                 HasArgumentsObjectDependency: HasResumableArgumentsObjectDependency(
                     function,
-                    allowDeclarationFreeDirectEval: false),
+                    allowDeclarationFreeDirectEval: true),
                 AllowsRootFunctionDeclarationInstructions: !hoistedFunctionDeclarations.IsEmpty,
                 AllowsMaterializedBodyEnvironmentFunctionLiterals: needsMaterializedBodyEnvironment,
                 AllowsNestedFunctionLiteralLexicalThisOrPrivateNameContext:
@@ -170,6 +172,7 @@ public static partial class TypedAstEvaluator
             var eligibility = UnifiedBytecodeProductionEligibility.EvaluateResumable(plan, activation);
             if (!eligibility.IsEligible)
             {
+                declineReason = eligibility.Reason;
                 return false;
             }
 
@@ -192,6 +195,7 @@ public static partial class TypedAstEvaluator
                     arguments,
                     out var slots))
             {
+                declineReason = "Resumable slot initialization failed.";
                 return false;
             }
 
@@ -200,12 +204,15 @@ public static partial class TypedAstEvaluator
             var requiresResumableSuperBinding = RequiresResumableSuperEnvironment(program);
             if (needsMaterializedBodyEnvironment && requiresResumableSuperBinding)
             {
+                declineReason =
+                    "Materialized async-generator body environments with resumable super binding are not eligible.";
                 return false;
             }
 
             if (requiresResumableSuperBinding &&
                 !TryCreateResumableSuperBinding(closure, boundThis, homeObject, out resumableSuperBinding))
             {
+                declineReason = "Resumable super binding could not be created.";
                 return false;
             }
 
@@ -220,6 +227,7 @@ public static partial class TypedAstEvaluator
                         function.Source,
                         out callingEnvironment))
                 {
+                    declineReason = "Materialized resumable body environment could not be created.";
                     return false;
                 }
             }
@@ -232,6 +240,7 @@ public static partial class TypedAstEvaluator
                     callingEnvironment,
                     context))
             {
+                declineReason = "Root hoisted function declarations could not be populated into resumable slots.";
                 return false;
             }
 
@@ -259,6 +268,7 @@ public static partial class TypedAstEvaluator
                 "unified-bytecode-resumable-async-generator-fast-path func={Function} argc={ArgumentCount}",
                 function.Name?.Name ?? "<anonymous>",
                 arguments.Count);
+            declineReason = string.Empty;
             return true;
         }
 
@@ -281,25 +291,7 @@ public static partial class TypedAstEvaluator
             return false;
         }
 
-        private ExecutionPlanRunner CreateClassifiedAsyncGeneratorDeclinedBodyRunner()
-        {
-            return new ExecutionPlanRunner(
-                function,
-                closure,
-                arguments,
-                thisValue,
-                callable,
-                realmState,
-                isLexicallyStrict,
-                hasFunctionNameEnvironment,
-                homeObject,
-                privateNameScope,
-                capturedPrivateNameScopes,
-                planOverride: planSeed.Plan,
-                planFailureOverride: planSeed.Failure);
-        }
-
-        private ExecutionPlanRunner.AsyncGeneratorStepResult ExecuteStep(
+        private AsyncGeneratorStepResult ExecuteStep(
             AsyncGeneratorResumeMode mode,
             JsValue argument)
         {
@@ -308,10 +300,10 @@ public static partial class TypedAstEvaluator
                 return ExecuteUnifiedBytecodeStep(ToUnifiedResumeMode(mode), argument, unifiedState);
             }
 
-            return _inner!.ExecuteAsyncStep(ToRunnerResumeMode(mode), argument);
+            throw new InvalidOperationException("Async-generator unified bytecode state has not been initialized.");
         }
 
-        private ExecutionPlanRunner.AsyncGeneratorStepResult ExecuteUnifiedBytecodeStep(
+        private AsyncGeneratorStepResult ExecuteUnifiedBytecodeStep(
             UnifiedBytecodeResumeMode mode,
             JsValue argument,
             UnifiedBytecodeResumeState unifiedState)
@@ -324,23 +316,23 @@ public static partial class TypedAstEvaluator
                     UnifiedBytecodeVirtualMachine.ExecuteResumable(unifiedState, mode, argument, context));
                 return step.Kind switch
                 {
-                    UnifiedBytecodeStepKind.Yield => new ExecutionPlanRunner.AsyncGeneratorStepResult(
-                        ExecutionPlanRunner.AsyncGeneratorStepKind.Yield,
+                    UnifiedBytecodeStepKind.Yield => new AsyncGeneratorStepResult(
+                        AsyncGeneratorStepKind.Yield,
                         step.Value,
                         false,
                         JsValue.Undefined),
-                    UnifiedBytecodeStepKind.Completed => new ExecutionPlanRunner.AsyncGeneratorStepResult(
-                        ExecutionPlanRunner.AsyncGeneratorStepKind.Completed,
+                    UnifiedBytecodeStepKind.Completed => new AsyncGeneratorStepResult(
+                        AsyncGeneratorStepKind.Completed,
                         step.Value,
                         true,
                         JsValue.Undefined),
-                    UnifiedBytecodeStepKind.Throw => new ExecutionPlanRunner.AsyncGeneratorStepResult(
-                        ExecutionPlanRunner.AsyncGeneratorStepKind.Throw,
+                    UnifiedBytecodeStepKind.Throw => new AsyncGeneratorStepResult(
+                        AsyncGeneratorStepKind.Throw,
                         step.Value,
                         true,
                         JsValue.Undefined),
-                    UnifiedBytecodeStepKind.PendingAwait => new ExecutionPlanRunner.AsyncGeneratorStepResult(
-                        ExecutionPlanRunner.AsyncGeneratorStepKind.Pending,
+                    UnifiedBytecodeStepKind.PendingAwait => new AsyncGeneratorStepResult(
+                        AsyncGeneratorStepKind.Pending,
                         JsValue.Undefined,
                         false,
                         step.PendingPromise),
@@ -350,16 +342,16 @@ public static partial class TypedAstEvaluator
             }
             catch (ThrowSignal signal)
             {
-                return new ExecutionPlanRunner.AsyncGeneratorStepResult(
-                    ExecutionPlanRunner.AsyncGeneratorStepKind.Throw,
+                return new AsyncGeneratorStepResult(
+                    AsyncGeneratorStepKind.Throw,
                     signal.ThrownValue,
                     true,
                     JsValue.Undefined);
             }
             catch (Exception ex)
             {
-                return new ExecutionPlanRunner.AsyncGeneratorStepResult(
-                    ExecutionPlanRunner.AsyncGeneratorStepKind.Throw,
+                return new AsyncGeneratorStepResult(
+                    AsyncGeneratorStepKind.Throw,
                     (JsValue)ex.Message,
                     true,
                     JsValue.Undefined);
@@ -374,20 +366,26 @@ public static partial class TypedAstEvaluator
                 _ => UnifiedBytecodeResumeMode.Next
             };
 
-        private static ExecutionPlanRunner.ResumeMode ToRunnerResumeMode(AsyncGeneratorResumeMode mode) =>
-            mode switch
-            {
-                AsyncGeneratorResumeMode.Throw => ExecutionPlanRunner.ResumeMode.Throw,
-                AsyncGeneratorResumeMode.Return => ExecutionPlanRunner.ResumeMode.Return,
-                _ => ExecutionPlanRunner.ResumeMode.Next
-            };
-
         private enum AsyncGeneratorResumeMode : byte
         {
             Next,
             Return,
             Throw
         }
+
+        private enum AsyncGeneratorStepKind : byte
+        {
+            Yield,
+            Completed,
+            Throw,
+            Pending
+        }
+
+        private readonly record struct AsyncGeneratorStepResult(
+            AsyncGeneratorStepKind Kind,
+            JsValue Value,
+            bool Done,
+            JsValue PendingPromise);
 
         private static JsValue CreateAsyncIteratorResult(JsValue value, bool done)
         {
@@ -401,32 +399,32 @@ public static partial class TypedAstEvaluator
         }
 
         private void ResolveFromStep(
-            ExecutionPlanRunner.AsyncGeneratorStepResult step,
+            AsyncGeneratorStepResult step,
             IJsCallable resolve,
             IJsCallable reject)
         {
             switch (step.Kind)
             {
-                case ExecutionPlanRunner.AsyncGeneratorStepKind.Yield:
-                case ExecutionPlanRunner.AsyncGeneratorStepKind.Completed:
+                case AsyncGeneratorStepKind.Yield:
+                case AsyncGeneratorStepKind.Completed:
                     {
                         var iteratorResult = CreateAsyncIteratorResult(step.Value, step.Done);
                         AsyncInvokeWithOneArg(resolve, iteratorResult);
                         ReturnIteratorResultAfterPromiseReactions(iteratorResult);
                         break;
                     }
-                case ExecutionPlanRunner.AsyncGeneratorStepKind.Throw:
+                case AsyncGeneratorStepKind.Throw:
                     // step.Value is already JsValue
                     AsyncInvokeWithOneArg(reject, step.Value);
                     break;
-                case ExecutionPlanRunner.AsyncGeneratorStepKind.Pending:
+                case AsyncGeneratorStepKind.Pending:
                     HandlePendingStep(step, resolve, reject);
                     break;
             }
         }
 
         private void HandlePendingStep(
-            ExecutionPlanRunner.AsyncGeneratorStepResult step,
+            AsyncGeneratorStepResult step,
             IJsCallable resolve,
             IJsCallable reject)
         {
@@ -437,7 +435,7 @@ public static partial class TypedAstEvaluator
                 return;
             }
 
-            if (!TryGetPendingThenMethod(step, reject, out var thenCallable))
+            if (!TryGetPendingThenMethod(step.PendingPromise, reject, out var thenCallable))
             {
                 return;
             }

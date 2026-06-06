@@ -4726,6 +4726,14 @@ internal static class UnifiedBytecodeProductionEligibility
                     {
                         break;
                     }
+                    if (TryIsFirstBoundaryComputedPrefixComputedPropertyWriteCandidate(
+                            program,
+                            identifierConstants,
+                            activationSlots,
+                            allowsDynamicIdentifiers))
+                    {
+                        break;
+                    }
 
                     if (ContainsPropertyWriteOperation(program))
                     {
@@ -4745,6 +4753,7 @@ internal static class UnifiedBytecodeProductionEligibility
                     if (TryIsFirstBoundaryPropertyWriteCandidate(program, identifierConstants, activationSlots, allowsDynamicIdentifiers) ||
                         TryIsFirstBoundaryNestedNamedComputedPropertyWriteCandidate(program, identifierConstants, activationSlots, allowsDynamicIdentifiers) ||
                         TryIsFirstBoundaryComputedPrefixNamedPropertyWriteCandidate(program, identifierConstants, activationSlots, allowsDynamicIdentifiers) ||
+                        TryIsFirstBoundaryComputedPrefixComputedPropertyWriteCandidate(program, identifierConstants, activationSlots, allowsDynamicIdentifiers) ||
                         TryIsFirstBoundaryNestedNamedPropertyWriteCandidate(program, identifierConstants, activationSlots) ||
                         isFirstBoundaryNamedCompoundPropertyWriteCandidate ||
                         isFirstBoundaryNamedLogicalPropertyWriteCandidate ||
@@ -6067,17 +6076,22 @@ internal static class UnifiedBytecodeProductionEligibility
             return false;
         }
 
-        var stringConstants = program.StringConstants.AsSpan();
         var computedPrefixEnd = 1;
         while (computedPrefixEnd < program.OperationCount &&
-               IsPlainNamedPropertyRead(program.GetOperation(computedPrefixEnd), stringConstants))
+               IsPlainNamedPropertyReadOperandPrefix(
+                   program.GetOperation(computedPrefixEnd),
+                   program.StringConstants.AsSpan(),
+                   allowPrivateNamedPrefix: true))
         {
             computedPrefixEnd++;
         }
 
         var computedSuffixStart = program.OperationCount;
         while (computedSuffixStart > computedPrefixEnd + 1 &&
-               IsPlainNamedPropertyRead(program.GetOperation(computedSuffixStart - 1), stringConstants))
+               IsPlainNamedPropertyReadOperandPrefix(
+                   program.GetOperation(computedSuffixStart - 1),
+                   program.StringConstants.AsSpan(),
+                   allowPrivateNamedPrefix: true))
         {
             computedSuffixStart--;
         }
@@ -8614,6 +8628,17 @@ internal static class UnifiedBytecodeProductionEligibility
                !operation.GetString(stringConstants).IsPrivateName();
     }
 
+    private static bool IsPlainNamedPropertyReadOperandPrefix(
+        PackedExpressionOp operation,
+        ReadOnlySpan<string> stringConstants,
+        bool allowPrivateNamedPrefix)
+    {
+        return operation.Kind == ExpressionOpKind.GetNamedProperty &&
+               !operation.IsOptional &&
+               !operation.ShortCircuitOnNullishTarget &&
+               (allowPrivateNamedPrefix || !operation.GetString(stringConstants).IsPrivateName());
+    }
+
     private static bool IsShortCircuitNamedPropertyRead(
         PackedExpressionOp operation,
         ReadOnlySpan<string> stringConstants)
@@ -9800,6 +9825,20 @@ internal static class UnifiedBytecodeProductionEligibility
             return true;
         }
 
+        if (startIndex == 0 &&
+            TryMeasureSimplePropertyReadOperandSpan(
+                program,
+                startIndex,
+                identifierConstants,
+                activationSlots,
+                out spanLength,
+                allowsDynamicIdentifiers,
+                allowPrivateNamedPrefix: true) &&
+            spanLength == program.OperationCount)
+        {
+            return true;
+        }
+
         if (TryMeasureSimplePropertyReadOperandSpan(
                 program,
                 startIndex,
@@ -10007,7 +10046,8 @@ internal static class UnifiedBytecodeProductionEligibility
         ReadOnlySpan<IdentifierOperand> identifierConstants,
         ActivationSlotShape activationSlots,
         out int spanLength,
-        bool allowsDynamicIdentifiers = false)
+        bool allowsDynamicIdentifiers = false,
+        bool allowPrivateNamedPrefix = false)
     {
         if (TryMeasureSimpleComputedPropertyReadOperandSpan(
                 program,
@@ -10015,7 +10055,8 @@ internal static class UnifiedBytecodeProductionEligibility
                 identifierConstants,
                 activationSlots,
                 out spanLength,
-                allowsDynamicIdentifiers))
+                allowsDynamicIdentifiers,
+                allowPrivateNamedPrefix))
         {
             return true;
         }
@@ -10026,7 +10067,8 @@ internal static class UnifiedBytecodeProductionEligibility
             identifierConstants,
             activationSlots,
             out spanLength,
-            allowsDynamicIdentifiers);
+            allowsDynamicIdentifiers,
+            allowPrivateNamedPrefix);
     }
 
     private static bool TryMeasureSimpleNamedPropertyReadOperandSpan(
@@ -10035,7 +10077,8 @@ internal static class UnifiedBytecodeProductionEligibility
         ReadOnlySpan<IdentifierOperand> identifierConstants,
         ActivationSlotShape activationSlots,
         out int spanLength,
-        bool allowsDynamicIdentifiers)
+        bool allowsDynamicIdentifiers,
+        bool allowPrivateNamedPrefix = false)
     {
         spanLength = 0;
         if (startIndex + 1 >= program.OperationCount ||
@@ -10048,10 +10091,12 @@ internal static class UnifiedBytecodeProductionEligibility
             return false;
         }
 
-        var stringConstants = program.StringConstants.AsSpan();
         var i = startIndex + 1;
         while (i < program.OperationCount &&
-               IsPlainNamedPropertyRead(program.GetOperation(i), stringConstants))
+               IsPlainNamedPropertyReadOperandPrefix(
+                   program.GetOperation(i),
+                   program.StringConstants.AsSpan(),
+                   allowPrivateNamedPrefix))
         {
             i++;
         }
@@ -10388,7 +10433,8 @@ internal static class UnifiedBytecodeProductionEligibility
         ReadOnlySpan<IdentifierOperand> identifierConstants,
         ActivationSlotShape activationSlots,
         out int spanLength,
-        bool allowsDynamicIdentifiers)
+        bool allowsDynamicIdentifiers,
+        bool allowPrivateNamedPrefix = false)
     {
         spanLength = 0;
         if (startIndex + 4 >= program.OperationCount ||
@@ -10401,10 +10447,12 @@ internal static class UnifiedBytecodeProductionEligibility
             return false;
         }
 
-        var stringConstants = program.StringConstants.AsSpan();
         var keyStart = startIndex + 1;
         while (keyStart < program.OperationCount &&
-               IsPlainNamedPropertyRead(program.GetOperation(keyStart), stringConstants))
+               IsPlainNamedPropertyReadOperandPrefix(
+                   program.GetOperation(keyStart),
+                   program.StringConstants.AsSpan(),
+                   allowPrivateNamedPrefix))
         {
             keyStart++;
         }
@@ -10440,7 +10488,10 @@ internal static class UnifiedBytecodeProductionEligibility
 
             var endExclusive = requireIndex + 3;
             while (endExclusive < program.OperationCount &&
-                   IsPlainNamedPropertyRead(program.GetOperation(endExclusive), stringConstants))
+                   IsPlainNamedPropertyReadOperandPrefix(
+                       program.GetOperation(endExclusive),
+                       program.StringConstants.AsSpan(),
+                       allowPrivateNamedPrefix))
             {
                 endExclusive++;
             }
@@ -11810,6 +11861,21 @@ internal static class UnifiedBytecodeProductionEligibility
                 keyStart++;
             }
 
+            if (receiverChainOk &&
+                keyStart == 1 &&
+                TryMeasureSimpleComputedPropertyReadOperandSpan(
+                    program,
+                    0,
+                    identifierConstants,
+                    activationSlots,
+                    out var receiverSpanLength,
+                    allowsDynamicIdentifiers) &&
+                receiverSpanLength > 1 &&
+                receiverSpanLength < readStart)
+            {
+                keyStart = receiverSpanLength;
+            }
+
             if (!receiverChainOk ||
                 keyStart >= readStart ||
                 !IsSupportedComputedPropertyKeySpan(
@@ -11979,6 +12045,20 @@ internal static class UnifiedBytecodeProductionEligibility
             }
 
             keyStart++;
+        }
+
+        if (keyStart == 1 &&
+            TryMeasureSimpleComputedPropertyReadOperandSpan(
+                program,
+                0,
+                identifierConstants,
+                activationSlots,
+                out var receiverSpanLength,
+                allowsDynamicIdentifiers) &&
+            receiverSpanLength > 1 &&
+            receiverSpanLength < propertyWriteIndex)
+        {
+            keyStart = receiverSpanLength;
         }
 
         for (var rhsLength = 1; rhsLength <= 3; rhsLength += 2)
@@ -12383,6 +12463,87 @@ internal static class UnifiedBytecodeProductionEligibility
             identifierConstants,
             activationSlots,
             allowsDynamicIdentifiers);
+    }
+
+    // Computed property-read receiver prefix followed by a computed property write
+    // (`box[k1].child[k2] = value`):
+    // [computed-read receiver-prefix span, terminal computed key span, value, SetComputedProperty].
+    private static bool TryIsFirstBoundaryComputedPrefixComputedPropertyWriteCandidate(
+        ExpressionProgram program,
+        ReadOnlySpan<IdentifierOperand> identifierConstants,
+        ActivationSlotShape activationSlots,
+        bool allowsDynamicIdentifiers)
+    {
+        if (program.OperationCount < 8)
+        {
+            return false;
+        }
+
+        var setComputedIndex = program.OperationCount - 1;
+        var lastOp = program.GetOperation(setComputedIndex);
+        if (lastOp.Kind != ExpressionOpKind.SetComputedProperty ||
+            lastOp.AllowNameInference)
+        {
+            return false;
+        }
+
+        if (!TryMeasureSimpleComputedPropertyReadOperandSpan(
+                program,
+                0,
+                identifierConstants,
+                activationSlots,
+                out var receiverSpanLength,
+                allowsDynamicIdentifiers))
+        {
+            return false;
+        }
+
+        if (receiverSpanLength <= 0 || receiverSpanLength >= setComputedIndex)
+        {
+            return false;
+        }
+
+        var simpleValueIndex = setComputedIndex - 1;
+        if (receiverSpanLength < simpleValueIndex &&
+            IsSupportedComputedPropertyKeySpan(
+                program,
+                startInclusive: receiverSpanLength,
+                endExclusive: simpleValueIndex,
+                identifierConstants,
+                activationSlots,
+                allowsDynamicIdentifiers) &&
+            IsSimpleOperand(
+                program.GetOperation(simpleValueIndex),
+                identifierConstants,
+                activationSlots,
+                allowsDynamicIdentifiers))
+        {
+            return true;
+        }
+
+        for (var valueStart = receiverSpanLength + 1; valueStart < setComputedIndex; valueStart++)
+        {
+            if (IsSupportedComputedPropertyKeySpan(
+                    program,
+                    startInclusive: receiverSpanLength,
+                    endExclusive: valueStart,
+                    identifierConstants,
+                    activationSlots,
+                    allowsDynamicIdentifiers) &&
+                TryValidateAdmittedComplexCallArgumentRegion(
+                    program,
+                    argsStartIndex: valueStart,
+                    callIndex: setComputedIndex,
+                    expectedArgumentCount: 1,
+                    identifierConstants,
+                    activationSlots,
+                    allowsDynamicIdentifiers))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static bool TryIsFirstBoundaryPropertyUpdateCandidate(

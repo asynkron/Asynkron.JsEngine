@@ -194,6 +194,39 @@ all-or-nothing until a separate routing issue proves production readiness.
     `Code` and `Reason` so top-level lexical destructuring and other
     non-residue declines remain auditable. Related ADR:
     `docs/adrs/0346-keep-script-ir-fallback-classified-with-production-decline-details.md`.
+9f. Classify entrypoint rejects by builder provenance before treating them as
+    active production residue. `Unsupported entrypoint.` is a malformed-plan
+    integrity backstop when the plan comes from `ExecutionPlanBuilder`, because
+    valid compiler-produced function, script, and resumable plans record an
+    in-range `EntryPoint`. Keep the defensive checks in the compiler,
+    production eligibility, and with-depth analysis for manually constructed or
+    corrupted plans, but do not count that arm as an admissible JavaScript shape
+    gap unless a focused test first proves a valid compiled plan can produce an
+    out-of-range entrypoint. Future closure work should pair direct plan
+    invariants with public route/admission proof for function, script, and
+    resumable plans so defensive integrity checks are not mistaken for
+    route-widening work. WHY: Faktorial issue
+    `planitem-planmanual1780730299657353000-unified-bytecode-remaining-burndown-03-com-d1dd2ffe1b`
+    / PR #3336 closed the A51a `Unsupported entrypoint.` subfamily by proving
+    valid compiler-produced plans have supported entrypoints while keeping the
+    malformed-plan guardrails intact.
+9g. Keep A51l closed as a decomposed diagnostics bucket, not as a reusable
+    catch/try/driver cleanup umbrella. Catch-binding and dynamic environment
+    storage diagnostics belong to A51c; invalid targets, active try-completion
+    targets, and remaining loop-control topology belong to A51a; iterator,
+    for-in, `yield*`, resume-target, driver state-slot, and iterator-close
+    state-slot diagnostics belong to A51d; logical property-write cleanup-start
+    diagnostics belong to A51j; and resumable finally-cleanup guards remain
+    explicit eligibility declines until the VM owns those semantics. Future
+    compiler reason templates in this area must update the source-backed
+    coverage-map guard, expansion contract, and checklist owner mapping in the
+    same slice. Do not reintroduce an A51l row or generic "not otherwise
+    captured" bucket to make new cleanup diagnostics look accounted for. WHY:
+    Faktorial issue
+    `planitem-planmanual1780730299657353000-unified-bytecode-remaining-burndown-03-com-c499586fbd`
+    / delivery PR #3330 closed A51l by proving the current catch/try/driver
+    cleanup reason templates already map to concrete owners. Related ADR:
+    `docs/adrs/0357-keep-a51l-catch-try-driver-cleanup-diagnostics-decomposed.md`.
 10. When invoking production unified bytecode from sync calls, keep the bridge
     slot-layout owned and fast-path ordered. The production unified route runs
     before direct specialized simple-return binary/chain shortcuts and the
@@ -666,14 +699,22 @@ all-or-nothing until a separate routing issue proves production readiness.
     with or without a decline reason, must not leave partial stack instructions
     or constants behind for the next fallback path. Pair accepted examples with
     adjacent unsupported examples so partial-emission stack drift is caught by
-    the focused proof pack. WHY: issue
+    the focused proof pack. For measured span helpers that append into shared
+    unified, literal, or string builders, include a post-emission rollback guard
+    and source-gated coverage for the explicit rollback diagnostic template, so
+    a later key/RHS/continuation failure cannot silently leave partial emitted
+    state or an undocumented nested reason. WHY: issue
     `planitem-planmanual1780198120145433000-widen-unified-bytecode-production-conditio-0aa2351edc`
     / PR #2812 found that
     `TryAppendFirstBoundaryNamedLogicalPropertySet` could append base/property
     setup before later RHS or neighbor-shape rejection. The accepted repair
     staged unified instructions plus literal and string constants in scratch
     builders, then replaced the shared builders only after the complete direct
-    named logical-assignment shape was accepted.
+    named logical-assignment shape was accepted. Faktorial issue
+    `planitem-planmanual1780730299657353000-unified-bytecode-remaining-burndown-03-com-d452fce244`
+    / PR #3337 closed A51m after the measured computed property-read helper
+    still needed an explicit rollback diagnostic plus source coverage alongside
+    the existing named and optional measured read-span helpers.
 15. When proving no-route behavior for unsupported property-read-adjacent
     shapes through public invocation logs, assert absence of
     `unified-bytecode-production-fast-path` for the exact function or method
@@ -2589,6 +2630,31 @@ avoids the build-back repair cycle that the sibling task (PR #2748) required.
     added a production-fast-path regression. ADR 0318 records the bounded bridge
     decision.
 
+55. When admitting object-literal shorthand method or accessor members inside a
+    simple object-literal span, treat the eligibility measurer and compiler
+    appender as one coupled grammar. The span vocabulary is not just
+    `DefineObjectMethod` / `DefineObjectAccessor`: the compiler also needs
+    `LoadFunctionLiteral` emission, `FunctionLiteralConstants` population,
+    object-member opcode emission, computed-key `ResolvePropertyKey` ordering,
+    rollback for unified instructions/literal constants/string constants/
+    function-literal constants, and stack-depth sizing for the expanded member
+    sequence. Static members are
+    `LoadFunctionLiteral, DefineObjectMethod|DefineObjectAccessor`; computed
+    members are `<key span>, ResolvePropertyKey, LoadFunctionLiteral,
+    DefineComputedObjectMethod|DefineComputedObjectAccessor`. Keep method or
+    accessor admission scoped to the measured object-literal span where the
+    object member is owned by the VM, and keep unrelated capture,
+    name-inference, private-name, and arbitrary computed-key shapes behind their
+    existing declines. Prove the route with a later-member continuation such as
+    trailing object spread; terminal method members can already look admitted
+    even when span continuation is broken. WHY: issue
+    `planitem-planmanual1780730299657353000-unified-bytecode-remaining-burndown-03-com-d8620d63a8`
+    / PR #3340 found an A51h mismatch where eligibility measured object
+    method/accessor members inside a first-boundary object-literal RHS, but
+    `UnifiedBytecodeCompiler.TryAppendSimpleObjectLiteralSpan` could not emit
+    the same method/accessor sequence when a trailing spread kept scanning the
+    same literal span. ADR 0356 records the bounded compiler admission.
+
 Related ADRs:
 - `docs/adrs/0181-keep-unified-bytecode-prototype-ir-owned-and-all-or-nothing.md`
 - `docs/adrs/0186-keep-unified-bytecode-function-kind-eligibility-explicit.md`
@@ -2642,3 +2708,4 @@ Related ADRs:
 - `docs/adrs/0316-admit-nested-named-receiver-computed-delete-in-unified-bytecode.md`
 - `docs/adrs/0318-admit-apply-binding-target-assignment-destructuring-bridge-in-unified-bytecode.md`
 - `docs/adrs/0332-admit-resumable-try-catch-with-owned-frame-state.md`
+- `docs/adrs/0356-admit-object-method-literal-spans-through-mirrored-compiler-emission.md`

@@ -6023,6 +6023,124 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
+    public void Evaluate_PrivateReceiverPrefixNamedPropertyRead_AcceptsOwnedPropertyOpcodes()
+    {
+        var plan = GetClassMethodPlan("""
+            class Holder {
+                #child = { value: 42 };
+                read(receiver) {
+                    return receiver.#child.value;
+                }
+            }
+            """,
+            "Holder",
+            "read");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.True(result.Program.Instructions.Count(
+            instruction => instruction.OpCode == UnifiedBytecodeOpCode.GetNamedProperty) >= 2);
+    }
+
+    [Fact]
+    public void Evaluate_PrivateReceiverPrefixComputedPropertyRead_AcceptsOwnedPropertyOpcodes()
+    {
+        var plan = GetClassMethodPlan("""
+            class Holder {
+                #child = { value: 42 };
+                read(receiver, key) {
+                    return receiver.#child[key];
+                }
+            }
+            """,
+            "Holder",
+            "read");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(
+            result.Program.Instructions,
+            instruction => instruction.OpCode == UnifiedBytecodeOpCode.GetNamedProperty);
+        Assert.Contains(
+            result.Program.Instructions,
+            instruction => instruction.OpCode == UnifiedBytecodeOpCode.GetComputedProperty);
+    }
+
+    [Fact]
+    public void Evaluate_PrivateReceiverPrefixCall_StillDeclines()
+    {
+        var plan = GetClassMethodPlan("""
+            class Holder {
+                #child = { value() { return 42; } };
+                call(receiver) {
+                    return receiver.#child.value();
+                }
+            }
+            """,
+            "Holder",
+            "call");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.False(result.IsEligible);
+        Assert.NotEqual(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+    }
+
+    [Fact]
+    public void Evaluate_PrivateReceiverPrefixMutation_StillDeclines()
+    {
+        var plan = GetClassMethodPlan("""
+            class Holder {
+                #child = { value: 1 };
+                write(receiver, value) {
+                    return receiver.#child.value = value;
+                }
+            }
+            """,
+            "Holder",
+            "write");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.False(result.IsEligible);
+        Assert.NotEqual(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+    }
+
+    [Fact]
+    public void Evaluate_PrivateReceiverPrefixComputedUpdate_StillDeclines()
+    {
+        var plan = GetClassMethodPlan("""
+            class Holder {
+                #child = { value: 1 };
+                update(receiver, key) {
+                    return receiver.#child[key]++;
+                }
+            }
+            """,
+            "Holder",
+            "update");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.False(result.IsEligible);
+        Assert.NotEqual(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+    }
+
+    [Fact]
     public void Evaluate_PrivateNamedPropertyWrite_AcceptsNamedPropertyOpcode()
     {
         var plan = GetClassMethodPlan("""
@@ -10381,10 +10499,10 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
-    public void Evaluate_ComputedPrefixComputedPropertyWrite_DeclinesWithPropertyWriteDependency()
+    public void Evaluate_ComputedPrefixComputedPropertyWrite_AcceptsOwnedPropertyOpcodes()
     {
-        // A computed receiver prefix (`box[k1].child[k2] = v`) is outside the
-        // nested-NAMED-prefix computed-write boundary and must still decline.
+        // A51j: a computed receiver prefix (`box[k1].child[k2] = v`) resolves the prefix once
+        // via the shared computed-read span helper, then performs a terminal computed write.
         var plan = GetFunctionPlan("""
             function writeComputedPrefix(box, k1, k2, value) {
                 box[k1].child[k2] = value;
@@ -10396,8 +10514,12 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
             plan,
             new UnifiedBytecodeProductionActivationDescriptor());
 
-        Assert.False(result.IsEligible, result.Reason);
-        Assert.Equal(UnifiedBytecodeProductionDeclineCode.PropertyWriteDependency, result.Code);
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.GetComputedProperty);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.SetComputedProperty);
     }
 
     [Fact]
@@ -10518,10 +10640,10 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
-    public void Evaluate_ComputedPrefixComputedCompoundPropertyWrite_DeclinesWithPropertyWriteDependency()
+    public void Evaluate_ComputedPrefixComputedCompoundPropertyWrite_AcceptsOwnedPropertyOpcodes()
     {
-        // A computed receiver prefix (`box[k1].child[k2] += v`) is outside the
-        // nested-NAMED-prefix computed compound-write boundary and must still decline.
+        // A51j: reuse the measured computed receiver prefix, then the existing computed
+        // compound-write suffix for old-value read, RHS, binary op, and store ordering.
         var plan = GetFunctionPlan("""
             function writeComputedPrefix(box, k1, k2, value) {
                 box[k1].child[k2] += value;
@@ -10533,8 +10655,41 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
             plan,
             new UnifiedBytecodeProductionActivationDescriptor());
 
-        Assert.False(result.IsEligible, result.Reason);
-        Assert.Equal(UnifiedBytecodeProductionDeclineCode.PropertyWriteDependency, result.Code);
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.GetComputedProperty);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.GetComputedPropertyForCompoundSet);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.SetComputedProperty);
+    }
+
+    [Theory]
+    [InlineData("&&=")]
+    [InlineData("||=")]
+    [InlineData("??=")]
+    public void Evaluate_ComputedPrefixComputedLogicalPropertyWrite_AcceptsOwnedPropertyOpcodes(string op)
+    {
+        var plan = GetFunctionPlan($$"""
+            function writeComputedPrefix(box, k1, k2, value) {
+                return box[k1].child[k2] {{op}} value;
+            }
+            """,
+            "writeComputedPrefix");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.GetComputedProperty);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.GetComputedPropertyForCompoundSet);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.SetComputedProperty);
     }
 
     [Fact]

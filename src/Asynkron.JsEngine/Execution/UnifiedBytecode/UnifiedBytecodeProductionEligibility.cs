@@ -10603,6 +10603,7 @@ internal static class UnifiedBytecodeProductionEligibility
         if (TryMeasureFlatSimpleBinaryOperandSpan(
                 program,
                 startIndex,
+                program.OperationCount,
                 identifierConstants,
                 activationSlots,
                 out spanLength,
@@ -10614,6 +10615,7 @@ internal static class UnifiedBytecodeProductionEligibility
         if (TryMeasureFlatSimpleUnaryOperandSpan(
                 program,
                 startIndex,
+                program.OperationCount,
                 identifierConstants,
                 activationSlots,
                 out spanLength,
@@ -10655,24 +10657,51 @@ internal static class UnifiedBytecodeProductionEligibility
         out int spanLength,
         bool allowsDynamicIdentifiers = false)
     {
-        if (startIndex + 1 >= program.OperationCount)
+        return TryMeasureSimpleUnaryOperandSpan(
+            program,
+            startIndex,
+            identifierConstants,
+            activationSlots,
+            program.OperationCount,
+            out spanLength,
+            allowsDynamicIdentifiers);
+    }
+
+    private static bool TryMeasureSimpleUnaryOperandSpan(
+        ExpressionProgram program,
+        int startIndex,
+        ReadOnlySpan<IdentifierOperand> identifierConstants,
+        ActivationSlotShape activationSlots,
+        int endExclusive,
+        out int spanLength,
+        bool allowsDynamicIdentifiers = false)
+    {
+        if (startIndex + 1 >= endExclusive)
         {
             spanLength = 0;
             return false;
         }
 
-        if (TryMeasureSimpleNestedOperandSpan(
-                program,
-                startIndex,
-                identifierConstants,
-                activationSlots,
-                out var operandSpanLength,
-                allowsDynamicIdentifiers) &&
-            startIndex + operandSpanLength < program.OperationCount &&
-            IsSimpleUnaryOperator(program.GetOperation(startIndex + operandSpanLength).Kind))
+        for (var unaryIndex = endExclusive - 1; unaryIndex >= startIndex + 1; unaryIndex--)
         {
-            spanLength = operandSpanLength + 1;
-            return true;
+            if (!IsSimpleUnaryOperator(program.GetOperation(unaryIndex).Kind))
+            {
+                continue;
+            }
+
+            if (TryMeasureSimpleNestedOperandSpan(
+                    program,
+                    startIndex,
+                    unaryIndex,
+                    identifierConstants,
+                    activationSlots,
+                    out var operandSpanLength,
+                    allowsDynamicIdentifiers) &&
+                startIndex + operandSpanLength == unaryIndex)
+            {
+                spanLength = operandSpanLength + 1;
+                return true;
+            }
         }
 
         spanLength = 0;
@@ -10712,39 +10741,42 @@ internal static class UnifiedBytecodeProductionEligibility
             return false;
         }
 
-        if (!TryMeasureSimpleNestedOperandSpan(
-                program,
-                startIndex,
-                identifierConstants,
-                activationSlots,
-                out var leftSpanLength,
-                allowsDynamicIdentifiers) ||
-            startIndex + leftSpanLength >= endExclusive)
+        for (var binaryIndex = endExclusive - 1; binaryIndex >= startIndex + 2; binaryIndex--)
         {
-            spanLength = 0;
-            return false;
-        }
+            var binary = program.GetOperation(binaryIndex);
+            if (binary.Kind != ExpressionOpKind.Binary ||
+                !IsProductionBinaryOperator(binary.Operator))
+            {
+                continue;
+            }
 
-        var rightStartIndex = startIndex + leftSpanLength;
-        if (!TryMeasureSimpleNestedOperandSpan(
-                program,
-                rightStartIndex,
-                identifierConstants,
-                activationSlots,
-                out var rightSpanLength,
-                allowsDynamicIdentifiers) ||
-            rightStartIndex + rightSpanLength >= endExclusive)
-        {
-            spanLength = 0;
-            return false;
-        }
+            if (!TryMeasureSimpleNestedOperandSpan(
+                    program,
+                    startIndex,
+                    binaryIndex,
+                    identifierConstants,
+                    activationSlots,
+                    out var leftSpanLength,
+                    allowsDynamicIdentifiers) ||
+                startIndex + leftSpanLength >= binaryIndex)
+            {
+                continue;
+            }
 
-        var binaryIndex = rightStartIndex + rightSpanLength;
-        var binary = program.GetOperation(binaryIndex);
-        if (
-            binary.Kind == ExpressionOpKind.Binary &&
-            IsProductionBinaryOperator(binary.Operator))
-        {
+            var rightStartIndex = startIndex + leftSpanLength;
+            if (!TryMeasureSimpleNestedOperandSpan(
+                    program,
+                    rightStartIndex,
+                    binaryIndex,
+                    identifierConstants,
+                    activationSlots,
+                    out var rightSpanLength,
+                    allowsDynamicIdentifiers) ||
+                rightStartIndex + rightSpanLength != binaryIndex)
+            {
+                continue;
+            }
+
             spanLength = binaryIndex + 1 - startIndex;
             return true;
         }
@@ -10756,6 +10788,7 @@ internal static class UnifiedBytecodeProductionEligibility
     private static bool TryMeasureSimpleNestedOperandSpan(
         ExpressionProgram program,
         int startIndex,
+        int endExclusive,
         ReadOnlySpan<IdentifierOperand> identifierConstants,
         ActivationSlotShape activationSlots,
         out int spanLength,
@@ -10764,6 +10797,7 @@ internal static class UnifiedBytecodeProductionEligibility
         if (TryMeasureFlatSimpleBinaryOperandSpan(
                 program,
                 startIndex,
+                endExclusive,
                 identifierConstants,
                 activationSlots,
                 out spanLength,
@@ -10771,6 +10805,7 @@ internal static class UnifiedBytecodeProductionEligibility
             TryMeasureFlatSimpleUnaryOperandSpan(
                 program,
                 startIndex,
+                endExclusive,
                 identifierConstants,
                 activationSlots,
                 out spanLength,
@@ -10793,6 +10828,18 @@ internal static class UnifiedBytecodeProductionEligibility
             return true;
         }
 
+        if (TryMeasureSimpleControlExpressionOperandSpan(
+                program,
+                startIndex,
+                identifierConstants,
+                activationSlots,
+                out spanLength,
+                allowsDynamicIdentifiers) &&
+            startIndex + spanLength <= endExclusive)
+        {
+            return true;
+        }
+
         var operation = program.GetOperation(startIndex);
         if (IsSimpleOperand(operation, identifierConstants, activationSlots, allowsDynamicIdentifiers))
         {
@@ -10807,12 +10854,13 @@ internal static class UnifiedBytecodeProductionEligibility
     private static bool TryMeasureFlatSimpleUnaryOperandSpan(
         ExpressionProgram program,
         int startIndex,
+        int endExclusive,
         ReadOnlySpan<IdentifierOperand> identifierConstants,
         ActivationSlotShape activationSlots,
         out int spanLength,
         bool allowsDynamicIdentifiers = false)
     {
-        if (startIndex + 1 >= program.OperationCount)
+        if (startIndex + 1 >= endExclusive)
         {
             spanLength = 0;
             return false;
@@ -10834,12 +10882,13 @@ internal static class UnifiedBytecodeProductionEligibility
     private static bool TryMeasureFlatSimpleBinaryOperandSpan(
         ExpressionProgram program,
         int startIndex,
+        int endExclusive,
         ReadOnlySpan<IdentifierOperand> identifierConstants,
         ActivationSlotShape activationSlots,
         out int spanLength,
         bool allowsDynamicIdentifiers = false)
     {
-        if (startIndex + 2 >= program.OperationCount)
+        if (startIndex + 2 >= endExclusive)
         {
             spanLength = 0;
             return false;

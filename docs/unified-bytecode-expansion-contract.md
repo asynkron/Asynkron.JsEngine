@@ -674,8 +674,6 @@ above in the same slice.
 - `Property writes with name inference are not supported.`
 - `ResolvePropertyKey underflow in complex call argument.`
 - `Resume target '{resumeSymbol.Name}' is not in the activation slot layout.`
-- `Simple binary spans require simple activation-resolved or admitted dynamic operands.`
-- `Simple unary spans require a simple activation-resolved or admitted dynamic operand.`
 - `Spread sources only admit direct named member calls with simple arguments.`
 - `Template literal RHS span does not match expected boundary.`
 - `Template literal RHS span does not match expected nested property-write boundary.`

@@ -1367,7 +1367,7 @@ internal static class UnifiedBytecodeProductionEligibility
             case ObjectDestructuringPropertyInstruction:
             case ObjectDestructuringRestInstruction:
             case ObjectDestructuringCloseInstruction:
-            case BreakableEnterInstruction { ConstructKind: BreakableKind.ResetsCompletionValue }:
+            case BreakableEnterInstruction:
             case BreakableExitInstruction:
                 declineReason = string.Empty;
                 return true;

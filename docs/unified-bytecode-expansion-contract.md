@@ -531,7 +531,7 @@ semantic bridge or mis-parking dynamic residue as ordinary fallback work.
 | `A51j` | Property write, compound/logical write, update, delete, name-inference, key-span, and RHS-span shapes | Existing expression-program mutation evaluation | both |
 | `A51k` | Simple binary/unary/control/conditional operand spans | Existing expression-program evaluation | both |
 | `A51l` | Catch/try/driver cleanup topology diagnostics not otherwise captured by concrete driver rows | Existing execution-plan runner | both |
-| `A51m` | Measured property-read span rollback diagnostics | Existing property-read expression evaluation | both |
+| `A51m` | Closed measured property-read span rollback diagnostics; source guard pins named, optional named, optional named-chain, and computed measured span rollback templates | Existing property-read expression evaluation for non-admitted shapes | both |
 | `B47a` | Resumable-only `yield*` state-slot and synthetic resume-target layout | Existing generator/async execution-plan route | resumable only |
 
 ### A51f Expression-Loop Leaves (current)
@@ -601,6 +601,7 @@ above in the same slice.
 - `Expected DefineObjectProperty or value operand after first operand.`
 - `Expected value operand after ResolvePropertyKey.`
 - `Failed to emit measured named property read span.`
+- `Failed to emit measured computed property read span.`
 - `Failed to emit measured optional named property read span.`
 - `Failed to emit measured optional named read chain span.`
 - `Identifier '{identifier.Name.Name}' requires dynamic lookup and is not eligible outside an active with environment.`

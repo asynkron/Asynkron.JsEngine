@@ -53,14 +53,20 @@ path that can evaluate the assignment.
    semantics remain on generic assignment-reference paths. Cite the maintained
    performance note and ADR guardrails instead of implying a new benchmark,
    Test262, or runtime win unless the current slice actually re-proved it.
-10. When admitting a new compound property write shape to the unified-bytecode
-    production path, simultaneously update the boundary description in
-    `docs/unified-bytecode-expansion-contract.md`. Name the newly admitted shape,
-    its constraints (activation-resolved base, named key, production binary
-    operator, simple RHS), and the retained declines that are still true for
-    the current boundary, such as optional/private/dynamic neighbors, unowned
-    computed-key spans, or unsupported RHS shapes. Do not leave the old blanket
-    "is declined" statement intact, and do not keep historical retained-decline
+10. When admitting a new property write, compound write, logical write, update,
+    or delete shape to the unified-bytecode production path, simultaneously
+    update the boundary description in
+    `docs/unified-bytecode-expansion-contract.md`. Name the newly admitted
+    shape, its constraints (for example activation-resolved or measured
+    computed-read receiver prefix, supported terminal computed-key span,
+    production binary/operator subset, simple or already-admitted single-result
+    RHS), and the retained declines that are still true for the current
+    boundary, such as optional/private/dynamic neighbors, unowned computed-key
+    spans, name-inference writes, unproven multi-computed receiver prefixes, or
+    unsupported RHS shapes. If the compiler adds or retains a non-empty decline
+    reason while doing this, update the contract's checked compiler
+    decline-template list in the same slice. Do not leave the old blanket "is
+    declined" statement intact, and do not keep historical retained-decline
     examples after a later slice admits them — stale decline descriptions
     mislead agents into thinking a shape is still excluded when it was already
     admitted.
@@ -124,3 +130,14 @@ after the named-property shape had already been admitted by
 `TryIsFirstBoundaryNamedCompoundPropertyWriteCandidate`. The doc was accurate when
 originally written but became stale when eligibility expanded. The durable
 constraint is rule 10 below.
+
+Issue
+`planitem-planmanual1780730299657353000-unified-bytecode-remaining-burndown-03-com-7f9a4a6544` /
+PR #3329 admitted A51j computed-prefix computed property mutations by composing
+the existing computed-read receiver-prefix measurer with the terminal
+computed-key/value span validators. The useful lesson was broader than one
+syntax form: future property-mutation widening must prove stack and
+evaluation-order ownership through measured spans, keep name-inference writes
+declined until the VM owns that semantic boundary, and update the expansion
+contract's drift-checked compiler decline templates in the same slice. Related
+ADR: `docs/adrs/0355-admit-computed-prefix-computed-property-mutations-through-owned-spans.md`.

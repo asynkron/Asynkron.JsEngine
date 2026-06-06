@@ -4898,12 +4898,6 @@ internal static class UnifiedBytecodeCompiler
 
                 case ExpressionOpKind.ResolveIdentifierReference:
                     var referenceIdentifier = operation.GetIdentifier(expressionProgram.IdentifierConstants.AsSpan());
-                    if (IsImplicitArgumentsIdentifier(referenceIdentifier, slotLayout))
-                    {
-                        reason = "arguments assignment references are not supported.";
-                        return false;
-                    }
-
                     if (TryResolveExplicitActivationSlot(referenceIdentifier, slotLayout, out var referenceSlotIndex))
                     {
                         identifierReferenceSlots ??= [];
@@ -4956,12 +4950,6 @@ internal static class UnifiedBytecodeCompiler
 
                 case ExpressionOpKind.StoreResolvedIdentifier:
                     var storeReferenceIdentifier = operation.GetIdentifier(expressionProgram.IdentifierConstants.AsSpan());
-                    if (IsImplicitArgumentsIdentifier(storeReferenceIdentifier, slotLayout))
-                    {
-                        reason = "arguments assignment references are not supported.";
-                        return false;
-                    }
-
                     if (TryResolveExplicitActivationSlot(
                             storeReferenceIdentifier,
                             slotLayout,
@@ -5041,12 +5029,6 @@ internal static class UnifiedBytecodeCompiler
 
                 case ExpressionOpKind.StoreIdentifier:
                     var storeIdentifier = operation.GetIdentifier(expressionProgram.IdentifierConstants.AsSpan());
-                    if (IsImplicitArgumentsIdentifier(storeIdentifier, slotLayout))
-                    {
-                        reason = "arguments assignment references are not supported.";
-                        return false;
-                    }
-
                     if (TryResolveActivationSlot(storeIdentifier, slotLayout, out _))
                     {
                         reason =
@@ -6128,13 +6110,10 @@ internal static class UnifiedBytecodeCompiler
         var identifier = callTarget.GetIdentifier(expressionProgram.IdentifierConstants.AsSpan());
         if (!TryResolveActivationCallTargetSlot(identifier, slotLayout, out var slotIndex))
         {
-            if (callTarget.IsArguments ||
-                !allowsDynamicIdentifiers ||
+            if (!allowsDynamicIdentifiers ||
                 identifier.FlatSlotId >= 0)
             {
-                reason = callTarget.IsArguments
-                    ? "arguments call targets are outside the optional identifier call-target preparation boundary."
-                    : "Optional identifier call targets require an activation-resolved identifier slot or admitted dynamic identifier operations.";
+                reason = "Optional identifier call targets require an activation-resolved identifier slot or admitted dynamic identifier operations.";
                 return false;
             }
 
@@ -7414,12 +7393,6 @@ internal static class UnifiedBytecodeCompiler
         var identifier = operation.GetIdentifier(expressionProgram.IdentifierConstants.AsSpan());
         if (!TryResolveActivationSlot(identifier, slotLayout, out slotIndex))
         {
-            if (operation.IsArguments)
-            {
-                reason = "arguments typeof is not supported.";
-                return false;
-            }
-
             reason = $"Unsupported typeof identifier '{identifier.Name.Name}'.";
             return false;
         }
@@ -7999,11 +7972,6 @@ internal static class UnifiedBytecodeCompiler
                 case ExpressionOpKind.ResolveIdentifierReference:
                 {
                     var referenceIdentifier = op.GetIdentifier(expressionProgram.IdentifierConstants.AsSpan());
-                    if (IsImplicitArgumentsIdentifier(referenceIdentifier, slotLayout))
-                    {
-                        { RollBack(); reason = "arguments assignment references are not supported in complex call arguments."; return false; }
-                    }
-
                     if (TryResolveExplicitActivationSlot(referenceIdentifier, slotLayout, out var referenceSlotIndex))
                     {
                         identifierReferenceSlots ??= [];
@@ -8070,11 +8038,6 @@ internal static class UnifiedBytecodeCompiler
                     }
 
                     var storeReferenceIdentifier = op.GetIdentifier(expressionProgram.IdentifierConstants.AsSpan());
-                    if (IsImplicitArgumentsIdentifier(storeReferenceIdentifier, slotLayout))
-                    {
-                        { RollBack(); reason = "arguments assignment references are not supported in complex call arguments."; return false; }
-                    }
-
                     if (TryResolveExplicitActivationSlot(
                             storeReferenceIdentifier,
                             slotLayout,
@@ -8170,11 +8133,6 @@ internal static class UnifiedBytecodeCompiler
 
                 case ExpressionOpKind.LoadIdentifierCallTarget:
                 {
-                    if (op.IsArguments)
-                    {
-                        { RollBack(); reason = "arguments call targets are not supported in complex call arguments."; return false; }
-                    }
-
                     var callTargetIdentifier = op.GetIdentifier(expressionProgram.IdentifierConstants.AsSpan());
                     if (string.Equals(callTargetIdentifier.Name.Name, "eval", StringComparison.Ordinal))
                     {

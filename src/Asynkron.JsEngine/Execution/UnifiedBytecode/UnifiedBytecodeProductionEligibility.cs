@@ -88,7 +88,7 @@ internal static class UnifiedBytecodeProductionEligibility
             return false;
         }
 
-        var foundArgumentsRead = false;
+        var foundArgumentsDependency = false;
         for (var instructionIndex = 0; instructionIndex < plan.Instructions.Length; instructionIndex++)
         {
             if (!TryGetExpressionProgram(plan.Instructions[instructionIndex], out var program))
@@ -107,7 +107,8 @@ internal static class UnifiedBytecodeProductionEligibility
                 {
                     if (IsImplicitArgumentsIdentifier(operation, identifierConstants, activationSlots))
                     {
-                        return false;
+                        foundArgumentsDependency = true;
+                        continue;
                     }
 
                     continue;
@@ -128,11 +129,11 @@ internal static class UnifiedBytecodeProductionEligibility
                     continue;
                 }
 
-                foundArgumentsRead = true;
+                foundArgumentsDependency = true;
             }
         }
 
-        return foundArgumentsRead;
+        return foundArgumentsDependency;
     }
 
     private static bool IsImplicitArgumentsIdentifier(
@@ -4451,10 +4452,17 @@ internal static class UnifiedBytecodeProductionEligibility
                     var referenceIdentifier = operation.GetIdentifier(identifierConstants);
                     if (IsImplicitArgumentsIdentifier(referenceIdentifier, activationSlots))
                     {
-                        declineCode = UnifiedBytecodeProductionDeclineCode.ArgumentsObjectDependency;
-                        declineReason =
-                            "arguments assignment references are not eligible for production unified bytecode routing.";
-                        return true;
+                        if (!allowsDynamicIdentifiers)
+                        {
+                            declineCode = UnifiedBytecodeProductionDeclineCode.ArgumentsObjectDependency;
+                            declineReason =
+                                "arguments assignment references are not eligible for production unified bytecode routing.";
+                            return true;
+                        }
+
+                        identifierReferenceSlots ??= [];
+                        identifierReferenceSlots.Add(DynamicIdentifierReferenceSlot);
+                        break;
                     }
 
                     if (TryResolveExplicitActivationSlot(referenceIdentifier, activationSlots, out var referenceSlotIndex))
@@ -4526,10 +4534,18 @@ internal static class UnifiedBytecodeProductionEligibility
                     var storeReferenceIdentifier = operation.GetIdentifier(identifierConstants);
                     if (IsImplicitArgumentsIdentifier(storeReferenceIdentifier, activationSlots))
                     {
-                        declineCode = UnifiedBytecodeProductionDeclineCode.ArgumentsObjectDependency;
-                        declineReason =
-                            "arguments assignment references are not eligible for production unified bytecode routing.";
-                        return true;
+                        if (!allowsDynamicIdentifiers ||
+                            identifierReferenceSlots is not { Count: > 0 } ||
+                            identifierReferenceSlots[^1] != DynamicIdentifierReferenceSlot)
+                        {
+                            declineCode = UnifiedBytecodeProductionDeclineCode.ArgumentsObjectDependency;
+                            declineReason =
+                                "arguments assignment references are not eligible for production unified bytecode routing.";
+                            return true;
+                        }
+
+                        identifierReferenceSlots.RemoveAt(identifierReferenceSlots.Count - 1);
+                        break;
                     }
 
                     if (TryResolveExplicitActivationSlot(
@@ -4578,10 +4594,15 @@ internal static class UnifiedBytecodeProductionEligibility
                     var storeIdentifier = operation.GetIdentifier(identifierConstants);
                     if (IsImplicitArgumentsIdentifier(storeIdentifier, activationSlots))
                     {
-                        declineCode = UnifiedBytecodeProductionDeclineCode.ArgumentsObjectDependency;
-                        declineReason =
-                            "arguments assignment references are not eligible for production unified bytecode routing.";
-                        return true;
+                        if (!allowsDynamicIdentifiers)
+                        {
+                            declineCode = UnifiedBytecodeProductionDeclineCode.ArgumentsObjectDependency;
+                            declineReason =
+                                "arguments assignment references are not eligible for production unified bytecode routing.";
+                            return true;
+                        }
+
+                        break;
                     }
 
                     if (TryResolveActivationSlot(storeIdentifier, activationSlots))
@@ -8068,8 +8089,7 @@ internal static class UnifiedBytecodeProductionEligibility
         }
 
         var callTarget = program.GetOperation(0);
-        if (callTarget.Kind != ExpressionOpKind.LoadIdentifierCallTarget ||
-            callTarget.IsArguments)
+        if (callTarget.Kind != ExpressionOpKind.LoadIdentifierCallTarget)
         {
             return false;
         }
@@ -8150,7 +8170,7 @@ internal static class UnifiedBytecodeProductionEligibility
         }
 
         var callTarget = program.GetOperation(0);
-        if (callTarget.Kind != ExpressionOpKind.LoadIdentifierCallTarget || callTarget.IsArguments)
+        if (callTarget.Kind != ExpressionOpKind.LoadIdentifierCallTarget)
         {
             return false;
         }
@@ -9437,7 +9457,14 @@ internal static class UnifiedBytecodeProductionEligibility
             case ExpressionOpKind.ResolveIdentifierReference:
                 if (op.IsArguments)
                 {
-                    return false;
+                    if (!allowsDynamicIdentifiers)
+                    {
+                        return false;
+                    }
+
+                    identifierReferenceSlots ??= [];
+                    identifierReferenceSlots.Add(dynamicIdentifierReferenceSlot);
+                    return true;
                 }
 
                 var referenceIdentifier = op.GetIdentifier(identifierConstants);
@@ -9472,12 +9499,25 @@ internal static class UnifiedBytecodeProductionEligibility
                 return identifierReferenceSlots[^1] >= 0 || allowsDynamicIdentifiers;
 
             case ExpressionOpKind.StoreResolvedIdentifier:
-                if (depthBefore < 1 || op.IsArguments)
+                if (depthBefore < 1)
                 {
                     return false;
                 }
 
                 var storeReferenceIdentifier = op.GetIdentifier(identifierConstants);
+                if (op.IsArguments)
+                {
+                    if (!allowsDynamicIdentifiers ||
+                        identifierReferenceSlots is not { Count: > 0 } ||
+                        identifierReferenceSlots[^1] != dynamicIdentifierReferenceSlot)
+                    {
+                        return false;
+                    }
+
+                    identifierReferenceSlots.RemoveAt(identifierReferenceSlots.Count - 1);
+                    return true;
+                }
+
                 if (TryResolveExplicitActivationSlot(
                         storeReferenceIdentifier,
                         activationSlots,
@@ -9524,12 +9564,8 @@ internal static class UnifiedBytecodeProductionEligibility
                 return depthBefore >= 1;
 
             case ExpressionOpKind.LoadIdentifierCallTarget:
-                // Pushes <undefined this, callee>: net +2. Decline arguments/eval and unresolved
-                // free identifiers (those have no admitted lowering here).
-                if (op.IsArguments)
-                {
-                    return false;
-                }
+                // Pushes <undefined this, callee>: net +2. Decline eval and unresolved
+                // free identifiers unless dynamic identifier operations are admitted.
 
                 var callIdentifier = op.GetIdentifier(identifierConstants);
                 if (string.Equals(callIdentifier.Name.Name, "eval", StringComparison.Ordinal))

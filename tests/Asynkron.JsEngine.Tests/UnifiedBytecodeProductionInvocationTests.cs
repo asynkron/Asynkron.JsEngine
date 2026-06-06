@@ -18,6 +18,19 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     private const string SimpleIrActivationFastPathLog = "simple-ir-activation-fast-path";
     private const string SimpleIrReturnFastPathLog = "simple-ir-return-fast-path";
 
+    private static string DescribeRouteLogs(IEnumerable<TestLogger.LogRecord> logs)
+    {
+        var relevant = logs
+            .Select(record => record.Message)
+            .Where(message =>
+                message.Contains("fast-path", StringComparison.Ordinal) ||
+                message.Contains("fallback", StringComparison.Ordinal) ||
+                message.Contains("unified-bytecode", StringComparison.Ordinal) ||
+                message.Contains("classified", StringComparison.Ordinal));
+
+        return string.Join(Environment.NewLine, relevant);
+    }
+
     [Fact(Timeout = 5000)]
     public async Task TopLevelPropertyAccessLoop_UsesUnifiedBytecodeProductionFastPath()
     {
@@ -8991,9 +9004,79 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
             """);
 
         Assert.Equal(1d, result);
+        var logs = CurrentLogger!.Collector.Snapshot();
+        Assert.True(
+            logs.Any(record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=assignArguments argc=1",
+                StringComparison.Ordinal)),
+            DescribeRouteLogs(logs));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task AssignImplicitArgumentsObjectExpressionResult_UsesUnifiedBytecodeProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function assignArguments() {
+                return (arguments = 1);
+            }
+
+            assignArguments(41);
+            """);
+
+        Assert.Equal(1d, result);
+        var logs = CurrentLogger!.Collector.Snapshot();
+        Assert.True(
+            logs.Any(record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=assignArguments argc=1",
+                StringComparison.Ordinal)),
+            DescribeRouteLogs(logs));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task CallArgumentImplicitArgumentsAssignment_UsesUnifiedBytecodeProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function pass(reader) {
+                return reader(arguments = 7);
+            }
+
+            pass(function (value) { return value + 1; }, 41);
+            """);
+
+        Assert.Equal(8d, result);
+        var logs = CurrentLogger!.Collector.Snapshot();
+        Assert.True(
+            logs.Any(record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=pass argc=2",
+                StringComparison.Ordinal)),
+            DescribeRouteLogs(logs));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task CallArgumentImplicitArgumentsCallTarget_UsesUnifiedBytecodeProductionFastPathAndThrowsTypeError()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function pass(reader) {
+                return reader(arguments());
+            }
+
+            var caught = false;
+            try {
+                pass(function (value) { return value; }, 41);
+            } catch (error) {
+                caught = error instanceof TypeError;
+            }
+
+            caught;
+            """);
+
+        Assert.Equal(true, result);
         Assert.Contains(CurrentLogger!.Collector.Snapshot(),
             record => record.Message.Contains(
-                "unified-bytecode-production-fast-path func=assignArguments argc=1",
+                "unified-bytecode-production-fast-path func=pass argc=2",
                 StringComparison.Ordinal));
     }
 

@@ -1404,6 +1404,8 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
             new UnifiedBytecodeProductionActivationDescriptor(
                 AllowsOrdinaryDynamicIdentifierEnvironmentOperations: true));
 
+        Assert.True(
+            UnifiedBytecodeProductionEligibility.ContainsOnlyImplicitArgumentsObjectDynamicIdentifierDependency(plan));
         Assert.True(result.IsEligible, result.Reason);
         Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
         Assert.Contains(result.Program.Instructions, instruction =>
@@ -2246,6 +2248,8 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
             new UnifiedBytecodeProductionActivationDescriptor(
                 AllowsOrdinaryDynamicIdentifierEnvironmentOperations: true));
 
+        Assert.True(
+            UnifiedBytecodeProductionEligibility.ContainsOnlyImplicitArgumentsObjectDynamicIdentifierDependency(plan));
         Assert.True(result.IsEligible, result.Reason);
         Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
         Assert.Contains(result.Program.Instructions, instruction =>
@@ -6691,6 +6695,77 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
 
         Assert.True(result.IsEligible, result.Reason);
         Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+    }
+
+    [Fact]
+    public void Evaluate_AssignImplicitArgumentsObjectExpressionResult_AcceptsDynamicIdentifierReference()
+    {
+        var plan = GetFunctionPlan("""
+            function assignArguments() {
+                return (arguments = 1);
+            }
+            """,
+            "assignArguments");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor(
+                AllowsOrdinaryDynamicIdentifierEnvironmentOperations: true));
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.ResolveDynamicIdentifierReference);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.StoreDynamicIdentifierReference);
+    }
+
+    [Fact]
+    public void Evaluate_CallArgumentImplicitArgumentsAssignment_AcceptsDynamicIdentifierReference()
+    {
+        var plan = GetFunctionPlan("""
+            function pass(reader) {
+                return reader(arguments = 7);
+            }
+            """,
+            "pass");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor(
+                AllowsOrdinaryDynamicIdentifierEnvironmentOperations: true));
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.ResolveDynamicIdentifierReference);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.StoreDynamicIdentifierReference);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.CallInvocationBoundary);
+    }
+
+    [Fact]
+    public void Evaluate_CallArgumentImplicitArgumentsCallTarget_AcceptsDynamicIdentifierCallTarget()
+    {
+        var plan = GetFunctionPlan("""
+            function pass(reader) {
+                return reader(arguments());
+            }
+            """,
+            "pass");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor(
+                AllowsOrdinaryDynamicIdentifierEnvironmentOperations: true));
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.PrepareDynamicIdentifierCallTarget);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.CallInvocationBoundary);
     }
 
     [Fact]

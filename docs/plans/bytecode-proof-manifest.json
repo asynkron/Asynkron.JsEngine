@@ -99,6 +99,78 @@
       ]
     },
     {
+      "id": "A51f4",
+      "title": "Implicit arguments expression-loop assignments and call targets route",
+      "status": "done",
+      "proofs": [
+        {
+          "id": "A51f4-expression-result-arguments-assignment-routes",
+          "claim": "admitted",
+          "kind": "runtime",
+          "source": "function assignArguments() {\n  return (arguments = 1);\n}\nassignArguments(41);",
+          "expectedResult": "1",
+          "requiredLogs": [
+            "unified-bytecode-production-fast-path func=assignArguments argc=1"
+          ]
+        },
+        {
+          "id": "A51f4-call-argument-arguments-assignment-routes",
+          "claim": "admitted",
+          "kind": "runtime",
+          "source": "function pass(reader) {\n  return reader(arguments = 7);\n}\npass(function (value) { return value + 1; }, 41);",
+          "expectedResult": "8",
+          "requiredLogs": [
+            "unified-bytecode-production-fast-path func=pass argc=2"
+          ]
+        },
+        {
+          "id": "A51f4-call-argument-arguments-call-target-routes",
+          "claim": "admitted",
+          "kind": "runtime",
+          "source": "function pass(reader) {\n  return reader(arguments());\n}\nvar observed = '';\ntry {\n  pass(function (value) { return value; }, 41);\n} catch (e) {\n  observed = e.name;\n}\nobserved;",
+          "expectedResult": "TypeError",
+          "requiredLogs": [
+            "unified-bytecode-production-fast-path func=pass argc=2"
+          ]
+        },
+        {
+          "id": "A51f4-arguments-assignment-reference-decline-absent",
+          "claim": "source-ratchet",
+          "kind": "source-absence",
+          "path": "src/Asynkron.JsEngine/Execution/UnifiedBytecode/UnifiedBytecodeCompiler.cs",
+          "pattern": "arguments assignment references are not supported."
+        },
+        {
+          "id": "A51f4-complex-call-arguments-assignment-decline-absent",
+          "claim": "source-ratchet",
+          "kind": "source-absence",
+          "path": "src/Asynkron.JsEngine/Execution/UnifiedBytecode/UnifiedBytecodeCompiler.cs",
+          "pattern": "arguments assignment references are not supported in complex call arguments."
+        },
+        {
+          "id": "A51f4-complex-call-arguments-call-target-decline-absent",
+          "claim": "source-ratchet",
+          "kind": "source-absence",
+          "path": "src/Asynkron.JsEngine/Execution/UnifiedBytecode/UnifiedBytecodeCompiler.cs",
+          "pattern": "arguments call targets are not supported in complex call arguments."
+        },
+        {
+          "id": "A51f4-optional-call-target-arguments-decline-absent",
+          "claim": "source-ratchet",
+          "kind": "source-absence",
+          "path": "src/Asynkron.JsEngine/Execution/UnifiedBytecode/UnifiedBytecodeCompiler.cs",
+          "pattern": "arguments call targets are outside the optional identifier call-target preparation boundary."
+        },
+        {
+          "id": "A51f4-arguments-typeof-decline-absent",
+          "claim": "source-ratchet",
+          "kind": "source-absence",
+          "path": "src/Asynkron.JsEngine/Execution/UnifiedBytecode/UnifiedBytecodeCompiler.cs",
+          "pattern": "arguments typeof is not supported."
+        }
+      ]
+    },
+    {
       "id": "B24d",
       "title": "Static-block-only resumable class expressions route through LoadClassLiteral",
       "status": "done",

@@ -25,7 +25,7 @@ public sealed class ExpressionProgramCoverageMapTests
         "pre-gate:IsGenerator",
         "pre-gate:hasParameterExpressions",
         "pre-gate:hasOnlySimpleIdentifierParameters",
-        "pre-gate:usesArguments",
+        "pre-gate:boundedImplicitArgumentsDependency",
         "pre-gate:needsArgumentsBinding",
         "pre-gate:allowIdentifierCache",
         "pre-gate:lexicalThisEnvironment",

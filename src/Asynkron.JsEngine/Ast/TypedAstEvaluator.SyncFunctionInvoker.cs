@@ -3294,14 +3294,14 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                 return _unifiedBytecodeProductionEligibility == UnifiedBytecodeEligibilityAccepted;
             }
 
-            var canUseImplicitArgumentsObjectReadPath =
-                CanUseProductionUnifiedBytecodeImplicitArgumentsObjectReadPath(plan);
+            var canUseImplicitArgumentsObjectDependencyPath =
+                CanUseProductionUnifiedBytecodeImplicitArgumentsObjectDependencyPath(plan);
             var canUseFinalRestParameterPath =
                 CanUseProductionUnifiedBytecodeFinalRestParameterPath(
-                    canUseImplicitArgumentsObjectReadPath);
+                    canUseImplicitArgumentsObjectDependencyPath);
             var canUseSimpleLiteralDefaultParameterPath =
                 CanUseProductionUnifiedBytecodeSimpleLiteralDefaultParameterPath(
-                    canUseImplicitArgumentsObjectReadPath);
+                    canUseImplicitArgumentsObjectDependencyPath);
             var result = UnifiedBytecodeProductionEligibility.Evaluate(
                 plan,
                 CreateProductionUnifiedBytecodeActivationDescriptor(
@@ -3311,9 +3311,9 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                     CanUseProductionUnifiedBytecodeCapturedClosureActivation(plan, newTarget),
                     CanUseProductionUnifiedBytecodeDerivedClassConstructorActivation(plan, newTarget),
                     CanUseProductionUnifiedBytecodeBaseClassConstructorActivation(plan, newTarget),
-                    canUseImplicitArgumentsObjectReadPath,
+                    canUseImplicitArgumentsObjectDependencyPath,
                     allowImplicitArgumentsObjectPropertyReadOperands:
-                        canUseImplicitArgumentsObjectReadPath &&
+                        canUseImplicitArgumentsObjectDependencyPath &&
                         (canUseSimpleLiteralDefaultParameterPath ||
                          canUseFinalRestParameterPath)));
 
@@ -3370,14 +3370,14 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                 CanUseProductionUnifiedBytecodeDerivedClassConstructorActivation(plan, newTarget);
             var canUseBaseClassConstructorPath =
                 CanUseProductionUnifiedBytecodeBaseClassConstructorActivation(plan, newTarget);
-            var canUseImplicitArgumentsObjectReadPath =
-                CanUseProductionUnifiedBytecodeImplicitArgumentsObjectReadPath(plan);
+            var canUseImplicitArgumentsObjectDependencyPath =
+                CanUseProductionUnifiedBytecodeImplicitArgumentsObjectDependencyPath(plan);
             var canUseFinalRestParameterPath =
                 CanUseProductionUnifiedBytecodeFinalRestParameterPath(
-                    canUseImplicitArgumentsObjectReadPath);
+                    canUseImplicitArgumentsObjectDependencyPath);
             var canUseSimpleLiteralDefaultParameterPath =
                 CanUseProductionUnifiedBytecodeSimpleLiteralDefaultParameterPath(
-                    canUseImplicitArgumentsObjectReadPath);
+                    canUseImplicitArgumentsObjectDependencyPath);
             var hasAdmittedParameterShape =
                 _hasOnlySimpleIdentifierParameters ||
                 canUseSimpleLiteralDefaultParameterPath ||
@@ -3391,7 +3391,7 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                 canUseCapturedClosurePath,
                 canUseDerivedClassConstructorPath,
                 canUseBaseClassConstructorPath,
-                canUseImplicitArgumentsObjectReadPath);
+                canUseImplicitArgumentsObjectDependencyPath);
             if (UnifiedBytecodeProductionEligibility.TryFindOrdinarySyncActivationDecline(
                     activation,
                     out _,
@@ -3414,7 +3414,7 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                        canUseOrdinaryDynamicNamePath ||
                        canUseArrowFunctionPath ||
                        canUseCapturedClosurePath ||
-                       canUseImplicitArgumentsObjectReadPath) ||
+                       canUseImplicitArgumentsObjectDependencyPath) ||
                    (canUseDerivedClassConstructorPath || canUseBaseClassConstructorPath) &&
                    plan.ActivationSlots is not null;
         }
@@ -3435,12 +3435,13 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
             bool canUseCapturedClosurePath = false,
             bool canUseDerivedClassConstructorPath = false,
             bool canUseBaseClassConstructorPath = false,
-            bool canUseImplicitArgumentsObjectReadPath = false,
+            bool canUseImplicitArgumentsObjectDependencyPath = false,
             bool allowImplicitArgumentsObjectPropertyReadOperands = false)
         {
             var hasUnprovenDynamicActivation = !_allowIdentifierCache &&
                                                !canUseDynamicNamePath &&
                                                !canUseOrdinaryDynamicNamePath &&
+                                               !canUseImplicitArgumentsObjectDependencyPath &&
                                                !_hasDirectEvalInBodyOrParameters;
             return new UnifiedBytecodeProductionActivationDescriptor(
                 IsAsyncLike: IsAsyncLike,
@@ -3454,7 +3455,7 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                 HasArgumentsObjectDependency:
                     !_hasDirectEvalInBodyOrParameters &&
                     _argumentsObjectNeeded &&
-                    !canUseImplicitArgumentsObjectReadPath &&
+                    !canUseImplicitArgumentsObjectDependencyPath &&
                     (_usesArguments || _needsArgumentsBinding && !canUseDynamicNamePath),
                 HasArrowLexicalThisDependency:
                     IsArrowFunction && !canUseArrowFunctionPath || _lexicalThisEnvironment is not null,
@@ -3463,7 +3464,7 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                 HasDynamicLookupDependency: hasUnprovenDynamicActivation,
                 AllowsOrdinaryDynamicIdentifierEnvironmentOperations:
                     canUseOrdinaryDynamicNamePath ||
-                    canUseImplicitArgumentsObjectReadPath ||
+                    canUseImplicitArgumentsObjectDependencyPath ||
                     canUseArrowFunctionPath ||
                     canUseCapturedClosurePath,
                 AllowsImplicitArgumentsObjectPropertyReadOperands:
@@ -4195,10 +4196,9 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                    UnifiedBytecodeProductionEligibility.ContainsOrdinaryDynamicIdentifierDependency(plan);
         }
 
-        private bool CanUseProductionUnifiedBytecodeImplicitArgumentsObjectReadPath(ExecutionPlan plan)
+        private bool CanUseProductionUnifiedBytecodeImplicitArgumentsObjectDependencyPath(ExecutionPlan plan)
         {
-            return _usesArguments &&
-                   _argumentsObjectNeeded &&
+            return _argumentsObjectNeeded &&
                    !_hasDirectEvalInBodyOrParameters &&
                    !_hasClosureWithObject &&
                    !_hasCapturedActivationInClosure &&

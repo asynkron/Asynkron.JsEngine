@@ -454,7 +454,10 @@ activation-target calls whose argument region is already admitted by the
 production complex-call-argument walker, and whose field initializer programs
 plus constructor/member bodies do not capture activation slots, including mixes
 with non-computed public fields/methods/accessors under the same activation-safety
-rules. Full bytecode execution is not done: class-literal creation still calls
+rules, plus public non-computed static methods/accessors whose bodies do not
+capture activation slots and public non-computed static-field class literals with
+`extends` whose initializers compile as standalone unified bytecode and create no
+nested closure. Full bytecode execution is not done: class-literal creation still calls
 class-definition machinery that resolves extends/computed names/field
 initializers through expression programs and static blocks through
 `ExecutionPlanRunner.RunScript`; `extends` expressions that read resumable
@@ -463,8 +466,8 @@ that environment bridge. The remaining B24h and B24i shapes remain declined by
 the resumable shape gate: computed names that use direct-eval/spread/construct/super
 or otherwise unadmitted call-target shapes, or create nested activation captures
 still stay outside B24h, and
-static/private/capturing public accessor neighbors remain outside the B24g/B24h
-subsets.
+private/capturing public accessor neighbors and mixed static-member/static-field
+shapes remain outside the admitted B24 subsets.
 
 - `B24a:ClassExpressionConstructor`
 - `B24b:ClassExpressionInstanceFields`

@@ -162,15 +162,16 @@ and the resumable instruction gap inventory has **0** remaining gaps.
 
 Class Literal Resumable Parity now has one checklist-open B24 row: **B24h**.
 The maintained checklist marks B24a-B24g complete and B24i complete for the
-activation-safe public non-computed `super` subset, but the B24i closure is not
-a claim of full class-definition bytecode execution. Static, computed, private,
-capturing, or otherwise mixed `super` class-member shapes remain bounded by the
-same class-definition environment bridge as the B24h residue. Treat any parent
-plan item that marked the B24h child complete as partial-slice closure only; the
-source-of-truth checklist still keeps B24h open until unadmitted call-target
-ownership, nested activation-capturing computed names, computed-super overlap,
-private/capturing neighbors, static-block overlap, and the broader
-class-definition environment bridge are owned.
+activation-safe public non-computed `super` subset, now including public static
+methods/accessors and public static field initializers with `super`. That B24i
+closure is not a claim of full class-definition bytecode execution. Computed,
+private, capturing, or otherwise mixed `super` class-member shapes remain
+bounded by the same class-definition environment bridge as the B24h residue.
+Treat any parent plan item that marked the B24h child complete as partial-slice
+closure only; the source-of-truth checklist still keeps B24h open until
+unadmitted call-target ownership, nested activation-capturing computed names,
+computed-super overlap, private/capturing neighbors, static-block overlap, and
+the broader class-definition environment bridge are owned.
 
 The remaining non-retirement work is concentrated in:
 
@@ -193,8 +194,8 @@ The remaining non-retirement work is concentrated in:
   diagnostics.
 - B24h class-definition state: computed-name/class element neighbors that still
   need unadmitted call-target ownership, computed-super overlap, mixed
-  private/capturing class shapes, closure-producing static blocks, and broader
-  class-definition environment bridging.
+  private/capturing class shapes, mixed/closure-producing static blocks, and
+  broader class-definition environment bridging.
 - B36 resumable declarations: dynamic/eval helpers plus complex class
   declarations (nested activation-capturing computed names with `extends`,
   closure-producing static blocks, closure-producing static field initializers,
@@ -243,6 +244,7 @@ is removed, or a proof gate becomes stricter.
 
 | Date | Gate surface | Concrete movement | Proof signal |
 |---|---|---|---|
+| 2026-06-06 | B24 partial: static public class-expression members and `super` fields | Resumable generator bodies now admit `LoadClassLiteral` for public non-computed static class-expression methods/accessors whose bodies do not capture resumable activation slots, plus public non-computed static-field class expressions with `extends` when initializers compile as standalone unified bytecode and do not create closures. This removes the previous class-expression asymmetry where declaration-side static `super` methods/fields routed but expression-side static `super` methods/fields declined. Checklist totals stay `127 / 145` and A+B+C+D stays `119 / 134` because B24h remains open for computed/private/capturing/mixed class-definition state. | `EvaluateResumable_ClassExpressionStaticPublicAccessor_AdmitsLoadClassLiteral`, `EvaluateResumable_ClassExpressionStaticPublicMethodWithSuper_AdmitsLoadClassLiteral`, `EvaluateResumable_ClassExpressionStaticPublicFieldInitializerWithSuper_AdmitsLoadClassLiteral`, `GeneratorClassExpressionStaticPublicAccessor_RoutesResumableAndPreservesReceiver`, `GeneratorClassExpressionStaticPublicMethodWithSuper_RoutesResumableAndPreservesSuperclass`, `GeneratorClassExpressionStaticPublicFieldWithSuper_RoutesResumableAndPreservesSuperclass`, and `BytecodeProofManifestTests` rows `B24i-static-public-accessor-routes`, `B24i-static-public-super-method-routes`, and `B24i-static-public-super-field-routes`. |
 | 2026-06-06 | B36 proof: static public super fields with `extends` | The public static-field `extends` subset is now explicitly proved to include static field initializers that use `super`, such as `class Box extends Base { static field = super.value + 1; }`. No production code change was needed: the existing B36 static-field helper already admitted public non-computed static fields whose initializer compiles as standalone unified bytecode and does not create a nested closure. Checklist totals stay `127 / 145` and A+B+C+D stays `119 / 134`; this removes a stale remaining-boundary mention rather than closing B36. | `EvaluateResumable_ClassDeclarationExtendsStaticPublicFieldWithSuper_AdmitsDeclareClass`, `GeneratorClassDeclarationExtendsStaticPublicFieldWithSuper_RoutesResumableAndPreservesSuperclass`, and `BytecodeProofManifestTests` row `B36-class-declaration-extends-static-public-super-field-routes`. |
 | 2026-06-06 | B36 partial: static public super members with `extends` | Resumable generator bodies now admit direct root `extends` class declarations whose class body contains public non-computed static methods/accessors that use `super`, such as `class Box extends Base { static value() { return super.value() + 1; } }`, when those static member bodies do not capture resumable activation slots. This is a B36 declaration-side contraction; static super field initializers are covered by the public static-field proof row above. The runtime proof requires both the outer `DeclareClass` generator route and the invoked static method body's production unified-bytecode route. Checklist totals stay `127 / 145` and A+B+C+D stays `119 / 134` because this is a partial B36 contraction. | `EvaluateResumable_ClassDeclarationExtendsStaticPublicMethodWithSuper_AdmitsDeclareClass`, `EvaluateResumable_ClassDeclarationExtendsStaticPublicMethodWithSuperCapturesActivation_DeclinesBeforeVm`, `GeneratorClassDeclarationExtendsStaticPublicMethodWithSuper_RoutesResumableAndPreservesSuperclass`, `BytecodeProofManifestTests` rows `B36-class-declaration-extends-static-public-super-method-routes` and `B36-class-declaration-extends-static-public-super-method-captures-activation-declines`. |
 | 2026-06-06 | B36 partial: public instance super fields with `extends` | Resumable generator bodies now admit direct root `extends` class declarations whose class body contains public non-computed instance fields initialized from `super`, such as `class Box extends Base { field = super.value + 1; }`, when those field initializers do not capture resumable activation slots. The selector checks the lowered initializer expression program for `super` ownership and preserves the same activation-capture boundary as B24i class expressions. Checklist totals stay `127 / 145` and A+B+C+D stays `119 / 134` because this is a partial B36 contraction. | `EvaluateResumable_ClassDeclarationExtendsPublicFieldWithSuper_AdmitsDeclareClass`, `EvaluateResumable_ClassDeclarationExtendsPublicFieldWithSuperCapturesActivation_DeclinesBeforeVm`, `GeneratorClassDeclarationExtendsPublicFieldWithSuper_RoutesResumableAndPreservesReceiver`, `BytecodeProofManifestTests` rows `B36-class-declaration-extends-public-super-field-routes` and `B36-class-declaration-extends-public-super-field-captures-activation-declines`. |

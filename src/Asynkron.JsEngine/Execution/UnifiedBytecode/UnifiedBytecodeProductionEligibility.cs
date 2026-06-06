@@ -3383,16 +3383,6 @@ internal static class UnifiedBytecodeProductionEligibility
             return false;
         }
 
-        foreach (var member in definition.Members)
-        {
-            if (FunctionCapturesActivationSlot(member.Callable.Function, activationSlots, out var capturedName))
-            {
-                declineReason =
-                    $"Class declaration public super member body captures activation binding '{capturedName}' and needs the materialized body environment route.";
-                return false;
-            }
-        }
-
         return true;
     }
 
@@ -3432,16 +3422,6 @@ internal static class UnifiedBytecodeProductionEligibility
                 out declineReason))
         {
             return false;
-        }
-
-        foreach (var member in definition.Members)
-        {
-            if (FunctionCapturesActivationSlot(member.Callable.Function, activationSlots, out var capturedName))
-            {
-                declineReason =
-                    $"Class declaration public static super member body captures activation binding '{capturedName}' and needs the materialized body environment route.";
-                return false;
-            }
         }
 
         return true;

@@ -16,6 +16,7 @@ public sealed class UnifiedBytecodeResumableClassDeclarationTests(ITestOutputHel
     : InternalTestBase(output)
 {
     private const string ResumableGeneratorFastPathLog = "unified-bytecode-resumable-generator-fast-path";
+    private const string ProductionFastPathLog = "unified-bytecode-production-fast-path";
     private const string ResumableAsyncFastPathLog = "unified-bytecode-resumable-async-fast-path";
     private const string ResumableAsyncGeneratorFastPathLog =
         "unified-bytecode-resumable-async-generator-fast-path";
@@ -289,7 +290,7 @@ public sealed class UnifiedBytecodeResumableClassDeclarationTests(ITestOutputHel
     }
 
     [Fact]
-    public void EvaluateResumable_ClassDeclarationExtendsPublicMethodWithSuperCapturesActivation_DeclinesBeforeVm()
+    public void EvaluateResumable_ClassDeclarationExtendsPublicMethodWithSuperCapturesActivation_AdmitsDeclareClass()
     {
         var plan = GetFunctionPlan("""
             class Base {
@@ -310,12 +311,11 @@ public sealed class UnifiedBytecodeResumableClassDeclarationTests(ITestOutputHel
             plan,
             new UnifiedBytecodeProductionActivationDescriptor(IsGenerator: true));
 
-        Assert.False(result.IsEligible);
-        Assert.Equal(UnifiedBytecodeProductionDeclineCode.UnsupportedPlanShape, result.Code);
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
         Assert.Contains(
-            "public super member body captures activation binding 'seed'",
-            result.Reason,
-            StringComparison.Ordinal);
+            result.Program.Instructions,
+            static instruction => instruction.OpCode == UnifiedBytecodeOpCode.DeclareClass);
     }
 
     [Fact]
@@ -407,7 +407,7 @@ public sealed class UnifiedBytecodeResumableClassDeclarationTests(ITestOutputHel
     }
 
     [Fact]
-    public void EvaluateResumable_ClassDeclarationExtendsStaticPublicMethodWithSuperCapturesActivation_DeclinesBeforeVm()
+    public void EvaluateResumable_ClassDeclarationExtendsStaticPublicMethodWithSuperCapturesActivation_AdmitsDeclareClass()
     {
         var plan = GetFunctionPlan("""
             class Base {
@@ -428,12 +428,11 @@ public sealed class UnifiedBytecodeResumableClassDeclarationTests(ITestOutputHel
             plan,
             new UnifiedBytecodeProductionActivationDescriptor(IsGenerator: true));
 
-        Assert.False(result.IsEligible);
-        Assert.Equal(UnifiedBytecodeProductionDeclineCode.UnsupportedPlanShape, result.Code);
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
         Assert.Contains(
-            "public static super member body captures activation binding 'seed'",
-            result.Reason,
-            StringComparison.Ordinal);
+            result.Program.Instructions,
+            static instruction => instruction.OpCode == UnifiedBytecodeOpCode.DeclareClass);
     }
 
     [Fact]
@@ -877,6 +876,40 @@ public sealed class UnifiedBytecodeResumableClassDeclarationTests(ITestOutputHel
     }
 
     [Fact(Timeout = 5000)]
+    public async Task GeneratorClassDeclarationExtendsPublicMethodWithSuperCapturesActivation_RoutesResumable()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            class Base {
+                value() { return this.seed + 1; }
+            }
+
+            function* g(seed) {
+                yield "ready";
+                class Box extends Base {
+                    constructor(value) {
+                        super();
+                        this.seed = value;
+                    }
+
+                    value() { return super.value() + seed; }
+                }
+                var box = new Box(40);
+                yield box.value() + "|" + (box instanceof Base);
+            }
+
+            var iterator = g(1);
+            var first = iterator.next();
+            var second = iterator.next();
+            first.value + ":" + first.done + "|" + second.value + ":" + second.done;
+            """);
+
+        Assert.Equal("ready:false|42|true:false", result);
+        AssertGeneratorFastPath("g", argc: 1);
+        AssertProductionFastPath("<anonymous>");
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task GeneratorClassDeclarationExtendsPublicFieldWithSuper_RoutesResumableAndPreservesReceiver()
     {
         await using var engine = CreateEngine();
@@ -932,6 +965,35 @@ public sealed class UnifiedBytecodeResumableClassDeclarationTests(ITestOutputHel
 
         Assert.Equal("ready:false|42|true:false", result);
         AssertGeneratorFastPath("g", argc: 0);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task GeneratorClassDeclarationExtendsStaticPublicMethodWithSuperCapturesActivation_RoutesResumable()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            class Base {
+                static value() { return 40; }
+            }
+
+            function* g(seed) {
+                yield "ready";
+                class Box extends Base {
+                    static value() { return super.value() + seed; }
+                }
+                var box = new Box();
+                yield Box.value() + "|" + (box instanceof Base);
+            }
+
+            var iterator = g(2);
+            var first = iterator.next();
+            var second = iterator.next();
+            first.value + ":" + first.done + "|" + second.value + ":" + second.done;
+            """);
+
+        Assert.Equal("ready:false|42|true:false", result);
+        AssertGeneratorFastPath("g", argc: 1);
+        AssertProductionFastPath("<anonymous>");
     }
 
     [Fact(Timeout = 5000)]
@@ -1158,6 +1220,12 @@ public sealed class UnifiedBytecodeResumableClassDeclarationTests(ITestOutputHel
         Assert.Contains(CurrentLogger!.Collector.Snapshot(),
             record => record.Message.Contains(
                 $"{ResumableGeneratorFastPathLog} func={functionName} argc={argc}",
+                StringComparison.Ordinal));
+
+    private void AssertProductionFastPath(string functionName) =>
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            record => record.Message.Contains(
+                $"{ProductionFastPathLog} func={functionName}",
                 StringComparison.Ordinal));
 
     private static ExecutionPlan GetFunctionPlan(string source, string functionName)

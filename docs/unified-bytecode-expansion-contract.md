@@ -770,7 +770,7 @@ predicates and proof tests.
   `ResolveDynamicIdentifierReference` / `LoadDynamicIdentifierReference` and
   either `StoreDynamicIdentifierReference` or `PopDynamicIdentifierReference`
   for short-circuit cleanup),
-  super-property reads/updates/deletes, and
+  super-property deletes, and
   super-construct boundaries (`SuperConstructInvocationBoundary`, which
   remains outside legal generator/async source shapes and stays declined)
   inside resumable bodies remain outside it.
@@ -847,8 +847,8 @@ predicates and proof tests.
 - Private-name operations outside admitted `#name in obj`, direct private
   reads/writes/updates, direct private compound/logical writes, and direct
   private named method calls.
-- Awaited for-in sources, async iterator drivers, and unsupported for-in driver
-  state.
+- Residual for-in/iterator driver state outside the admitted awaited for-in and
+  async-iterator lanes, plus remaining driver slot/topology leaves.
 - Awaited destructuring binding values, unsupported destructuring driver shapes,
   and destructuring targets outside direct-slot or descriptor-backed lanes.
 - Missing slot metadata, unsupported instruction families, unsupported compiler
@@ -1387,19 +1387,22 @@ the final post-compile production subset check before VM entry.
 - `break` compiles as `JumpWithDriverCleanup`; before transferring control the
   VM closes active driver states whose descriptor break target matches the jump
   target. `continue` remains a plain same-loop `Jump`.
-- Accepted sync iterator driver shapes include `IteratorInit`,
-  `IteratorMoveNext`, and `IteratorClose` when the iterator kind is `Sync` and
-  the iterable source is lowered to exactly one expression bytecode payload.
-  That includes resumable async `for (x of await p)` sources, which compile the
-  awaited source payload followed by `AwaitValue` and `IteratorInit`. Slice A
+- Accepted iterator driver shapes include `IteratorInit`, `IteratorMoveNext`,
+  and `IteratorClose` when the iterator kind is `Sync` or `Await` and the
+  iterable source is lowered to exactly one expression bytecode payload. The
+  `Await` kind covers `for await...of`: `ExecuteResumable` owns async iterator
+  `next`/value awaits and close settlement. The accepted sync lane also includes
+  resumable async `for (x of await p)` sources, which compile the awaited source
+  payload followed by `AwaitValue` and `IteratorInit`. Slice A
   (#2678) also admits a TDZ head environment (`for (const x of …)` /
   `for (let x of …)`): the compiler emits a
   `TdzHeadInit` instruction that resolves the head bindings to flat slots, and
   the VM marks them `JsValue.Uninitialized` before the source is evaluated so a
   read of the head binding inside the source throws a `ReferenceError`.
 - Accepted for-in driver shapes include `ForInInit` and `ForInMoveNext` when
-  the object source is lowered to synchronous expression bytecode and no awaited
-  source program is required. Slice A (#2678) also admits a TDZ head environment
+  the object source is lowered to synchronous expression bytecode or an awaited
+  source payload followed by `AwaitValue`. That covers the resumable
+  `for (k in await p)` lane. Slice A (#2678) also admits a TDZ head environment
   (`for (const k in …)` / `for (let k in …)`) via the same `TdzHeadInit`
   mechanism. The VM owns driver state and skips deleted properties during
   enumeration.
@@ -1433,11 +1436,11 @@ the final post-compile production subset check before VM entry.
   TDZ, and iterator-closing semantics stay centralized.
 - Object destructuring with computed/dynamic keys, defaults, nested patterns,
   or rest targets that cannot resolve to unified slots outside the
-  descriptor-backed assignment lane, async iterator drivers, awaited driver
-  sources, dynamic-name shapes, and targets that cannot resolve to unified
-  slots still decline before VM execution. Sync-driver TDZ head environments
-  are now admitted (Slice A, #2678); async-kind and awaited-source TDZ heads
-  remain declined.
+  descriptor-backed assignment lane, destructuring async-source/awaited-source
+  driver shapes, dynamic-name shapes, and targets that cannot resolve to
+  unified slots still decline before VM execution. Sync-driver TDZ head
+  environments are now admitted (Slice A, #2678); destructuring async-kind and
+  awaited-source TDZ heads remain declined.
 
 ## Production Resumable Boundary
 - Current production resumable support is a separate async/generator route with
@@ -1853,10 +1856,9 @@ support today.
 
 ## Iterator/Destructuring Model Boundary
 - `IteratorInitInstruction`, `IteratorMoveNextInstruction`, and
-  `IteratorCloseInstruction` are eligible for the synchronous lowered
-  iterator-driver model described above, including the resumable awaited-source
-  `for (x of await p)` lane. Async iterator drivers still remain outside the
-  admitted boundary.
+  `IteratorCloseInstruction` are eligible for the lowered iterator-driver model
+  described above, including sync drivers, async-kind `for await...of` drivers,
+  and the resumable awaited-source `for (x of await p)` lane.
 - `ForInInitInstruction` and `ForInMoveNextInstruction` are eligible for the
   lowered synchronous for-in driver model and the resumable awaited-source
   `for (k in await p)` lane described above. Unsupported for-in driver shapes
@@ -1967,8 +1969,9 @@ support today.
    (`for (const x of …)` / `for (let k in …)`) are now admitted via the
    `TdzHeadInit` instruction (Slice A, #2678; see ADR 0288). Resumable awaited
    for-of and for-in sources are admitted for the `for (x of await p)` and
-   `for (k in await p)` lanes; async iterator drivers remain outside the
-   admitted boundary and must decline before VM execution.
+   `for (k in await p)` lanes; async-kind `for await...of` iterator drivers are
+   also admitted. The remaining driver work is residual slot/topology and
+   unsupported driver-shape coverage, not the base async iterator kind.
 5. Destructuring widening is still model-first. Simple array and object
    destructuring driver shapes are admitted (static keys, identifier targets,
    no defaults/nested patterns, optional identifier rest), and expression-level

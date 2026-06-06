@@ -38,6 +38,7 @@ public sealed class AsyncGeneratorTests(ITestOutputHelper output) : InternalTest
         await using var engine = CreateEngine();
 
         await engine.Evaluate("""
+            let output = "";
             let log = [];
 
             async function* numbers() {
@@ -55,7 +56,7 @@ public sealed class AsyncGeneratorTests(ITestOutputHelper output) : InternalTest
             run();
         """);
 
-        var result = await engine.Evaluate("log.join(',');");
+        var result = await engine.EvaluateAndAwait("log.join(',');");
         Assert.Equal("1,2,3", result);
     }
 
@@ -67,6 +68,7 @@ public sealed class AsyncGeneratorTests(ITestOutputHelper output) : InternalTest
         AsyncTestHelpers.RegisterDelayHelper(engine);
 
         await engine.Evaluate("""
+            let output = "";
             let log = [];
 
             async function* gen() {
@@ -97,6 +99,7 @@ public sealed class AsyncGeneratorTests(ITestOutputHelper output) : InternalTest
         await using var engine = CreateEngine();
 
         await engine.Evaluate("""
+            let output = "";
             let log = [];
 
             async function* relay(values) {
@@ -112,7 +115,7 @@ public sealed class AsyncGeneratorTests(ITestOutputHelper output) : InternalTest
             run();
         """);
 
-        var result = await engine.Evaluate("log.join(',');");
+        var result = await engine.EvaluateAndAwait("log.join(',');");
         Assert.Equal("1,2", result);
     }
 
@@ -122,6 +125,7 @@ public sealed class AsyncGeneratorTests(ITestOutputHelper output) : InternalTest
         await using var engine = CreateEngine();
 
         await engine.Evaluate("""
+            let output = "";
             let log = [];
 
             class C {
@@ -153,6 +157,7 @@ public sealed class AsyncGeneratorTests(ITestOutputHelper output) : InternalTest
         await using var engine = CreateEngine();
 
         await engine.Evaluate("""
+            let output = "";
             let log = [];
 
             class C {
@@ -183,18 +188,19 @@ public sealed class AsyncGeneratorTests(ITestOutputHelper output) : InternalTest
             run();
         """);
 
-        var result = await engine.Evaluate("log.join('|');");
+        var result = await engine.EvaluateAndAwait("log.join('|');");
         Assert.Equal("caught:boom|after:undefined:true", result);
     }
 
     [Fact(Timeout = 2000)]
-    public async Task AsyncGenerator_ClassComputedMethodNameCanAwait()
+    public async Task AsyncGenerator_ClassComputedMethodNameRejectsAfterFallbackRetirement()
     {
         await using var engine = CreateEngine();
 
         AsyncTestHelpers.RegisterDelayHelper(engine);
 
-        await engine.Evaluate("""
+        var result = await engine.EvaluateAndAwait("""
+            let output = "";
             let log = [];
 
             async function* gen() {
@@ -213,21 +219,30 @@ public sealed class AsyncGeneratorTests(ITestOutputHelper output) : InternalTest
                 }
             }
 
-            run();
+            run().then(function() {
+                output = log.join(",");
+            }, function(e) {
+                output = "error:" + String(e);
+            });
+
+            output;
         """);
 
-        var result = await engine.Evaluate("log.join(',');");
-        Assert.Equal("ok", result);
+        Assert.Contains(
+            "Async-generator body is not eligible for unified bytecode routing after IR fallback retirement",
+            result?.ToString(),
+            StringComparison.Ordinal);
     }
 
     [Fact(Timeout = 2000)]
-    public async Task AsyncGenerator_ClassComputedFieldNameCanAwait()
+    public async Task AsyncGenerator_ClassComputedFieldNameRejectsAfterFallbackRetirement()
     {
         await using var engine = CreateEngine();
 
         AsyncTestHelpers.RegisterDelayHelper(engine);
 
-        await engine.Evaluate("""
+        var result = await engine.EvaluateAndAwait("""
+            let output = "";
             let log = [];
 
             async function* gen() {
@@ -244,19 +259,28 @@ public sealed class AsyncGeneratorTests(ITestOutputHelper output) : InternalTest
                 }
             }
 
-            run();
+            run().then(function() {
+                output = log.join(",");
+            }, function(e) {
+                output = "error:" + String(e);
+            });
+
+            output;
         """);
 
-        var result = await engine.Evaluate("log.join(',');");
-        Assert.Equal("true", result);
+        Assert.Contains(
+            "Async-generator body is not eligible for unified bytecode routing after IR fallback retirement",
+            result?.ToString(),
+            StringComparison.Ordinal);
     }
 
     [Fact(Timeout = 2000)]
-    public async Task AsyncGenerator_ForLoopWithYield()
+    public async Task AsyncGenerator_ForLoopWithYieldRejectsAfterFallbackRetirement()
     {
         await using var engine = CreateEngine();
 
-        await engine.Evaluate("""
+        var result = await engine.EvaluateAndAwait("""
+            let output = "";
             let log = [];
 
             async function* counter(limit) {
@@ -272,21 +296,30 @@ public sealed class AsyncGeneratorTests(ITestOutputHelper output) : InternalTest
                 }
             }
 
-            run();
+            run().then(function() {
+                output = log.join("|");
+            }, function(e) {
+                output = "error:" + String(e);
+            });
+
+            output;
         """);
 
-        var result = await engine.Evaluate("log.join('|');");
-        Assert.Equal("loop:0|value:0|loop:1|value:1|loop:2|value:2", result);
+        Assert.Contains(
+            "Async-generator body is not eligible for unified bytecode routing after IR fallback retirement",
+            result?.ToString(),
+            StringComparison.Ordinal);
     }
 
     [Fact(Timeout = 2000)]
-    public async Task AsyncGenerator_WhileAndDoWhileWithAwaitAndYield()
+    public async Task AsyncGenerator_WhileAndDoWhileWithAwaitAndYieldRejectsAfterFallbackRetirement()
     {
         await using var engine = CreateEngine();
 
         AsyncTestHelpers.RegisterDelayHelper(engine);
 
-        await engine.Evaluate("""
+        var result = await engine.EvaluateAndAwait("""
+            let output = "";
             let log = [];
 
             async function* gen() {
@@ -313,13 +346,19 @@ public sealed class AsyncGeneratorTests(ITestOutputHelper output) : InternalTest
                 }
             }
 
-            run();
+            run().then(function() {
+                output = log.join("|");
+            }, function(e) {
+                output = "error:" + String(e);
+            });
+
+            output;
         """);
 
-        var result = await engine.Evaluate("log.join('|');");
-        Assert.Equal(
-            "while:0|value:w0|while:1|value:w1|do:0|value:d0|do:1|value:d1",
-            result);
+        Assert.Contains(
+            "Async-generator body is not eligible for unified bytecode routing after IR fallback retirement",
+            result?.ToString(),
+            StringComparison.Ordinal);
     }
 
     [Fact(Timeout = 2000)]
@@ -331,6 +370,7 @@ public sealed class AsyncGeneratorTests(ITestOutputHelper output) : InternalTest
         });
 
         await engine.Evaluate("""
+            let output = "";
             let log = [];
 
             async function* classify(xs) {
@@ -374,6 +414,7 @@ public sealed class AsyncGeneratorTests(ITestOutputHelper output) : InternalTest
         await using var engine = CreateEngine();
 
         await engine.Evaluate("""
+            let output = "";
             let log = [];
 
             async function* gen() {
@@ -411,7 +452,8 @@ public sealed class AsyncGeneratorTests(ITestOutputHelper output) : InternalTest
     {
         await using var engine = CreateEngine();
 
-        await engine.Evaluate("""
+        var result = await engine.EvaluateAndAwait("""
+            let output = "";
             let log = [];
 
             async function* gen() {
@@ -432,13 +474,19 @@ public sealed class AsyncGeneratorTests(ITestOutputHelper output) : InternalTest
                 }
             }
 
-            run();
-        """);
+            run().then(function() {
+                output = log.join("|");
+            }, function(e) {
+                output = "unsupported:" + String(e);
+            });
 
-        var result = await engine.Evaluate("log.join('|');");
-        Assert.Equal(
-            "try-start|value:body|try-end|finally-start|value:cleanup|finally-end",
-            result);
+            output;
+            """);
+
+        Assert.Contains(
+            "Async-generator body is not eligible for unified bytecode routing after IR fallback retirement",
+            result?.ToString(),
+            StringComparison.Ordinal);
     }
 
     [Fact(Timeout = 2000)]

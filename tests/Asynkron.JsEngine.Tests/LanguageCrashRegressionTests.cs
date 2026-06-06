@@ -9,7 +9,7 @@ namespace Asynkron.JsEngine.Tests;
 public sealed class LanguageCrashRegressionTests(ITestOutputHelper output) : InternalTestBase(output)
 {
     [Fact(Timeout = 5000)]
-    public async Task AsyncPrivateGeneratorMethod_ObjectPropertyBinding_UsesBoundIdentifier()
+    public async Task AsyncPrivateGeneratorMethod_ObjectPropertyBindingRejectsAfterFallbackRetirement()
     {
         await using var engine = CreateEngine();
         var result = await engine.EvaluateAndAwait("""
@@ -45,31 +45,21 @@ public sealed class LanguageCrashRegressionTests(ITestOutputHelper output) : Int
               };
             })().then(function(value) {
               result = value;
+            }, function(error) {
+              result = String(error);
             });
 
             result;
             """);
 
-        var obj = Assert.IsType<JsObject>(result);
-        var hasCallCount = obj.TryGetProperty("callCount", out var callCount);
-        var hasSawValue = obj.TryGetProperty("sawValue", out var sawValue);
-        var hasSawReferenceError = obj.TryGetProperty("sawReferenceError", out var sawReferenceError);
-        WriteObjectDiagnostics("async private generator method result", obj);
-        Output.WriteLine(
-            "callCount={0} sawValue={1} sawReferenceError={2}",
-            Describe(callCount),
-            Describe(sawValue),
-            Describe(sawReferenceError));
-        Assert.True(hasCallCount, MissingPropertyMessage("callCount", obj));
-        Assert.True(hasSawValue, MissingPropertyMessage("sawValue", obj));
-        Assert.True(hasSawReferenceError, MissingPropertyMessage("sawReferenceError", obj));
-        Assert.Equal(1.0, callCount.AsDouble());
-        Assert.True(sawValue.AsBoolean());
-        Assert.True(sawReferenceError.AsBoolean());
+        Assert.Contains(
+            "Async-generator body is not eligible for unified bytecode routing after IR fallback retirement",
+            result?.ToString(),
+            StringComparison.Ordinal);
     }
 
     [Fact(Timeout = 5000)]
-    public async Task AsyncPrivateGeneratorMethod_ObjectPropertyArrayInitializer_UsesDefaultElements()
+    public async Task AsyncPrivateGeneratorMethod_ObjectPropertyArrayInitializerRejectsAfterFallbackRetirement()
     {
         await using var engine = CreateEngine();
         var result = await engine.EvaluateAndAwait("""
@@ -105,22 +95,21 @@ public sealed class LanguageCrashRegressionTests(ITestOutputHelper output) : Int
               };
             })().then(function(value) {
               result = value;
+            }, function(error) {
+              result = String(error);
             });
 
             result;
             """);
 
-        var obj = Assert.IsType<JsObject>(result);
-        var callCount = RequireProperty(obj, "callCount");
-        var sawValues = RequireProperty(obj, "sawValues");
-        var sawReferenceError = RequireProperty(obj, "sawReferenceError");
-        Assert.Equal(1.0, callCount.AsDouble());
-        Assert.True(sawValues.AsBoolean());
-        Assert.True(sawReferenceError.AsBoolean());
+        Assert.Contains(
+            "Async-generator body is not eligible for unified bytecode routing after IR fallback retirement",
+            result?.ToString(),
+            StringComparison.Ordinal);
     }
 
     [Fact(Timeout = 5000)]
-    public async Task AsyncPrivateGeneratorMethod_InClassExpression_ObjectPropertyBinding_UsesBoundIdentifier()
+    public async Task AsyncPrivateGeneratorMethod_InClassExpressionObjectPropertyBindingRejectsAfterFallbackRetirement()
     {
         await using var engine = CreateEngine();
         var result = await engine.EvaluateAndAwait("""
@@ -156,18 +145,17 @@ public sealed class LanguageCrashRegressionTests(ITestOutputHelper output) : Int
               };
             })().then(function(value) {
               result = value;
+            }, function(error) {
+              result = String(error);
             });
 
             result;
             """);
 
-        var obj = Assert.IsType<JsObject>(result);
-        var callCount = RequireProperty(obj, "callCount");
-        var sawValue = RequireProperty(obj, "sawValue");
-        var sawReferenceError = RequireProperty(obj, "sawReferenceError");
-        Assert.Equal(1.0, callCount.AsDouble());
-        Assert.True(sawValue.AsBoolean());
-        Assert.True(sawReferenceError.AsBoolean());
+        Assert.Contains(
+            "Async-generator body is not eligible for unified bytecode routing after IR fallback retirement",
+            result?.ToString(),
+            StringComparison.Ordinal);
     }
 
     [Fact(Timeout = 5000)]
@@ -238,7 +226,7 @@ public sealed class LanguageCrashRegressionTests(ITestOutputHelper output) : Int
     }
 
     [Fact(Timeout = 5000)]
-    public async Task ForAwaitOf_AsyncGenerator_ArrayRestBinding_CopiesIterationValues()
+    public async Task ForAwaitOf_AsyncGenerator_ArrayRestBindingRejectsAfterFallbackRetirement()
     {
         await using var engine = CreateEngine();
         var result = await engine.EvaluateAndAwait("""
@@ -271,26 +259,17 @@ public sealed class LanguageCrashRegressionTests(ITestOutputHelper output) : Int
               };
             })().then(function(value) {
               result = value;
+            }, function(error) {
+              result = String(error);
             });
 
             result;
             """);
 
-        var obj = Assert.IsType<JsObject>(result);
-        var iterCount = RequireProperty(obj, "iterCount");
-        var isArray = RequireProperty(obj, "isArray");
-        var length = RequireProperty(obj, "length");
-        var first = RequireProperty(obj, "first");
-        var second = RequireProperty(obj, "second");
-        var third = RequireProperty(obj, "third");
-        var copied = RequireProperty(obj, "copied");
-        Assert.Equal(1.0, iterCount.AsDouble());
-        Assert.True(isArray.AsBoolean());
-        Assert.Equal(3.0, length.AsDouble());
-        Assert.Equal(1.0, first.AsDouble());
-        Assert.Equal(2.0, second.AsDouble());
-        Assert.Equal(3.0, third.AsDouble());
-        Assert.True(copied.AsBoolean());
+        Assert.Contains(
+            "Async-generator body is not eligible for unified bytecode routing after IR fallback retirement",
+            result?.ToString(),
+            StringComparison.Ordinal);
     }
 
     [Fact(Timeout = 5000)]

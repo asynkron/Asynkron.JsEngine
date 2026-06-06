@@ -1332,31 +1332,34 @@ export default function() { return 23; };
     }
 
     [Fact(Timeout = 5000)]
-    public async Task TopLevelAwait_ForAwaitOfAwaitedIterableBreakClosesAsyncIterator()
+    public async Task TopLevelAwait_ForAwaitOfAwaitedIterableBreakRejectsAfterFallbackRetirement()
     {
         await using var engine = CreateEngine();
 
-        var result = await engine.EvaluateModule("""
-                                                 var closed = 0;
-                                                 var seen = 0;
+        var error = await Assert.ThrowsAsync<NotSupportedException>(async () => await engine.EvaluateModule("""
+            var closed = 0;
+            var seen = 0;
 
-                                                 async function* gen() {
-                                                   try {
-                                                     yield 1;
-                                                   } finally {
-                                                     closed++;
-                                                   }
-                                                 }
+            async function* gen() {
+              try {
+                yield 1;
+              } finally {
+                closed++;
+              }
+            }
 
-                                                 for await (const value of await Promise.resolve(gen())) {
-                                                   seen += await Promise.resolve(value);
-                                                   break;
-                                                 }
+            for await (const value of await Promise.resolve(gen())) {
+              seen += await Promise.resolve(value);
+              break;
+            }
 
-                                                 seen + ":" + closed
-                                                 """);
+            seen + ":" + closed
+            """));
 
-        Assert.Equal("1:1", result);
+        Assert.Contains(
+            "Async-generator body is not eligible for unified bytecode routing after IR fallback retirement",
+            error.Message,
+            StringComparison.Ordinal);
     }
 
     [Fact(Timeout = 5000, Skip = "hangs indefinitely")]

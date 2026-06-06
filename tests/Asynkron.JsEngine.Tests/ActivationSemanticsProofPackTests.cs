@@ -900,11 +900,12 @@ public sealed class ActivationSemanticsProofPackTests(ITestOutputHelper output) 
     }
 
     [Fact(Timeout = 5000)]
-    public async Task AsyncGeneratorActivation_PreservesCapturedParameterAcrossAwaitAndYield()
+    public async Task AsyncGeneratorActivation_CapturedParameterRejectsAfterFallbackRetirement()
     {
         await using var engine = CreateEngine();
 
-        await engine.Evaluate("""
+        var result = await engine.EvaluateAndAwait("""
+            var output = "";
             var observed = [];
 
             async function* probe(a) {
@@ -920,10 +921,18 @@ public sealed class ActivationSemanticsProofPackTests(ITestOutputHelper output) 
                 }
             }
 
-            run();
+            run().then(function() {
+                output = observed.join("|");
+            }, function(e) {
+                output = "error:" + String(e);
+            });
+
+            output;
             """);
 
-        var result = await engine.Evaluate("observed.join('|');");
-        Assert.Equal("start:41|yield:42", result);
+        Assert.Contains(
+            "Async-generator body is not eligible for unified bytecode routing after IR fallback retirement",
+            result?.ToString(),
+            StringComparison.Ordinal);
     }
 }

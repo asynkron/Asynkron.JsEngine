@@ -194,6 +194,22 @@ all-or-nothing until a separate routing issue proves production readiness.
     `Code` and `Reason` so top-level lexical destructuring and other
     non-residue declines remain auditable. Related ADR:
     `docs/adrs/0346-keep-script-ir-fallback-classified-with-production-decline-details.md`.
+9f. Classify entrypoint rejects by builder provenance before treating them as
+    active production residue. `Unsupported entrypoint.` is a malformed-plan
+    integrity backstop when the plan comes from `ExecutionPlanBuilder`, because
+    valid compiler-produced function, script, and resumable plans record an
+    in-range `EntryPoint`. Keep the defensive checks in the compiler,
+    production eligibility, and with-depth analysis for manually constructed or
+    corrupted plans, but do not count that arm as an admissible JavaScript shape
+    gap unless a focused test first proves a valid compiled plan can produce an
+    out-of-range entrypoint. Future closure work should pair direct plan
+    invariants with public route/admission proof for function, script, and
+    resumable plans so defensive integrity checks are not mistaken for
+    route-widening work. WHY: Faktorial issue
+    `planitem-planmanual1780730299657353000-unified-bytecode-remaining-burndown-03-com-d1dd2ffe1b`
+    / PR #3336 closed the A51a `Unsupported entrypoint.` subfamily by proving
+    valid compiler-produced plans have supported entrypoints while keeping the
+    malformed-plan guardrails intact.
 10. When invoking production unified bytecode from sync calls, keep the bridge
     slot-layout owned and fast-path ordered. The production unified route runs
     before direct specialized simple-return binary/chain shortcuts and the

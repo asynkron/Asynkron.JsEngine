@@ -683,11 +683,11 @@ above in the same slice.
 - `Unsupported for-in state slot '{forInInit.StateSlot.Name}'.`
 - `Unsupported identifier '{identifier.Name.Name}' at dynamic property-read boundary.`
 - `Unsupported instruction in unified bytecode plan: {instructions[instructionIndex].GetType().Name}.`
-- `Unsupported instruction in unified bytecode plan: {nameof(IncrementSlotInstruction)}.`
 - `Unsupported iterator close state slot '{iteratorClose.IteratorSlot.Name}'.`
 - `Unsupported iterator state slot '{awaitedIteratorInit.IteratorSlot.Name}'.`
 - `Unsupported iterator state slot '{iteratorInit.IteratorSlot.Name}'.`
 - `Unsupported logical assignment target '{logicalTargetSymbol.Name}'.`
+- `Unsupported update target '{incrementTargetSymbol.Name}'.`
 - `Unsupported logical control-expression operand in simple literal span.`
 - `Unsupported loop control flow at instruction {instructionIndex}.`
 - `Unsupported loop control flow at instruction {sourceInstructionIndex}.`

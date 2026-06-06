@@ -46,6 +46,43 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
+    public void Evaluate_UnresolvedIncrementSlotCompilerFailure_ReportsUpdateTargetReason()
+    {
+        var plan = GetFunctionPlan("""
+            function update() {
+                var x = 0;
+                x++;
+                return 1;
+            }
+            """,
+            "update");
+
+        var increment = Assert.Single(plan.Instructions.OfType<IncrementSlotInstruction>());
+        var unresolvedIncrement = increment with { ScopeId = -1, SlotIndex = -1, FlatSlotId = -1 };
+        var activationSlots = plan.ActivationSlots ?? throw new InvalidOperationException("Expected activation slots.");
+        var malformedActivationSlots = activationSlots with
+        {
+            SlotMap = activationSlots.SlotMap.SetItem(
+                increment.TargetSymbol,
+                activationSlots.SlotCount + 10)
+        };
+        var malformedPlan = plan with
+        {
+            Instructions = plan.Instructions.Replace(increment, unresolvedIncrement),
+            ActivationSlots = malformedActivationSlots
+        };
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            malformedPlan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.False(result.IsEligible);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.UnsupportedPlanShape, result.Code);
+        Assert.Contains("Unsupported update target 'x'.", result.Reason, StringComparison.Ordinal);
+        Assert.DoesNotContain(nameof(IncrementSlotInstruction), result.Reason, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Evaluate_SyncUsingDeclaration_AcceptsWithDisposableRegistration()
     {
         var plan = GetFunctionPlan("""
@@ -338,6 +375,95 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
             descriptor.TargetSlot < 0 &&
             descriptor.TargetNameConstantIndex >= 0 &&
             descriptor.TargetVariableKind == VariableKind.Let);
+    }
+
+    public static TheoryData<string, VariableKind, int, string> A51eSimpleScriptDestructuringRows => new()
+    {
+        {
+            """
+            var source = { first: 1, second: 2 };
+            var { first, second } = source;
+            first + second;
+            """,
+            VariableKind.Var,
+            (int)UnifiedBytecodeOpCode.ObjectDestructuringProperty,
+            "var-object"
+        },
+        {
+            """
+            let source = { first: 1, second: 2 };
+            let { first, second } = source;
+            first + second;
+            """,
+            VariableKind.Let,
+            (int)UnifiedBytecodeOpCode.ObjectDestructuringProperty,
+            "let-object"
+        },
+        {
+            """
+            const source = { first: 1, second: 2 };
+            const { first, second } = source;
+            first + second;
+            """,
+            VariableKind.Const,
+            (int)UnifiedBytecodeOpCode.ObjectDestructuringProperty,
+            "const-object"
+        },
+        {
+            """
+            var source = [1, 2];
+            var [first, second] = source;
+            first + second;
+            """,
+            VariableKind.Var,
+            (int)UnifiedBytecodeOpCode.ArrayDestructuringElement,
+            "var-array"
+        },
+        {
+            """
+            let source = [1, 2];
+            let [first, second] = source;
+            first + second;
+            """,
+            VariableKind.Let,
+            (int)UnifiedBytecodeOpCode.ArrayDestructuringElement,
+            "let-array"
+        },
+        {
+            """
+            const source = [1, 2];
+            const [first, second] = source;
+            first + second;
+            """,
+            VariableKind.Const,
+            (int)UnifiedBytecodeOpCode.ArrayDestructuringElement,
+            "const-array"
+        }
+    };
+
+    [Theory]
+    [MemberData(nameof(A51eSimpleScriptDestructuringRows))]
+    public void EvaluateScript_A51eSimpleScriptDestructuring_AllocatesStateSlotsAndDynamicTargets(
+        string source,
+        VariableKind expectedVariableKind,
+        int expectedDriverOpCode,
+        string rowName)
+    {
+        var plan = GetScriptPlan(source);
+
+        var result = UnifiedBytecodeProductionEligibility.EvaluateScript(plan);
+
+        Assert.True(result.IsEligible, $"{rowName}: {result.Code} {result.Reason}");
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.DoesNotContain("destructuring state slot", result.Reason, StringComparison.Ordinal);
+        Assert.DoesNotContain("destructuring target", result.Reason, StringComparison.Ordinal);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == (UnifiedBytecodeOpCode)expectedDriverOpCode);
+        Assert.Contains(result.Program.DriverDescriptors, descriptor =>
+            descriptor.StateSlot >= 0 &&
+            descriptor.TargetSlot < 0 &&
+            descriptor.TargetNameConstantIndex >= 0 &&
+            descriptor.TargetVariableKind == expectedVariableKind);
     }
 
     public static TheoryData<string, string, int[]> C3RepresentativeScriptRows => new()

@@ -215,7 +215,7 @@ public sealed class UnifiedBytecodeProductionConstructCallTests(ITestOutputHelpe
     }
 
     [Fact(Timeout = 5000)]
-    public async Task BaseClassConstructorWithPrivateInstanceField_UsesProductionFastPathAndBrandsInstance()
+    public async Task BaseClassConstructorWithPrivateInstanceField_DoesNotUseProductionFastPathButBrandsInstance()
     {
         await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
@@ -237,14 +237,14 @@ public sealed class UnifiedBytecodeProductionConstructCallTests(ITestOutputHelpe
             """);
 
         Assert.Equal("true:42", result?.ToString());
-        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+        Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(),
             static record => record.Message.Contains(
                 "unified-bytecode-production-fast-path func=Box argc=0",
                 StringComparison.Ordinal));
     }
 
     [Fact(Timeout = 5000)]
-    public async Task BaseClassConstructorWithPrivateMethod_UsesProductionFastPathAndBrandsInstance()
+    public async Task BaseClassConstructorWithPrivateMethod_DoesNotUseProductionFastPathButBrandsInstance()
     {
         await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
@@ -267,7 +267,7 @@ public sealed class UnifiedBytecodeProductionConstructCallTests(ITestOutputHelpe
             """);
 
         Assert.Equal("1:42", result?.ToString());
-        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+        Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(),
             static record => record.Message.Contains(
                 "unified-bytecode-production-fast-path func=Box argc=0",
                 StringComparison.Ordinal));
@@ -805,7 +805,7 @@ public sealed class UnifiedBytecodeProductionConstructCallTests(ITestOutputHelpe
     }
 
     [Fact(Timeout = 5000)]
-    public async Task DerivedConstructorWithPrivateInstanceField_UsesProductionFastPathAndBrandsAfterSuper()
+    public async Task DerivedConstructorWithPrivateInstanceField_DoesNotUseProductionFastPathButBrandsAfterSuper()
     {
         await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
@@ -828,14 +828,14 @@ public sealed class UnifiedBytecodeProductionConstructCallTests(ITestOutputHelpe
             """);
 
         Assert.Equal(42d, result);
-        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+        Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(),
             static record => record.Message.Contains(
                 "unified-bytecode-production-fast-path func=Derived",
                 StringComparison.Ordinal));
     }
 
     [Fact(Timeout = 5000)]
-    public async Task DerivedConstructorWithPrivateMethod_UsesProductionFastPathAndBrandsAfterSuper()
+    public async Task DerivedConstructorWithPrivateMethod_DoesNotUseProductionFastPathButBrandsAfterSuper()
     {
         await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
@@ -860,7 +860,7 @@ public sealed class UnifiedBytecodeProductionConstructCallTests(ITestOutputHelpe
             """);
 
         Assert.Equal(42d, result);
-        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+        Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(),
             static record => record.Message.Contains(
                 "unified-bytecode-production-fast-path func=Derived",
                 StringComparison.Ordinal));

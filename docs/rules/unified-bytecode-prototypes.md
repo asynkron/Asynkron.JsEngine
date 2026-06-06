@@ -281,16 +281,30 @@ all-or-nothing until a separate routing issue proves production readiness.
     do not create a `JsEnvironment`, call `ExecutionPlanRunner`, or add VM
     fallback for accepted programs. Prove selected routing, faster-route
     preservation, and nearby declines through public invocation tests plus the
-    activation proof pack. Also keep the ordinary-sync route order itself
-    source-gated inside `TryInvokeIrFast<TArgs>(...)`: accepted production
-    unified bytecode first, specialized binary and binary-chain routes next,
-    `SyncIrCallTrampoline` after those fallbacks, and generic runner-owned
-    activation shapes as an explicit no-route decline. WHY: issue
+    activation proof pack. Representative accepted ordinary-sync invocation
+    tests must assert the production route hit and reject the whole simple-IR
+    fallback log family, including binary, binary-chain, activation, and return
+    fast-path markers, so a shape cannot silently slide behind another simple
+    fallback. Also keep the ordinary-sync route order itself source-gated inside
+    `TryInvokeIrFast<TArgs>(...)`: accepted production unified bytecode first,
+    specialized binary and binary-chain routes next, `SyncIrCallTrampoline`
+    after those fallbacks, and generic runner-owned activation shapes as an
+    explicit no-route decline. The source gate should fail on any
+    `ExecutionPlanRunner` reference inside `TryInvokeIrFast<TArgs>(...)`, not
+    only direct construction or `.RunSync(...)` calls, because accepted hot
+    routes must stay on production unified bytecode, simple fast paths,
+    `SyncIrCallTrampoline`, or the outer slow fallback. WHY: issue
     `planitem-planmanual1779965179415360000-batch-1-receiver-aware-call-execution-boun-8f4d6fd0f4`
     / PR #2623 found the production code already had the intended order, but
     route logs alone did not guard the whole fallback chain from drifting back
     toward older ADR 0204/0208 wording. If a future slice changes priority
     again, make that explicit and prove the older route remains covered.
+    Faktorial issue
+    `planitem-planitem-planmanual1780730299657353000-unified-bytecode-remaining-burndo-0eaaf2734d`
+    / PR #3361 tightened the same boundary after the original test only rejected
+    the nearby specialized binary fallback and the source gate still allowed
+    generic `ExecutionPlanRunner` type references inside the ordinary sync
+    route method.
 10a. When admitting class constructors to production unified bytecode, keep the
      route body-shaped, not just descriptor-shaped. Base constructors may route
      only when the invocation bridge creates the constructed `this`, supplies the

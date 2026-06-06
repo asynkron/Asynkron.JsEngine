@@ -1057,12 +1057,20 @@ all-or-nothing until a separate routing issue proves production readiness.
     until they have dedicated selector/compiler/VM proof. Complex substitutions
     (`` `${a + b}` ``) decline because `a + b` is not a simple operand
     (ADR 0292).
-26. When encountering stateful for-in or array-destructuring driver
-    instructions in production unified bytecode eligibility, decline before VM
-    execution until a full driver-state model is owned. `ForInInitInstruction`
-    and `ForInMoveNextInstruction` must decline as
-    `ForInDriverStateDependency`; array-destructuring init/element/rest/close
-    instructions must decline as `DestructuringDependency`. Do not add partial
+26. When encountering stateful for-in, iterator, `yield*`, resume-target, or
+    destructuring driver instructions in production unified bytecode
+    eligibility, keep the generated-plan route and malformed/manual-plan
+    diagnostics separate. Generated for-in/iterator/awaited-source/async
+    iterator/`yield*` plans may route only when the lowerer has supplied the
+    synthetic state-slot layout the compiler and VM already own. Missing,
+    mismatched, or manually constructed state-slot payloads must still decline
+    before VM execution with stable `UnsupportedPlanShape` diagnostics under
+    A51d; unsupported source payload shapes stay on their explicit dependency
+    declines such as `ForInDriverStateDependency` or `DestructuringDependency`.
+    Do not close a compiler leaf from a positive source-route test alone: pair
+    generated-plan route proof with adjacent malformed-plan no-route proof, and
+    update the expansion-contract inventory when the remaining reason templates
+    are defensive rather than generated-code gaps. Do not add partial
     driver-step opcodes, VM callbacks, or `ExpressionProgram` /
     `ExecutionPlanRunner` fallback to make one step executable before selector,
     compiler, VM, state lifecycle, close/abrupt behavior, positive route proof,
@@ -1072,7 +1080,12 @@ all-or-nothing until a separate routing issue proves production readiness.
     / PR #2486 found that the unified VM has no owned iterator/destructuring
     driver-state model yet. The delivery added explicit decline codes/tests and
     documented the model-first boundary instead of widening opcodes or VM paths
-    opportunistically.
+    opportunistically. Later issue
+    `planitem-planmanual1780730299657353000-unified-bytecode-remaining-burndown-03-com-c170770447`
+    / PR #3331 closed A51d by proving current generated iterator/for-in and
+    `yield*` state-slot plans route while malformed/manual state-slot payloads
+    still decline before VM entry; future state-slot closures must preserve
+    that positive/negative proof pair.
 27. When admitting completion and expression-statement behavior into production
     unified bytecode, keep completion effects VM-owned and decline-first.
     Empty or implicit returns should compile to `ReturnUndefined`; non-awaited

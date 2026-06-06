@@ -46,6 +46,43 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
+    public void Evaluate_UnresolvedIncrementSlotCompilerFailure_ReportsUpdateTargetReason()
+    {
+        var plan = GetFunctionPlan("""
+            function update() {
+                var x = 0;
+                x++;
+                return 1;
+            }
+            """,
+            "update");
+
+        var increment = Assert.Single(plan.Instructions.OfType<IncrementSlotInstruction>());
+        var unresolvedIncrement = increment with { ScopeId = -1, SlotIndex = -1, FlatSlotId = -1 };
+        var activationSlots = plan.ActivationSlots ?? throw new InvalidOperationException("Expected activation slots.");
+        var malformedActivationSlots = activationSlots with
+        {
+            SlotMap = activationSlots.SlotMap.SetItem(
+                increment.TargetSymbol,
+                activationSlots.SlotCount + 10)
+        };
+        var malformedPlan = plan with
+        {
+            Instructions = plan.Instructions.Replace(increment, unresolvedIncrement),
+            ActivationSlots = malformedActivationSlots
+        };
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            malformedPlan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.False(result.IsEligible);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.UnsupportedPlanShape, result.Code);
+        Assert.Contains("Unsupported update target 'x'.", result.Reason, StringComparison.Ordinal);
+        Assert.DoesNotContain(nameof(IncrementSlotInstruction), result.Reason, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Evaluate_SyncUsingDeclaration_AcceptsWithDisposableRegistration()
     {
         var plan = GetFunctionPlan("""

@@ -1609,8 +1609,7 @@ internal static class UnifiedBytecodeCompiler
                         {
                             if (!allowsDynamicIdentifiers)
                             {
-                                reason =
-                                    $"Unsupported instruction in unified bytecode plan: {nameof(IncrementSlotInstruction)}.";
+                                reason = $"Unsupported update target '{incrementTargetSymbol.Name}'.";
                                 return false;
                             }
 

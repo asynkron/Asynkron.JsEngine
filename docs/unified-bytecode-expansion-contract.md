@@ -535,10 +535,10 @@ semantic bridge or mis-parking dynamic residue as ordinary fallback work.
 | `A51e` | Array/object destructuring state slots and simple script declaration targets are compiler-owned for the admitted lane; remaining nested/default/parameter/disposal destructuring stays under R6 / `DestructuringDependency` | Existing destructuring IR helpers for remaining R6 shapes | both |
 | `A51f` | Closed umbrella for general expression-loop unsupported op, binding-target expression, dynamic identifier, `arguments`, and private-neighbor gaps; decomposed into A51f1-A51f5 below | Expression-program / execution-plan runner | both |
 | `A51g` | Call-target preparation, direct-eval call boundary, member/super/private call-target, invocation-boundary shapes | Existing call/eval/super IR paths | both; dynamic residue remains D1/D4 |
-| `A51h` | Array/object/template literal, spread source, computed object key, and simple literal-span shapes | Existing expression-program literal/spread evaluation | both |
-| `A51i` | Computed/optional/private property-read and receiver-boundary shapes; read-only private receiver-prefix chains such as `receiver.#child.value` and `receiver.#child[key]` are now sync-admitted through owned property-read opcodes | Existing expression-program property evaluation for remaining private-adjacent property reads | both |
+| `A51h` | Array/object/template literal, spread source, computed object key, simple literal-span shapes, and restricted literal/span helper diagnostics for unsupported simple or logical-control operands | Existing expression-program literal/spread evaluation | both |
+| `A51i` | Computed/optional/private property-read and receiver-boundary shapes; read-only private receiver-prefix chains such as `receiver.#child.value` and `receiver.#child[key]` are now sync-admitted through owned property-read opcodes; unsupported property-read base diagnostics stay here | Existing expression-program property evaluation for remaining private-adjacent property reads | both |
 | `A51j` | Property write, compound/logical write, update, delete, name-inference, key-span, and RHS-span shapes | Existing expression-program mutation evaluation | both |
-| `A51k` | Simple binary/unary/control/conditional operand spans; nested admitted literal-value operand spans now route through the production VM, while call/private/dynamic-neighbor operands remain outside this lane | Existing expression-program evaluation | both |
+| `A51k` | Simple binary/unary/control/conditional operand spans; nested admitted literal-value operand spans now route through the production VM, while call/private/dynamic-neighbor operands and unsupported simple-operand helper diagnostics remain outside this lane | Existing expression-program evaluation | both |
 | `A51l` | Catch/try/driver cleanup topology diagnostics not otherwise captured by concrete driver rows | Existing execution-plan runner | both |
 | `A51m` | Closed measured property-read span rollback diagnostics; source guard pins named, optional named, optional named-chain, and computed measured span rollback templates | Existing property-read expression evaluation for non-admitted shapes | both |
 | `B47a` | Resumable-only `yield*` state-slot and synthetic resume-target layout | Existing generator/async execution-plan route | resumable only |
@@ -549,13 +549,16 @@ The A51f umbrella is decomposed rather than closed as a runtime widening. The
 current compiler still has source-backed declines in
 `UnifiedBytecodeCompiler.TryAppendExpressionProgramOps` and nearby expression
 value-load helpers, and eligibility keeps the existing fallback route intact for
-non-admitted sync and resumable bodies. A51f2 is the exception: generated
-contexts now supply the descriptor builder, so its remaining diagnostic is a
-defensive helper guard rather than a generated-code fallback boundary.
+non-admitted sync and resumable bodies. A51f1 and A51f2 are closed exceptions:
+A51f1's default is defensive because every declared `ExpressionOpKind` has a
+direct general-loop case, and A51f2's remaining diagnostic is defensive because
+generated contexts now supply the descriptor builder.
 
-- `A51f1:GeneralExpressionLoopUnsupportedOp` - fallback catch-all for expression
-  opcodes that are not directly handled by the general expression loop, including
-  helper-level unsupported simple/base/property-read op diagnostics.
+- `A51f1:GeneralExpressionLoopUnsupportedOp` - closed source ratchet. Every
+  declared `ExpressionOpKind` has a direct case in the general expression loop;
+  the remaining default diagnostic is malformed/manual-op protection. Real
+  helper-level unsupported simple operand, literal control span, and
+  property-read base diagnostics are owned by A51h/A51i/A51k.
 - `A51f2:BindingTargetExpressionContext` - generated expression-program
   compiler contexts now supply binding-target constants, including standalone
   expression compilation. `ApplyBindingTarget` therefore compiles to unified

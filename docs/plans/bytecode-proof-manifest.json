@@ -71,6 +71,18 @@
       ]
     },
     {
+      "id": "A51f1",
+      "title": "General expression loop covers every declared ExpressionOpKind",
+      "status": "done",
+      "proofs": [
+        {
+          "id": "A51f1-general-expression-loop-has-no-opcode-gap",
+          "claim": "source-ratchet",
+          "kind": "general-expression-loop-coverage"
+        }
+      ]
+    },
+    {
       "id": "A51f2",
       "title": "Standalone binding-target expression programs carry descriptor constants",
       "status": "done",

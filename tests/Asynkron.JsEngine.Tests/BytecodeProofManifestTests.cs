@@ -97,6 +97,9 @@ public sealed partial class BytecodeProofManifestTests(ITestOutputHelper output)
             case "standalone-expression-compile":
                 VerifyStandaloneExpressionCompile(proof);
                 break;
+            case "general-expression-loop-coverage":
+                VerifyGeneralExpressionLoopCoverage(proof);
+                break;
             default:
                 throw new InvalidOperationException($"{proof.Id}: unsupported proof kind '{proof.Kind}'.");
         }
@@ -225,6 +228,42 @@ public sealed partial class BytecodeProofManifestTests(ITestOutputHelper output)
         }
     }
 
+    private static void VerifyGeneralExpressionLoopCoverage(ProofManifestProof proof)
+    {
+        var repositoryRoot = FindRepositoryRoot();
+        var expressionOpPath = Path.Combine(
+            repositoryRoot.FullName,
+            "src",
+            "Asynkron.JsEngine",
+            "Execution",
+            "Instructions",
+            "ExpressionOp.cs");
+        var compilerPath = Path.Combine(
+            repositoryRoot.FullName,
+            "src",
+            "Asynkron.JsEngine",
+            "Execution",
+            "UnifiedBytecode",
+            "UnifiedBytecodeCompiler.cs");
+        Assert.True(File.Exists(expressionOpPath), $"{proof.Id}: expected expression op source at '{expressionOpPath}'.");
+        Assert.True(File.Exists(compilerPath), $"{proof.Id}: expected compiler source at '{compilerPath}'.");
+
+        var expressionOpText = File.ReadAllText(expressionOpPath);
+        var compilerText = File.ReadAllText(compilerPath);
+        var declaredOpKinds = ExtractEnumMemberNames(expressionOpText, "ExpressionOpKind");
+        var generalLoopText = ExtractSourceSection(
+            compilerText,
+            "private static bool TryAppendExpressionProgramOps(",
+            "private static bool TryAppendFirstBoundaryCallTargetPreparation(");
+        var generalLoopCases = ExtractExpressionOpKindCases(generalLoopText);
+        var missingCases = declaredOpKinds
+            .Except(generalLoopCases, StringComparer.Ordinal)
+            .OrderBy(static name => name, StringComparer.Ordinal)
+            .ToArray();
+
+        Assert.Empty(missingCases);
+    }
+
     private static ExecutionPlan GetFunctionPlan(ProofManifestProof proof)
     {
         var functionName = Require(proof.FunctionName, proof.Id, nameof(proof.FunctionName));
@@ -290,6 +329,40 @@ public sealed partial class BytecodeProofManifestTests(ITestOutputHelper output)
     {
         Assert.False(string.IsNullOrWhiteSpace(value), $"{proofId}: missing required property '{propertyName}'.");
         return value!;
+    }
+
+    private static string ExtractSourceSection(string sourceText, string startMarker, string endMarker)
+    {
+        var start = sourceText.IndexOf(startMarker, StringComparison.Ordinal);
+        Assert.True(start >= 0, $"Source is missing start marker '{startMarker}'.");
+        var end = sourceText.IndexOf(endMarker, start + startMarker.Length, StringComparison.Ordinal);
+        Assert.True(end > start, $"Source is missing end marker '{endMarker}'.");
+        return sourceText[start..end];
+    }
+
+    private static string[] ExtractEnumMemberNames(string sourceText, string enumName)
+    {
+        var enumMatch = Regex.Match(
+            sourceText,
+            $@"\benum\s+{Regex.Escape(enumName)}\s*(?::\s*\w+)?\s*\{{(?<body>.*?)^\}}",
+            RegexOptions.Singleline | RegexOptions.Multiline | RegexOptions.CultureInvariant);
+        Assert.True(enumMatch.Success, $"Source text is missing enum '{enumName}'.");
+
+        return enumMatch.Groups["body"].Value
+            .Split('\n')
+            .Select(line => line.Split("//", StringSplitOptions.None)[0].Trim().TrimEnd(','))
+            .Where(static line => line.Length > 0)
+            .ToArray();
+    }
+
+    private static string[] ExtractExpressionOpKindCases(string sourceText)
+    {
+        return Regex.Matches(
+                sourceText,
+                @"\bcase\s+ExpressionOpKind\.(?<name>[A-Za-z0-9_]+)\b",
+                RegexOptions.CultureInvariant)
+            .Select(static match => match.Groups["name"].Value)
+            .ToArray();
     }
 
     [GeneratedRegex(@"^- \[(?<mark>x| )\] \*\*(?<id>[A-Z][0-9]+[a-z]?(?:[0-9]+)?)\*\*", RegexOptions.Multiline)]

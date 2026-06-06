@@ -714,11 +714,6 @@ public sealed class UnifiedBytecodeResumableLiteralTests(ITestOutputHelper outpu
     {
         """
         function* g() {
-            yield class { static field = 1; field = 2; };
-        }
-        """,
-        """
-        function* g() {
             yield class { static {} };
         }
         """,

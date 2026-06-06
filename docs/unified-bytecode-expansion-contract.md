@@ -57,7 +57,7 @@ statement interpretation.
   drift gate
   `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~ExpressionProgramCoverageMapTests&FullyQualifiedName~UnifiedBytecodeExpansionContract"`
   passed. The checked inventories remain current: 6 sync prototype opcode guard
-  gaps, 8 resumable opcode allowlist gaps, 2 resumable instruction allowlist
+  gaps, 7 resumable opcode allowlist gaps, 2 resumable instruction allowlist
   gaps, A35 split into 5 object-literal member leaves, B24 split into 9
   class-expression leaves, and no general expression lowering gaps.
 - Completing the decline-burndown plan did not make unified bytecode the only
@@ -89,9 +89,10 @@ statement interpretation.
   execution because only the constructor/default-constructor class-literal
   subset, the B24b public non-computed instance-field subset without
   activation-capturing field initializers, the B24c public non-computed
-  static-field subset, and the B24g public non-computed instance-accessor
-  subset whose accessor bodies do not capture activation slots or use `super`
-  are resumable-admitted. The VM handler still delegates
+  static-field subset, the mixed public non-computed static+instance-field
+  subset whose instance initializers do not capture activation slots, and the
+  B24g public non-computed instance-accessor subset whose accessor bodies do not
+  capture activation slots or use `super` are resumable-admitted. The VM handler still delegates
   class-definition evaluation to lower-level class machinery that can run
   expression programs and static-block IR plans, and B24d/B24h-B24i keep
   static-block, computed-member, member-super, and activation-slot `extends`
@@ -435,11 +436,12 @@ The former B24 class-expression coarse row is split by class-element semantics.
 expressions with static blocks, and resumable routing now admits B24a
 constructor/default-constructor class literals, the B24b public non-computed
 instance-field subset whose field initializers do not capture activation slots,
-B24c public non-computed static field class literals, narrow B24e private
-instance-field class literals, and the narrow B24f private method/accessor
-class-literal shape, plus the B24g public non-computed instance-accessor subset
-whose accessor bodies do not capture activation slots or use `super`. Full
-bytecode execution is not done: class-literal creation still calls
+B24c public non-computed static field class literals, the mixed public
+non-computed static+instance-field subset whose instance initializers do not
+capture activation slots, narrow B24e private instance-field class literals, and
+the narrow B24f private method/accessor class-literal shape, plus the B24g
+public non-computed instance-accessor subset whose accessor bodies do not
+capture activation slots or use `super`. Full bytecode execution is not done: class-literal creation still calls
 class-definition machinery that resolves extends/computed names/field
 initializers through expression programs and static blocks through
 `ExecutionPlanRunner.RunScript`; `extends` expressions that read resumable

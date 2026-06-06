@@ -2637,6 +2637,17 @@ internal static class UnifiedBytecodeProductionEligibility
             return true;
         }
 
+        if (IsB24bcPublicStaticAndInstanceFieldClassLiteral(definition))
+        {
+            if (!AreB24bFieldInitializersActivationSafe(definition, activationSlots, out declineReason))
+            {
+                return false;
+            }
+
+            declineReason = string.Empty;
+            return true;
+        }
+
         if (ClassExtendsReadsUnifiedSlot(definition, program.SlotNames))
         {
             declineReason =
@@ -2826,6 +2837,62 @@ internal static class UnifiedBytecodeProductionEligibility
                !constructor.IsDefaultDerivedConstructor &&
                constructor.Parameters.IsDefaultOrEmpty &&
                constructor.Body.Statements.IsDefaultOrEmpty;
+    }
+
+    private static bool IsB24bcPublicStaticAndInstanceFieldClassLiteral(ClassDefinition definition)
+    {
+        if (definition.Extends is not null ||
+            !definition.Members.IsDefaultOrEmpty ||
+            !definition.StaticBlocks.IsDefaultOrEmpty ||
+            definition.Fields.IsDefaultOrEmpty)
+        {
+            return false;
+        }
+
+        var hasStaticField = false;
+        var hasInstanceField = false;
+        foreach (var field in definition.Fields)
+        {
+            if (field.IsPrivate || field.IsComputed || field.ComputedName is not null)
+            {
+                return false;
+            }
+
+            if (field.IsStatic)
+            {
+                hasStaticField = true;
+                if (StaticFieldInitializerCanCaptureActivation(field.Initializer))
+                {
+                    return false;
+                }
+            }
+            else
+            {
+                hasInstanceField = true;
+            }
+        }
+
+        if (!hasStaticField || !hasInstanceField)
+        {
+            return false;
+        }
+
+        return definition.StaticElements.IsDefaultOrEmpty ||
+               definition.StaticElements.Length == CountStaticFields(definition);
+    }
+
+    private static int CountStaticFields(ClassDefinition definition)
+    {
+        var count = 0;
+        foreach (var field in definition.Fields)
+        {
+            if (field.IsStatic)
+            {
+                count++;
+            }
+        }
+
+        return count;
     }
 
     private static bool StaticFieldInitializerCanCaptureActivation(ExpressionNode? initializer) =>

@@ -102,6 +102,19 @@ checks separate.
     receiver as `this`, and keep `SuperConstructInvocationBoundary` declined
     unless constructor-state ownership is separately proven for a legal
     resumable source shape.
+12. When admitting private named method call targets inside complex call
+    arguments, require both the existing call-target stack proof and runtime
+    receiver/private-brand proof. A private name is not automatically excluded
+    when the enclosing route already owns the class method's private-name
+    lexical state, but it is also not a generic named-member call: optional
+    private calls, private super call targets, private constructor activation,
+    spread calls, and other private-adjacent receiver/key families remain
+    separate boundaries unless the slice proves them explicitly. Keep the
+    compiler and eligibility walkers aligned: if eligibility accepts
+    `LoadNamedCallTarget` for a private name in a nested call-argument region,
+    the compiler must emit the matching `PrepareNamedCallTarget` and
+    `CallInvocationBoundary` sequence, and public runtime proof must show the
+    private method observes the correct `this` on the production fast path.
 
 ## Why
 
@@ -221,7 +234,18 @@ opcode: they depend on both super lookup and receiver preservation across
 suspension. Super construct stays out of this route because constructor-state
 ownership was not proven by the legal generator/async method shapes in B12.
 
+Issue
+`planitem-planmanual1780730299657353000-unified-bytecode-remaining-burndown-03-com-a678f38320`
+/ PR #3327 removed a stale private-name guard from the complex-call-argument
+region walker. Direct private named method calls were already admitted, and the
+nested shape `sink(receiver.#read(value))` uses the same receiver/callee
+contract once the enclosing class method route owns private-name lexical state.
+The durable lesson is to avoid categorical private-name rejection in
+call-target prep when the route already owns private brand lookup, while still
+requiring paired eligibility and runtime fast-path proof for `this` preservation.
+
 Related ADRs:
 
 - `docs/adrs/0326-admit-resumable-super-member-calls-through-captured-method-environment.md`
 - `docs/adrs/0338-keep-direct-eval-production-bytecode-literal-and-declaration-free.md`
+- `docs/adrs/0354-admit-private-named-call-targets-inside-complex-call-arguments.md`

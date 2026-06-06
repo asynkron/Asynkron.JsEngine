@@ -1529,6 +1529,14 @@ internal static class UnifiedBytecodeProductionEligibility
                 return true;
             }
 
+            if (instruction is ClassDeclarationInstruction { Descriptor: { } descriptor } &&
+                StaticBlockPlansNeedMaterializedResumableBodyEnvironment(
+                    descriptor.ProgramCache,
+                    activationSlots))
+            {
+                return true;
+            }
+
             if (!TryGetResumableExpressionProgram(instruction, out var program))
             {
                 continue;
@@ -1547,6 +1555,39 @@ internal static class UnifiedBytecodeProductionEligibility
                 (capturedName.Length == 0 || capturedName[0] != '<'))
             {
                 return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool StaticBlockPlansNeedMaterializedResumableBodyEnvironment(
+        ClassDefinitionProgramCache cache,
+        ActivationSlotShape activationSlots)
+    {
+        if (!cache.Succeeded)
+        {
+            return false;
+        }
+
+        foreach (var staticBlockPlan in cache.Definition.StaticBlockPlans)
+        {
+            foreach (var instruction in staticBlockPlan.Instructions)
+            {
+                if (!TryGetExpressionProgram(instruction, out var program) ||
+                    !ExpressionProgramHasActivationCapturingFunctionLiteral(
+                        program,
+                        activationSlots,
+                        out var capturedName))
+                {
+                    continue;
+                }
+
+                if (capturedName != NestedFunctionDeclarationBoundary &&
+                    (capturedName.Length == 0 || capturedName[0] != '<'))
+                {
+                    return true;
+                }
             }
         }
 
@@ -3267,10 +3308,10 @@ internal static class UnifiedBytecodeProductionEligibility
 
         foreach (var staticBlockPlan in definition.StaticBlockPlans)
         {
-            if (StaticBlockPlanCreatesClosure(staticBlockPlan))
+            if (StaticBlockPlanContainsNestedDeclaration(staticBlockPlan))
             {
                 declineReason =
-                    "Class declaration is outside B36: static block creates a closure that needs the materialized class-definition environment route.";
+                    "Class declaration is outside B36: static block contains nested declarations that need the broader materialized class-definition environment route.";
                 return false;
             }
 
@@ -3658,6 +3699,21 @@ internal static class UnifiedBytecodeProductionEligibility
         }
 
         return hasSuperConstruct;
+    }
+
+    private static bool StaticBlockPlanContainsNestedDeclaration(ExecutionPlan plan)
+    {
+        foreach (var instruction in plan.Instructions)
+        {
+            switch (instruction)
+            {
+                case FunctionDeclarationInstruction:
+                case ClassDeclarationInstruction:
+                    return true;
+            }
+        }
+
+        return false;
     }
 
     private static bool StaticBlockPlanCreatesClosure(ExecutionPlan plan)
@@ -10415,6 +10471,16 @@ internal static class UnifiedBytecodeProductionEligibility
                 depthAfter = depthBefore + 1;
                 return true;
 
+            case ExpressionOpKind.LoadFunctionLiteral:
+                var descriptor = op.GetObject<FunctionLiteralDescriptor>(program.ObjectConstants.AsSpan());
+                if (FunctionLiteralNeedsLexicalThisOrPrivateNameContext(descriptor.Function, out _))
+                {
+                    return false;
+                }
+
+                depthAfter = depthBefore + 1;
+                return true;
+
             case ExpressionOpKind.GetNamedProperty:
                 // receiver -> value: net 0. Reject private/optional/short-circuit reads.
                 if (depthBefore < 1 ||
@@ -13639,7 +13705,6 @@ internal static class UnifiedBytecodeProductionEligibility
 
         // Named property write: [base, rhs..., SetNamedProperty]
         if (lastOp.Kind == ExpressionOpKind.SetNamedProperty &&
-            !lastOp.AllowNameInference &&
             TryGetActivationOrPlainDynamicIdentifierReadValue(
                 program.GetOperation(0),
                 identifierConstants,
@@ -13651,8 +13716,9 @@ internal static class UnifiedBytecodeProductionEligibility
 
             if (rhsStart == rhsEnd)
             {
-                return IsSimpleOperand(
-                    program.GetOperation(rhsStart),
+                return IsSimpleOperandOrSafeFunctionLiteral(
+                    program,
+                    rhsStart,
                     identifierConstants,
                     activationSlots,
                     allowsDynamicIdentifiers);
@@ -14392,6 +14458,23 @@ internal static class UnifiedBytecodeProductionEligibility
                 allowsDynamicIdentifiers),
             _ => false
         };
+    }
+
+    private static bool IsSimpleOperandOrSafeFunctionLiteral(
+        ExpressionProgram program,
+        int operationIndex,
+        ReadOnlySpan<IdentifierOperand> identifierConstants,
+        ActivationSlotShape activationSlots,
+        bool allowsDynamicIdentifiers = false)
+    {
+        var operation = program.GetOperation(operationIndex);
+        if (operation.Kind == ExpressionOpKind.LoadFunctionLiteral)
+        {
+            var descriptor = operation.GetObject<FunctionLiteralDescriptor>(program.ObjectConstants.AsSpan());
+            return !FunctionLiteralNeedsLexicalThisOrPrivateNameContext(descriptor.Function, out _);
+        }
+
+        return IsSimpleOperand(operation, identifierConstants, activationSlots, allowsDynamicIdentifiers);
     }
 
     private static bool IsPrivateNamedPropertyMutationOperation(

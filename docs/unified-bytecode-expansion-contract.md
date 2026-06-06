@@ -706,8 +706,6 @@ above in the same slice.
 - `Private nested named property receiver reads are not supported.`
 - `Private nested named property updates are not supported.`
 - `Private nested named property writes are not supported.`
-- `Property writes with name inference are not supported in the general expression loop.`
-- `Property writes with name inference are not supported.`
 - `ResolvePropertyKey underflow in complex call argument.`
 - `Resume target '{resumeSymbol.Name}' is not in the activation slot layout.`
 - `Spread sources only admit direct named member calls with simple arguments.`
@@ -878,7 +876,8 @@ predicates and proof tests.
     computed public class declarations now route through `DeclareClass` after the resumable
     invoker materializes the body environment. Static-block-only class declarations
     now route through the same `DeclareClass` path when every static block body is
-    production-unified-bytecode eligible and creates no nested closures; the block
+    production-unified-bytecode eligible, including static blocks that create
+    activation-capturing closures assigned to named static properties; the block
     body must log `unified-bytecode-production-fast-path static-block`, not the
     classified static-block IR fallback. Public instance computed-member
     `extends` declarations now route by composing the standalone superclass
@@ -893,9 +892,9 @@ predicates and proof tests.
     closure-producing static fields and static `super` field initializers.
     Dynamic/eval helpers
     plus otherwise complex class declaration neighbors (escaping nested
-    activation-capturing computed names with `extends`, closure-producing static
-    blocks, static elements outside the static-block-only/static-field subsets,
-    and computed/private/static shapes outside the public B24h-compatible subset)
+    activation-capturing computed names with `extends`, mixed static-block/static
+    element shapes outside the static-block-only/static-field subsets, and
+    computed/private/static shapes outside the public B24h-compatible subset)
     are the remaining separate B36
     declaration-instantiation work.
     `DeclareFunction` remains off the resumable opcode allowlist because

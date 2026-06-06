@@ -4476,6 +4476,7 @@ internal static class UnifiedBytecodeCompiler
                 expressionProgram,
                 slotLayout,
                 callTargetConstants,
+                functionLiteralConstants,
                 allowsDynamicIdentifiers,
                 unified,
                 literalConstants,
@@ -5388,14 +5389,15 @@ internal static class UnifiedBytecodeCompiler
 
                 case ExpressionOpKind.SetNamedProperty:
                     var setNamedPropertyName = operation.GetString(expressionProgram.StringConstants.AsSpan());
-                    if (operation.AllowNameInference)
-                    {
-                        reason = "Property writes with name inference are not supported in the general expression loop.";
-                        return false;
-                    }
-
                     var setNamedPropertyIndex = stringConstants.Count;
                     stringConstants.Add(setNamedPropertyName);
+                    if (operation.AllowNameInference)
+                    {
+                        unified.Add(new UnifiedBytecodeInstruction(
+                            UnifiedBytecodeOpCode.EnsureHasName,
+                            setNamedPropertyIndex));
+                    }
+
                     unified.Add(new UnifiedBytecodeInstruction(
                         UnifiedBytecodeOpCode.SetNamedProperty,
                         setNamedPropertyIndex));
@@ -13880,6 +13882,7 @@ internal static class UnifiedBytecodeCompiler
         ExpressionProgram expressionProgram,
         UnifiedBytecodeSlotLayout slotLayout,
         ImmutableArray<UnifiedBytecodeCallTarget>.Builder callTargetConstants,
+        ImmutableArray<FunctionLiteralDescriptor>.Builder functionLiteralConstants,
         bool allowsDynamicIdentifiers,
         ImmutableArray<UnifiedBytecodeInstruction>.Builder unified,
         ImmutableArray<JsValue>.Builder literalConstants,
@@ -13897,12 +13900,6 @@ internal static class UnifiedBytecodeCompiler
         if (propertySet.Kind != ExpressionOpKind.SetNamedProperty)
         {
             reason = string.Empty;
-            return false;
-        }
-
-        if (propertySet.AllowNameInference)
-        {
-            reason = "Property writes with name inference are not supported.";
             return false;
         }
 
@@ -13963,6 +13960,7 @@ internal static class UnifiedBytecodeCompiler
         var literalCount = literalConstants.Count;
         var stringCount = stringConstants.Count;
         var callTargetCount = callTargetConstants.Count;
+        var functionLiteralCount = functionLiteralConstants.Count;
 
         void RollBack()
         {
@@ -13970,6 +13968,7 @@ internal static class UnifiedBytecodeCompiler
             RollBackUnifiedBuilder(literalConstants, literalCount);
             RollBackUnifiedBuilder(stringConstants, stringCount);
             RollBackUnifiedBuilder(callTargetConstants, callTargetCount);
+            RollBackUnifiedBuilder(functionLiteralConstants, functionLiteralCount);
         }
 
         if (!TryAppendSimpleOperandLoadWithDynamic(
@@ -13988,15 +13987,20 @@ internal static class UnifiedBytecodeCompiler
 
         if (rhsIsSingleSimpleOperand)
         {
-            if (!TryAppendSimpleOperandLoadWithDynamic(
-                    expressionProgram.GetOperation(rhsStart),
-                    expressionProgram,
-                    activationSlots,
-                    allowsDynamicIdentifiers,
-                    unified,
-                    literalConstants,
-                    stringConstants,
-                    out reason))
+            var rhsOperation = expressionProgram.GetOperation(rhsStart);
+            if (rhsOperation.Kind == ExpressionOpKind.LoadFunctionLiteral)
+            {
+                AppendLoadFunctionLiteral(rhsOperation, expressionProgram, unified, functionLiteralConstants);
+            }
+            else if (!TryAppendSimpleOperandLoadWithDynamic(
+                         rhsOperation,
+                         expressionProgram,
+                         activationSlots,
+                         allowsDynamicIdentifiers,
+                         unified,
+                         literalConstants,
+                         stringConstants,
+                         out reason))
             {
                 RollBack();
                 return false;
@@ -14046,6 +14050,13 @@ internal static class UnifiedBytecodeCompiler
 
         var propertyNameIndex = stringConstants.Count;
         stringConstants.Add(propertySet.GetString(expressionProgram.StringConstants.AsSpan()));
+        if (propertySet.AllowNameInference)
+        {
+            unified.Add(new UnifiedBytecodeInstruction(
+                UnifiedBytecodeOpCode.EnsureHasName,
+                propertyNameIndex));
+        }
+
         unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.SetNamedProperty, propertyNameIndex));
         reason = string.Empty;
         return true;

@@ -601,7 +601,7 @@ public sealed class UnifiedBytecodeResumableClassDeclarationTests(ITestOutputHel
     }
 
     [Fact]
-    public void EvaluateResumable_ClassDeclarationStaticBlockClosure_DeclinesBeforeVm()
+    public void EvaluateResumable_ClassDeclarationStaticBlockClosure_AdmitsDeclareClass()
     {
         var plan = GetFunctionPlan("""
             class Base {}
@@ -621,12 +621,11 @@ public sealed class UnifiedBytecodeResumableClassDeclarationTests(ITestOutputHel
             plan,
             new UnifiedBytecodeProductionActivationDescriptor(IsGenerator: true));
 
-        Assert.False(result.IsEligible);
-        Assert.Equal(UnifiedBytecodeProductionDeclineCode.UnsupportedPlanShape, result.Code);
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
         Assert.Contains(
-            "static block creates a closure",
-            result.Reason,
-            StringComparison.Ordinal);
+            result.Program.Instructions,
+            static instruction => instruction.OpCode == UnifiedBytecodeOpCode.DeclareClass);
     }
 
     [Fact(Timeout = 5000)]
@@ -1271,6 +1270,48 @@ public sealed class UnifiedBytecodeResumableClassDeclarationTests(ITestOutputHel
     }
 
     [Fact(Timeout = 5000)]
+    public async Task GeneratorClassDeclarationStaticBlockClosure_RoutesResumableAndObservesLaterActivationMutation()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            class Base {
+            }
+
+            function* g(seed) {
+                yield "ready";
+                var current = seed;
+                class Box extends Base {
+                    static {
+                        this.read = () => current;
+                    }
+                }
+                current = seed + 1;
+                yield Box.read;
+            }
+
+            var iterator = g(41);
+            var first = iterator.next();
+            var second = iterator.next();
+            first.value + ":" + first.done + "|" + second.value() + ":" + second.done;
+            """);
+
+        Assert.Equal("ready:false|42:false", result);
+        AssertGeneratorFastPath("g", argc: 1);
+        AssertProductionFastPath("<anonymous>");
+        var logs = CurrentLogger!.Collector.Snapshot();
+        Assert.Contains(
+            logs,
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path static-block",
+                StringComparison.Ordinal));
+        Assert.DoesNotContain(
+            logs,
+            static record => record.Message.Contains(
+                "classified-static-block-ir-fallback",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task AsyncClassDeclarationAfterAwait_RoutesResumable()
     {
         await using var engine = CreateEngine();
@@ -1337,11 +1378,21 @@ public sealed class UnifiedBytecodeResumableClassDeclarationTests(ITestOutputHel
                 StringComparison.Ordinal));
     }
 
-    private void AssertGeneratorFastPath(string functionName, int argc) =>
-        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
-            record => record.Message.Contains(
-                $"{ResumableGeneratorFastPathLog} func={functionName} argc={argc}",
-                StringComparison.Ordinal));
+    private void AssertGeneratorFastPath(string functionName, int argc)
+    {
+        var snapshot = CurrentLogger!.Collector.Snapshot();
+        var expected = $"{ResumableGeneratorFastPathLog} func={functionName} argc={argc}";
+        var routeLogs = string.Join(
+            "\n",
+            snapshot
+                .Select(static record => record.Message)
+                .Where(static message =>
+                    message.Contains("unified-bytecode", StringComparison.Ordinal) ||
+                    message.Contains("classified", StringComparison.Ordinal)));
+        Assert.True(
+            snapshot.Any(record => record.Message.Contains(expected, StringComparison.Ordinal)),
+            routeLogs);
+    }
 
     private void AssertProductionFastPath(string functionName) =>
         Assert.True(

@@ -884,7 +884,8 @@ predicates and proof tests.
     classified static-block IR fallback. Public instance computed-member
     `extends` declarations now route by composing the standalone superclass
     compile check, the B36 constructor predicate, and the B24h computed public
-    member gate, including immediate computed-name IIFEs that create escaping
+    member gate, including direct activation-call computed names such as
+    `[key = read()]()` and immediate computed-name IIFEs that create escaping
     activation-capturing closures under the B24h materialized body-environment
     subset. Public instance super-member and public static super-member
     `extends` declarations now route even when their member bodies capture
@@ -894,8 +895,7 @@ predicates and proof tests.
     initializer compiles as standalone unified bytecode, including
     closure-producing static fields and static `super` field initializers.
     Dynamic/eval helpers
-    plus otherwise complex class declaration neighbors (escaping nested
-    activation-capturing computed names with `extends`, mixed static-block/static
+    plus otherwise complex class declaration neighbors (mixed static-block/static
     element shapes outside the static-block-only/static-field subsets, and
     computed/private/static shapes outside the public B24h-compatible subset)
     are the remaining separate B36

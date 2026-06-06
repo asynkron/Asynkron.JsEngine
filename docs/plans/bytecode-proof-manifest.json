@@ -189,7 +189,7 @@
     },
     {
       "id": "B24h",
-      "title": "Computed class-member names are partial; nested activation-capturing computed names still decline",
+      "title": "Computed class-member names are partial; activation-capturing field initializers still decline",
       "status": "open",
       "proofs": [
         {
@@ -368,15 +368,25 @@
           ]
         },
         {
-          "id": "B36-class-declaration-computed-name-activation-call-declines",
+          "id": "B36-class-declaration-computed-name-activation-call-routes",
+          "claim": "admitted",
+          "kind": "runtime",
+          "source": "function* g(read) {\n  yield 'ready';\n  var key = '';\n  class Box {\n    [key = read()]() {\n      return 42;\n    }\n  }\n  yield key + '|' + typeof Box;\n}\nvar iterator = g(() => 'value');\nvar first = iterator.next();\nvar second = iterator.next();\nfirst.value + ':' + first.done + '|' + second.value + ':' + second.done;",
+          "expectedResult": "ready:false|value|function:false",
+          "requiredLogs": [
+            "unified-bytecode-resumable-generator-fast-path func=g"
+          ]
+        },
+        {
+          "id": "B36-class-declaration-mixed-static-field-and-block-declines",
           "claim": "open",
           "kind": "eligibility",
           "subject": "resumable-generator",
           "functionName": "g",
-          "source": "function* g(read) {\n  yield 'ready';\n  class Box {\n    [read()]() {\n      return 1;\n    }\n  }\n  yield typeof Box;\n}",
+          "source": "function* g(seed) {\n  yield 'ready';\n  class Box {\n    static value = seed;\n    static {\n      Box.other = 1;\n    }\n  }\n  yield typeof Box;\n}",
           "expectedEligible": false,
           "declineCode": "UnsupportedPlanShape",
-          "reasonContains": "not supported by B24h"
+          "reasonContains": "outside B36"
         },
         {
           "id": "B36-class-declaration-extends-public-super-method-routes",

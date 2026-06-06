@@ -3917,7 +3917,7 @@ internal static class UnifiedBytecodeProductionEligibility
             if (ExpressionProgramHasUnsupportedClassComputedNameActivationDependency(
                     nameProgram,
                     activationSlots,
-                    allowDirectActivationCall: false,
+                    allowDirectActivationCall: true,
                     allowImmediateFunctionLiteralCall: true,
                     out var capturedName,
                     out var dependencyReason))
@@ -3945,7 +3945,7 @@ internal static class UnifiedBytecodeProductionEligibility
             if (ExpressionProgramHasUnsupportedClassComputedNameActivationDependency(
                     nameProgram,
                     activationSlots,
-                    allowDirectActivationCall: false,
+                    allowDirectActivationCall: true,
                     allowImmediateFunctionLiteralCall: true,
                     out var capturedName,
                     out var dependencyReason))

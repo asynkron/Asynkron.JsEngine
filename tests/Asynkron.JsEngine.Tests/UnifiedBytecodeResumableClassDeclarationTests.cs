@@ -80,7 +80,7 @@ public sealed class UnifiedBytecodeResumableClassDeclarationTests(ITestOutputHel
     }
 
     [Fact]
-    public void EvaluateResumable_ClassDeclarationComputedNameActivationCall_DeclinesBeforeVm()
+    public void EvaluateResumable_ClassDeclarationComputedNameActivationCall_AdmitsDeclareClass()
     {
         var plan = GetFunctionPlan("""
             function* g(read) {
@@ -99,9 +99,37 @@ public sealed class UnifiedBytecodeResumableClassDeclarationTests(ITestOutputHel
             plan,
             new UnifiedBytecodeProductionActivationDescriptor(IsGenerator: true));
 
-        Assert.False(result.IsEligible);
-        Assert.Equal(UnifiedBytecodeProductionDeclineCode.UnsupportedPlanShape, result.Code);
-        Assert.Contains("not supported by B24h", result.Reason, StringComparison.Ordinal);
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(
+            result.Program.Instructions,
+            static instruction => instruction.OpCode == UnifiedBytecodeOpCode.DeclareClass);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task GeneratorClassDeclarationComputedNameActivationCall_RoutesResumable()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function* g(read) {
+                yield "ready";
+                var key = "";
+                class Box {
+                    [key = read()]() {
+                        return 42;
+                    }
+                }
+                yield key + "|" + typeof Box;
+            }
+
+            var iterator = g(() => "value");
+            var first = iterator.next();
+            var second = iterator.next();
+            first.value + ":" + first.done + "|" + second.value + ":" + second.done;
+            """);
+
+        Assert.Equal("ready:false|value|function:false", result);
+        AssertGeneratorFastPath("g", argc: 1);
     }
 
     [Fact]

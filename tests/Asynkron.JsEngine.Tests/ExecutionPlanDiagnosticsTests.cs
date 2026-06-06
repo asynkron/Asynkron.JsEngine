@@ -346,15 +346,6 @@ public sealed class ExecutionPlanDiagnosticsTests(ITestOutputHelper output) : In
     {
         var repositoryRoot = FindRepositoryRoot();
         var sourceRoot = Path.Combine(repositoryRoot.FullName, "src", "Asynkron.JsEngine");
-        var allowedCallSites = new HashSet<string>(StringComparer.Ordinal)
-        {
-            "src/Asynkron.JsEngine/Ast/ClassDefinitionExtensions.cs",
-            "src/Asynkron.JsEngine/Ast/ClassFieldInitializer.cs",
-            "src/Asynkron.JsEngine/Ast/ClassPropertyNameResolver.cs",
-            "src/Asynkron.JsEngine/Ast/TypedAstEvaluator.ExpressionPrograms.cs",
-            "src/Asynkron.JsEngine/Ast/TypedAstEvaluator.SyncFunctionInvoker.cs"
-        };
-
         var matches = Directory
             .EnumerateFiles(sourceRoot, "*.cs", SearchOption.AllDirectories)
             .SelectMany(file =>
@@ -374,27 +365,61 @@ public sealed class ExecutionPlanDiagnosticsTests(ITestOutputHelper output) : In
 
         Assert.NotEmpty(matches);
 
-        var disallowed = matches
-            .Where(match => !allowedCallSites.Contains(match.relativePath))
-            .Select(match => $"{match.relativePath}:{match.LineNumber}:{match.Text}")
+        var classifiedMatches = matches
+            .Select(match => (
+                match.relativePath,
+                match.LineNumber,
+                match.Text,
+                Classification: ClassifyLoweredExpressionProgramCaller(
+                    match.relativePath,
+                    match.Text,
+                    match.NearbyText)))
+            .ToArray();
+
+        var unclassified = classifiedMatches
+            .Where(static match => match.Classification is null)
+            .Select(static match => $"{match.relativePath}:{match.LineNumber}:{match.Text}")
             .ToArray();
 
         Assert.True(
-            disallowed.Length == 0,
-            "EvaluateLoweredExpressionProgram call-site drift detected; classify new callers as dynamic, class-definition/class-field, profiling, or fallback-only:\n" +
-            string.Join('\n', disallowed));
+            unclassified.Length == 0,
+            "EvaluateLoweredExpressionProgram call-site drift detected; classify new callers as bridge, dynamic, class-definition/class-field, profiling, or fallback-only:\n" +
+            string.Join('\n', unclassified));
 
-        var syncInvokerFallbackCalls = matches
-            .Where(static match => string.Equals(
-                match.relativePath,
-                "src/Asynkron.JsEngine/Ast/TypedAstEvaluator.SyncFunctionInvoker.cs",
-                StringComparison.Ordinal))
-            .Where(static match => match.NearbyText.Contains(
-                "E4 fallback-only expression-program bridge",
-                StringComparison.Ordinal))
+        var syncInvokerFallbackCalls = classifiedMatches
+            .Where(static match => string.Equals(match.Classification, "fallback-only", StringComparison.Ordinal))
             .ToArray();
 
         Assert.Single(syncInvokerFallbackCalls);
+    }
+
+    private static string? ClassifyLoweredExpressionProgramCaller(
+        string relativePath,
+        string text,
+        string nearbyText)
+    {
+        return relativePath switch
+        {
+            "src/Asynkron.JsEngine/Ast/TypedAstEvaluator.ExpressionPrograms.cs"
+                when text.Contains("internal static JsValue EvaluateLoweredExpressionProgram(", StringComparison.Ordinal) =>
+                    "bridge-definition",
+            "src/Asynkron.JsEngine/Ast/TypedAstEvaluator.ExpressionPrograms.cs"
+                when text.Contains("return EvaluateLoweredExpressionProgram(cache.Program, environment, context);", StringComparison.Ordinal) =>
+                    "dynamic-boundary",
+            "src/Asynkron.JsEngine/Ast/ClassDefinitionExtensions.cs" =>
+                "class-definition",
+            "src/Asynkron.JsEngine/Ast/ClassFieldInitializer.cs" =>
+                "class-field",
+            "src/Asynkron.JsEngine/Ast/ClassPropertyNameResolver.cs" =>
+                "class-property-name",
+            "src/Asynkron.JsEngine/Ast/TypedAstEvaluator.SyncFunctionInvoker.cs"
+                when nearbyText.Contains("E4 fallback-only expression-program bridge", StringComparison.Ordinal) =>
+                    "fallback-only",
+            "src/Asynkron.JsEngine/Ast/TypedAstEvaluator.SyncFunctionInvoker.cs"
+                when nearbyText.Contains("resolvedField.InitializerProgram", StringComparison.Ordinal) =>
+                    "class-field",
+            _ => null
+        };
     }
 
     [Fact]

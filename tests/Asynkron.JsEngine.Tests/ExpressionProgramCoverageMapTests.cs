@@ -98,6 +98,15 @@ public sealed class ExpressionProgramCoverageMapTests
         "B24i:ClassExpressionSuperInMembers"
     ];
 
+    private static readonly string[] A51fExpressionLoopLeafNames =
+    [
+        "A51f1:GeneralExpressionLoopUnsupportedOp",
+        "A51f2:BindingTargetExpressionContext",
+        "A51f3:DynamicIdentifierExpressionLoop",
+        "A51f4:ImplicitArgumentsExpressionLoop",
+        "A51f5:PrivateNeighborExpressionLoop"
+    ];
+
     private static readonly string[] StaleDiscardDeclinePhrases =
     [
         "non-directive discarded expressions still decline before VM execution",
@@ -420,6 +429,9 @@ public sealed class ExpressionProgramCoverageMapTests
         var documentedB24Leaves = ExtractBacktickedBulletItemsUnderHeading(
             contractText,
             "### B24 Class Expression Leaves (current)");
+        var documentedA51fLeaves = ExtractBacktickedBulletItemsUnderHeading(
+            contractText,
+            "### A51f Expression-Loop Leaves (current)");
 
         AssertSameSet(
             A35ObjectLiteralMemberLeafNames,
@@ -429,6 +441,10 @@ public sealed class ExpressionProgramCoverageMapTests
             B24ClassExpressionLeafNames,
             documentedB24Leaves,
             "B24 class expression leaf decomposition");
+        AssertSameSet(
+            A51fExpressionLoopLeafNames,
+            documentedA51fLeaves,
+            "A51f expression-loop leaf decomposition");
     }
 
     [Fact]

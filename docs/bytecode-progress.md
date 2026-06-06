@@ -137,13 +137,16 @@ and the resumable instruction gap inventory has **0** remaining gaps.
 
 The remaining non-retirement work is concentrated in:
 
-- A1/A2 dynamic activation residue: captured dynamic activation chains,
+- A1/A2 dynamic activation residue: captured closures now route for the
+  admitted sync and resumable flat/nested/colliding closure lane, so the open
+  residue is the dynamic-activation boundary around captured dynamic chains,
   direct-eval shapes that still depend on the implicit `arguments` object
-  beyond the bounded admitted route, and async/generator parity for the dynamic
-  activation lane. `TypedAstEvaluator.UnifiedBytecodeResumableActivation.cs`
-  still declines direct eval in parameters/body when the resumable path cannot
-  prove declaration-free dynamic activation, arguments-object safety, or absence
-  of a live `with` object in the closure chain.
+  beyond the bounded admitted route, retained live-`with` closure chains, and
+  async/generator parity for the dynamic activation lane.
+  `TypedAstEvaluator.UnifiedBytecodeResumableActivation.cs` still declines
+  direct eval in parameters/body when the resumable path cannot prove
+  declaration-free dynamic activation, arguments-object safety, or absence of a
+  live `with` object in the closure chain.
 - A51 compiler leaves: the remaining named `UnsupportedPlanShape` buckets for
   topology, slot layout, scope/environment, driver state, destructuring,
   expression-span, call-boundary, literal, property, mutation, and cleanup
@@ -320,7 +323,7 @@ done
 | `activation-noargs-lite` | 600,002 | Active simple literal-return activation route plus wrapper/entry shapes. |
 | `activation-params-lite` | 500,002 | Active parameterized activation route plus wrapper/entry shapes. |
 | `activation-arguments-lite` | 1 | Minimal-hit: wrapper/entry shape routes; the arguments-object workload itself remains a blocker. |
-| `activation-closures-lite` | 120,300 | Partial-hit: eligible closure shapes route; captured/dynamic activation residue remains a blocker for broader closure shapes. |
+| `activation-closures-lite` | 120,300 | Partial-hit: admitted captured-closure shapes route; dynamic activation residue and retained live-`with` closure chains remain blockers for broader closure shapes. |
 | `activation-evalscope-lite` | 64 | Partial-hit: entry/wrapper shapes route; eval-sensitive dynamic scope remains a blocker. |
 | `objectcreation` | 20 | Minimal-hit: wrapper/entry shape routes; broad object-construction workload remains outside the production route. |
 | `arrayops` | 400,000 | Active array operation wrapper/iteration route. |

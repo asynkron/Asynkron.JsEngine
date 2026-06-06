@@ -315,8 +315,18 @@ all-or-nothing until a separate routing issue proves production readiness.
      / PR #3297 then hardened the source gate by stripping the exact classified
      fallback markers before asserting that the remaining accepted-route
      invoker source stays runner/expression/AST-free.
-     Related ADR:
-     `docs/adrs/0349-keep-declined-async-generator-bodies-on-classified-runner-fallback.md`.
+     Faktorial issue
+     `planitem-planitem-planmanual1780730299657353000-unified-bytecode-remaining-burndo-29a0fd043c`
+     / PR #3316 kept declaration-free direct eval admission out of async
+     generators while allowing the same literal/no-declaration/no-`arguments`
+     subset for sync generators and async functions. The durable lesson is that
+     async-generator direct-eval routing is a settlement-path decision, not a
+     generic resumable activation decision; keep `AsyncGeneratorInvoker` on the
+     conservative direct-eval decline until a future async-generator-specific
+     proof changes that flag and pins the declined neighbor.
+     Related ADRs:
+     `docs/adrs/0349-keep-declined-async-generator-bodies-on-classified-runner-fallback.md`,
+     `docs/adrs/0352-keep-resumable-direct-eval-admission-route-family-scoped.md`.
 10e. When admitting resumable generator or async shapes that contain nested
      function literals or `try/finally` cleanup, prove the surrounding
      suspension context, not only the direct opcode allowlist. A nested function

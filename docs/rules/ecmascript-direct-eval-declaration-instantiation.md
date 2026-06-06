@@ -74,11 +74,16 @@ and keep `arguments` handling path-specific.
     `let`, `const`, function, or class declarations must decline before VM
     execution, and runtime-source direct eval must remain on the IR path.
     Preserve already-admitted declaration-free direct eval shapes separately:
-    do not turn the guard into a blanket direct-eval decline. Prove the
-    boundary with both eligibility no-route tests for declaration-bearing
-    literals and invocation tests that strict direct eval declarations stay
-    isolated from the caller while logging no
-    `unified-bytecode-production-fast-path` hit.
+    do not turn the guard into a blanket direct-eval decline. In resumable
+    unified-bytecode activation, keep the declaration-free optimization
+    route-family scoped: sync generators and async functions may admit the
+    literal declaration-free/no-`arguments` subset, while async generators must
+    stay on their conservative direct-eval decline until their settlement path
+    has dedicated proof. Prove the boundary with both eligibility no-route tests
+    for declaration-bearing literals and invocation tests that strict direct
+    eval declarations stay isolated from the caller while logging no
+    `unified-bytecode-production-fast-path` hit, plus a declined-neighbor
+    async-generator settlement test when this surface is touched.
 
 ## Why
 
@@ -141,9 +146,19 @@ direct eval has to decline before production VM execution, while existing
 declaration-free direct eval route hits remain valid and should not be
 regressed by an over-broad guard.
 
+Faktorial issue
+`planitem-planitem-planmanual1780730299657353000-unified-bytecode-remaining-burndo-29a0fd043c`
+/ PR #3316 then widened the declaration-free direct-eval resumable route only
+for sync generators and async functions. The review repair kept async
+generators declined because their promise-settlement and classified fallback
+contract is a separate route-family proof problem. Future direct-eval widening
+must preserve that per-invoker flag split instead of inferring async-generator
+safety from a sync-generator or async-function proof.
+
 Related ADRs:
 
 - `docs/adrs/0185-keep-direct-eval-program-cache-strictness-and-caller-context-owned.md`
 - `docs/adrs/0132-keep-direct-eval-var-arguments-collision-checks-narrow.md`
 - `docs/adrs/0206-keep-strict-direct-eval-declaration-free-environment-reuse.md`
 - `docs/adrs/0213-keep-strict-direct-eval-no-environment-fast-path-caller-strict.md`
+- `docs/adrs/0352-keep-resumable-direct-eval-admission-route-family-scoped.md`

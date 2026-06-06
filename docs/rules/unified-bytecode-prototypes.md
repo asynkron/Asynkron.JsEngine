@@ -226,11 +226,21 @@ all-or-nothing until a separate routing issue proves production readiness.
      post-`super()` `this`/field/private-brand shapes. Runtime-dependent default
      parameter expressions, destructured parameters, observable `arguments`, and
      unowned super property access must stay on the existing constructor path
-     until the VM owns those semantics for that shape. Prove route hits for base
-     constructor `this` initialization, base constructor object returns,
-     `super(value)` / `super()`, simple property-read `super(...)` arguments,
-     admitted constructor parameter variants, and nearby no-route behavior for
-     runtime defaults and destructuring.
+     until the VM owns those semantics for that shape. Private-name constructor
+     callables are also a hard decline until the production constructor bridge
+     owns the class private-name lexical state: check both `PrivateNameScope`
+     and captured private-name scopes before routing, and keep private-brand-only
+     constructors declined even when their bodies contain no private expression
+     op. Prove route hits for base constructor `this` initialization, base
+     constructor object returns, `super(value)` / `super()`, simple
+     property-read `super(...)` arguments, admitted constructor parameter
+     variants, and nearby no-route behavior for runtime defaults, destructuring,
+     and private-name class state. WHY: Faktorial issue
+     `planitem-planmanual1780730299657353000-unified-bytecode-remaining-burndown-02-cla-ec8d71f1da`
+     / PR #3321 added explicit private-name scope declines for base and derived
+     production class-constructor activation after private-brand class tests
+     incorrectly expected route hits. Related ADR:
+     `docs/adrs/0353-keep-private-name-class-constructors-off-production-bytecode-until-lexical-state-is-owned.md`.
 10b. Treat `arguments` as an arguments-object dependency only after binding
      resolution proves it is not an ordinary activation slot. A parameter named
      `arguments` or a lexical body binding named `arguments` is regular slot

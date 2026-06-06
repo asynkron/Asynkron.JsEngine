@@ -86,8 +86,7 @@ public sealed class ExpressionProgramCoverageMapTests
     [
         "EnterWithInstruction",
         "LeaveWithInstruction",
-        "PushEnvironmentInstruction",
-        "SetCompletionValueInstruction"
+        "PushEnvironmentInstruction"
     ];
 
     private static readonly string[] A35ObjectLiteralMemberLeafNames =

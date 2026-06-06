@@ -1314,6 +1314,7 @@ internal static class UnifiedBytecodeProductionEligibility
             case EvaluateAndDiscardInstruction { ExpressionProgram: { } }:
             case BranchInstruction:
             case JumpInstruction:
+            case SetCompletionValueInstruction:
             case BreakInstruction:
             case ContinueInstruction:
             case ReturnInstruction { AwaitedProgram: null }:

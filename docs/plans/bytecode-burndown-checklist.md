@@ -44,7 +44,7 @@ non-awaited `with`, the `Function` call boundary itself.
 
 - [x] **P0.1** Grammar-coverage appendix → `docs/plans/bytecode-grammar-coverage.md` ✅ (covers switch+`let`, do-while, sequence, BigInt literal/arithmetic/`typeof`, `static {}`, super-in-instance/static-fields, `new.target`, labeled-block break — each mapped to its lowering owner + test anchor). **Surfaced 1 real new leaf → A52 (`debugger;`).**
 - [x] **P0.2** Enumerate the `UnsupportedPlanShape` compiler umbrellas (A51 / B47 / E2): promoted current `UnifiedBytecodeCompiler.TryCompile` reason templates into named owner leaves A51a-A51m plus B47a, with exact source-template drift coverage in `docs/unified-bytecode-expansion-contract.md`.
-- [x] **P0.3** Diff `UnifiedBytecodeOpCode` enum vs the sync admit-switch (E3) and the two resumable allowlists; name every enum/instruction-but-not-admitted gap. ✅ (2026-06-06): contract now drift-checks sync prototype opcode guard gaps (6 resumable-only opcodes), resumable opcode allowlist gaps (14 opcodes), and resumable instruction allowlist gaps (4 instruction records) against source.
+- [x] **P0.3** Diff `UnifiedBytecodeOpCode` enum vs the sync admit-switch (E3) and the two resumable allowlists; name every enum/instruction-but-not-admitted gap. ✅ (2026-06-06): contract now drift-checks sync prototype opcode guard gaps (6 resumable-only opcodes), resumable opcode allowlist gaps (14 opcodes), and resumable instruction allowlist gaps (3 instruction records) against source.
 - [x] **P0.4** Decompose the coarse leaves: split **B24** (class expression) into per-member shapes and **A35** into concrete object-literal member opcode leaves. ✅ (2026-06-05): A35 is now A35a-A35e; B24 is now B24a-B24i; the expansion contract drift-checks both decompositions.
 - [x] **P0.5** Delete the dead `LabelControlFlow` enum member + stale contract-doc rows (zero emission sites; labeled loop break/continue already admitted on sync). *(= old E1.)*
 
@@ -246,4 +246,4 @@ production decline.
 
 ---
 
-_Checklist status: 119 / 145 complete. The latest runtime proof pins direct root simple class declarations on the resumable bytecode route. Phase B stands at 52 / 57 complete. B23 remains partial for nested declarations inside literals; B36 remains partial for dynamic/eval helpers and complex class declarations. The resumable opcode gap inventory is 14, and the instruction gap inventory is 4._
+_Checklist status: 119 / 145 complete. The latest runtime proof pins `SetCompletionValueInstruction` on the resumable bytecode route. Phase B stands at 52 / 57 complete. B23 remains partial for nested declarations inside literals; B36 remains partial for dynamic/eval helpers and complex class declarations. The resumable opcode gap inventory is 14, and the instruction gap inventory is 3._

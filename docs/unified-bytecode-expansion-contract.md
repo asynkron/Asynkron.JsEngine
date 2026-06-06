@@ -57,7 +57,7 @@ statement interpretation.
   drift gate
   `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~ExpressionProgramCoverageMapTests&FullyQualifiedName~UnifiedBytecodeExpansionContract"`
   passed. The checked inventories remain current: 6 sync prototype opcode guard
-  gaps, 14 resumable opcode allowlist gaps, 4 resumable instruction allowlist
+  gaps, 14 resumable opcode allowlist gaps, 3 resumable instruction allowlist
   gaps, A35 split into 5 object-literal member leaves, B24 split into 9
   class-expression leaves, and no general expression lowering gaps.
 - Completing the decline-burndown plan did not make unified bytecode the only
@@ -419,7 +419,6 @@ definition state still declines through the B36 class-declaration predicate.
 - `EnterWithInstruction`
 - `LeaveWithInstruction`
 - `PushEnvironmentInstruction`
-- `SetCompletionValueInstruction`
 
 ### A35 Object Literal Member Leaves (current)
 

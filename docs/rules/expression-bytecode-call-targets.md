@@ -80,6 +80,10 @@ checks separate.
    declarations can inject runtime bindings and must also stay on IR. Carry
    directness in boundary-local metadata instead of inferring it from
    receiver/dynamic lookup state, and keep the fast path same-engine guarded.
+   The admitted declaration-free literal may still read the caller activation,
+   including local slots, parameters, `arguments[0]`, and `arguments.length`;
+   prove those cases with both eligibility opcode proof and public runtime
+   route-hit proof so the boundary cannot become a shape-only admission.
 10a. If a direct-eval boundary fast path bypasses the generic host-call setup,
     resynchronize the unified-bytecode frame's slot array from the active slot
     environments before returning to the VM. Sloppy direct eval can mutate
@@ -197,6 +201,13 @@ the direct-eval production boundary declaration-family complete: `var`, `let`,
 injection hazards for a VM frame compiled before eval declaration
 instantiation. Future direct-eval production work should preserve that whole
 negative set while keeping declaration-free literal eval route proof green.
+Faktorial issue
+`planitem-planitem-planmanual1780730299657353000-unified-bytecode-remaining-burndo-5060cd058d`
+/ PR #3305 then closed the adjacent proof gap for declaration-free direct eval
+that reads caller activation state. The route was already admitted, but future
+work must keep eligibility proof paired with runtime proof that direct eval
+sees the current caller environment and implicit `arguments` object on the
+production fast path.
 
 Issue
 `planitem-planmanual1780639098493226000-full-unified-bytecode-execution-burndown-b-43182f6ef4`

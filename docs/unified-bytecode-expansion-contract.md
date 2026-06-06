@@ -401,7 +401,6 @@ the admitted subset stays 1:1 with `UnifiedBytecodeVirtualMachine.ExecuteResumab
 - `RegisterDisposable`
 - `StoreDynamicIdentifier`
 - `SuperConstructInvocationBoundary`
-- `ThrowReferenceError`
 
 ### Resumable Instruction Allowlist Gaps (current)
 
@@ -1760,13 +1759,16 @@ the final post-compile production subset check before VM entry.
   The B37 name-inference opcode `EnsureHasName` is now admitted for resumable function
   literals: `let f = function(){}` / object method/accessor literals co-emit
   `LoadFunctionLiteral`, and both opcodes are handled directly by `ExecuteResumable`.
-  `ThrowReferenceError` is still not admitted: its only producer (`delete super[...]`)
-  remains an unsupported delete-super shape even though ordinary super property
-  read/write/update opcodes are now handled by `ExecuteResumable`. An
+  `ThrowReferenceError` is also admitted at the opcode/handler level: the handler
+  materializes the ReferenceError value and routes it through resumable
+  catch/finally abrupt-completion handling. Its only source producer
+  (`delete super[...]`) remains an unsupported delete-super shape, so this is a
+  synthetic opcode inventory cleanup rather than a new source-shape admission. An
   uninitialized-binding TDZ read is already surfaced by the existing resumable
   `LoadSlot` handler (no new opcode) (proof:
   `UnifiedBytecodeResumableTemplateToStringTests`, plus
-  `UnifiedBytecodeResumableNestedFunctionTests` for `EnsureHasName`).
+  `UnifiedBytecodeResumableNestedFunctionTests` for `EnsureHasName`, and
+  `UnifiedBytecodeResumableValueTierTests` for `ThrowReferenceError`).
 - Accepted resumable bodies may now read the `import.meta` meta-property between suspension
   points (burndown B20). The `LoadImportMeta` opcode is ported into the `ExecuteResumable`
   switch and added to the `TryFindUnsupportedResumableOpcode` allowlist. The resumable

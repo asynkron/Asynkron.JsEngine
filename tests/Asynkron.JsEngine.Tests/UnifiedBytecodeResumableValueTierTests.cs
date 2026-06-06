@@ -1,6 +1,9 @@
+using System.Collections.Immutable;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.Execution;
+using Asynkron.JsEngine.Execution.Instructions;
 using Asynkron.JsEngine.Execution.UnifiedBytecode;
+using Asynkron.JsEngine.JsTypes;
 using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
@@ -23,6 +26,52 @@ namespace Asynkron.JsEngine.Tests;
 public sealed class UnifiedBytecodeResumableValueTierTests(ITestOutputHelper output) : InternalTestBase(output)
 {
     private const string ResumableGeneratorFastPathLog = "unified-bytecode-resumable-generator-fast-path";
+
+    [Fact]
+    public void EvaluateResumable_ThrowReferenceErrorExpression_AdmitsAndReturnsThrowStep()
+    {
+        var message = "Unsupported reference to 'super'";
+        var expressionProgram = new ExpressionProgram(
+            ImmutableArray.Create(PackedExpressionOp.ThrowReferenceError(0)),
+            stringConstants: ImmutableArray.Create(message));
+        var seedPlan = GetFunctionPlan("function* g() { yield 0; }", "g");
+        var plan = seedPlan with
+        {
+            Instructions = ImmutableArray.Create<ExecutionInstruction>(new ReturnInstruction(-1, expressionProgram)),
+            EntryPoint = 0
+        };
+
+        var result = UnifiedBytecodeProductionEligibility.EvaluateResumable(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor(IsGenerator: true));
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(
+            result.Program.Instructions,
+            static instruction => instruction.OpCode == UnifiedBytecodeOpCode.ThrowReferenceError);
+
+        using var engine = CreateEngine();
+        var context = engine.RealmState.CreateContext();
+        var state = new UnifiedBytecodeResumeState(
+            result.Program,
+            new JsValue[Math.Max(result.Program.SlotCount, 1)]);
+
+        var step = UnifiedBytecodeVirtualMachine.ExecuteResumable(
+            state,
+            UnifiedBytecodeResumeMode.Next,
+            JsValue.Undefined,
+            context);
+
+        Assert.Equal(UnifiedBytecodeStepKind.Throw, step.Kind);
+        Assert.True(state.IsCompleted);
+        Assert.True(context.IsThrow);
+        var error = Assert.IsType<JsObject>(step.Value.ObjectValue, exactMatch: false);
+        Assert.True(error.TryGetProperty("name", out var name));
+        Assert.Equal("ReferenceError", name.AsString());
+        Assert.True(error.TryGetProperty("message", out var actualMessage));
+        Assert.Equal(message, actualMessage.AsString());
+    }
 
     // The value-tier gate: a generator that reads a property, applies unary minus and typeof between
     // yields is now admitted by EvaluateResumable (was previously declined on the value-tier opcodes).

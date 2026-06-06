@@ -2094,6 +2094,12 @@ internal static class UnifiedBytecodeProductionEligibility
                 UnifiedBytecodeOpCode.Return or
                 UnifiedBytecodeOpCode.ReturnUndefined or
                 UnifiedBytecodeOpCode.Throw or
+                // ReferenceError materialization emitted by expression bytecode scaffolding (currently
+                // reachable only through synthetic tests on the resumable route because delete-super shapes
+                // still decline before this opcode). The handler mirrors Throw: create the ReferenceError
+                // value, route it through resumable catch/finally abrupt-completion handling, then surface the
+                // throw step if no frame handles it.
+                UnifiedBytecodeOpCode.ThrowReferenceError or
                 // Synchronous call dispatch (non-optional `f()`, `o.m()`, `o[k]()` plus `super.m()` /
                 // `super[k]()` in resumable method bodies). The super call-target opcodes resolve through
                 // the live closure environment threaded on UnifiedBytecodeResumeState.CallingEnvironment,

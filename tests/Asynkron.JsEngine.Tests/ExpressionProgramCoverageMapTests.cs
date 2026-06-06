@@ -76,8 +76,7 @@ public sealed class ExpressionProgramCoverageMapTests
         "PushEnvironment",
         "RegisterDisposable",
         "StoreDynamicIdentifier",
-        "SuperConstructInvocationBoundary",
-        "ThrowReferenceError"
+        "SuperConstructInvocationBoundary"
     ];
 
     private static readonly string[] UnifiedBytecodeResumableInstructionAllowListGapNames =

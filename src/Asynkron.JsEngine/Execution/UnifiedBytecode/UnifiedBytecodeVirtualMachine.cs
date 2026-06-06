@@ -6370,6 +6370,38 @@ internal static class UnifiedBytecodeVirtualMachine
                     state.StackPointer = stackPointer;
                     return UnifiedBytecodeStepResult.Throw(throwValue);
 
+                case UnifiedBytecodeOpCode.ThrowReferenceError:
+                    var referenceErrorValue = StandardLibrary.CreateReferenceError(
+                        program.StringConstants[instruction.Operand],
+                        context,
+                        context.RealmState);
+                    if (TryHandleResumableAbruptCompletion(
+                            UnifiedBytecodeAbruptCompletionKind.Throw,
+                            referenceErrorValue,
+                            -1,
+                            hasControlTarget: false))
+                    {
+                        break;
+                    }
+
+                    context.SetThrow(referenceErrorValue);
+                    if (!TryCleanupActiveDriverStatesResumable(
+                            slots,
+                            context,
+                            state,
+                            programCounter,
+                            stackPointer,
+                            preserveExistingThrow: true,
+                            out var referenceErrorCleanupStep))
+                    {
+                        return referenceErrorCleanupStep;
+                    }
+
+                    state.IsCompleted = true;
+                    state.ProgramCounter = programCounter + 1;
+                    state.StackPointer = stackPointer;
+                    return UnifiedBytecodeStepResult.Throw(referenceErrorValue);
+
                 case UnifiedBytecodeOpCode.PrepareIdentifierCallTarget:
                     {
                         // Plain `f()`: load the callee from its activation slot, pushing the

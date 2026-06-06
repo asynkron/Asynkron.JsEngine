@@ -785,10 +785,12 @@ predicates and proof tests.
     n=2; yield f(); }`, so the closure observes `1` then `2` on the resumable
     generator route, and admits async-function / async-generator closures that
     cross `await`, observe post-resume slot writes, and are called directly inside
-    the resumable body. Lexical-this/private-name dependent literals and function
-    declarations nested inside an otherwise non-capturing function literal decline
-    until their closure contexts or declaration-instantiation semantics are
-    represented by the resumable route. B23 remains partial.
+    the resumable body. Lexical-this/private-name dependent literals now route
+    when the resumable invoker proves the context and creates a per-call
+    invocation environment for nested arrows to capture. Function declarations
+    nested inside an otherwise non-capturing function literal still decline until
+    declaration-instantiation semantics are represented by the resumable route.
+    B23 remains partial.
   - HOISTED NESTED FUNCTION DECLARATIONS (`function helper(){...}`;
     `FunctionDeclarationInstruction` / `DeclareFunction`) inside a generator/async
     body are now partially admitted (B36): direct root function-scoped
@@ -1810,10 +1812,12 @@ the final post-compile production subset check before VM entry.
   non-capturing: the value lowers to `LoadFunctionLiteral`, name inference lowers to
   `EnsureHasName` when needed, and the `Define{Computed}ObjectMethod` /
   `Define{Computed}ObjectAccessor` handlers attach the callable to the fresh object.
-  Capturing generator method/accessor literals can route through the B23
-  materialized-body-environment slice when they capture root body locals; async
-  captured method/accessor literals and lexical/private-context captures remain
-  covered by the B23 capture decline.
+  Capturing generator/async/async-generator method/accessor literals can route
+  through the B23 materialized-body-environment slice when they capture root body
+  locals, and lexical/private-context captures are admitted when the resumable
+  invoker proves and materializes the per-call context. Nested declarations inside
+  those function literals remain covered by the B23 declaration-instantiation
+  decline.
   Separately,
   a `var x = <literal>` whose literal contains no suspension still declines at the
   resumable var-declaration lowering boundary (`SimpleVariableDeclarationInstruction`

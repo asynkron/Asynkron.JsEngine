@@ -41,6 +41,7 @@ internal readonly record struct UnifiedBytecodeProductionActivationDescriptor(
     bool AllowsImplicitArgumentsObjectPropertyReadOperands = false,
     bool AllowsRootFunctionDeclarationInstructions = false,
     bool AllowsMaterializedBodyEnvironmentFunctionLiterals = false,
+    bool AllowsNestedFunctionLiteralLexicalThisOrPrivateNameContext = false,
     bool IsStrict = false);
 
 internal readonly record struct UnifiedBytecodeProductionEligibilityResult(
@@ -77,6 +78,8 @@ internal readonly record struct UnifiedBytecodeProductionEligibilityResult(
 internal static class UnifiedBytecodeProductionEligibility
 {
     private const string NestedFunctionDeclarationBoundary = "<function declaration>";
+    private const string LexicalThisOrPrivateNameBoundary = "<lexical this/private name>";
+    private const string PrivateNameBoundary = "<private name>";
 
     internal static bool ContainsOnlyImplicitArgumentsObjectDynamicIdentifierDependency(ExecutionPlan plan)
     {
@@ -1375,6 +1378,19 @@ internal static class UnifiedBytecodeProductionEligibility
             return true;
         }
 
+        if (IsNestedFunctionLiteralLexicalThisOrPrivateNameBoundary(capturedName))
+        {
+            if (activation.AllowsNestedFunctionLiteralLexicalThisOrPrivateNameContext)
+            {
+                declineReason = string.Empty;
+                return false;
+            }
+
+            declineReason =
+                $"Nested function literal depends on {capturedName} and is not eligible for resumable unified bytecode routing until the resumable route materializes that closure context.";
+            return true;
+        }
+
         if (capturedName.Length > 0 && capturedName[0] == '<')
         {
             declineReason =
@@ -1409,6 +1425,33 @@ internal static class UnifiedBytecodeProductionEligibility
                     out var capturedName) &&
                 capturedName != NestedFunctionDeclarationBoundary &&
                 (capturedName.Length == 0 || capturedName[0] != '<'))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    internal static bool PlanNeedsNestedFunctionLiteralLexicalThisOrPrivateNameContext(ExecutionPlan plan)
+    {
+        if (plan.ActivationSlots is not { } activationSlots)
+        {
+            return false;
+        }
+
+        foreach (var instruction in plan.Instructions)
+        {
+            if (!TryGetResumableExpressionProgram(instruction, out var program) ||
+                !ExpressionProgramHasActivationCapturingFunctionLiteral(
+                    program,
+                    activationSlots,
+                    out var capturedName))
+            {
+                continue;
+            }
+
+            if (IsNestedFunctionLiteralLexicalThisOrPrivateNameBoundary(capturedName))
             {
                 return true;
             }
@@ -1469,8 +1512,8 @@ internal static class UnifiedBytecodeProductionEligibility
                 ExpressionProgramNeedsLexicalThisOrPrivateNameContext(program, function.IsArrow))
             {
                 capturedName = function.IsArrow
-                    ? "<lexical this/private name>"
-                    : "<private name>";
+                    ? LexicalThisOrPrivateNameBoundary
+                    : PrivateNameBoundary;
                 return true;
             }
 
@@ -1483,6 +1526,10 @@ internal static class UnifiedBytecodeProductionEligibility
 
         return false;
     }
+
+    private static bool IsNestedFunctionLiteralLexicalThisOrPrivateNameBoundary(string capturedName) =>
+        string.Equals(capturedName, LexicalThisOrPrivateNameBoundary, StringComparison.Ordinal) ||
+        string.Equals(capturedName, PrivateNameBoundary, StringComparison.Ordinal);
 
     internal static bool FunctionReferencesIdentifierNamed(
         FunctionExpression function,

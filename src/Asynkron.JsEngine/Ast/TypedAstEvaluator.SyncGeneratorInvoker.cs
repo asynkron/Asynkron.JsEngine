@@ -84,13 +84,17 @@ public static partial class TypedAstEvaluator
             var needsMaterializedBodyEnvironment =
                 UnifiedBytecodeProductionEligibility.PlanNeedsMaterializedResumableBodyEnvironment(plan) ||
                 HoistedFunctionDeclarationsNeedMaterializedBodyEnvironment(hoistedFunctionDeclarations);
+            var needsNestedFunctionLiteralLexicalThisOrPrivateNameContext =
+                UnifiedBytecodeProductionEligibility.PlanNeedsNestedFunctionLiteralLexicalThisOrPrivateNameContext(plan);
             var activation = new UnifiedBytecodeProductionActivationDescriptor(
                 IsAsyncLike: false,
                 IsGenerator: true,
                 HasCapturedOrDynamicActivation: !AllowsIdentifierCaching(_function) || _closure.HasWithObjectInChain(),
                 HasArgumentsObjectDependency: NeedsArgumentsBinding(_function),
                 AllowsRootFunctionDeclarationInstructions: !hoistedFunctionDeclarations.IsEmpty,
-                AllowsMaterializedBodyEnvironmentFunctionLiterals: needsMaterializedBodyEnvironment);
+                AllowsMaterializedBodyEnvironmentFunctionLiterals: needsMaterializedBodyEnvironment,
+                AllowsNestedFunctionLiteralLexicalThisOrPrivateNameContext:
+                needsNestedFunctionLiteralLexicalThisOrPrivateNameContext);
             var eligibility = UnifiedBytecodeProductionEligibility.EvaluateResumable(plan, activation);
             if (!eligibility.IsEligible)
             {
@@ -113,7 +117,8 @@ public static partial class TypedAstEvaluator
                 boundThis,
                 isStrict,
                 _function.Source,
-                _homeObject);
+                _homeObject,
+                forceFunctionEnvironment: needsNestedFunctionLiteralLexicalThisOrPrivateNameContext);
             var context = RealmState.CreateContext();
             if (!TryInitializeResumableSlots(
                     plan,

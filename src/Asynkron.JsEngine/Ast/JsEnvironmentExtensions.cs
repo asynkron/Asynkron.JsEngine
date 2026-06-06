@@ -174,9 +174,10 @@ public static partial class TypedAstEvaluator
         JsValue boundThis,
         bool isStrict,
         SourceReference? source,
-        IJsObjectLike? homeObject)
+        IJsObjectLike? homeObject,
+        bool forceFunctionEnvironment = false)
     {
-        if (homeObject is null)
+        if (homeObject is null && !forceFunctionEnvironment)
         {
             return closure;
         }
@@ -189,8 +190,9 @@ public static partial class TypedAstEvaluator
         environment.DefineJsValue(Symbol.This, boundThis);
         environment.SetThisInitializationStatus(true);
 
-        var superPrototype = (homeObject as IPrototypeAccessorProvider)?.PrototypeAccessor ??
-                             homeObject.Prototype;
+        var superPrototype = homeObject is null
+            ? null
+            : (homeObject as IPrototypeAccessorProvider)?.PrototypeAccessor ?? homeObject.Prototype;
         if (superPrototype is null && boundThis.TryGetObject<JsObject>(out var thisObject))
         {
             superPrototype = thisObject.PrototypeAccessor ?? thisObject.Prototype;

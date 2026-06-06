@@ -13,7 +13,8 @@ namespace Asynkron.JsEngine.Tests;
 ///     function declarations now route when the declared helper does not capture the resumable activation;
 ///     recursive/sibling helper graphs use the same pre-populated declaration environment; sync-generator,
 ///     async-function, and async-generator declarations that capture root body locals route through a
-///     materialized body environment.
+///     materialized body environment. Nested arrows that need lexical `this` / private-name scopes route after
+///     the resumable invoker creates a per-call invocation environment for the literal to capture.
 ///
 ///     Why declined (architecture, not a missing handler):
 ///
@@ -21,7 +22,8 @@ namespace Asynkron.JsEngine.Tests;
 ///     the captured outer environment and stored in a flat slot. The first generator-only captured-local slice
 ///     materializes a body environment that mirrors root activation slots so captured closures observe slot
 ///     mutations across suspension. Async functions and async generators now share that materialized
-///     environment.
+///     environment. Lexical-this/private-name literals route when the invoker proves and materializes the
+///     per-call invocation context; function declarations nested inside literals remain declined.
 ///
 ///     B36 — direct root hoisted function declarations are materialised by the resumable invokers before
 ///     `ExecuteResumable` starts. Recursive and sibling helper references resolve at call time from that same
@@ -191,10 +193,10 @@ public sealed class UnifiedBytecodeResumableNestedFunctionTests(ITestOutputHelpe
         AssertGeneratorNotRouted();
     }
 
-    // B23 boundary: a nested arrow that reads lexical this/private names needs a materialized generator
-    // body context. Keep it on the IR runner until the resumable route owns that closure context.
+    // B23 proof: nested arrows that read lexical this/private names route once the resumable invocation
+    // environment owns the per-call this binding and private-name scopes.
     [Fact(Timeout = 5000)]
-    public async Task GeneratorNestedArrowUsesPrivateThis_CorrectButDeclinesToRunner()
+    public async Task GeneratorNestedArrowUsesPrivateThis_RoutesResumable()
     {
         await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
@@ -219,7 +221,30 @@ public sealed class UnifiedBytecodeResumableNestedFunctionTests(ITestOutputHelpe
             """);
 
         Assert.True((bool)result!);
-        AssertGeneratorNotRouted();
+        AssertGeneratorRouted();
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task GeneratorNestedArrowCapturesCallThis_RoutesResumable()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function* g(){
+                const read = () => this.value;
+                yield read();
+                this.value = 2;
+                yield read();
+            }
+
+            const receiver = { value: 1 };
+            const iterator = g.call(receiver);
+            const first = iterator.next().value;
+            const second = iterator.next().value;
+            first + "|" + second + "|" + receiver.value;
+            """);
+
+        Assert.Equal("1|2|2", result);
+        AssertGeneratorRouted();
     }
 
     [Fact(Timeout = 5000)]
@@ -533,6 +558,32 @@ public sealed class UnifiedBytecodeResumableNestedFunctionTests(ITestOutputHelpe
             new UnifiedBytecodeProductionActivationDescriptor(
                 IsGenerator: true,
                 AllowsMaterializedBodyEnvironmentFunctionLiterals: true));
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Contains(
+            result.Program.Instructions,
+            static instruction => instruction.OpCode == UnifiedBytecodeOpCode.LoadFunctionLiteral);
+    }
+
+    [Fact]
+    public void EvaluateResumable_NestedArrowLexicalThis_AdmitsWithContextProof()
+    {
+        var plan = TopLevelGeneratorPlan("""
+            function* g(){ var f=()=>this.value; yield f(); }
+            """, "g");
+
+        var resultWithoutProof = UnifiedBytecodeProductionEligibility.EvaluateResumable(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor(IsGenerator: true));
+
+        Assert.False(resultWithoutProof.IsEligible);
+        Assert.Contains("lexical this/private name", resultWithoutProof.Reason, StringComparison.Ordinal);
+
+        var result = UnifiedBytecodeProductionEligibility.EvaluateResumable(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor(
+                IsGenerator: true,
+                AllowsNestedFunctionLiteralLexicalThisOrPrivateNameContext: true));
 
         Assert.True(result.IsEligible, result.Reason);
         Assert.Contains(

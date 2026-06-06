@@ -234,12 +234,13 @@ these allowlists — mechanical extensions against existing sync VM handlers.
 
 **Status (134 concrete A+B+C+D checklist items):** 116 complete / 18 open. **The remaining non-retirement work is now concentrated in activation/dynamic residue boundaries (A1/A2), constructor/private-name activation boundaries (A7), remaining A51 compiler leaves, class-expression computed/super-neighbor work (B24h), and B36 nested declaration/class contexts.**
 
-Latest proof evidence (2026-06-06, B24d static-block-only class expressions):
-focused `UnifiedBytecodeResumableClassExpressionTests` 52 passed. The broader
-`UnifiedBytecodeProduction` / `UnifiedBytecodeResumable` pack 1652 and the
-selected eligibility/coverage pack 686 passed; `git diff --check` was clean,
-the runner AST-eval seam scan returned no matches, and `forloop --memory`
-reported 6.96 MB total allocated.
+Latest proof evidence (2026-06-06, B24i class-expression `super` members):
+focused `UnifiedBytecodeResumableClassExpressionTests` 62 passed after the
+negative-neighbor additions, and the focused
+`UnifiedBytecodeResumableClassExpressionTests` /
+`UnifiedBytecodeResumableClassDeclarationTests` proof passed 74 tests. The
+`git diff --check` proof was clean, and the runner AST-eval seam scan returned
+no matches.
 
 ## Known soft spots
 1. **Named compiler-decline leaves** (A51a-A51m/B47a) are now source-inventoried in the expansion contract; future `TryCompile` reason drift must update that contract and the focused source gate.

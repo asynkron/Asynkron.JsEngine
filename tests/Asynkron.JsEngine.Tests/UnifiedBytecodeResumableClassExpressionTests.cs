@@ -986,6 +986,65 @@ public sealed class UnifiedBytecodeResumableClassExpressionTests(ITestOutputHelp
                 StringComparison.Ordinal));
     }
 
+    [Fact(Timeout = 5000)]
+    public async Task GeneratorClassExpressionPublicMethodWithSuper_RoutesResumableAndPreservesReceiver()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            class Base {
+                value() { return this.seed + 1; }
+            }
+
+            function* g() {
+                yield "ready";
+                var C = class extends Base {
+                    constructor(seed) { super(); this.seed = seed; }
+                    value() { return super.value() + 1; }
+                };
+                var c = new C(40);
+                return c.value() + "|" + (c instanceof Base);
+            }
+
+            var iterator = g();
+            var first = iterator.next();
+            var second = iterator.next();
+            first.value + ":" + first.done + "|" + second.value + ":" + second.done;
+            """);
+
+        Assert.Equal("ready:false|42|true:true", result);
+        AssertGeneratorFastPath("g", argc: 0);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task GeneratorClassExpressionPublicFieldInitializerWithSuper_RoutesResumableAndPreservesReceiver()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            class Base {
+                constructor(seed) { this.seed = seed; }
+                get value() { return this.seed + 1; }
+            }
+
+            function* g() {
+                yield "ready";
+                var C = class extends Base {
+                    constructor(seed) { super(seed); }
+                    field = super.value + 1;
+                };
+                var c = new C(40);
+                return c.field + "|" + (c instanceof Base);
+            }
+
+            var iterator = g();
+            var first = iterator.next();
+            var second = iterator.next();
+            first.value + ":" + first.done + "|" + second.value + ":" + second.done;
+            """);
+
+        Assert.Equal("ready:false|42|true:true", result);
+        AssertGeneratorFastPath("g", argc: 0);
+    }
+
     [Theory]
     [InlineData("""
         function* g(seed) {
@@ -1140,6 +1199,192 @@ public sealed class UnifiedBytecodeResumableClassExpressionTests(ITestOutputHelp
             result.Program.Instructions,
             static instruction => instruction.OpCode == UnifiedBytecodeOpCode.LoadClassLiteral);
     }
+
+    [Fact]
+    public void EvaluateResumable_ClassExpressionPublicMethodWithSuper_AdmitsLoadClassLiteral()
+    {
+        var plan = GetFunctionPlan("""
+            class Base {
+                value() { return 41; }
+            }
+
+            function* g() {
+                yield 1;
+                var C = class extends Base {
+                    value() { return super.value() + 1; }
+                };
+                return C;
+            }
+            """,
+            "g");
+
+        var result = UnifiedBytecodeProductionEligibility.EvaluateResumable(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor(IsGenerator: true));
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(
+            result.Program.Instructions,
+            static instruction => instruction.OpCode == UnifiedBytecodeOpCode.LoadClassLiteral);
+    }
+
+    [Fact]
+    public void EvaluateResumable_ClassExpressionPublicFieldInitializerWithSuper_AdmitsLoadClassLiteral()
+    {
+        var plan = GetFunctionPlan("""
+            class Base {
+                get value() { return 41; }
+            }
+
+            function* g() {
+                yield 1;
+                var C = class extends Base {
+                    field = super.value + 1;
+                };
+                return new C().field;
+            }
+            """,
+            "g");
+
+        var result = UnifiedBytecodeProductionEligibility.EvaluateResumable(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor(IsGenerator: true));
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(
+            result.Program.Instructions,
+            static instruction => instruction.OpCode == UnifiedBytecodeOpCode.LoadClassLiteral);
+    }
+
+    [Fact]
+    public void EvaluateResumable_ClassExpressionCapturingPublicMethodWithSuper_DeclinesBeforeVm() =>
+        AssertClassExpressionDeclines("""
+        class Base {
+            get value() { return 40; }
+        }
+
+        function* g(seed) {
+            yield 1;
+            var C = class extends Base {
+                value() { return super.value + seed; }
+            };
+            return C;
+        }
+        """);
+
+    [Fact]
+    public void EvaluateResumable_ClassExpressionCapturingPublicFieldInitializerWithSuper_DeclinesBeforeVm() =>
+        AssertClassExpressionDeclines("""
+        class Base {
+            get value() { return 40; }
+        }
+
+        function* g(seed) {
+            yield 1;
+            var C = class extends Base {
+                field = super.value + seed;
+            };
+            return new C().field;
+        }
+        """);
+
+    [Fact]
+    public void EvaluateResumable_ClassExpressionStaticPublicMethodWithSuper_DeclinesBeforeVm() =>
+        AssertClassExpressionDeclines("""
+        class Base {
+            static value() { return 40; }
+        }
+
+        function* g() {
+            yield 1;
+            var C = class extends Base {
+                static value() { return super.value() + 1; }
+            };
+            return C;
+        }
+        """);
+
+    [Fact]
+    public void EvaluateResumable_ClassExpressionStaticPublicFieldInitializerWithSuper_DeclinesBeforeVm() =>
+        AssertClassExpressionDeclines("""
+        class Base {
+            static get value() { return 40; }
+        }
+
+        function* g() {
+            yield 1;
+            var C = class extends Base {
+                static field = super.value + 1;
+            };
+            return C;
+        }
+        """);
+
+    [Fact]
+    public void EvaluateResumable_ClassExpressionComputedPublicMethodWithSuper_DeclinesBeforeVm() =>
+        AssertClassExpressionDeclines("""
+        class Base {
+            value() { return 40; }
+        }
+
+        function* g() {
+            yield 1;
+            var C = class extends Base {
+                ["value"]() { return super.value() + 1; }
+            };
+            return C;
+        }
+        """);
+
+    [Fact]
+    public void EvaluateResumable_ClassExpressionComputedPublicFieldInitializerWithSuper_DeclinesBeforeVm() =>
+        AssertClassExpressionDeclines("""
+        class Base {
+            get value() { return 40; }
+        }
+
+        function* g() {
+            yield 1;
+            var C = class extends Base {
+                ["field"] = super.value + 1;
+            };
+            return C;
+        }
+        """);
+
+    [Fact]
+    public void EvaluateResumable_ClassExpressionPrivateMethodWithSuper_DeclinesBeforeVm() =>
+        AssertClassExpressionDeclines("""
+        class Base {
+            value() { return 40; }
+        }
+
+        function* g() {
+            yield 1;
+            var C = class extends Base {
+                #value() { return super.value() + 1; }
+            };
+            return C;
+        }
+        """);
+
+    [Fact]
+    public void EvaluateResumable_ClassExpressionPrivateFieldInitializerWithSuper_DeclinesBeforeVm() =>
+        AssertClassExpressionDeclines("""
+        class Base {
+            get value() { return 40; }
+        }
+
+        function* g() {
+            yield 1;
+            var C = class extends Base {
+                #field = super.value + 1;
+            };
+            return C;
+        }
+        """);
 
     [Fact]
     public void EvaluateResumable_ClassExpressionMixedPublicFieldAndPublicAccessor_DeclinesBeforeVm() =>

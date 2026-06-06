@@ -125,15 +125,15 @@ are drift-checked in `ExpressionProgramCoverageMapTests`, so future opcode or
 instruction additions cannot hide behind the old default buckets.
 
 Phase 0 inventory closure is complete as of 2026-06-05. The burndown checklist
-now has 145 finite items: 123 complete and 22 open. The last coarse leaves were
+now has 145 finite items: 124 complete and 21 open. The last coarse leaves were
 split into A35a-A35e object-literal member opcode leaves and B24a-B24i
 class-expression semantic leaves.
 
 ### Current Retrospective Accounting
 
-The latest checklist recount is **123 / 145 complete**. Across the
-concrete A+B+C+D sections, **115 / 134** are complete and **19** remain open.
-Phase B stands at **53 / 57** complete. The D5 non-residue ratchet has **0**
+The latest checklist recount is **124 / 145 complete**. Across the
+concrete A+B+C+D sections, **116 / 134** are complete and **18** remain open.
+Phase B stands at **54 / 57** complete. The D5 non-residue ratchet has **0**
 known-open rows, the resumable opcode gap inventory has **5** remaining gaps,
 and the resumable instruction gap inventory has **0** remaining gaps.
 
@@ -156,10 +156,10 @@ The remaining non-retirement work is concentrated in:
   topology, slot layout, scope/environment, driver state, destructuring,
   expression-span, call-boundary, literal, property, mutation, and cleanup
   diagnostics.
-- B24h/B24i class-definition state: computed-name/class element neighbors that
-  still need activation/call/delete ownership, mixed private/capturing class
-  shapes, closure-producing static blocks, and broader class-definition
-  environment bridging.
+- B24h class-definition state: computed-name/class element neighbors that still
+  need activation/call/delete ownership, computed-super overlap, mixed
+  private/capturing class shapes, closure-producing static blocks, and broader
+  class-definition environment bridging.
 - B36 resumable declarations: dynamic/eval helpers and complex class
   declarations (`extends`, static blocks, and computed/static neighbors outside
   the public B24h-compatible subset) remain on the IR route while direct root
@@ -195,6 +195,7 @@ is removed, or a proof gate becomes stricter.
 | Date | Gate surface | Concrete movement | Proof signal |
 |---|---|---|---|
 | 2026-06-06 | B36 partial: computed public class declarations | Resumable generator bodies now admit `DeclareClass` for activation-safe computed public class declarations, including public static computed fields and computed names that read/write activation slots through the existing class-definition slot sync. The B36 hard declines remain for `extends`, static blocks, computed-name calls/deletes, private/capturing member bodies, and activation-capturing field initializers. | `EvaluateResumable_ClassDeclarationComputedPublicElements_AdmitsDeclareClass`, `GeneratorComputedPublicClassDeclaration_RoutesResumableAndSyncsName`, `EvaluateResumable_ClassDeclarationComputedNameActivationCall_DeclinesBeforeVm`, `EvaluateResumable_ClassDeclarationExtends_DeclinesBeforeVm`, focused `UnifiedBytecodeResumableClassDeclarationTests` (8), clean `git diff --check`, and no runner AST-eval seam matches. |
+| 2026-06-06 | B24i public non-computed class-element `super` closure | Resumable generator bodies now have focused `LoadClassLiteral` proof for activation-safe public non-computed instance methods and field initializers that use `super`, completing the remaining public non-computed B24i route already opened for accessor bodies. The B24i guard now rejects member bodies and field initializer programs that capture resumable activation slots, so static/computed/private/capturing and otherwise mixed super-bearing class-definition shapes stay outside the admitted route until the materialized class-definition environment bridge owns them. Checklist now `124 / 145`; concrete open gates now `18` and total open gates now `21`. | `EvaluateResumable_ClassExpressionPublicMethodWithSuper_AdmitsLoadClassLiteral`, `EvaluateResumable_ClassExpressionPublicFieldInitializerWithSuper_AdmitsLoadClassLiteral`, `GeneratorClassExpressionPublicMethodWithSuper_RoutesResumableAndPreservesReceiver`, `GeneratorClassExpressionPublicFieldInitializerWithSuper_RoutesResumableAndPreservesReceiver`, the capturing method/field-initializer decline rows, and focused `UnifiedBytecodeResumableClassExpressionTests` (54). |
 | 2026-06-06 | A51e destructuring state-slot and target leaf closure | A51e is now closed as a stale compiler-diagnostics leaf for the intended simple script declaration lane. Current compiler output proves array/object destructuring driver state receives synthetic activation slots and top-level `var` / `let` / `const` script targets carry dynamic target names and variable kind through driver descriptors. The broader R6 destructuring model boundaries remain unchanged: nested/default/parameter/disposal destructuring still stays under `DestructuringDependency` / `UnsupportedPlanShape`, and the `destructuring` profile remains blocked by the orthogonal non-iterating lexical block-environment gate. Checklist now `123 / 145`; concrete A+B+C+D open gates now `19` and total open gates now `22`. | `EvaluateScript_A51eSimpleScriptDestructuring_AllocatesStateSlotsAndDynamicTargets` covers var/let/const object and array rows, plus the existing runtime route tests for top-level destructuring and the R6 boundary text in the expansion contract. |
 | 2026-06-06 | B24h partial: direct activation-call computed class names | Resumable generator bodies now admit public computed class elements whose computed name is a direct zero-argument activation call such as `[read()]`. The B24h guard consumes only the adjacent activation call-target plus call pair, so activation deletes, activation values passed into another call, constructs/super constructs, private/static-block overlap, activation-capturing field initializers, and capturing constructor/member bodies still decline to the later class-definition environment route. Checklist now `123 / 145`; concrete open gates now `21`. | `EvaluateResumable_ClassExpressionComputedNameDirectActivationCall_AdmitLoadClassLiteral`, `GeneratorComputedPublicInstanceActivationCall_RouteResumableAndResolveName`, `EvaluateResumable_ClassExpressionComputedNameActivationCallArgument_DeclinesBeforeVm`, focused `UnifiedBytecodeResumableClassExpressionTests` (50), clean `git diff --check`, no runner AST-eval seam matches, and `forloop --memory` at 6.96 MB. |
 | 2026-06-06 | B24h partial: activation write/update computed class names | Resumable generator bodies now admit public static/instance computed class elements whose computed names write or update activation slots, using the slot-backed class-literal environment plus the post-creation sync back to unified VM slots. Computed-name calls/deletes and nested literals that capture activation still decline, as do activation-capturing field initializers and constructor/member bodies. Checklist totals stay `122 / 145`; concrete open gates stay `23`. | `EvaluateResumable_ClassExpressionComputedNameActivationWrite_AdmitLoadClassLiteral`, `GeneratorComputedPublicInstanceActivationWrite_RouteResumableAndSyncsName`, `GeneratorComputedPublicStaticActivationUpdate_RouteResumableAndSyncsName`, `EvaluateResumable_ClassExpressionComputedNameActivationDelete_DeclinesBeforeVm`, focused `UnifiedBytecodeResumableClassExpressionTests` (48), full `UnifiedBytecodeProduction` pack (1238), `ExpressionProgramCoverageMapTests` (14), clean `git diff --check`, no runner AST-eval seam matches, and `forloop --memory` at 6.95 MB. |

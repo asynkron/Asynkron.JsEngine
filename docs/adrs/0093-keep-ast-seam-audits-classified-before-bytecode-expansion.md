@@ -154,15 +154,17 @@ the helper is not a generic cache entry point; it is the approved bridge from
 quarantined legacy/dynamic evaluation into lowered `ExpressionProgram`
 execution.
 
-The helper keeps the existing semantics: lower and cache the dynamic expression
-once, execute it as an expression program when supported, and throw on lowering
-failure instead of falling back to raw AST expression evaluation. Non-dynamic
-callers that already hold lowered payloads now use
+Later E4 work moved the same semantics into
+`UnifiedBytecodeExpressionProgramExecutor.ExecuteDynamic(...)` and tombstoned
+`EvaluateDynamicExpressionProgram(...)`: lower and cache the dynamic expression
+once, execute it as bytecode when supported, and throw on lowering failure
+instead of falling back to raw AST expression evaluation. Non-dynamic callers
+that already hold lowered payloads now use
 `UnifiedBytecodeExpressionProgramExecutor.ExecuteStandalone`; the older
 `EvaluateLoweredExpressionProgram` helper has been retired.
 
 The follow-up guardrail is
-`SourceGate_DynamicExpressionProgramBridge_StaysInsideApprovedBoundarySurface`.
+`SourceGate_DynamicExpressionExecutor_StaysInsideApprovedBoundarySurface`.
 Future AST-seam work should preserve the split between dynamic bridge callers
 and already-lowered expression-program callers, and should update the source
 gate before expanding the approved boundary surface.
@@ -177,8 +179,10 @@ The architectural decision is to route dynamic return operands through the
 dynamic `ExpressionProgram` bridge instead of the generic
 `EvaluateDynamicExpressionOperand(...)` helper. A return operand only needs a
 value before setting the return completion signal, so the path can use
-expression bytecode directly through `EvaluateDynamicExpressionProgram(...)`
-and keep unsupported shapes on the precise expression-program failure path.
+expression bytecode directly through the dynamic expression-program bridge and
+keep unsupported shapes on the precise expression-program failure path. That
+bridge is now `UnifiedBytecodeExpressionProgramExecutor.ExecuteDynamic(...)`;
+the old `EvaluateDynamicExpressionProgram(...)` helper has been retired.
 
 This does not generalize automatically to every dynamic operand. `await` and
 `yield` operands have suspension/resume behavior, assignment operands may carry
@@ -188,7 +192,8 @@ its own evaluation-order proof and focused regression coverage.
 
 The proof shape for future similar slices is:
 
-1. convert one operand family to `EvaluateDynamicExpressionProgram(...)` or an
+1. convert one operand family to
+   `UnifiedBytecodeExpressionProgramExecutor.ExecuteDynamic(...)` or an
    equivalent dynamic expression-bytecode bridge;
 2. keep unsupported-bytecode failures explicit rather than silently falling
    back to AST evaluation;
@@ -218,7 +223,7 @@ Observed classification stayed unchanged:
    remaining boundary owner surfaces are explicitly:
    - runner await-state handling in `EvaluateAwaitInGenerator(...)`;
    - the dynamic expression-program bridge in
-    `EvaluateDynamicExpressionProgram(...)`; and
+    `UnifiedBytecodeExpressionProgramExecutor.ExecuteDynamic(...)`; and
    - legacy await/yield operand evaluation in
      `Ast/Legacy/ExpressionNodeExtensions.cs`;
 3. remaining AST-boundary text inside runner-adjacent files continues to be

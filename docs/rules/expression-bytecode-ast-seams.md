@@ -75,15 +75,18 @@ fallback or cleanup.
     execution.
 15. Keep dynamic expression-program bridges explicitly named and source-gated.
     Quarantined legacy or dynamic callers should route through
-    `EvaluateDynamicExpressionProgram`, which lowers/caches the dynamic
-    expression and throws on lowering failure. Already-lowered payloads should
-    use `UnifiedBytecodeExpressionProgramExecutor.ExecuteStandalone`; do not blur these
-    surfaces under generic cached-helper naming or add raw AST expression
-    fallback on compile failure.
+    `UnifiedBytecodeExpressionProgramExecutor.ExecuteDynamic`, which
+    lowers/caches the dynamic expression and throws on lowering failure.
+    Already-lowered payloads should use
+    `UnifiedBytecodeExpressionProgramExecutor.ExecuteStandalone`; do not blur
+    these surfaces under generic cached-helper naming or add raw AST expression
+    fallback on compile failure. `EvaluateDynamicExpressionProgram(...)` is
+    tombstoned.
 16. When retiring dynamic operand AST seams, migrate one operand family at a
     time through the dynamic `ExpressionProgram` bridge when the operand only
     needs a value. Dynamic return operands are the reference shape: evaluate
-    the return expression with `EvaluateDynamicExpressionProgram(...)`, preserve
+    the return expression with
+    `UnifiedBytecodeExpressionProgramExecutor.ExecuteDynamic(...)`, preserve
     precise unsupported-bytecode failures, and prove the path with a focused
     DEBUG `EvaluationContext.AssertNoAstEvaluation` regression. Keep
     suspending operands (`await`, `yield`), assignment/name-inference operands,
@@ -107,9 +110,10 @@ fallback or cleanup.
 20. When refreshing an AST-seam baseline without changing runtime code, record
     the current remaining owner surfaces, not just the clean runner scan result.
     For issue #1479, the required owner surfaces were runner await-state
-    handling via `EvaluateAwaitInGenerator(...)`, the dynamic bridge via
-    `EvaluateDynamicExpressionProgram(...)`, and legacy await/yield operand
-    evaluation in `Ast/Legacy/ExpressionNodeExtensions.cs`. Future refreshes
+    handling via `EvaluateAwaitInGenerator(...)`, the dynamic executor via
+    `UnifiedBytecodeExpressionProgramExecutor.ExecuteDynamic(...)`, and legacy
+    await/yield operand evaluation in `Ast/Legacy/ExpressionNodeExtensions.cs`.
+    Future refreshes
     should update that owner list when it changes so downstream bytecode work
     starts from the right ownership boundary.
 21. When expanding `docs/expression-bytecode-coverage.md`, keep the per-node
@@ -313,6 +317,11 @@ classification so dynamic bridge callers cannot drift into normal
 already-lowered expression-program execution, and already-lowered class or
 initializer payloads do not get mislabeled as legacy fallback.
 
+Later E4 bridge-retirement work moved that cache/lower/execute behavior into
+`UnifiedBytecodeExpressionProgramExecutor.ExecuteDynamic(...)` and tombstoned
+`EvaluateDynamicExpressionProgram(...)`. Future dynamic callers should use the
+unified-bytecode executor directly.
+
 Issue #1447 / PR #1457 converted the dynamic return-expression boundary from
 `EvaluateDynamicOrSuspendingExpressionOperand(...)` to the dynamic expression-program bridge.
 The important constraint is scope: a return operand only needs a `JsValue` before
@@ -324,11 +333,12 @@ delete semantics in one migration.
 Issue #1461 / PR #1462 repaired a `main is red` compile failure after
 `EvaluateCachedExpressionProgram` was removed but the legacy dynamic
 return-expression boundary still called it. The correct caller is
-`EvaluateDynamicExpressionProgram`, because this seam starts in quarantined AST
-statement evaluation but must execute the return expression through the dynamic
-expression-program bridge. Future bridge refactors need a whole-AST bridge-call
-search, including `src/Asynkron.JsEngine/Ast/Legacy`, before they claim the
-rename/removal is complete.
+the dynamic expression-program bridge, now
+`UnifiedBytecodeExpressionProgramExecutor.ExecuteDynamic(...)`, because this
+seam starts in quarantined AST statement evaluation but must execute the return
+expression through bytecode. Future bridge refactors need a whole-AST
+bridge-call search, including `src/Asynkron.JsEngine/Ast/Legacy`, before they
+claim the rename/removal is complete.
 
 Issue #1395 direct-closed an optional-tagged-template
 `UnsupportedExpressionProgram` bucket after current-worktree proof showed the

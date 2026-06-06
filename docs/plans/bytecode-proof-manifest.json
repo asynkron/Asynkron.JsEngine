@@ -156,36 +156,43 @@
           "id": "E4-standalone-expression-program-runner-removed",
           "claim": "retired-fallback",
           "kind": "source-absence",
-          "path": "src/Asynkron.JsEngine/Ast/TypedAstEvaluator.ExpressionPrograms.cs",
+          "path": "src/Asynkron.JsEngine/Ast/TypedAstEvaluator.ExecutionPlanRunner.Core.cs",
           "pattern": "EvaluateStandaloneExpressionProgram("
         },
         {
           "id": "E4-lowered-expression-program-bridge-removed",
           "claim": "retired-fallback",
           "kind": "source-absence",
-          "path": "src/Asynkron.JsEngine/Ast/TypedAstEvaluator.ExpressionPrograms.cs",
+          "path": "src/Asynkron.JsEngine/Execution/UnifiedBytecode/UnifiedBytecodeExpressionProgramExecutor.cs",
           "pattern": "EvaluateLoweredExpressionProgram("
         },
         {
-          "id": "E4-dynamic-expression-ast-eval-still-present-in-expression-legacy",
-          "claim": "open",
-          "kind": "source-presence",
+          "id": "E4-dynamic-expression-ast-eval-removed-from-expression-legacy",
+          "claim": "retired-fallback",
+          "kind": "source-absence",
           "path": "src/Asynkron.JsEngine/Ast/Legacy/ExpressionNodeExtensions.cs",
           "pattern": "EvaluateDynamicExpressionProgram("
         },
         {
-          "id": "E4-dynamic-expression-ast-eval-still-present-in-statement-legacy",
-          "claim": "open",
-          "kind": "source-presence",
+          "id": "E4-dynamic-expression-ast-eval-removed-from-statement-legacy",
+          "claim": "retired-fallback",
+          "kind": "source-absence",
           "path": "src/Asynkron.JsEngine/Ast/Legacy/StatementNodeExtensions.cs",
           "pattern": "EvaluateDynamicExpressionProgram("
         },
         {
-          "id": "E4-dynamic-expression-ast-eval-still-present-in-loop-legacy",
-          "claim": "open",
-          "kind": "source-presence",
+          "id": "E4-dynamic-expression-ast-eval-removed-from-loop-legacy",
+          "claim": "retired-fallback",
+          "kind": "source-absence",
           "path": "src/Asynkron.JsEngine/Ast/Legacy/LoopPlanExtensions.cs",
           "pattern": "EvaluateDynamicExpressionProgram("
+        },
+        {
+          "id": "E4-binding-target-runner-bridge-still-present",
+          "claim": "open",
+          "kind": "source-presence",
+          "path": "src/Asynkron.JsEngine/Ast/TypedAstEvaluator.BindingTargetPrograms.cs",
+          "pattern": "ExecutionPlanRunner.ApplyStandaloneBindingTargetProgram("
         }
       ]
     },

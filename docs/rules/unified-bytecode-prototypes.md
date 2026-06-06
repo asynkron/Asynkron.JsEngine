@@ -1307,7 +1307,8 @@ all-or-nothing until a separate routing issue proves production readiness.
     surrounding invoker file legitimately owns fallback paths. The same test
     must also scan `UnifiedBytecodeVirtualMachine.cs` and forbid
     `ExecutionPlanRunner`, `ExpressionProgram`, `EvaluateExpression(`,
-    `ProfileEvaluateExpression(`, and `EvaluateDynamicExpressionProgram(`.
+    `ProfileEvaluateExpression(`, `EvaluateDynamicExpressionProgram(`, and
+    `UnifiedBytecodeExpressionProgramExecutor.ExecuteDynamic(`.
     A gate that omits `ExpressionProgram` from the VM source can pass while
     leaving the mixed-expression bridge open. Repository-root discovery for
     source gates must work in normal checkouts and linked worktrees: accept a

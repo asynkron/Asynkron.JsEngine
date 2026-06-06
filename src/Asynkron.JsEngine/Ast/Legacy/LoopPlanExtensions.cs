@@ -2,6 +2,7 @@ using System.Buffers;
 using System.Collections.Immutable;
 using System.Runtime.CompilerServices;
 using Asynkron.JsEngine.Execution;
+using Asynkron.JsEngine.Execution.UnifiedBytecode;
 using Asynkron.JsEngine.StdLib;
 using Microsoft.Extensions.Logging;
 
@@ -478,7 +479,7 @@ public static partial class TypedAstEvaluator
             }
         }
 
-        var test = EvaluateDynamicExpressionProgram(
+        var test = UnifiedBytecodeExpressionProgramExecutor.ExecuteDynamic(
             plan.Condition,
             environment,
             context,
@@ -505,7 +506,7 @@ public static partial class TypedAstEvaluator
             // directly to avoid ToObject/GetNumber boxing on every iteration.
             if (statement is ExpressionStatement expr)
             {
-                _ = EvaluateDynamicExpressionProgram(
+                _ = UnifiedBytecodeExpressionProgramExecutor.ExecuteDynamic(
                     expr.Expression,
                     environment,
                     context,

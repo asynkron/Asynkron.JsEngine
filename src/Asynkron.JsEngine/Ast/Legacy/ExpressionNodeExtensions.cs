@@ -2,6 +2,7 @@ using System.Collections.Immutable;
 using System.Runtime.CompilerServices;
 using Asynkron.JsEngine.Execution;
 using Asynkron.JsEngine.Execution.Instructions;
+using Asynkron.JsEngine.Execution.UnifiedBytecode;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.StdLib;
 using Microsoft.Extensions.Logging;
@@ -83,7 +84,7 @@ public static partial class TypedAstEvaluator
             return (null, null);
         }
 
-        var baseJsValue = EvaluateDynamicExpressionProgram(
+        var baseJsValue = UnifiedBytecodeExpressionProgramExecutor.ExecuteDynamic(
             extendsExpression,
             environment,
             context,
@@ -168,7 +169,7 @@ public static partial class TypedAstEvaluator
         {
             AwaitExpression awaitExpression => awaitExpression.EvaluateAwait(environment, context),
             YieldExpression yieldExpression => yieldExpression.EvaluateYield(environment, context),
-            _ => EvaluateDynamicExpressionProgram(expression, environment, context, failureLabel)
+            _ => UnifiedBytecodeExpressionProgramExecutor.ExecuteDynamic(expression, environment, context, failureLabel)
         };
     }
 
@@ -1124,7 +1125,7 @@ public static partial class TypedAstEvaluator
             return context.ShouldStopEvaluation ? JsValue.Undefined : memberValue;
         }
 
-        var targetJs = EvaluateDynamicExpressionProgram(
+        var targetJs = UnifiedBytecodeExpressionProgramExecutor.ExecuteDynamic(
             expression.Target,
             environment,
             context,
@@ -1161,7 +1162,7 @@ public static partial class TypedAstEvaluator
         }
         else
         {
-            var propertyValueJs = EvaluateDynamicExpressionProgram(
+            var propertyValueJs = UnifiedBytecodeExpressionProgramExecutor.ExecuteDynamic(
                 expression.Property,
                 environment,
                 context,
@@ -1225,7 +1226,7 @@ public static partial class TypedAstEvaluator
             return (JsValue.Undefined, binding);
         }
 
-        var propertyValueJs = EvaluateDynamicExpressionProgram(
+        var propertyValueJs = UnifiedBytecodeExpressionProgramExecutor.ExecuteDynamic(
             expression.Property,
             environment,
             context,
@@ -1327,7 +1328,7 @@ public static partial class TypedAstEvaluator
                             result = typedFunc.InvokeWithContext([], JsValue.Undefined, context, JsValue.Undefined);
                             break;
                         case 1:
-                            var arg0 = EvaluateDynamicExpressionProgram(
+                            var arg0 = UnifiedBytecodeExpressionProgramExecutor.ExecuteDynamic(
                                 expression.Arguments[0].Expression,
                                 environment,
                                 context,
@@ -1344,7 +1345,7 @@ public static partial class TypedAstEvaluator
                                 : typedFunc.InvokeWithContext1(arg0, JsValue.Undefined, context);
                             break;
                         default: // 2
-                            var a0 = EvaluateDynamicExpressionProgram(
+                            var a0 = UnifiedBytecodeExpressionProgramExecutor.ExecuteDynamic(
                                 expression.Arguments[0].Expression,
                                 environment,
                                 context,
@@ -1355,7 +1356,7 @@ public static partial class TypedAstEvaluator
                                 return JsValue.Undefined;
                             }
 
-                            var a1 = EvaluateDynamicExpressionProgram(
+                            var a1 = UnifiedBytecodeExpressionProgramExecutor.ExecuteDynamic(
                                 expression.Arguments[1].Expression,
                                 environment,
                                 context,
@@ -1442,7 +1443,7 @@ public static partial class TypedAstEvaluator
                     break;
                 case 1:
                     {
-                        var v0 = EvaluateDynamicExpressionProgram(
+                        var v0 = UnifiedBytecodeExpressionProgramExecutor.ExecuteDynamic(
                             expression.Arguments[0].Expression,
                             environment,
                             context,
@@ -1462,7 +1463,7 @@ public static partial class TypedAstEvaluator
                     }
                 case 2:
                     {
-                        var v0 = EvaluateDynamicExpressionProgram(
+                        var v0 = UnifiedBytecodeExpressionProgramExecutor.ExecuteDynamic(
                             expression.Arguments[0].Expression,
                             environment,
                             context,
@@ -1473,7 +1474,7 @@ public static partial class TypedAstEvaluator
                             return JsValue.Undefined;
                         }
 
-                        var v1 = EvaluateDynamicExpressionProgram(
+                        var v1 = UnifiedBytecodeExpressionProgramExecutor.ExecuteDynamic(
                             expression.Arguments[1].Expression,
                             environment,
                             context,
@@ -1506,7 +1507,7 @@ public static partial class TypedAstEvaluator
 
                         for (var i = 0; i < argCount; i++)
                         {
-                            jsArgsArray[i] = EvaluateDynamicExpressionProgram(
+                            jsArgsArray[i] = UnifiedBytecodeExpressionProgramExecutor.ExecuteDynamic(
                                 expression.Arguments[i].Expression,
                                 environment,
                                 context,
@@ -1535,7 +1536,7 @@ public static partial class TypedAstEvaluator
             {
                 if (argument.IsSpread)
                 {
-                    var spreadValueJs = EvaluateDynamicExpressionProgram(
+                    var spreadValueJs = UnifiedBytecodeExpressionProgramExecutor.ExecuteDynamic(
                         argument.Expression,
                         environment,
                         context,
@@ -1571,7 +1572,7 @@ public static partial class TypedAstEvaluator
                     continue;
                 }
 
-                argsBuilder.Add(EvaluateDynamicExpressionProgram(
+                argsBuilder.Add(UnifiedBytecodeExpressionProgramExecutor.ExecuteDynamic(
                     argument.Expression,
                     environment,
                     context,
@@ -1621,7 +1622,7 @@ public static partial class TypedAstEvaluator
                     } && string.Equals(callLit.Value.AsString(), "call", StringComparison.Ordinal) &&
                     string.Equals(formatArgsLit.Value.AsString(), "formatArgs", StringComparison.Ordinal))
                 {
-                    var targetJs = EvaluateDynamicExpressionProgram(
+                    var targetJs = UnifiedBytecodeExpressionProgramExecutor.ExecuteDynamic(
                         inner.Target,
                         environment,
                         context,
@@ -2015,7 +2016,7 @@ public static partial class TypedAstEvaluator
         }
 
         // Evaluate the target (map or set instance) - safe because it's just an identifier lookup
-        var targetJs = EvaluateDynamicExpressionProgram(
+        var targetJs = UnifiedBytecodeExpressionProgramExecutor.ExecuteDynamic(
             member.Target,
             environment,
             context,
@@ -2109,7 +2110,7 @@ public static partial class TypedAstEvaluator
     private static JsValue FastMapSet(JsMap map, ImmutableArray<CallArgument> args, JsEnvironment env,
         EvaluationContext ctx)
     {
-        var key = EvaluateDynamicExpressionProgram(
+        var key = UnifiedBytecodeExpressionProgramExecutor.ExecuteDynamic(
             args[0].Expression,
             env,
             ctx,
@@ -2119,7 +2120,7 @@ public static partial class TypedAstEvaluator
             return JsValue.Undefined;
         }
 
-        var value = EvaluateDynamicExpressionProgram(
+        var value = UnifiedBytecodeExpressionProgramExecutor.ExecuteDynamic(
             args[1].Expression,
             env,
             ctx,
@@ -2137,7 +2138,7 @@ public static partial class TypedAstEvaluator
     private static JsValue FastMapGet(JsMap map, ImmutableArray<CallArgument> args, JsEnvironment env,
         EvaluationContext ctx)
     {
-        var key = EvaluateDynamicExpressionProgram(
+        var key = UnifiedBytecodeExpressionProgramExecutor.ExecuteDynamic(
             args[0].Expression,
             env,
             ctx,
@@ -2154,7 +2155,7 @@ public static partial class TypedAstEvaluator
     private static JsValue FastMapHas(JsMap map, ImmutableArray<CallArgument> args, JsEnvironment env,
         EvaluationContext ctx)
     {
-        var key = EvaluateDynamicExpressionProgram(
+        var key = UnifiedBytecodeExpressionProgramExecutor.ExecuteDynamic(
             args[0].Expression,
             env,
             ctx,
@@ -2171,7 +2172,7 @@ public static partial class TypedAstEvaluator
     private static JsValue FastMapDelete(JsMap map, ImmutableArray<CallArgument> args, JsEnvironment env,
         EvaluationContext ctx)
     {
-        var key = EvaluateDynamicExpressionProgram(
+        var key = UnifiedBytecodeExpressionProgramExecutor.ExecuteDynamic(
             args[0].Expression,
             env,
             ctx,
@@ -2197,7 +2198,7 @@ public static partial class TypedAstEvaluator
     private static JsValue FastSetAdd(JsSet set, ImmutableArray<CallArgument> args, JsEnvironment env,
         EvaluationContext ctx)
     {
-        var value = EvaluateDynamicExpressionProgram(
+        var value = UnifiedBytecodeExpressionProgramExecutor.ExecuteDynamic(
             args[0].Expression,
             env,
             ctx,
@@ -2215,7 +2216,7 @@ public static partial class TypedAstEvaluator
     private static JsValue FastSetHas(JsSet set, ImmutableArray<CallArgument> args, JsEnvironment env,
         EvaluationContext ctx)
     {
-        var value = EvaluateDynamicExpressionProgram(
+        var value = UnifiedBytecodeExpressionProgramExecutor.ExecuteDynamic(
             args[0].Expression,
             env,
             ctx,
@@ -2232,7 +2233,7 @@ public static partial class TypedAstEvaluator
     private static JsValue FastSetDelete(JsSet set, ImmutableArray<CallArgument> args, JsEnvironment env,
         EvaluationContext ctx)
     {
-        var value = EvaluateDynamicExpressionProgram(
+        var value = UnifiedBytecodeExpressionProgramExecutor.ExecuteDynamic(
             args[0].Expression,
             env,
             ctx,
@@ -2259,7 +2260,7 @@ public static partial class TypedAstEvaluator
         var thisArg = JsValue.Undefined;
         if (callArguments.Length > 0)
         {
-            thisArg = EvaluateDynamicExpressionProgram(
+            thisArg = UnifiedBytecodeExpressionProgramExecutor.ExecuteDynamic(
                 callArguments[0].Expression,
                 environment,
                 context,
@@ -2273,7 +2274,7 @@ public static partial class TypedAstEvaluator
         var argsBuilder = ImmutableArray.CreateBuilder<JsValue>();
         if (callArguments.Length > 1)
         {
-            var argsArrayJs = EvaluateDynamicExpressionProgram(
+            var argsArrayJs = UnifiedBytecodeExpressionProgramExecutor.ExecuteDynamic(
                 callArguments[1].Expression,
                 environment,
                 context,
@@ -2314,7 +2315,7 @@ public static partial class TypedAstEvaluator
 
         for (var i = 0; i < callArguments.Length; i++)
         {
-            var argValue = EvaluateDynamicExpressionProgram(
+            var argValue = UnifiedBytecodeExpressionProgramExecutor.ExecuteDynamic(
                 callArguments[i].Expression,
                 environment,
                 context,
@@ -2354,7 +2355,7 @@ public static partial class TypedAstEvaluator
         JsEnvironment environment,
         EvaluationContext context)
     {
-        var test = EvaluateDynamicExpressionProgram(
+        var test = UnifiedBytecodeExpressionProgramExecutor.ExecuteDynamic(
             expression.Test,
             environment,
             context,
@@ -2365,12 +2366,12 @@ public static partial class TypedAstEvaluator
         }
 
         return test.IsTruthy
-            ? EvaluateDynamicExpressionProgram(
+            ? UnifiedBytecodeExpressionProgramExecutor.ExecuteDynamic(
                 expression.Consequent,
                 environment,
                 context,
                 "Dynamic conditional consequent")
-            : EvaluateDynamicExpressionProgram(
+            : UnifiedBytecodeExpressionProgramExecutor.ExecuteDynamic(
                 expression.Alternate,
                 environment,
                 context,
@@ -2434,7 +2435,7 @@ public static partial class TypedAstEvaluator
         {
             if (element.IsSpread)
             {
-                var spreadValueJs = EvaluateDynamicExpressionProgram(
+                var spreadValueJs = UnifiedBytecodeExpressionProgramExecutor.ExecuteDynamic(
                     element.Expression!,
                     environment,
                     context,
@@ -2463,7 +2464,7 @@ public static partial class TypedAstEvaluator
             }
             else
             {
-                array.Push(EvaluateDynamicExpressionProgram(
+                array.Push(UnifiedBytecodeExpressionProgramExecutor.ExecuteDynamic(
                     element.Expression,
                     environment,
                     context,
@@ -2506,7 +2507,7 @@ public static partial class TypedAstEvaluator
 
                         var valueJs = member.Value is null
                             ? JsValue.Undefined
-                            : EvaluateDynamicExpressionProgram(
+                            : UnifiedBytecodeExpressionProgramExecutor.ExecuteDynamic(
                                 member.Value,
                                 environment,
                                 context,
@@ -2645,7 +2646,7 @@ public static partial class TypedAstEvaluator
 
                         var valueJs = member.Value is null
                             ? JsValue.Undefined
-                            : EvaluateDynamicExpressionProgram(
+                            : UnifiedBytecodeExpressionProgramExecutor.ExecuteDynamic(
                                 member.Value,
                                 environment,
                                 context,
@@ -2662,7 +2663,7 @@ public static partial class TypedAstEvaluator
                     }
                 case ObjectMemberKind.Spread:
                     {
-                        var spreadValueJs = EvaluateDynamicExpressionProgram(
+                        var spreadValueJs = UnifiedBytecodeExpressionProgramExecutor.ExecuteDynamic(
                             member.Value!,
                             environment,
                             context,
@@ -2754,7 +2755,7 @@ public static partial class TypedAstEvaluator
                 throw new InvalidOperationException("Computed property name must be an expression.");
             }
 
-            var keyValue = EvaluateDynamicExpressionProgram(
+            var keyValue = UnifiedBytecodeExpressionProgramExecutor.ExecuteDynamic(
                 keyExpression,
                 environment,
                 context,
@@ -2792,7 +2793,7 @@ public static partial class TypedAstEvaluator
             return expression.Operand.EvaluateDelete(environment, context) ? JsValue.True : JsValue.False;
         }
 
-        return EvaluateDynamicExpressionProgram(
+        return UnifiedBytecodeExpressionProgramExecutor.ExecuteDynamic(
             expression,
             environment,
             context,
@@ -2819,7 +2820,7 @@ public static partial class TypedAstEvaluator
                 continue;
             }
 
-            var valueJs = EvaluateDynamicExpressionProgram(
+            var valueJs = UnifiedBytecodeExpressionProgramExecutor.ExecuteDynamic(
                 part.Expression,
                 environment,
                 context,
@@ -2865,7 +2866,7 @@ public static partial class TypedAstEvaluator
         }
         else
         {
-            var stringsArrayValueJs = EvaluateDynamicExpressionProgram(
+            var stringsArrayValueJs = UnifiedBytecodeExpressionProgramExecutor.ExecuteDynamic(
                 expression.StringsArray,
                 environment,
                 context,
@@ -2880,7 +2881,7 @@ public static partial class TypedAstEvaluator
                 throw new InvalidOperationException("Tagged template strings array is invalid.");
             }
 
-            var rawStringsArrayValueJs = EvaluateDynamicExpressionProgram(
+            var rawStringsArrayValueJs = UnifiedBytecodeExpressionProgramExecutor.ExecuteDynamic(
                 expression.RawStringsArray,
                 environment,
                 context,
@@ -2904,7 +2905,7 @@ public static partial class TypedAstEvaluator
 
         foreach (var expr in expression.Expressions)
         {
-            arguments.Add(EvaluateDynamicExpressionProgram(
+            arguments.Add(UnifiedBytecodeExpressionProgramExecutor.ExecuteDynamic(
                 expr,
                 environment,
                 context,
@@ -3032,7 +3033,7 @@ public static partial class TypedAstEvaluator
                 }
             case MemberExpression member:
                 {
-                    var targetJs = EvaluateDynamicExpressionProgram(
+                    var targetJs = UnifiedBytecodeExpressionProgramExecutor.ExecuteDynamic(
                         member.Target,
                         environment,
                         context,
@@ -3057,7 +3058,7 @@ public static partial class TypedAstEvaluator
                     string propertyName;
                     if (member.IsComputed)
                     {
-                        var propertyJs = EvaluateDynamicExpressionProgram(
+                        var propertyJs = UnifiedBytecodeExpressionProgramExecutor.ExecuteDynamic(
                             member.Property,
                             environment,
                             context,
@@ -3080,7 +3081,7 @@ public static partial class TypedAstEvaluator
                             IdentifierExpression id => id.Name.Name,
                             LiteralExpression { Value.IsString: true } lit => lit.Value.AsString(),
                             _ => JsOps.GetRequiredPropertyName(
-                                EvaluateDynamicExpressionProgram(
+                                UnifiedBytecodeExpressionProgramExecutor.ExecuteDynamic(
                                     member.Property,
                                     environment,
                                     context,
@@ -3192,7 +3193,7 @@ public static partial class TypedAstEvaluator
                 }
             default:
                 {
-                    var directCallee = EvaluateDynamicExpressionProgram(
+                    var directCallee = UnifiedBytecodeExpressionProgramExecutor.ExecuteDynamic(
                         callee,
                         environment,
                         context,
@@ -3217,7 +3218,7 @@ public static partial class TypedAstEvaluator
                             context.RealmState);
                     }
 
-                    var targetJs = EvaluateDynamicExpressionProgram(
+                    var targetJs = UnifiedBytecodeExpressionProgramExecutor.ExecuteDynamic(
                         member.Target,
                         environment,
                         context,
@@ -3240,7 +3241,7 @@ public static partial class TypedAstEvaluator
                         return true;
                     }
 
-                    var propertyValueJs = EvaluateDynamicExpressionProgram(
+                    var propertyValueJs = UnifiedBytecodeExpressionProgramExecutor.ExecuteDynamic(
                         member.Property,
                         environment,
                         context,

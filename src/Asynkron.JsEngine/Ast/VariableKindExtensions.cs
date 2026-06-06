@@ -1,3 +1,4 @@
+using Asynkron.JsEngine.Execution.UnifiedBytecode;
 using Asynkron.JsEngine.StdLib;
 using Microsoft.Extensions.Logging;
 
@@ -42,7 +43,7 @@ public static partial class TypedAstEvaluator
 
         var valueJs = declarator.Initializer is null
             ? JsValue.Undefined
-            : EvaluateDynamicExpressionProgram(
+            : UnifiedBytecodeExpressionProgramExecutor.ExecuteDynamic(
                 declarator.Initializer,
                 environment,
                 context,

@@ -52,9 +52,10 @@ bytecode rather than the AST evaluator or IR runner.
 - Normal already-lowered callers should use
   `UnifiedBytecodeExpressionProgramExecutor.ExecuteStandalone(...)`.
   Quarantined legacy AST expression callers still use
-  `EvaluateDynamicExpressionProgram(...)` until that dynamic bridge is retired.
-  Direct calls to `ExecutionPlanRunner.EvaluateStandaloneExpressionProgram(...)`
-  are tombstoned.
+  `UnifiedBytecodeExpressionProgramExecutor.ExecuteDynamic(...)` until that
+  dynamic expression-program tier is retired. Direct calls to
+  `ExecutionPlanRunner.EvaluateStandaloneExpressionProgram(...)` are
+  tombstoned.
 - `UnifiedBytecodeExpressionProgramExecutor.ExecuteStandalone(...)` owns compiling standalone expression
   payloads to standalone unified bytecode and forwarding `newTarget` into
   `UnifiedBytecodeVirtualMachine.Execute` so constructor/class surfaces do not
@@ -63,6 +64,8 @@ bytecode rather than the AST evaluator or IR runner.
   `ExecutionPlanRunner.EvaluateStandaloneExpressionProgram(...)` directly, and
   that method must not be reintroduced.
 - `TypedAstEvaluator.EvaluateLoweredExpressionProgram(...)` is tombstoned and
+  must not be reintroduced.
+- `TypedAstEvaluator.EvaluateDynamicExpressionProgram(...)` is tombstoned and
   must not be reintroduced.
 - `ExecutionPlanRunner.ProfileEvaluateExpressionProgramLoop(...)` is
   tombstoned and must not be reintroduced; profiler cases that can compile
@@ -83,7 +86,7 @@ bytecode rather than the AST evaluator or IR runner.
   calls are absent while still allowing intended lowered payload execution
   through standalone unified bytecode.
 - Future expression-bytecode refactors must use the unified executor or update
-  the dynamic bridge source gate when adding a new dynamic expression-program
+  the dynamic executor source gate when adding a new dynamic expression-program
   caller.
 - If a future slice deletes the simple-IR fallback call, the guardrail should be
   moved from "fallback-only classified" to "tombstoned" rather than silently

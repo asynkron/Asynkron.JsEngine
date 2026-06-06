@@ -272,7 +272,27 @@ public sealed class ExecutionPlanDiagnosticsTests(ITestOutputHelper output) : In
     }
 
     [Fact]
-    public void SourceGate_DynamicExpressionProgramBridge_StaysInsideApprovedBoundarySurface()
+    public void SourceGate_E4_DynamicExpressionProgramBridge_IsCompletelyRemoved()
+    {
+        var repositoryRoot = FindRepositoryRoot();
+        var sourceRoot = Path.Combine(repositoryRoot.FullName, "src", "Asynkron.JsEngine");
+        var matches = Directory
+            .EnumerateFiles(sourceRoot, "*.cs", SearchOption.AllDirectories)
+            .SelectMany(file =>
+            {
+                var relativePath = Path.GetRelativePath(repositoryRoot.FullName, file).Replace('\\', '/');
+                return File.ReadAllLines(file)
+                    .Select((line, index) => new { line, index })
+                    .Where(entry => entry.line.Contains("EvaluateDynamicExpressionProgram(", StringComparison.Ordinal))
+                    .Select(entry => $"{relativePath}:{entry.index + 1}:{entry.line.Trim()}");
+            })
+            .ToArray();
+
+        Assert.Empty(matches);
+    }
+
+    [Fact]
+    public void SourceGate_DynamicExpressionExecutor_StaysInsideApprovedBoundarySurface()
     {
         var repositoryRoot = FindRepositoryRoot();
         var sourceRoot = Path.Combine(repositoryRoot.FullName, "src", "Asynkron.JsEngine");
@@ -282,8 +302,7 @@ public sealed class ExecutionPlanDiagnosticsTests(ITestOutputHelper output) : In
             "src/Asynkron.JsEngine/Ast/VariableKindExtensions.cs",
             "src/Asynkron.JsEngine/Ast/Legacy/ExpressionNodeExtensions.cs",
             "src/Asynkron.JsEngine/Ast/Legacy/LoopPlanExtensions.cs",
-            "src/Asynkron.JsEngine/Ast/Legacy/StatementNodeExtensions.cs",
-            "src/Asynkron.JsEngine/Ast/TypedAstEvaluator.ExpressionPrograms.cs"
+            "src/Asynkron.JsEngine/Ast/Legacy/StatementNodeExtensions.cs"
         };
 
         var matches = Directory
@@ -293,7 +312,10 @@ public sealed class ExecutionPlanDiagnosticsTests(ITestOutputHelper output) : In
                 var relativePath = Path.GetRelativePath(repositoryRoot.FullName, file).Replace('\\', '/');
                 return File.ReadAllLines(file)
                     .Select((line, index) => new { line, index })
-                    .Where(entry => entry.line.Contains("EvaluateDynamicExpressionProgram(", StringComparison.Ordinal))
+                    .Where(entry =>
+                        entry.line.Contains(
+                            "UnifiedBytecodeExpressionProgramExecutor.ExecuteDynamic(",
+                            StringComparison.Ordinal))
                     .Select(entry => (relativePath, entry.index + 1, entry.line.Trim()));
             })
             .ToArray();
@@ -305,7 +327,8 @@ public sealed class ExecutionPlanDiagnosticsTests(ITestOutputHelper output) : In
 
         Assert.True(
             disallowed.Length == 0,
-            "EvaluateDynamicExpressionProgram call-site drift detected:\n" + string.Join('\n', disallowed));
+            "UnifiedBytecodeExpressionProgramExecutor.ExecuteDynamic call-site drift detected:\n" +
+            string.Join('\n', disallowed));
     }
 
     [Fact]

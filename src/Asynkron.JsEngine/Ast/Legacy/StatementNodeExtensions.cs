@@ -110,7 +110,7 @@ public static partial class TypedAstEvaluator
     [Obsolete("This AST evaluation method is quarantined. Prefer IR execution via ExecutionPlanRunner.")]
     private static JsValue EvaluateIfJsValue(this IfStatement statement, JsEnvironment environment, EvaluationContext context)
     {
-        var test = EvaluateDynamicExpressionProgram(
+        var test = UnifiedBytecodeExpressionProgramExecutor.ExecuteDynamic(
             statement.Condition,
             environment,
             context,
@@ -216,7 +216,7 @@ public static partial class TypedAstEvaluator
         JsValue iterableJsValue;
         try
         {
-            iterableJsValue = EvaluateDynamicExpressionProgram(
+            iterableJsValue = UnifiedBytecodeExpressionProgramExecutor.ExecuteDynamic(
                 statement.Iterable,
                 iterableEnvironment,
                 context,
@@ -369,7 +369,7 @@ public static partial class TypedAstEvaluator
             statement.Target.CreateUninitializedLexicalBindings(iterableEnvironment, isConstDeclaration);
         }
 
-        var iterableJs = EvaluateDynamicExpressionProgram(
+        var iterableJs = UnifiedBytecodeExpressionProgramExecutor.ExecuteDynamic(
             statement.Iterable,
             iterableEnvironment,
             context,
@@ -506,7 +506,7 @@ public static partial class TypedAstEvaluator
                 argumentMayCaptureActivation |=
                     ContainsInnerFunctionExpression(argumentExpression) ||
                     DynamicScopeDetector.ContainsDirectEval(argumentExpression);
-                tailCallArguments[i] = EvaluateDynamicExpressionProgram(
+                tailCallArguments[i] = UnifiedBytecodeExpressionProgramExecutor.ExecuteDynamic(
                     argumentExpression,
                     environment,
                     context,
@@ -549,7 +549,7 @@ public static partial class TypedAstEvaluator
 
         var jsValue = statement.Expression is null
             ? JsValue.Undefined
-            : EvaluateDynamicExpressionProgram(
+            : UnifiedBytecodeExpressionProgramExecutor.ExecuteDynamic(
                 statement.Expression,
                 environment,
                 context,
@@ -568,7 +568,7 @@ public static partial class TypedAstEvaluator
     private static JsValue EvaluateThrowJsValue(this ThrowStatement statement, JsEnvironment environment,
         EvaluationContext context)
     {
-        var jsValue = EvaluateDynamicExpressionProgram(
+        var jsValue = UnifiedBytecodeExpressionProgramExecutor.ExecuteDynamic(
             statement.Expression,
             environment,
             context,
@@ -708,7 +708,7 @@ public static partial class TypedAstEvaluator
         EvaluationContext context,
         Symbol? targetLabel)
     {
-        var discriminantJs = EvaluateDynamicExpressionProgram(
+        var discriminantJs = UnifiedBytecodeExpressionProgramExecutor.ExecuteDynamic(
             statement.Discriminant,
             environment,
             context,
@@ -739,7 +739,7 @@ public static partial class TypedAstEvaluator
                 continue;
             }
 
-            var testJs = EvaluateDynamicExpressionProgram(
+            var testJs = UnifiedBytecodeExpressionProgramExecutor.ExecuteDynamic(
                 switchCase.Test,
                 switchEnv,
                 context,
@@ -1021,7 +1021,7 @@ public static partial class TypedAstEvaluator
     [Obsolete("This AST evaluation method is quarantined. Prefer IR execution via ExecutionPlanRunner.")]
     private static JsValue EvaluateWithJsValue(this WithStatement statement, JsEnvironment environment, EvaluationContext context)
     {
-        var objValueJs = EvaluateDynamicExpressionProgram(
+        var objValueJs = UnifiedBytecodeExpressionProgramExecutor.ExecuteDynamic(
             statement.Object,
             environment,
             context,
@@ -1076,7 +1076,7 @@ public static partial class TypedAstEvaluator
         // Hot path - explicit type checks for best inlining
         if (statement is ExpressionStatement expressionStatement)
         {
-            var result = EvaluateDynamicExpressionProgram(
+            var result = UnifiedBytecodeExpressionProgramExecutor.ExecuteDynamic(
                 expressionStatement.Expression,
                 environment,
                 context,

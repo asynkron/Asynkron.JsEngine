@@ -175,9 +175,13 @@ fallback or cleanup.
     tombstoned. `EvaluateLoweredExpressionProgram(...)` is also tombstoned; new
     standalone expression-program callers should use the unified-bytecode
     executor directly, and new occurrences of the deleted helper must fail the
-    source gate. If any other quarantined helper is deleted, change its guard
-    from classified allowlist to tombstone instead of leaving stale permission.
-    See ADR 0345.
+    source gate. `ExecutionPlanRunner.ApplyStandaloneBindingTargetProgram(...)`
+    is tombstoned too; external lowered binding-target callers should use the
+    static lowered binding-target core and route nested expression payloads
+    through standalone unified bytecode instead of constructing a runner solely
+    for binding-target execution. If any other quarantined helper is deleted,
+    change its guard from classified allowlist to tombstone instead of leaving
+    stale permission. See ADR 0345.
 
 ## Dynamic Boundary Classification (#1405 Retry)
 

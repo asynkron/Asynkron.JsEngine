@@ -188,11 +188,25 @@
           "pattern": "EvaluateDynamicExpressionProgram("
         },
         {
-          "id": "E4-binding-target-runner-bridge-still-present",
-          "claim": "open",
-          "kind": "source-presence",
+          "id": "E4-binding-target-runner-bridge-removed-from-callers",
+          "claim": "retired-fallback",
+          "kind": "source-absence",
           "path": "src/Asynkron.JsEngine/Ast/TypedAstEvaluator.BindingTargetPrograms.cs",
           "pattern": "ExecutionPlanRunner.ApplyStandaloneBindingTargetProgram("
+        },
+        {
+          "id": "E4-binding-target-runner-bridge-definition-removed",
+          "claim": "retired-fallback",
+          "kind": "source-absence",
+          "path": "src/Asynkron.JsEngine/Ast/TypedAstEvaluator.ExecutionPlanRunner.Core.cs",
+          "pattern": "ApplyStandaloneBindingTargetProgram("
+        },
+        {
+          "id": "E4-dynamic-expression-executor-still-present",
+          "claim": "open",
+          "kind": "source-presence",
+          "path": "src/Asynkron.JsEngine/Execution/UnifiedBytecode/UnifiedBytecodeExpressionProgramExecutor.cs",
+          "pattern": "internal static JsValue ExecuteDynamic("
         }
       ]
     },

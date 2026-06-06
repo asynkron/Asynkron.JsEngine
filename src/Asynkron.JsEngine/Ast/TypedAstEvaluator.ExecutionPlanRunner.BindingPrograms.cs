@@ -1,6 +1,7 @@
 using System.Runtime.CompilerServices;
 using Asynkron.JsEngine.Execution;
 using Asynkron.JsEngine.Execution.Instructions;
+using Asynkron.JsEngine.Execution.UnifiedBytecode;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.StdLib;
 
@@ -18,12 +19,68 @@ public static partial class TypedAstEvaluator
             BindingMode mode,
             bool hasInitializer = true,
             bool allowNameInference = true,
+            bool skipBlockedBindingLookup = false) =>
+            ApplyBindingTargetProgram(
+                runner: this,
+                target,
+                value,
+                environment,
+                context,
+                mode,
+                hasInitializer,
+                allowNameInference,
+                skipBlockedBindingLookup);
+
+        internal static void ApplyLoweredBindingTargetProgram(
+            BindingTargetProgram target,
+            JsValue value,
+            JsEnvironment environment,
+            EvaluationContext context,
+            BindingMode mode,
+            bool hasInitializer = true,
+            bool allowNameInference = true,
+            bool skipBlockedBindingLookup = false)
+        {
+            var previousContext = EvaluationContext.Current;
+            var previousEnvironment = JsEnvironment.Current;
+            EvaluationContext.Current = context;
+            JsEnvironment.Current = environment;
+            try
+            {
+                ApplyBindingTargetProgram(
+                    runner: null,
+                    target,
+                    value,
+                    environment,
+                    context,
+                    mode,
+                    hasInitializer,
+                    allowNameInference,
+                    skipBlockedBindingLookup);
+            }
+            finally
+            {
+                JsEnvironment.Current = previousEnvironment;
+                EvaluationContext.Current = previousContext;
+            }
+        }
+
+        private static void ApplyBindingTargetProgram(
+            ExecutionPlanRunner? runner,
+            BindingTargetProgram target,
+            JsValue value,
+            JsEnvironment environment,
+            EvaluationContext context,
+            BindingMode mode,
+            bool hasInitializer = true,
+            bool allowNameInference = true,
             bool skipBlockedBindingLookup = false)
         {
             switch (target)
             {
                 case IdentifierBindingTargetProgram identifier:
                     ApplyIdentifierBindingProgram(
+                        runner,
                         identifier,
                         value,
                         environment,
@@ -35,15 +92,16 @@ public static partial class TypedAstEvaluator
                     return;
 
                 case ArrayBindingTargetProgram arrayBinding:
-                    BindArrayPatternProgram(arrayBinding, value, environment, context, mode);
+                    BindArrayPatternProgram(runner, arrayBinding, value, environment, context, mode);
                     return;
 
                 case ObjectBindingTargetProgram objectBinding:
-                    BindObjectPatternProgram(objectBinding, value, environment, context, mode);
+                    BindObjectPatternProgram(runner, objectBinding, value, environment, context, mode);
                     return;
 
                 case NamedPropertyAssignmentBindingTargetProgram namedPropertyAssignment:
                     ApplyNamedPropertyAssignmentTargetProgram(
+                        runner,
                         namedPropertyAssignment,
                         value,
                         environment,
@@ -52,6 +110,7 @@ public static partial class TypedAstEvaluator
 
                 case ComputedPropertyAssignmentBindingTargetProgram computedPropertyAssignment:
                     ApplyComputedPropertyAssignmentTargetProgram(
+                        runner,
                         computedPropertyAssignment,
                         value,
                         environment,
@@ -69,6 +128,7 @@ public static partial class TypedAstEvaluator
 
                 case ComputedSuperPropertyAssignmentBindingTargetProgram computedSuperPropertyAssignment:
                     ApplyComputedSuperPropertyAssignmentTargetProgram(
+                        runner,
                         computedSuperPropertyAssignment,
                         value,
                         environment,
@@ -81,7 +141,8 @@ public static partial class TypedAstEvaluator
             }
         }
 
-        private void ApplyIdentifierBindingProgram(
+        private static void ApplyIdentifierBindingProgram(
+            ExecutionPlanRunner? runner,
             IdentifierBindingTargetProgram target,
             JsValue value,
             JsEnvironment environment,
@@ -94,6 +155,7 @@ public static partial class TypedAstEvaluator
             environment.AssertOwnership(nameof(ApplyIdentifierBindingProgram));
             context.AssertOwnership(nameof(ApplyIdentifierBindingProgram));
             if (TryApplySlotProvenIdentifierBindingProgram(
+                    runner,
                     target,
                     value,
                     environment,
@@ -116,7 +178,8 @@ public static partial class TypedAstEvaluator
         }
 
         [MethodImpl(JsEngineConstants.Inlining)]
-        private bool TryApplySlotProvenIdentifierBindingProgram(
+        private static bool TryApplySlotProvenIdentifierBindingProgram(
+            ExecutionPlanRunner? runner,
             IdentifierBindingTargetProgram target,
             JsValue value,
             JsEnvironment environment,
@@ -125,13 +188,13 @@ public static partial class TypedAstEvaluator
             bool allowNameInference)
         {
             if (target.FlatSlotId < 0 ||
-                _flatSlots is null ||
-                (uint)target.FlatSlotId >= (uint)_flatSlots.Length)
+                runner?._flatSlots is null ||
+                (uint)target.FlatSlotId >= (uint)runner._flatSlots.Length)
             {
                 return false;
             }
 
-            ref var variable = ref _flatSlots[target.FlatSlotId];
+            ref var variable = ref runner._flatSlots[target.FlatSlotId];
             if (!variable.IsValid)
             {
                 return false;
@@ -213,7 +276,7 @@ public static partial class TypedAstEvaluator
             }
         }
 
-        private void ApplyIdentifierBindingProgram(
+        private static void ApplyIdentifierBindingProgram(
             Symbol name,
             JsValue value,
             JsEnvironment environment,
@@ -300,7 +363,8 @@ public static partial class TypedAstEvaluator
             }
         }
 
-        private void BindObjectPatternProgram(
+        private static void BindObjectPatternProgram(
+            ExecutionPlanRunner? runner,
             ObjectBindingTargetProgram binding,
             JsValue value,
             JsEnvironment environment,
@@ -315,7 +379,7 @@ public static partial class TypedAstEvaluator
                 var propertyName = property.Name;
                 if (property.NameProgram is { } nameProgram)
                 {
-                    var propertyKeyValue = EvaluateExpressionProgram(nameProgram, environment, context);
+                    var propertyKeyValue = EvaluateBindingExpressionProgram(runner, nameProgram, environment, context);
                     if (context.ShouldStopEvaluation)
                     {
                         return;
@@ -332,6 +396,7 @@ public static partial class TypedAstEvaluator
                 if (mode == BindingMode.Assign)
                 {
                     preResolvedReference = TryPreResolveAssignmentTargetProgram(
+                        runner,
                         property.Target,
                         environment,
                         context);
@@ -388,7 +453,7 @@ public static partial class TypedAstEvaluator
                 if (propertyValue.IsUndefined && property.DefaultProgram is { } defaultProgram)
                 {
                     usedDefault = true;
-                    propertyValue = EvaluateExpressionProgram(defaultProgram, environment, context);
+                    propertyValue = EvaluateBindingExpressionProgram(runner, defaultProgram, environment, context);
                     if (context.ShouldStopEvaluation)
                     {
                         return;
@@ -418,6 +483,7 @@ public static partial class TypedAstEvaluator
                 else
                 {
                     ApplyBindingTargetProgram(
+                        runner,
                         property.Target,
                         propertyValue,
                         environment,
@@ -470,6 +536,7 @@ public static partial class TypedAstEvaluator
             }
 
             ApplyBindingTargetProgram(
+                runner,
                 binding.RestElement,
                 JsValue.FromJsObject(restObject),
                 environment,
@@ -478,14 +545,15 @@ public static partial class TypedAstEvaluator
                 allowNameInference: false);
         }
 
-        private void BindArrayPatternProgram(
+        private static void BindArrayPatternProgram(
+            ExecutionPlanRunner? runner,
             ArrayBindingTargetProgram binding,
             JsValue value,
             JsEnvironment environment,
             EvaluationContext context,
             BindingMode mode)
         {
-            if (TryBindDenseArrayPatternProgram(binding, value, environment, context, mode))
+            if (TryBindDenseArrayPatternProgram(runner, binding, value, environment, context, mode))
             {
                 return;
             }
@@ -529,6 +597,7 @@ public static partial class TypedAstEvaluator
                     if (mode == BindingMode.Assign && element.Target is not null)
                     {
                         preResolvedReference = TryPreResolveAssignmentTargetProgram(
+                            runner,
                             element.Target,
                             environment,
                             context);
@@ -567,7 +636,7 @@ public static partial class TypedAstEvaluator
                     if (elementValue.IsUndefined && element.DefaultProgram is { } defaultProgram)
                     {
                         usedDefault = true;
-                        elementValue = EvaluateExpressionProgram(defaultProgram, environment, context);
+                        elementValue = EvaluateBindingExpressionProgram(runner, defaultProgram, environment, context);
                         if (context.ShouldStopEvaluation)
                         {
                             CloseIteratorOnAbrupt();
@@ -590,6 +659,7 @@ public static partial class TypedAstEvaluator
                     else
                     {
                         ApplyBindingTargetProgram(
+                            runner,
                             element.Target,
                             elementValue,
                             environment,
@@ -611,6 +681,7 @@ public static partial class TypedAstEvaluator
                     if (mode == BindingMode.Assign)
                     {
                         preResolvedReference = TryPreResolveAssignmentTargetProgram(
+                            runner,
                             binding.RestElement,
                             environment,
                             context);
@@ -657,6 +728,7 @@ public static partial class TypedAstEvaluator
                     else
                     {
                         ApplyBindingTargetProgram(
+                            runner,
                             binding.RestElement,
                             JsValue.FromJsArray(restArray),
                             environment,
@@ -743,7 +815,8 @@ public static partial class TypedAstEvaluator
             }
         }
 
-        private bool TryBindDenseArrayPatternProgram(
+        private static bool TryBindDenseArrayPatternProgram(
+            ExecutionPlanRunner? runner,
             ArrayBindingTargetProgram binding,
             JsValue value,
             JsEnvironment environment,
@@ -783,6 +856,7 @@ public static partial class TypedAstEvaluator
                 }
 
                 ApplyIdentifierBindingProgram(
+                    runner,
                     identifier,
                     array.GetElement((uint)i),
                     environment,
@@ -823,7 +897,8 @@ public static partial class TypedAstEvaluator
             }
         }
 
-        private AssignmentReference? TryPreResolveAssignmentTargetProgram(
+        private static AssignmentReference? TryPreResolveAssignmentTargetProgram(
+            ExecutionPlanRunner? runner,
             BindingTargetProgram target,
             JsEnvironment environment,
             EvaluationContext context)
@@ -831,23 +906,28 @@ public static partial class TypedAstEvaluator
             return target switch
             {
                 NamedPropertyAssignmentBindingTargetProgram namedProperty =>
-                    PreResolveNamedPropertyAssignmentTargetProgram(namedProperty, environment, context),
+                    PreResolveNamedPropertyAssignmentTargetProgram(runner, namedProperty, environment, context),
                 ComputedPropertyAssignmentBindingTargetProgram computedProperty =>
-                    PreResolveComputedPropertyAssignmentTargetProgram(computedProperty, environment, context),
+                    PreResolveComputedPropertyAssignmentTargetProgram(runner, computedProperty, environment, context),
                 NamedSuperPropertyAssignmentBindingTargetProgram namedSuperProperty =>
                     PreResolveNamedSuperPropertyAssignmentTargetProgram(namedSuperProperty, environment, context),
                 ComputedSuperPropertyAssignmentBindingTargetProgram computedSuperProperty =>
-                    PreResolveComputedSuperPropertyAssignmentTargetProgram(computedSuperProperty, environment, context),
+                    PreResolveComputedSuperPropertyAssignmentTargetProgram(
+                        runner,
+                        computedSuperProperty,
+                        environment,
+                        context),
                 _ => null
             };
         }
 
-        private AssignmentReference? PreResolveNamedPropertyAssignmentTargetProgram(
+        private static AssignmentReference? PreResolveNamedPropertyAssignmentTargetProgram(
+            ExecutionPlanRunner? runner,
             NamedPropertyAssignmentBindingTargetProgram targetProgram,
             JsEnvironment environment,
             EvaluationContext context)
         {
-            var target = EvaluateExpressionProgram(targetProgram.TargetProgram, environment, context);
+            var target = EvaluateBindingExpressionProgram(runner, targetProgram.TargetProgram, environment, context);
             if (context.ShouldStopEvaluation)
             {
                 return null;
@@ -863,18 +943,19 @@ public static partial class TypedAstEvaluator
                     context));
         }
 
-        private AssignmentReference? PreResolveComputedPropertyAssignmentTargetProgram(
+        private static AssignmentReference? PreResolveComputedPropertyAssignmentTargetProgram(
+            ExecutionPlanRunner? runner,
             ComputedPropertyAssignmentBindingTargetProgram targetProgram,
             JsEnvironment environment,
             EvaluationContext context)
         {
-            var target = EvaluateExpressionProgram(targetProgram.TargetProgram, environment, context);
+            var target = EvaluateBindingExpressionProgram(runner, targetProgram.TargetProgram, environment, context);
             if (context.ShouldStopEvaluation)
             {
                 return null;
             }
 
-            var propertyKey = EvaluateExpressionProgram(targetProgram.PropertyProgram, environment, context);
+            var propertyKey = EvaluateBindingExpressionProgram(runner, targetProgram.PropertyProgram, environment, context);
             if (context.ShouldStopEvaluation)
             {
                 return null;
@@ -911,7 +992,8 @@ public static partial class TypedAstEvaluator
                     context));
         }
 
-        private AssignmentReference? PreResolveComputedSuperPropertyAssignmentTargetProgram(
+        private static AssignmentReference? PreResolveComputedSuperPropertyAssignmentTargetProgram(
+            ExecutionPlanRunner? runner,
             ComputedSuperPropertyAssignmentBindingTargetProgram targetProgram,
             JsEnvironment environment,
             EvaluationContext context)
@@ -922,7 +1004,7 @@ public static partial class TypedAstEvaluator
                 return null;
             }
 
-            var propertyKey = EvaluateExpressionProgram(targetProgram.PropertyProgram, environment, context);
+            var propertyKey = EvaluateBindingExpressionProgram(runner, targetProgram.PropertyProgram, environment, context);
             if (context.ShouldStopEvaluation)
             {
                 return null;
@@ -938,13 +1020,14 @@ public static partial class TypedAstEvaluator
                     context));
         }
 
-        private void ApplyNamedPropertyAssignmentTargetProgram(
+        private static void ApplyNamedPropertyAssignmentTargetProgram(
+            ExecutionPlanRunner? runner,
             NamedPropertyAssignmentBindingTargetProgram targetProgram,
             JsValue value,
             JsEnvironment environment,
             EvaluationContext context)
         {
-            var target = EvaluateExpressionProgram(targetProgram.TargetProgram, environment, context);
+            var target = EvaluateBindingExpressionProgram(runner, targetProgram.TargetProgram, environment, context);
             if (context.ShouldStopEvaluation)
             {
                 return;
@@ -958,19 +1041,20 @@ public static partial class TypedAstEvaluator
                 context);
         }
 
-        private void ApplyComputedPropertyAssignmentTargetProgram(
+        private static void ApplyComputedPropertyAssignmentTargetProgram(
+            ExecutionPlanRunner? runner,
             ComputedPropertyAssignmentBindingTargetProgram targetProgram,
             JsValue value,
             JsEnvironment environment,
             EvaluationContext context)
         {
-            var target = EvaluateExpressionProgram(targetProgram.TargetProgram, environment, context);
+            var target = EvaluateBindingExpressionProgram(runner, targetProgram.TargetProgram, environment, context);
             if (context.ShouldStopEvaluation)
             {
                 return;
             }
 
-            var propertyKey = EvaluateExpressionProgram(targetProgram.PropertyProgram, environment, context);
+            var propertyKey = EvaluateBindingExpressionProgram(runner, targetProgram.PropertyProgram, environment, context);
             if (context.ShouldStopEvaluation)
             {
                 return;
@@ -984,13 +1068,14 @@ public static partial class TypedAstEvaluator
                 context);
         }
 
-        private void ApplyComputedSuperPropertyAssignmentTargetProgram(
+        private static void ApplyComputedSuperPropertyAssignmentTargetProgram(
+            ExecutionPlanRunner? runner,
             ComputedSuperPropertyAssignmentBindingTargetProgram targetProgram,
             JsValue value,
             JsEnvironment environment,
             EvaluationContext context)
         {
-            var propertyKey = EvaluateExpressionProgram(targetProgram.PropertyProgram, environment, context);
+            var propertyKey = EvaluateBindingExpressionProgram(runner, targetProgram.PropertyProgram, environment, context);
             if (context.ShouldStopEvaluation)
             {
                 return;
@@ -1002,6 +1087,17 @@ public static partial class TypedAstEvaluator
                 value,
                 environment,
                 context);
+        }
+
+        private static JsValue EvaluateBindingExpressionProgram(
+            ExecutionPlanRunner? runner,
+            ExpressionProgram program,
+            JsEnvironment environment,
+            EvaluationContext context)
+        {
+            return runner is null
+                ? UnifiedBytecodeExpressionProgramExecutor.ExecuteStandalone(program, environment, context)
+                : runner.EvaluateExpressionProgram(program, environment, context);
         }
     }
 }

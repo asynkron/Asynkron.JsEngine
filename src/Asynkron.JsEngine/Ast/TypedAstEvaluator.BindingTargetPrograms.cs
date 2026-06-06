@@ -34,7 +34,7 @@ public static partial class TypedAstEvaluator
                 $"Binding target could not be lowered to bytecode: {cache.FailureReason}");
         }
 
-        ExecutionPlanRunner.ApplyStandaloneBindingTargetProgram(
+        ExecutionPlanRunner.ApplyLoweredBindingTargetProgram(
             cache.Program,
             value,
             environment,
@@ -54,7 +54,7 @@ public static partial class TypedAstEvaluator
         bool allowNameInference = true,
         bool skipBlockedBindingLookup = false)
     {
-        ExecutionPlanRunner.ApplyStandaloneBindingTargetProgram(
+        ExecutionPlanRunner.ApplyLoweredBindingTargetProgram(
             target,
             value,
             environment,
@@ -83,7 +83,7 @@ public static partial class TypedAstEvaluator
             _ => throw new ArgumentOutOfRangeException(nameof(varKind), varKind, null)
         };
 
-        ExecutionPlanRunner.ApplyStandaloneBindingTargetProgram(
+        ExecutionPlanRunner.ApplyLoweredBindingTargetProgram(
             target,
             value,
             environment,

@@ -723,11 +723,6 @@ public sealed class UnifiedBytecodeResumableLiteralTests(ITestOutputHelper outpu
     public static TheoryData<string> DeclinedB24ClassLiteralPrograms { get; } = new()
     {
         """
-        function* g() {
-            yield class { static {} };
-        }
-        """,
-        """
         function* g(Base) {
             yield class Derived extends Base {};
         }

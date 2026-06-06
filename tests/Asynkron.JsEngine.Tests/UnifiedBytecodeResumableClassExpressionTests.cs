@@ -101,6 +101,60 @@ public sealed class UnifiedBytecodeResumableClassExpressionTests(ITestOutputHelp
     }
 
     [Fact]
+    public void EvaluateResumable_GeneratorStaticBlockClassExpression_AdmitsLoadClassLiteral()
+    {
+        var plan = GetFunctionPlan("""
+            function* g(seed) {
+                yield "ready";
+                var C = class Box {
+                    static {
+                        Box.value = seed + 1;
+                    }
+                };
+                return C.value;
+            }
+            """,
+            "g");
+
+        var result = UnifiedBytecodeProductionEligibility.EvaluateResumable(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor(IsGenerator: true));
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(
+            result.Program.Instructions,
+            static instruction => instruction.OpCode == UnifiedBytecodeOpCode.LoadClassLiteral);
+    }
+
+    [Fact]
+    public void EvaluateResumable_AsyncStaticBlockClassExpression_AdmitsLoadClassLiteral()
+    {
+        var plan = GetFunctionPlan("""
+            async function run(seed) {
+                await 0;
+                var C = class Box {
+                    static {
+                        Box.value = seed + 2;
+                    }
+                };
+                return C.value;
+            }
+            """,
+            "run");
+
+        var result = UnifiedBytecodeProductionEligibility.EvaluateResumable(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor(IsAsyncLike: true));
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(
+            result.Program.Instructions,
+            static instruction => instruction.OpCode == UnifiedBytecodeOpCode.LoadClassLiteral);
+    }
+
+    [Fact]
     public void EvaluateResumable_PublicStaticAndInstanceFieldClassExpression_AdmitsLoadClassLiteral()
     {
         var plan = GetFunctionPlan("""
@@ -477,6 +531,62 @@ public sealed class UnifiedBytecodeResumableClassExpressionTests(ITestOutputHelp
             """);
 
         Assert.Equal(42d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                $"{ResumableAsyncFastPathLog} func=run argc=1",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task GeneratorStaticBlockClassExpression_RoutesResumableAndSyncsActivationWrites()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function* g(seed) {
+                var observed = 0;
+                yield "ready";
+                var C = class Box {
+                    static {
+                        Box.value = seed + 1;
+                        observed = Box.value + 1;
+                    }
+                };
+                return C.value + "|" + observed;
+            }
+
+            var iterator = g(40);
+            var first = iterator.next();
+            var second = iterator.next();
+            first.value + ":" + first.done + "|" + second.value + ":" + second.done;
+            """);
+
+        Assert.Equal("ready:false|41|42:true", result);
+        AssertGeneratorFastPath("g", argc: 1);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task AsyncStaticBlockClassExpression_RoutesResumableAndSyncsActivationWrites()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.EvaluateAndAwait("""
+            var output = undefined;
+            async function run(seed) {
+                var observed = 0;
+                await 0;
+                var C = class Box {
+                    static {
+                        Box.value = seed + 2;
+                        observed = Box.value + 1;
+                    }
+                };
+                return C.value + "|" + observed;
+            }
+
+            run(40).then(value => output = value);
+            output;
+            """);
+
+        Assert.Equal("42|43", result);
         Assert.Contains(CurrentLogger!.Collector.Snapshot(),
             static record => record.Message.Contains(
                 $"{ResumableAsyncFastPathLog} func=run argc=1",
@@ -1075,15 +1185,6 @@ public sealed class UnifiedBytecodeResumableClassExpressionTests(ITestOutputHelp
         function* g() {
             yield 1;
             var C = class {
-                static { this.value = 1; }
-            };
-            return C.value;
-        }
-        """)]
-    [InlineData("""
-        function* g() {
-            yield 1;
-            var C = class {
                 static #value = 1;
             };
             return C;
@@ -1196,6 +1297,36 @@ public sealed class UnifiedBytecodeResumableClassExpressionTests(ITestOutputHelp
                 };
                 current = seed + 1;
                 return C.bag.read();
+            }
+
+            var iterator = g(41);
+            var first = iterator.next();
+            var second = iterator.next();
+            first.value + ":" + first.done + "|" + second.value + ":" + second.done;
+            """);
+
+        Assert.Equal("ready:false|42:true", result);
+        Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                $"{ResumableGeneratorFastPathLog} func=g argc=1",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task GeneratorStaticBlockClosure_FallsBackAndObservesLaterActivationMutation()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function* g(seed) {
+                yield "ready";
+                var current = seed;
+                var C = class {
+                    static {
+                        this.read = () => current;
+                    }
+                };
+                current = seed + 1;
+                return C.read();
             }
 
             var iterator = g(41);

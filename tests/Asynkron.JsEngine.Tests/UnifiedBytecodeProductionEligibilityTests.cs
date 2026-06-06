@@ -426,6 +426,32 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
         Assert.Contains("eval", result.Reason, StringComparison.OrdinalIgnoreCase);
     }
 
+    [Theory]
+    [InlineData("var injected = 1;")]
+    [InlineData("let injected = 1;")]
+    [InlineData("const injected = 1;")]
+    [InlineData("function injected() { return 1; }")]
+    [InlineData("class Injected {}")]
+    public void Evaluate_DirectEvalDeclarationLiteral_StaysDeclinedBeforeProductionVm(string evalSource)
+    {
+        var plan = GetFunctionPlan(
+            $$"""
+            function invokeEval() {
+                eval({{ToJavaScriptStringLiteral(evalSource)}});
+                return 1;
+            }
+            """,
+            "invokeEval");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.False(result.IsEligible);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.CallDependency, result.Code);
+        Assert.Contains("eval", result.Reason, StringComparison.OrdinalIgnoreCase);
+    }
+
     [Fact]
     public void Evaluate_AsyncLikeActivation_DeclinesBeforePlanInspection()
     {
@@ -8381,6 +8407,9 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
         Assert.True(cache.Succeeded, cache.FailureReason);
         return Assert.IsType<ExecutionPlan>(cache.Plan);
     }
+
+    private static string ToJavaScriptStringLiteral(string value) =>
+        "\"" + value.Replace("\\", "\\\\", StringComparison.Ordinal).Replace("\"", "\\\"", StringComparison.Ordinal) + "\"";
 
     private static ExecutionPlan GetScriptPlan(string source)
     {

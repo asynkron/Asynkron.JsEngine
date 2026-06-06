@@ -3480,6 +3480,27 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     }
 
     [Fact(Timeout = 5000)]
+    public async Task StrictDirectEvalDeclarationsStayIsolatedAndOffProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function invokeEval() {
+                var local = 42;
+                eval('"use strict"; var hiddenVar = 1; let hiddenLet = 2; function hiddenFn() { return 3; }');
+                return local + ":" + typeof hiddenVar + ":" + typeof hiddenLet + ":" + typeof hiddenFn;
+            }
+
+            invokeEval();
+            """);
+
+        Assert.Equal("42:undefined:undefined:undefined", result);
+        Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=invokeEval argc=0",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task DirectEvalNewTarget_UsesUnifiedBytecodeProductionFastPath()
     {
         await using var engine = CreateEngine();

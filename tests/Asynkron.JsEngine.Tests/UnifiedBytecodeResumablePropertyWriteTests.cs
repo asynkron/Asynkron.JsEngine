@@ -84,6 +84,56 @@ public sealed class UnifiedBytecodeResumablePropertyWriteTests(ITestOutputHelper
             static instruction => instruction.OpCode == UnifiedBytecodeOpCode.SetComputedProperty);
     }
 
+    [Fact]
+    public void EvaluateResumable_NamedPropertyCompoundAssignmentAcrossYield_AdmitsCompoundGetAndSet()
+    {
+        var plan = GetFunctionPlan("""
+            function* g(o) {
+                o.x += yield 1;
+                yield o.x;
+            }
+            """,
+            "g");
+
+        var result = UnifiedBytecodeProductionEligibility.EvaluateResumable(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor(IsGenerator: true));
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(
+            result.Program.Instructions,
+            static instruction => instruction.OpCode == UnifiedBytecodeOpCode.GetNamedPropertyForCompoundSet);
+        Assert.Contains(
+            result.Program.Instructions,
+            static instruction => instruction.OpCode == UnifiedBytecodeOpCode.SetNamedProperty);
+    }
+
+    [Fact]
+    public void EvaluateResumable_ComputedPropertyCompoundAssignmentAcrossYield_AdmitsCompoundGetAndSet()
+    {
+        var plan = GetFunctionPlan("""
+            function* g(o, k) {
+                o[k] += yield 1;
+                yield o[k];
+            }
+            """,
+            "g");
+
+        var result = UnifiedBytecodeProductionEligibility.EvaluateResumable(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor(IsGenerator: true));
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(
+            result.Program.Instructions,
+            static instruction => instruction.OpCode == UnifiedBytecodeOpCode.GetComputedPropertyForCompoundSet);
+        Assert.Contains(
+            result.Program.Instructions,
+            static instruction => instruction.OpCode == UnifiedBytecodeOpCode.SetComputedProperty);
+    }
+
     // A dynamic FREE/captured-variable UPDATE (`freeGlobal++`) between yields is now ADMITTED: it lowers to
     // UpdateDynamicIdentifier, which resolves the name against the threaded CallingEnvironment (stable across
     // suspension) and is on the resumable opcode allowlist with a matching ExecuteResumable handler. The
@@ -251,6 +301,69 @@ public sealed class UnifiedBytecodeResumablePropertyWriteTests(ITestOutputHelper
 
         Assert.Equal("1|7|7", result);
         AssertGeneratorFastPath("g", argc: 2);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task GeneratorNamedCompoundWriteAcrossYield_RoutesResumableAndPersists()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function* g(o) {
+                o.x += yield 1;
+                yield o.x;
+            }
+
+            var obj = { x: 10 };
+            var it = g(obj);
+            var a = it.next().value;
+            var b = it.next(32).value;
+            a + "|" + b + "|" + obj.x;
+            """);
+
+        Assert.Equal("1|42|42", result);
+        AssertGeneratorFastPath("g", argc: 1);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task GeneratorComputedCompoundWriteAcrossYield_RoutesResumableAndPreservesKey()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function* g(o, k) {
+                o[k] += yield 1;
+                yield o[k];
+            }
+
+            var obj = { value: 3 };
+            var it = g(obj, "value");
+            var a = it.next().value;
+            var b = it.next(4).value;
+            a + "|" + b + "|" + obj.value;
+            """);
+
+        Assert.Equal("1|7|7", result);
+        AssertGeneratorFastPath("g", argc: 2);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task AsyncNamedCompoundWriteAfterAwait_RoutesResumableAndPersists()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.EvaluateAndAwait("""
+            var asyncResult = undefined;
+            async function run(o) {
+                await o.gate;
+                o.x += o.delta;
+                return o.x;
+            }
+
+            var target = { x: 5, delta: 6, gate: Promise.resolve(0) };
+            run(target).then(value => asyncResult = value);
+            asyncResult;
+            """);
+
+        Assert.Equal(11d, result);
+        AssertAsyncFastPath("run", argc: 1);
     }
 
     // End-to-end: a `this` property write inside a generator invoked with a receiver. The write must hit

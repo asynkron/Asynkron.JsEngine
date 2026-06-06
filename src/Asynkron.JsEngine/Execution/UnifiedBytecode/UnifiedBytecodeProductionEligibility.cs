@@ -1973,6 +1973,15 @@ internal static class UnifiedBytecodeProductionEligibility
                 UnifiedBytecodeOpCode.Binary or
                 UnifiedBytecodeOpCode.GetNamedProperty or
                 UnifiedBytecodeOpCode.GetComputedProperty or
+                // Member compound/logical assignment read halves (`o.x += yield v`, or `o[k] += v`
+                // after an earlier await/yield in the resumable body).
+                // They are pure stack shapers: named preserves [base, oldValue], computed preserves
+                // [base, key, oldValue], and the later Set*Property handler consumes the RHS while leaving
+                // the assignment result. Receiver/key are already on UnifiedBytecodeResumeState.OperandStack,
+                // so a generator yield in the RHS resumes against the exact LHS chosen before suspension;
+                // async bodies use the same handlers after unrelated awaits in the body.
+                UnifiedBytecodeOpCode.GetNamedPropertyForCompoundSet or
+                UnifiedBytecodeOpCode.GetComputedPropertyForCompoundSet or
                 // Property WRITES (`o.x = v`, `o[k] = v`, `this.x = v`) inside a resumable body. The
                 // assignment value can suspend (`o.x = yield 1`); the base (and, for the computed form,
                 // the key) sit on the operand stack across the suspension and are restored on resume

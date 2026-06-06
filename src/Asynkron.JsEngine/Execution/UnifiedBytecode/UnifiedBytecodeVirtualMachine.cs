@@ -4460,6 +4460,46 @@ internal static class UnifiedBytecodeVirtualMachine
                     programCounter++;
                     break;
 
+                case UnifiedBytecodeOpCode.GetNamedPropertyForCompoundSet:
+                    // `o.x += v` / logical member assignment read half inside a resumable body. The
+                    // receiver stays below the read value so SetNamedProperty can consume the later RHS while
+                    // preserving the assignment-expression result, mirroring the sync VM stack contract.
+                    var resumableNamedCompoundTarget = stack[stackPointer - 1];
+                    PushResumableValue(GetNamedPropertyValue(
+                        resumableNamedCompoundTarget,
+                        program.StringConstants[instruction.Operand],
+                        context));
+                    if (context.ShouldStopEvaluation)
+                    {
+                        state.IsCompleted = true;
+                        return UnifiedBytecodeStepResult.Throw(context.FlowValue);
+                    }
+
+                    programCounter++;
+                    break;
+
+                case UnifiedBytecodeOpCode.GetComputedPropertyForCompoundSet:
+                    // `o[k] += v` / logical computed member assignment read half. Stack layout is
+                    // [base, key] before the read and [base, key, oldValue] after it, so a suspending RHS
+                    // resumes with the exact receiver/key chosen before suspension.
+                    var resumableComputedCompoundKey = stack[stackPointer - 1];
+                    var resumableComputedCompoundTarget = stack[stackPointer - 2];
+                    PushResumableValue(JsOps.TryGetPropertyValueJsValue(
+                            resumableComputedCompoundTarget,
+                            resumableComputedCompoundKey,
+                            out var resumableComputedCompoundValue,
+                            context)
+                        ? resumableComputedCompoundValue
+                        : JsValue.Undefined);
+                    if (context.ShouldStopEvaluation)
+                    {
+                        state.IsCompleted = true;
+                        return UnifiedBytecodeStepResult.Throw(context.FlowValue);
+                    }
+
+                    programCounter++;
+                    break;
+
                 case UnifiedBytecodeOpCode.SetNamedProperty:
                     // `o.x = v` / `this.x = v` inside a resumable body. Stack layout mirrors the sync
                     // Execute path: [base, value] with value on top. The base survives a suspension in the

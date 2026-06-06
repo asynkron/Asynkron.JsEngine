@@ -395,8 +395,6 @@ the admitted subset stays 1:1 with `UnifiedBytecodeVirtualMachine.ExecuteResumab
 - `DeclareDynamicVar`
 - `DeclareFunction`
 - `EnterWith`
-- `GetComputedPropertyForCompoundSet`
-- `GetNamedPropertyForCompoundSet`
 - `InitializeDynamicLexical`
 - `LeaveWith`
 - `PushEnvironment`

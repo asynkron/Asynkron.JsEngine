@@ -71,8 +71,6 @@ public sealed class ExpressionProgramCoverageMapTests
         "DeclareDynamicVar",
         "DeclareFunction",
         "EnterWith",
-        "GetComputedPropertyForCompoundSet",
-        "GetNamedPropertyForCompoundSet",
         "InitializeDynamicLexical",
         "LeaveWith",
         "PushEnvironment",

@@ -227,7 +227,7 @@ these allowlists — mechanical extensions against existing sync VM handlers.
 | E — Retire tiers | 6 | 3 complete / 3 open; E2/E3 = P0.2/P0.3 |
 | **Total** | **145** | finite current burn-down list after Phase 0 decomposition; future source drift must update audited inventories |
 
-**Status (134 concrete A+B+C+D checklist items):** 114 complete / 20 open. **The remaining non-retirement work is now concentrated in activation/dynamic residue boundaries (A1/A2), A51 compiler leaves, class-expression static/computed/super-neighbor rows (B24d/B24h/B24i), and B36 nested declaration/class contexts.**
+**Status (134 concrete A+B+C+D checklist items):** 114 complete / 20 open. **The remaining non-retirement work is now concentrated in activation/dynamic residue boundaries (A1/A2), constructor/private-name activation boundaries (A7), A51 compiler leaves, class-expression static/computed/super-neighbor rows (B24d/B24h/B24i), and B36 nested declaration/class contexts.**
 
 Latest proof evidence (2026-06-06, B23 nested literal declaration slice):
 focused `UnifiedBytecodeResumableNestedFunctionTests` 31 and
@@ -243,4 +243,4 @@ known-open non-residue ratchet count is now 0.
 
 ---
 
-_Checklist status: 122 / 145 complete. The latest retrospective recount leaves B36 partial for dynamic/eval helpers and complex class declarations instead of closing the row. Phase B stands at 53 / 57 complete. A+B+C+D stands at 114 / 134 complete; the D5 known-open non-residue ratchet count remains 0. The resumable opcode gap inventory is 5, and the instruction gap inventory is 0._
+_Checklist status: 122 / 145 complete. The latest retrospective recount leaves A7 open for constructor/private-name activation boundaries and B36 partial for dynamic/eval helpers and complex class declarations instead of closing those rows. Phase B stands at 53 / 57 complete. A+B+C+D stands at 114 / 134 complete; the D5 known-open non-residue ratchet count remains 0. The resumable opcode gap inventory is 5, and the instruction gap inventory is 0._

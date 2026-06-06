@@ -87,17 +87,154 @@ public static partial class TypedAstEvaluator
 
     private static bool HasResumableCapturedOrDynamicActivationDecline(
         FunctionExpression function,
-        JsEnvironment closure) =>
+        JsEnvironment closure,
+        bool allowDeclarationFreeDirectEval) =>
         closure.HasWithObjectInChain() ||
         DynamicScopeDetector.ContainsDirectEvalInParameters(function.Parameters) ||
-        DynamicScopeDetector.ContainsDirectEval(function.Body);
+        (allowDeclarationFreeDirectEval
+            ? ResumableDirectEvalActivationDetector.ContainsDynamicActivationDependency(function.Body)
+            : DynamicScopeDetector.ContainsDirectEval(function.Body));
 
-    private static bool HasResumableArgumentsObjectDependency(FunctionExpression function) =>
+    private static bool HasResumableArgumentsObjectDependency(
+        FunctionExpression function,
+        bool allowDeclarationFreeDirectEval) =>
         !function.IsArrow &&
         (ArgumentsReferenceDetector.ContainsArgumentsReference(function.Body) ||
          ArgumentsReferenceDetector.ContainsArgumentsReferenceInParameters(function.Parameters) ||
          DynamicScopeDetector.ContainsDirectEvalInParameters(function.Parameters) ||
-         DynamicScopeDetector.ContainsDirectEval(function.Body));
+         (allowDeclarationFreeDirectEval
+             ? ResumableDirectEvalActivationDetector.ContainsArgumentsObjectDependency(function.Body)
+             : DynamicScopeDetector.ContainsDirectEval(function.Body)));
+
+    private sealed class ResumableDirectEvalActivationDetector : AstVisitor
+    {
+        [ThreadStatic] private static ResumableDirectEvalActivationDetector? _instance;
+
+        private bool _foundArgumentsObjectDependency;
+        private bool _foundDynamicActivationDependency;
+
+        public static bool ContainsDynamicActivationDependency(BlockStatement block)
+        {
+            var detector = _instance ??= new ResumableDirectEvalActivationDetector();
+            detector.Reset();
+            detector.Visit(block);
+            return detector._foundDynamicActivationDependency;
+        }
+
+        public static bool ContainsArgumentsObjectDependency(BlockStatement block)
+        {
+            var detector = _instance ??= new ResumableDirectEvalActivationDetector();
+            detector.Reset();
+            detector.Visit(block);
+            return detector._foundArgumentsObjectDependency;
+        }
+
+        protected override void VisitCallExpression(CallExpression node)
+        {
+            if (!node.IsOptional && node.Callee is IdentifierExpression { Name.Name: "eval" })
+            {
+                ClassifyDirectEval(node);
+                return;
+            }
+
+            base.VisitCallExpression(node);
+        }
+
+        protected override void VisitFunctionExpression(FunctionExpression node)
+        {
+            if (!node.IsArrow)
+            {
+                return;
+            }
+
+            base.VisitFunctionExpression(node);
+        }
+
+        protected override void VisitFunctionDeclaration(FunctionDeclaration node) { }
+
+        private void Reset()
+        {
+            _foundArgumentsObjectDependency = false;
+            _foundDynamicActivationDependency = false;
+            ShouldStop = false;
+        }
+
+        private void ClassifyDirectEval(CallExpression node)
+        {
+            if (!TryGetSingleLiteralDirectEvalSource(node, out var source))
+            {
+                _foundArgumentsObjectDependency = true;
+                _foundDynamicActivationDependency = true;
+                ShouldStop = true;
+                return;
+            }
+
+            if (ContainsEvalDeclarationKeyword(source))
+            {
+                _foundDynamicActivationDependency = true;
+            }
+
+            if (ContainsKeyword(source, "arguments"))
+            {
+                _foundArgumentsObjectDependency = true;
+            }
+
+            ShouldStop = _foundArgumentsObjectDependency || _foundDynamicActivationDependency;
+        }
+
+        private static bool TryGetSingleLiteralDirectEvalSource(CallExpression node, out string source)
+        {
+            source = string.Empty;
+            if (node.Arguments.Length != 1 ||
+                node.Arguments[0].IsSpread ||
+                node.Arguments[0].Expression is not LiteralExpression literal ||
+                !literal.Value.IsString)
+            {
+                return false;
+            }
+
+            source = literal.Value.AsString();
+            return true;
+        }
+
+        private static bool ContainsEvalDeclarationKeyword(string source) =>
+            ContainsKeyword(source, "var") ||
+            ContainsKeyword(source, "let") ||
+            ContainsKeyword(source, "const") ||
+            ContainsKeyword(source, "function") ||
+            ContainsKeyword(source, "class");
+
+        private static bool ContainsKeyword(string source, string keyword)
+        {
+            var index = 0;
+            while (index < source.Length)
+            {
+                index = source.IndexOf(keyword, index, StringComparison.Ordinal);
+                if (index < 0)
+                {
+                    return false;
+                }
+
+                var before = index == 0 ? '\0' : source[index - 1];
+                var afterIndex = index + keyword.Length;
+                var after = afterIndex >= source.Length ? '\0' : source[afterIndex];
+                if (!IsIdentifierPart(before) && !IsIdentifierPart(after))
+                {
+                    return true;
+                }
+
+                index += keyword.Length;
+            }
+
+            return false;
+        }
+
+        private static bool IsIdentifierPart(char ch) =>
+            ch is '_' or '$' ||
+            ch >= '0' && ch <= '9' ||
+            ch >= 'A' && ch <= 'Z' ||
+            ch >= 'a' && ch <= 'z';
+    }
 
     private static bool TryInitializeResumableSlots(
         ExecutionPlan plan,

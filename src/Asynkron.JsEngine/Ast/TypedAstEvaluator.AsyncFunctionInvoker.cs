@@ -118,8 +118,13 @@ public static partial class TypedAstEvaluator
             var activation = new UnifiedBytecodeProductionActivationDescriptor(
                 IsAsyncLike: true,
                 IsGenerator: false,
-                HasCapturedOrDynamicActivation: HasResumableCapturedOrDynamicActivationDecline(function, closure),
-                HasArgumentsObjectDependency: HasResumableArgumentsObjectDependency(function),
+                HasCapturedOrDynamicActivation: HasResumableCapturedOrDynamicActivationDecline(
+                    function,
+                    closure,
+                    allowDeclarationFreeDirectEval: true),
+                HasArgumentsObjectDependency: HasResumableArgumentsObjectDependency(
+                    function,
+                    allowDeclarationFreeDirectEval: true),
                 AllowsRootFunctionDeclarationInstructions: !hoistedFunctionDeclarations.IsEmpty,
                 AllowsMaterializedBodyEnvironmentFunctionLiterals: needsMaterializedBodyEnvironment,
                 AllowsNestedFunctionLiteralLexicalThisOrPrivateNameContext:

@@ -268,6 +268,34 @@ public sealed class UnifiedBytecodeAsyncGeneratorRouteTests(ITestOutputHelper ou
     }
 
     [Fact(Timeout = 5000)]
+    public async Task AsyncGeneratorDeclarationFreeDirectEval_StillDeclinesResumableButSettles()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.EvaluateAndAwait("""
+            var output = undefined;
+            var externalValue = 20;
+
+            async function* values(delta) {
+                eval("'non-injecting direct eval'");
+                externalValue = externalValue + delta;
+                yield externalValue + 1;
+            }
+
+            async function run() {
+                var iterator = values(21);
+                var first = await iterator.next();
+                return first.value + ":" + externalValue;
+            }
+
+            run().then(value => output = value);
+            output;
+            """);
+
+        Assert.Equal("42:41", result?.ToString());
+        AssertNotRouted("func=values");
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task AsyncGeneratorDefaultParameter_DeclinesResumableButSettles()
     {
         await using var engine = CreateEngine();

@@ -63,6 +63,78 @@ public sealed class UnifiedBytecodeResumableDynamicIdentifierTests(ITestOutputHe
             static instruction => instruction.OpCode == UnifiedBytecodeOpCode.CallInvocationBoundary);
     }
 
+    [Fact(Timeout = 5000)]
+    public async Task GeneratorDirectEvalThenOrdinaryDynamicReadStoreCall_RoutesResumableAndProducesValue()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            var externalValue = 20;
+            function helper(value) {
+                return value + 1;
+            }
+
+            function* run(delta) {
+                eval("'non-injecting direct eval'");
+                externalValue = externalValue + delta;
+                yield helper(externalValue);
+            }
+
+            var it = run(21);
+            it.next().value + ":" + externalValue;
+            """);
+
+        Assert.Equal("42:41", result);
+        AssertGeneratorFastPath("run", argc: 1);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task GeneratorDirectEvalDeclarationDynamicLookup_StaysOnIrPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function* run() {
+                eval("var value = 41;");
+                yield value + 1;
+            }
+
+            run().next().value;
+            """);
+
+        Assert.Equal(42d, result);
+        Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-resumable-generator-fast-path func=run argc=0",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task GeneratorClosureWithLiveWithObjectAfterDirectEval_StillDeclines()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function mk(scope) {
+                var read;
+                with (scope) {
+                    read = function* () {
+                        eval("'non-injecting direct eval'");
+                        yield value;
+                    };
+
+                    return read;
+                }
+            }
+
+            var fn = mk({ value: 42 });
+            fn().next().value;
+            """);
+
+        Assert.Equal(42d, result);
+        Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-resumable-generator-fast-path func=read",
+                StringComparison.Ordinal));
+    }
+
     // End-to-end generator: a free READ and a free CALL between two yields route through the resumable
     // fast path and produce the correct value sequence.
     [Fact(Timeout = 5000)]
@@ -226,6 +298,53 @@ public sealed class UnifiedBytecodeResumableDynamicIdentifierTests(ITestOutputHe
         // call resolved after suspension: scale(10) = 10 * factor = 20.
         Assert.Equal(20d, result);
         AssertAsyncFastPath("run", argc: 1);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task AsyncDirectEvalThenOrdinaryDynamicReadStoreCall_RoutesResumableAndResolves()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.EvaluateAndAwait("""
+            var asyncResult = undefined;
+            var externalValue = 20;
+            function helper(value) {
+                return value + 1;
+            }
+
+            async function run(delta) {
+                eval("'non-injecting direct eval'");
+                externalValue = externalValue + delta;
+                await 0;
+                return helper(externalValue);
+            }
+
+            run(21).then(value => asyncResult = value + ":" + externalValue);
+            asyncResult;
+            """);
+
+        Assert.Equal("42:41", result);
+        AssertAsyncFastPath("run", argc: 1);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task AsyncDirectEvalArgumentsRead_StaysOnIrPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.EvaluateAndAwait("""
+            var asyncResult = undefined;
+            async function run(value) {
+                return eval("arguments[0]");
+            }
+
+            run(42).then(value => asyncResult = value);
+            asyncResult;
+            """);
+
+        Assert.Equal(42d, result);
+        Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-resumable-async-fast-path func=run argc=1",
+                StringComparison.Ordinal));
     }
 
     private void AssertGeneratorFastPath(string functionName, int argc) =>

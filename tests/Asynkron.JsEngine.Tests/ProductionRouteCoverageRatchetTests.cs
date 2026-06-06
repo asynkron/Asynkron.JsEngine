@@ -80,6 +80,11 @@ public sealed class ProductionRouteCoverageRatchetTests(ITestOutputHelper output
     [InlineData("function f(o,k1,k2){ return o[k1].child[k2]++; } f({a:{child:{x:1}}},'a','x');", "unified-bytecode-production-fast-path func=f")]
     [InlineData("function f(o,k1){ return o[k1].child++; } f({a:{child:1}},'a');", "unified-bytecode-production-fast-path func=f")]
     [InlineData("function f(o,k1,k2){ return --o[k1].child[k2]; } f({a:{child:{x:5}}},'a','x');", "unified-bytecode-production-fast-path func=f")]
+    // A51j: property WRITE with a computed receiver prefix — plain computed write plus compound
+    // and logical suffixes reuse the measured receiver-prefix read before the terminal key span.
+    [InlineData("function f(o,k1,k2,v){ return o[k1].child[k2]=v; } f({a:{child:{x:1}}},'a','x',7);", "unified-bytecode-production-fast-path func=f")]
+    [InlineData("function f(o,k1,k2,v){ return o[k1].child[k2]+=v; } f({a:{child:{x:1}}},'a','x',7);", "unified-bytecode-production-fast-path func=f")]
+    [InlineData("function f(o,k1,k2,v){ return o[k1].child[k2]||=v; } f({a:{child:{x:0}}},'a','x',7);", "unified-bytecode-production-fast-path func=f")]
     // Free-identifier (DynamicLookupDependency) family — a free name escaping the activation's slots
     // resolves as a dynamic-identifier op walking the threaded environment chain.
     // A13: free READ of a declared global (LoadDynamicIdentifier).

@@ -268,7 +268,7 @@ public sealed class UnifiedBytecodeAsyncGeneratorRouteTests(ITestOutputHelper ou
     }
 
     [Fact(Timeout = 5000)]
-    public async Task AsyncGeneratorDeclarationFreeDirectEval_StillDeclinesResumableButSettles()
+    public async Task AsyncGeneratorDeclarationFreeDirectEval_RoutesResumableAndSettles()
     {
         await using var engine = CreateEngine();
         var result = await engine.EvaluateAndAwait("""
@@ -292,11 +292,14 @@ public sealed class UnifiedBytecodeAsyncGeneratorRouteTests(ITestOutputHelper ou
             """);
 
         Assert.Equal("42:41", result?.ToString());
-        AssertNotRouted("func=values");
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            record => record.Message.Contains(
+                $"{ResumableAsyncGeneratorFastPathLog} func=values argc=1",
+                StringComparison.Ordinal));
     }
 
     [Fact(Timeout = 5000)]
-    public async Task AsyncGeneratorDefaultParameter_DeclinesResumableButSettles()
+    public async Task AsyncGeneratorDefaultParameter_RetiresRunnerFallbackAndThrowsUnsupportedRoute()
     {
         await using var engine = CreateEngine();
         var result = await engine.EvaluateAndAwait("""
@@ -312,16 +315,19 @@ public sealed class UnifiedBytecodeAsyncGeneratorRouteTests(ITestOutputHelper ou
                 return first.value + ":" + first.done;
             }
 
-            run().then(value => output = value);
+            run().then(
+                value => output = "resolved:" + value,
+                error => output = "rejected:" + String(error));
             output;
             """);
 
-        Assert.Equal("7:false", result?.ToString());
-        AssertNotRouted("func=values");
+        Assert.Contains("rejected:", result?.ToString(), StringComparison.Ordinal);
+        Assert.Contains("Async-generator body is not eligible for unified bytecode routing", result?.ToString(), StringComparison.Ordinal);
+        Assert.Contains("Non-simple async-generator parameter lists", result?.ToString(), StringComparison.Ordinal);
     }
 
     [Fact(Timeout = 5000)]
-    public async Task AsyncGeneratorNonSimpleParameter_DeclinesResumableButSettlesBeforeBody()
+    public async Task AsyncGeneratorNonSimpleParameter_RetiresRunnerFallbackAndThrowsBeforeBody()
     {
         await using var engine = CreateEngine();
         var result = await engine.EvaluateAndAwait("""
@@ -339,16 +345,19 @@ public sealed class UnifiedBytecodeAsyncGeneratorRouteTests(ITestOutputHelper ou
                 return first.value + ":" + first.done + "|" + events.join(",");
             }
 
-            run().then(value => output = value);
+            run().then(
+                value => output = "resolved:" + value,
+                error => output = "rejected:" + events.join(",") + "|" + String(error));
             output;
             """);
 
-        Assert.Equal("7:false|default,body:7", result?.ToString());
-        AssertNotRouted("func=values");
+        Assert.Contains("rejected:|", result?.ToString(), StringComparison.Ordinal);
+        Assert.Contains("Async-generator body is not eligible for unified bytecode routing", result?.ToString(), StringComparison.Ordinal);
+        Assert.Contains("Non-simple async-generator parameter lists", result?.ToString(), StringComparison.Ordinal);
     }
 
     [Fact(Timeout = 5000)]
-    public async Task AsyncGeneratorDestructuringParameter_DeclinesResumableButSettles()
+    public async Task AsyncGeneratorDestructuringParameter_RetiresRunnerFallbackAndThrowsUnsupportedRoute()
     {
         await using var engine = CreateEngine();
         var result = await engine.EvaluateAndAwait("""
@@ -364,12 +373,15 @@ public sealed class UnifiedBytecodeAsyncGeneratorRouteTests(ITestOutputHelper ou
                 return first.value + ":" + first.done;
             }
 
-            run().then(value => output = value);
+            run().then(
+                value => output = "resolved:" + value,
+                error => output = "rejected:" + String(error));
             output;
             """);
 
-        Assert.Equal("1:false", result?.ToString());
-        AssertNotRouted("func=values");
+        Assert.Contains("rejected:", result?.ToString(), StringComparison.Ordinal);
+        Assert.Contains("Async-generator body is not eligible for unified bytecode routing", result?.ToString(), StringComparison.Ordinal);
+        Assert.Contains("Non-simple async-generator parameter lists", result?.ToString(), StringComparison.Ordinal);
     }
 
     [Fact(Timeout = 5000)]
@@ -425,7 +437,7 @@ public sealed class UnifiedBytecodeAsyncGeneratorRouteTests(ITestOutputHelper ou
 
         var acceptedStepBody = ExtractSourceBetween(
             File.ReadAllText(asyncGeneratorInvokerPath),
-            "private ExecutionPlanRunner.AsyncGeneratorStepResult ExecuteUnifiedBytecodeStep",
+            "private AsyncGeneratorStepResult ExecuteUnifiedBytecodeStep",
             "private static UnifiedBytecodeResumeMode ToUnifiedResumeMode");
         var virtualMachineSource = File.ReadAllText(virtualMachinePath);
         var forbiddenAcceptedStepTokens = new[]
@@ -466,14 +478,6 @@ public sealed class UnifiedBytecodeAsyncGeneratorRouteTests(ITestOutputHelper ou
         var cache = ((IAstCacheable<ExecutionPlanCache>)declaration.Function).GetOrCreateCache();
         Assert.True(cache.Succeeded, cache.FailureReason);
         return Assert.IsType<ExecutionPlan>(cache.Plan);
-    }
-
-    private void AssertNotRouted(string expectedRouteFragment)
-    {
-        Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(),
-            record => record.Message.Contains(
-                $"{ResumableAsyncGeneratorFastPathLog} {expectedRouteFragment}",
-                StringComparison.Ordinal));
     }
 
     private static void AssertNoForbiddenTokens(

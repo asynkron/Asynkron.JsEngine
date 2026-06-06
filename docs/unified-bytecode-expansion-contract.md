@@ -549,14 +549,18 @@ The A51f umbrella is decomposed rather than closed as a runtime widening. The
 current compiler still has source-backed declines in
 `UnifiedBytecodeCompiler.TryAppendExpressionProgramOps` and nearby expression
 value-load helpers, and eligibility keeps the existing fallback route intact for
-non-admitted sync and resumable bodies.
+non-admitted sync and resumable bodies. A51f2 is the exception: generated
+contexts now supply the descriptor builder, so its remaining diagnostic is a
+defensive helper guard rather than a generated-code fallback boundary.
 
 - `A51f1:GeneralExpressionLoopUnsupportedOp` - fallback catch-all for expression
   opcodes that are not directly handled by the general expression loop, including
   helper-level unsupported simple/base/property-read op diagnostics.
-- `A51f2:BindingTargetExpressionContext` - `ApplyBindingTarget` remains admitted
-  only when the compilation context supplies binding-target constants; otherwise
-  the existing binding-target program bridge remains the fallback.
+- `A51f2:BindingTargetExpressionContext` - generated expression-program
+  compiler contexts now supply binding-target constants, including standalone
+  expression compilation. `ApplyBindingTarget` therefore compiles to unified
+  bytecode for the generated assignment-destructuring lanes; the nullable
+  helper guard remains only as malformed/manual-context protection.
 - `A51f3:DynamicIdentifierExpressionLoop` - unresolved identifier loads, stores,
   updates, references, calls, deletes, and `typeof` remain gated by active-with or
   materialized-activation dynamic-name ownership.
@@ -1971,6 +1975,8 @@ support today.
 - `ExpressionOpKind.ApplyBindingTarget` is eligible for ordinary sync
   production assignment destructuring when the expression compiler can lift the
   lowered `BindingTargetProgram` into the unified program descriptor table.
+  Generated compiler contexts, including standalone expression compilation, now
+  pass that descriptor table through to the general expression loop.
 - `ApplyDeclarationBindingTarget` is eligible for ordinary sync `var` / `let` /
   `const` binding declarations whose lowered `BindingTargetProgram` contains
   only static identifier/array/object/rest targets with no default or computed

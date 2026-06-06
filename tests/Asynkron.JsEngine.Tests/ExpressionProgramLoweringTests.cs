@@ -1,6 +1,7 @@
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.Execution;
 using Asynkron.JsEngine.Execution.Instructions;
+using Asynkron.JsEngine.Execution.UnifiedBytecode;
 using Asynkron.JsEngine.JsTypes;
 
 namespace Asynkron.JsEngine.Tests;
@@ -2803,6 +2804,31 @@ public sealed class ExpressionProgramLoweringTests : IAsyncLifetime
         AssertProgramContains<ApplyBindingTargetExpressionOp>(
             assignment.ExpressionProgram,
             op => op.TargetProgram is ArrayBindingTargetProgram);
+    }
+
+    [Fact]
+    public async Task DestructuringAssignmentExpressionProgram_StandaloneUnifiedBytecodeCarriesBindingTargetConstants()
+    {
+        var plan = await GetFunctionPlan("""
+            function assignFirst(values) {
+                let x = 0;
+                [x] = values;
+                return x;
+            }
+            """, "assignFirst");
+
+        var assignment = Assert.Single(plan.Instructions.OfType<EvaluateAndDiscardInstruction>());
+        Assert.True(
+            UnifiedBytecodeCompiler.TryCompileStandaloneExpressionProgram(
+                assignment.ExpressionProgram,
+                allowsDynamicIdentifiers: true,
+                out var program,
+                out var reason),
+            reason);
+        Assert.Contains(
+            program.Instructions,
+            instruction => instruction.OpCode == UnifiedBytecodeOpCode.ApplyBindingTarget);
+        Assert.NotEmpty(program.BindingTargetConstants);
     }
 
     [Fact]

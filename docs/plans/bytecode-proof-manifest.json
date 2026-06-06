@@ -71,6 +71,22 @@
       ]
     },
     {
+      "id": "A51f2",
+      "title": "Standalone binding-target expression programs carry descriptor constants",
+      "status": "done",
+      "proofs": [
+        {
+          "id": "A51f2-standalone-expression-compiler-carries-binding-target-constants",
+          "claim": "admitted",
+          "kind": "standalone-expression-compile",
+          "functionName": "assignFirst",
+          "source": "function assignFirst(values) {\n  let x = 0;\n  [x] = values;\n  return x;\n}",
+          "requiredOpCode": "ApplyBindingTarget",
+          "requiresBindingTargetConstants": true
+        }
+      ]
+    },
+    {
       "id": "B24d",
       "title": "Static-block-only resumable class expressions route through LoadClassLiteral",
       "status": "done",

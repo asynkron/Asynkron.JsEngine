@@ -2,6 +2,7 @@ using System.Text.Json;
 using System.Text.RegularExpressions;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.Execution;
+using Asynkron.JsEngine.Execution.Instructions;
 using Asynkron.JsEngine.Execution.UnifiedBytecode;
 using Xunit.Abstractions;
 
@@ -92,6 +93,9 @@ public sealed partial class BytecodeProofManifestTests(ITestOutputHelper output)
                 break;
             case "source-absence":
                 VerifySourcePresence(proof, shouldExist: false);
+                break;
+            case "standalone-expression-compile":
+                VerifyStandaloneExpressionCompile(proof);
                 break;
             default:
                 throw new InvalidOperationException($"{proof.Id}: unsupported proof kind '{proof.Kind}'.");
@@ -193,6 +197,32 @@ public sealed partial class BytecodeProofManifestTests(ITestOutputHelper output)
                 new UnifiedBytecodeProductionActivationDescriptor(IsAsyncLike: true, IsGenerator: true)),
             _ => throw new InvalidOperationException($"{proof.Id}: unsupported subject '{subject}'.")
         };
+    }
+
+    private static void VerifyStandaloneExpressionCompile(ProofManifestProof proof)
+    {
+        var plan = GetFunctionPlan(proof);
+        var expressionInstruction = Assert.Single(plan.Instructions.OfType<EvaluateAndDiscardInstruction>());
+        Assert.True(
+            UnifiedBytecodeCompiler.TryCompileStandaloneExpressionProgram(
+                expressionInstruction.ExpressionProgram,
+                allowsDynamicIdentifiers: true,
+                out var program,
+                out var reason),
+            reason);
+
+        if (!string.IsNullOrWhiteSpace(proof.RequiredOpCode))
+        {
+            Assert.True(
+                Enum.TryParse<UnifiedBytecodeOpCode>(proof.RequiredOpCode, out var requiredOpCode),
+                $"{proof.Id}: unknown opcode '{proof.RequiredOpCode}'.");
+            Assert.Contains(program.Instructions, instruction => instruction.OpCode == requiredOpCode);
+        }
+
+        if (proof.RequiresBindingTargetConstants)
+        {
+            Assert.NotEmpty(program.BindingTargetConstants);
+        }
     }
 
     private static ExecutionPlan GetFunctionPlan(ProofManifestProof proof)
@@ -312,5 +342,9 @@ public sealed partial class BytecodeProofManifestTests(ITestOutputHelper output)
         public string? Path { get; set; }
 
         public string? Pattern { get; set; }
+
+        public string? RequiredOpCode { get; set; }
+
+        public bool RequiresBindingTargetConstants { get; set; }
     }
 }

@@ -289,6 +289,7 @@ internal static class UnifiedBytecodeCompiler
         var functionLiteralConstants = ImmutableArray.CreateBuilder<FunctionLiteralDescriptor>();
         var classLiteralConstants = ImmutableArray.CreateBuilder<ClassExpression>();
         var templateObjectConstants = ImmutableArray.CreateBuilder<TaggedTemplateDescriptor>();
+        var bindingTargetConstants = ImmutableArray.CreateBuilder<BindingTargetProgram>();
 
         if (!TryAppendExpressionProgramOps(
                 expressionProgram,
@@ -301,7 +302,8 @@ internal static class UnifiedBytecodeCompiler
                 functionLiteralConstants,
                 classLiteralConstants,
                 templateObjectConstants,
-                out reason))
+                out reason,
+                bindingTargetConstants))
         {
             program = EmptyProgram();
             return false;
@@ -329,6 +331,9 @@ internal static class UnifiedBytecodeCompiler
             ClassLiteralConstants: classLiteralConstants.Count == 0
                 ? ImmutableArray<ClassExpression>.Empty
                 : classLiteralConstants.ToImmutable(),
+            BindingTargetConstants: bindingTargetConstants.Count == 0
+                ? ImmutableArray<BindingTargetProgram>.Empty
+                : bindingTargetConstants.ToImmutable(),
             TemplateObjectConstants: templateObjectConstants.Count == 0
                 ? ImmutableArray<TaggedTemplateDescriptor>.Empty
                 : templateObjectConstants.ToImmutable(),

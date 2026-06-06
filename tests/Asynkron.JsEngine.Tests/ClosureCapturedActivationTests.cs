@@ -92,18 +92,37 @@ public sealed class ClosureCapturedActivationTests(ITestOutputHelper output) : I
     }
 
     [Fact]
-    public async Task ClosureWithLiveWithObject_StillDeclines_ButRunsCorrectly()
+    public async Task ClosureWithRetainedWithObjectRead_DeclinesProductionRoute_ButRunsCorrectly()
     {
         await using var engine = CreateEngine();
-        // A closure whose enclosing chain has a live `with` is residue — must NOT route, but stays correct.
+        // A closure whose retained enclosing chain has a live `with` object is residue: the production VM
+        // owns active current-environment with lookups, not closure-retained with environments.
         var r = await engine.Evaluate("""
             function mk(o){ with (o) { function g(){ return x; } return g; } }
             var f = mk({ x: 42 });
-            var routed = false;
             f();
             f();
             """);
         Assert.Equal(42d, r);
+        Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(), x => x.Message.Contains(ProdLog + "g", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task ClosureWithRetainedWithObjectReceiverCall_DeclinesProductionRoute_ButRunsCorrectly()
+    {
+        await using var engine = CreateEngine();
+        // Keep the receiver-sensitive retained-with shape pinned separately: if `finish` is supplied by
+        // the retained with object, calling it from the closure must preserve that object as `this`.
+        var r = await engine.Evaluate("""
+            function mk(o){ with (o) { function g(){ return finish(); } return g; } }
+            var holder = {
+                x: 7,
+                finish: function(){ return this === holder ? this.x * 2 : -1; }
+            };
+            var f = mk(holder);
+            f();
+            """);
+        Assert.Equal(14d, r);
         Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(), x => x.Message.Contains(ProdLog + "g", StringComparison.Ordinal));
     }
 }

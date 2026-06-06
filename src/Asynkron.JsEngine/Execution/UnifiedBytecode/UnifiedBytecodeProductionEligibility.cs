@@ -9816,6 +9816,20 @@ internal static class UnifiedBytecodeProductionEligibility
             return true;
         }
 
+        if (startIndex == 0 &&
+            TryMeasureSimplePropertyReadOperandSpan(
+                program,
+                startIndex,
+                identifierConstants,
+                activationSlots,
+                out spanLength,
+                allowsDynamicIdentifiers,
+                allowPrivateNamedPrefix: true) &&
+            spanLength == program.OperationCount)
+        {
+            return true;
+        }
+
         if (TryMeasureSimplePropertyReadOperandSpan(
                 program,
                 startIndex,
@@ -10013,7 +10027,8 @@ internal static class UnifiedBytecodeProductionEligibility
         ReadOnlySpan<IdentifierOperand> identifierConstants,
         ActivationSlotShape activationSlots,
         out int spanLength,
-        bool allowsDynamicIdentifiers = false)
+        bool allowsDynamicIdentifiers = false,
+        bool allowPrivateNamedPrefix = false)
     {
         if (TryMeasureSimpleComputedPropertyReadOperandSpan(
                 program,
@@ -10022,7 +10037,7 @@ internal static class UnifiedBytecodeProductionEligibility
                 activationSlots,
                 out spanLength,
                 allowsDynamicIdentifiers,
-                allowPrivateNamedPrefix: true))
+                allowPrivateNamedPrefix))
         {
             return true;
         }
@@ -10034,7 +10049,7 @@ internal static class UnifiedBytecodeProductionEligibility
             activationSlots,
             out spanLength,
             allowsDynamicIdentifiers,
-            allowPrivateNamedPrefix: true);
+            allowPrivateNamedPrefix);
     }
 
     private static bool TryMeasureSimpleNamedPropertyReadOperandSpan(

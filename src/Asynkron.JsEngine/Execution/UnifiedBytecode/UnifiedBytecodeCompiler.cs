@@ -4608,6 +4608,9 @@ internal static class UnifiedBytecodeCompiler
             return false;
         }
 
+        var propertyReadUnifiedCount = unified.Count;
+        var propertyReadLiteralCount = literalConstants.Count;
+        var propertyReadStringCount = stringConstants.Count;
         if (TryAppendSimplePropertyReadOperandSpan(
                 expressionProgram,
                 0,
@@ -4624,6 +4627,10 @@ internal static class UnifiedBytecodeCompiler
         {
             return true;
         }
+
+        RollBackUnifiedBuilder(unified, propertyReadUnifiedCount);
+        RollBackUnifiedBuilder(literalConstants, propertyReadLiteralCount);
+        RollBackUnifiedBuilder(stringConstants, propertyReadStringCount);
 
         if (!string.IsNullOrEmpty(reason))
         {
@@ -9826,7 +9833,7 @@ internal static class UnifiedBytecodeCompiler
         ImmutableArray<string>.Builder stringConstants,
         out int spanLength,
         out string reason,
-        bool allowPrivateNamedPrefix = true)
+        bool allowPrivateNamedPrefix = false)
     {
         if (TryMeasureSimpleComputedPropertyReadOperandSpan(
                 expressionProgram,

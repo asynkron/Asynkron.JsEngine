@@ -920,9 +920,14 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
             """);
 
         Assert.Equal(42d, result);
-        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+        var logs = CurrentLogger!.Collector.Snapshot();
+        Assert.Contains(logs,
             static record => record.Message.Contains(
                 "unified-bytecode-production-fast-path func=create argc=1",
+                StringComparison.Ordinal));
+        Assert.Contains(logs,
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path static-block",
                 StringComparison.Ordinal));
     }
 

@@ -216,6 +216,17 @@
       "status": "open",
       "proofs": [
         {
+          "id": "E5-static-block-body-routes-when-eligible",
+          "claim": "admitted",
+          "kind": "runtime",
+          "source": "function create(seed) {\n  class Local {\n    static {\n      seed = seed + 1;\n    }\n  }\n  return seed;\n}\ncreate(41);",
+          "expectedResult": "42",
+          "requiredLogs": [
+            "unified-bytecode-production-fast-path func=create argc=1",
+            "unified-bytecode-production-fast-path static-block"
+          ]
+        },
+        {
           "id": "E5-ir-runner-type-still-present",
           "claim": "open",
           "kind": "source-presence",

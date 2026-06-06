@@ -1,3 +1,4 @@
+using System.Buffers;
 using System.Collections.Immutable;
 using Asynkron.JsEngine.Execution;
 using Asynkron.JsEngine.Execution.Instructions;
@@ -186,11 +187,87 @@ public static partial class TypedAstEvaluator
         var blockEnvironment = CreateStaticInitializationEnvironment(constructorAccessor, environment, out _);
         try
         {
+            if (TryExecuteStaticBlockViaUnifiedBytecode(plan, constructorAccessor, blockEnvironment, context))
+            {
+                return;
+            }
+
             _ = ExecutionPlanRunner.RunScript(plan, blockEnvironment, context);
         }
         catch (ThrowSignal signal)
         {
             context.SetThrow(signal.ThrownValue);
+        }
+    }
+
+    private static bool TryExecuteStaticBlockViaUnifiedBytecode(
+        ExecutionPlan plan,
+        IJsPropertyAccessor constructorAccessor,
+        JsEnvironment blockEnvironment,
+        EvaluationContext context)
+    {
+        var eligibility = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor(
+                AllowsOrdinaryDynamicIdentifierEnvironmentOperations: true,
+                IsStrict: true));
+        if (!eligibility.IsEligible)
+        {
+            context.RealmState.Logger?.LogInformation(
+                "classified-static-block-ir-fallback reason=production-unified-bytecode-declined code={DeclineCode} detail={DeclineReason} instructions={InstructionCount}",
+                eligibility.Code,
+                eligibility.Reason,
+                plan.Instructions.Length);
+            return false;
+        }
+
+        var program = eligibility.Program;
+        var slotStorage = ArrayPool<JsValue>.Shared.Rent(program.SlotCount);
+        var previousContext = EvaluationContext.Current;
+        var previousEnvironment = JsEnvironment.Current;
+        try
+        {
+            var slots = slotStorage.AsSpan(0, program.SlotCount);
+            slots.Fill(JsValue.Undefined);
+            InitializeStaticBlockLexicalSlots(slots, program);
+
+            context.RealmState.Logger?.LogInformation(
+                "unified-bytecode-production-fast-path static-block slots={SlotCount}",
+                program.SlotCount);
+
+            EvaluationContext.Current = context;
+            JsEnvironment.Current = blockEnvironment;
+            _ = UnifiedBytecodeVirtualMachine.Execute(
+                program,
+                slots,
+                context,
+                blockEnvironment,
+                JsValue.FromObjectUnsafe(constructorAccessor),
+                JsValue.Undefined,
+                isStrict: true);
+            return true;
+        }
+        finally
+        {
+            EvaluationContext.Current = previousContext;
+            JsEnvironment.Current = previousEnvironment;
+            ArrayPool<JsValue>.Shared.Return(slotStorage, clearArray: true);
+        }
+    }
+
+    private static void InitializeStaticBlockLexicalSlots(
+        Span<JsValue> slots,
+        UnifiedBytecodeProgram program)
+    {
+        var lexicalSlotIndices = program.LexicalSlotIndices;
+        if (lexicalSlotIndices.IsDefaultOrEmpty)
+        {
+            return;
+        }
+
+        for (var i = 0; i < lexicalSlotIndices.Length; i++)
+        {
+            slots[lexicalSlotIndices[i]] = JsValue.Uninitialized;
         }
     }
 

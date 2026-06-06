@@ -2715,13 +2715,6 @@ internal static class UnifiedBytecodeProductionEligibility
                         $"Class literal is outside B24g: public accessor body captures activation binding '{capturedName}' and needs the materialized body environment route.";
                     return false;
                 }
-
-                if (FunctionContainsSuper(member.Function))
-                {
-                    declineReason =
-                        "Class literal is outside B24g: public accessor bodies that use super remain owned by the B24i member-super slice.";
-                    return false;
-                }
             }
 
             declineReason = string.Empty;

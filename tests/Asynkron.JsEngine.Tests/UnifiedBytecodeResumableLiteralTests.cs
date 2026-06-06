@@ -723,17 +723,6 @@ public sealed class UnifiedBytecodeResumableLiteralTests(ITestOutputHelper outpu
         }
         """,
         """
-        class Base {
-            get value() { return 41; }
-        }
-
-        function* g() {
-            yield class Derived extends Base {
-                get answer() { return super.value + 1; }
-            };
-        }
-        """,
-        """
         function* g(Base) {
             yield class Derived extends Base {};
         }

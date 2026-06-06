@@ -218,6 +218,7 @@ public sealed class ProductionRouteCoverageRatchetTests(ITestOutputHelper output
     [InlineData("function* g(){ yield {a:1}; } g().next();", "unified-bytecode-resumable-generator-fast-path func=g")]
     [InlineData("function* g(){ yield [1,2]; } g().next();", "unified-bytecode-resumable-generator-fast-path func=g")]
     [InlineData("function* g(){ yield 'ready'; var C=class{ static seed=41; value=this.constructor.seed+1; }; return new C().value; } var it=g(); it.next(); it.next();", "unified-bytecode-resumable-generator-fast-path func=g")]
+    [InlineData("class Base{ get value(){return 41;} } function* g(){ yield 'ready'; var C=class extends Base{ get value(){ return super.value+1; } }; return new C().value; } var it=g(); it.next(); it.next();", "unified-bytecode-resumable-generator-fast-path func=g")]
     [InlineData("function* g(){ yield new.target; } g().next();", "unified-bytecode-resumable-generator-fast-path func=g")]
     [InlineData("function* g(){ yield /ab+c/gi; } g().next();", "unified-bytecode-resumable-generator-fast-path func=g")]
     // Resumable switch body: switch-style breakable markers are compiler metadata only and must keep

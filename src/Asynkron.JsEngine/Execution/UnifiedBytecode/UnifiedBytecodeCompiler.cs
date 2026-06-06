@@ -10431,6 +10431,7 @@ internal static class UnifiedBytecodeCompiler
             RollBackUnifiedBuilder(unified, unifiedCount);
             RollBackUnifiedBuilder(literalConstants, literalCount);
             RollBackUnifiedBuilder(stringConstants, stringCount);
+            reason = "Failed to emit measured computed property read span.";
             return false;
         }
 
@@ -10447,8 +10448,19 @@ internal static class UnifiedBytecodeCompiler
                 stringConstants);
         }
 
-        reason = string.Empty;
-        return true;
+        if (unified.Count > unifiedCount &&
+            literalConstants.Count >= literalCount &&
+            stringConstants.Count >= stringCount)
+        {
+            reason = string.Empty;
+            return true;
+        }
+
+        RollBackUnifiedBuilder(unified, unifiedCount);
+        RollBackUnifiedBuilder(literalConstants, literalCount);
+        RollBackUnifiedBuilder(stringConstants, stringCount);
+        reason = "Failed to emit measured computed property read span.";
+        return false;
     }
 
     private static void AppendPlainNamedPropertyRead(

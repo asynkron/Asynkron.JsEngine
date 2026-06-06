@@ -267,6 +267,46 @@ public sealed class ExpressionProgramCoverageMapTests
     }
 
     [Fact]
+    public void UnifiedBytecodeCompiler_MeasuredPropertyReadSpanRollbackDiagnosticsAreSourceGuarded()
+    {
+        var repositoryRoot = FindRepositoryRoot();
+        var compilerPath = Path.Combine(
+            repositoryRoot.FullName,
+            "src",
+            "Asynkron.JsEngine",
+            "Execution",
+            "UnifiedBytecode",
+            "UnifiedBytecodeCompiler.cs");
+        Assert.True(File.Exists(compilerPath), $"Expected compiler source at '{compilerPath}'.");
+
+        var compilerText = File.ReadAllText(compilerPath);
+        AssertMeasuredSpanRollback(
+            ExtractSourceSection(
+                compilerText,
+                "private static bool TryAppendMeasuredSimpleNamedPropertyReadOperandSpan(",
+                "// Emits a baseline optional named property-read operand span"),
+            "Failed to emit measured named property read span.");
+        AssertMeasuredSpanRollback(
+            ExtractSourceSection(
+                compilerText,
+                "private static bool TryAppendSimpleOptionalNamedPropertyReadOperandSpan(",
+                "// Emits an optional-start named property-read operand span"),
+            "Failed to emit measured optional named property read span.");
+        AssertMeasuredSpanRollback(
+            ExtractSourceSection(
+                compilerText,
+                "private static bool TryAppendSimpleOptionalNamedReadChainOperandSpan(",
+                "// Emits an optional-named-then-computed read operand span"),
+            "Failed to emit measured optional named read chain span.");
+        AssertMeasuredSpanRollback(
+            ExtractSourceSection(
+                compilerText,
+                "private static bool TryAppendMeasuredSimpleComputedPropertyReadOperandSpan(",
+                "private static void AppendPlainNamedPropertyRead("),
+            "Failed to emit measured computed property read span.");
+    }
+
+    [Fact]
     public void UnifiedBytecodeVirtualMachine_HandlesEveryDeclaredOpcode()
     {
         var repositoryRoot = FindRepositoryRoot();
@@ -711,6 +751,17 @@ public sealed class ExpressionProgramCoverageMapTests
         var endIndex = sourceText.IndexOf(endMarker, startIndex + startMarker.Length, StringComparison.Ordinal);
         Assert.True(endIndex >= 0, $"Source text is missing end marker '{endMarker}'.");
         return sourceText.Substring(startIndex, endIndex - startIndex);
+    }
+
+    private static void AssertMeasuredSpanRollback(string helperText, string reasonTemplate)
+    {
+        Assert.Contains("var unifiedCount = unified.Count;", helperText, StringComparison.Ordinal);
+        Assert.Contains("var literalCount = literalConstants.Count;", helperText, StringComparison.Ordinal);
+        Assert.Contains("var stringCount = stringConstants.Count;", helperText, StringComparison.Ordinal);
+        Assert.Contains("RollBackUnifiedBuilder(unified, unifiedCount);", helperText, StringComparison.Ordinal);
+        Assert.Contains("RollBackUnifiedBuilder(literalConstants, literalCount);", helperText, StringComparison.Ordinal);
+        Assert.Contains("RollBackUnifiedBuilder(stringConstants, stringCount);", helperText, StringComparison.Ordinal);
+        Assert.Contains($"reason = \"{reasonTemplate}\";", helperText, StringComparison.Ordinal);
     }
 
     private static string[] ExtractExecutionInstructionCases(string sourceText)

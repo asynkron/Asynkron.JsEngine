@@ -858,14 +858,15 @@ predicates and proof tests.
     starts, so self/sibling references resolve at call time from that environment.
     A43 admits descriptor-backed block/Annex B declarations on the sync route
     through materialized block environments. Direct root simple class declarations,
-    constructorless simple class declarations with non-activation superclass
-    expressions (`class Box extends Base {}`), and activation-safe computed
-    public class declarations now route through `DeclareClass` after the
-    resumable invoker materializes the body environment; dynamic/eval helpers
-    and activation-dependent or otherwise complex class declaration neighbors
-    (activation superclass expressions, explicit derived constructors, static
-    blocks, and computed/static shapes outside the public B24h-compatible subset)
-    are the remaining separate B36 declaration-instantiation work.
+    constructorless simple class declarations whose superclass expression compiles
+    as standalone unified bytecode (including activation-dependent
+    `class Box extends Base {}`), and activation-safe computed public class
+    declarations now route through `DeclareClass` after the resumable invoker
+    materializes the body environment; dynamic/eval helpers plus explicit derived
+    constructors and otherwise complex class declaration neighbors (computed
+    names with `extends`, static blocks, and computed/static shapes outside the
+    public B24h-compatible subset) are the remaining separate B36
+    declaration-instantiation work.
     `DeclareFunction` remains off the resumable opcode allowlist because
     descriptor-backed block/Annex B declarations still need persisted
     materialized block environments across suspension; direct root

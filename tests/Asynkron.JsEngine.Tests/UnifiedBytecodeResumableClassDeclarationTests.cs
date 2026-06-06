@@ -156,7 +156,7 @@ public sealed class UnifiedBytecodeResumableClassDeclarationTests(ITestOutputHel
     }
 
     [Fact]
-    public void EvaluateResumable_ClassDeclarationActivationExtends_DeclinesBeforeVm()
+    public void EvaluateResumable_ClassDeclarationActivationExtends_AdmitsDeclareClass()
     {
         var plan = GetFunctionPlan("""
             function* g(Base) {
@@ -172,9 +172,36 @@ public sealed class UnifiedBytecodeResumableClassDeclarationTests(ITestOutputHel
             plan,
             new UnifiedBytecodeProductionActivationDescriptor(IsGenerator: true));
 
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(
+            result.Program.Instructions,
+            static instruction => instruction.OpCode == UnifiedBytecodeOpCode.DeclareClass);
+    }
+
+    [Fact]
+    public void EvaluateResumable_ClassDeclarationExplicitDerivedConstructor_DeclinesBeforeVm()
+    {
+        var plan = GetFunctionPlan("""
+            function* g(Base) {
+                yield "ready";
+                class Box extends Base {
+                    constructor(value) {
+                        super(value);
+                    }
+                }
+                yield typeof Box;
+            }
+            """,
+            "g");
+
+        var result = UnifiedBytecodeProductionEligibility.EvaluateResumable(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor(IsGenerator: true));
+
         Assert.False(result.IsEligible);
         Assert.Equal(UnifiedBytecodeProductionDeclineCode.UnsupportedPlanShape, result.Code);
-        Assert.Contains("superclass captures activation binding 'Base'", result.Reason, StringComparison.Ordinal);
+        Assert.Contains("only constructorless class declarations", result.Reason, StringComparison.Ordinal);
     }
 
     [Fact(Timeout = 5000)]
@@ -291,6 +318,42 @@ public sealed class UnifiedBytecodeResumableClassDeclarationTests(ITestOutputHel
 
         Assert.Equal("ready:false|42|true:false", result);
         AssertGeneratorFastPath("g", argc: 0);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task GeneratorClassDeclarationActivationExtends_RoutesResumableAndPreservesSuperclass()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function makeBase(extra) {
+                return class Base {
+                    constructor(seed) {
+                        this.seed = seed;
+                    }
+
+                    read() {
+                        return this.seed + extra;
+                    }
+                };
+            }
+
+            function* g(Base) {
+                yield "ready";
+                class Box extends Base {
+                }
+                var box = new Box(40);
+                yield box.read() + "|" + (box instanceof Base);
+            }
+
+            var Base = makeBase(2);
+            var iterator = g(Base);
+            var first = iterator.next();
+            var second = iterator.next();
+            first.value + ":" + first.done + "|" + second.value + ":" + second.done;
+            """);
+
+        Assert.Equal("ready:false|42|true:false", result);
+        AssertGeneratorFastPath("g", argc: 1);
     }
 
     [Fact(Timeout = 5000)]

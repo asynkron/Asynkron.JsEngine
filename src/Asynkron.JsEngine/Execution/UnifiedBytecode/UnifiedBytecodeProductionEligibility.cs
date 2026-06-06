@@ -2997,10 +2997,14 @@ internal static class UnifiedBytecodeProductionEligibility
                 return false;
             }
 
-            if (ExpressionProgramReferencesActivationSlot(extendsProgram, activationSlots, out var capturedName))
+            if (!UnifiedBytecodeCompiler.TryCompileStandaloneExpressionProgram(
+                    extendsProgram,
+                    allowsDynamicIdentifiers: true,
+                    out _,
+                    out var extendsCompileReason))
             {
                 declineReason =
-                    $"Class declaration superclass captures activation binding '{capturedName}' and remains outside B36 until the class-definition environment route owns activation-dependent extends expressions.";
+                    $"Class declaration superclass expression is outside B36: {extendsCompileReason}";
                 return false;
             }
         }

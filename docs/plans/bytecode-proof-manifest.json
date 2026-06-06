@@ -245,15 +245,25 @@
           ]
         },
         {
-          "id": "B36-class-declaration-activation-extends-declines",
+          "id": "B36-class-declaration-activation-extends-routes",
+          "claim": "admitted",
+          "kind": "runtime",
+          "source": "function makeBase(extra) {\n  return class Base {\n    constructor(seed) { this.seed = seed; }\n    read() { return this.seed + extra; }\n  };\n}\nfunction* g(Base) {\n  yield 'ready';\n  class Box extends Base {\n  }\n  var box = new Box(40);\n  yield box.read() + '|' + (box instanceof Base);\n}\nvar Base = makeBase(2);\nvar iterator = g(Base);\nvar first = iterator.next();\nvar second = iterator.next();\nfirst.value + ':' + first.done + '|' + second.value + ':' + second.done;",
+          "expectedResult": "ready:false|42|true:false",
+          "requiredLogs": [
+            "unified-bytecode-resumable-generator-fast-path func=g"
+          ]
+        },
+        {
+          "id": "B36-class-declaration-explicit-derived-constructor-declines",
           "claim": "open",
           "kind": "eligibility",
           "subject": "resumable-generator",
           "functionName": "g",
-          "source": "function* g(Base) {\n  yield 'ready';\n  class Box extends Base {\n  }\n  yield typeof Box;\n}",
+          "source": "function* g(Base) {\n  yield 'ready';\n  class Box extends Base {\n    constructor(value) {\n      super(value);\n    }\n  }\n  yield typeof Box;\n}",
           "expectedEligible": false,
           "declineCode": "UnsupportedPlanShape",
-          "reasonContains": "superclass captures activation binding"
+          "reasonContains": "only constructorless class declarations"
         }
       ]
     },

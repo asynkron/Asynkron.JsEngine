@@ -6495,6 +6495,57 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
+    public void ContainsOrdinaryDynamicIdentifierDependency_ZeroDepthCatchFreeRead_DoesNotEnableOrdinaryDynamicNamePath()
+    {
+        var plan = GetFunctionPlan("""
+            function readFromCatch() {
+                try {
+                    throw 1;
+                } catch (e) {
+                    return externalValue + e;
+                }
+            }
+            """,
+            "readFromCatch");
+
+        Assert.False(UnifiedBytecodeProductionEligibility.ContainsOrdinaryDynamicIdentifierDependency(plan));
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.False(result.IsEligible);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.UnsupportedPlanShape, result.Code);
+        Assert.Contains("externalValue", result.Reason, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ContainsOrdinaryDynamicIdentifierDependency_ZeroDepthCatchFreeStore_DoesNotEnableOrdinaryDynamicNamePath()
+    {
+        var plan = GetFunctionPlan("""
+            function writeFromCatch() {
+                try {
+                    throw 1;
+                } catch (e) {
+                    externalValue = e;
+                    return e;
+                }
+            }
+            """,
+            "writeFromCatch");
+
+        Assert.False(UnifiedBytecodeProductionEligibility.ContainsOrdinaryDynamicIdentifierDependency(plan));
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.False(result.IsEligible);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.UnsupportedPlanShape, result.Code);
+        Assert.Contains("externalValue", result.Reason, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Evaluate_DynamicIdentifierAssignmentExpression_AcceptsEnvironmentReferenceOpcodes()
     {
         var plan = GetFunctionPlan("""

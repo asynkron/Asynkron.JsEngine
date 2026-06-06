@@ -11532,6 +11532,105 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
+    public void Evaluate_NestedBinaryConditionalOperandSpan_AcceptsOwnedOpcodes()
+    {
+        var plan = GetFunctionPlan("""
+            function nested(a, b, c, d, e) {
+                return (a + b) * (c ? d : e);
+            }
+            """,
+            "nested");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.Binary);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.JumpIfFalse);
+
+        using var engine = CreateEngine();
+        var context = engine.RealmState.CreateContext();
+        var slots = new JsValue[Math.Max(result.Program.SlotCount, 1)];
+        SetSlot(result.Program, slots, "a", JsValue.FromDouble(2));
+        SetSlot(result.Program, slots, "b", JsValue.FromDouble(3));
+        SetSlot(result.Program, slots, "c", JsValue.True);
+        SetSlot(result.Program, slots, "d", JsValue.FromDouble(4));
+        SetSlot(result.Program, slots, "e", JsValue.FromDouble(9));
+
+        var vmResult = UnifiedBytecodeVirtualMachine.Execute(result.Program, slots, context);
+
+        Assert.Equal(20d, vmResult.AsDouble());
+    }
+
+    [Fact]
+    public void Evaluate_NestedUnaryBinaryOperandSpan_AcceptsOwnedOpcodes()
+    {
+        var plan = GetFunctionPlan("""
+            function nested(a, b) {
+                return -(a + b);
+            }
+            """,
+            "nested");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.Binary);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.UnaryMinus);
+    }
+
+    [Fact]
+    public void Evaluate_NestedBinaryCallOperandSpan_RemainsDeclined()
+    {
+        var plan = GetFunctionPlan("""
+            function nested(a, helper) {
+                return (a + helper()) * 2;
+            }
+            """,
+            "nested");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.False(result.IsEligible);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.CallDependency, result.Code);
+    }
+
+    [Fact]
+    public void Evaluate_TypeOfUnaryConditionalOperand_AcceptsOwnedOpcodes()
+    {
+        var plan = GetFunctionPlan("""
+            function nested(a, b, pick) {
+                return typeof -(pick ? a : b);
+            }
+            """,
+            "nested");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.JumpIfFalse);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.UnaryMinus);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.TypeOf);
+    }
+
+    [Fact]
     public void Evaluate_LogicalAndAssignment_SlotBased_Accepts()
     {
         var plan = GetFunctionPlan("""

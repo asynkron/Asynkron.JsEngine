@@ -529,7 +529,7 @@ semantic bridge or mis-parking dynamic residue as ordinary fallback work.
 | `A51h` | Array/object/template literal, spread source, computed object key, and simple literal-span shapes | Existing expression-program literal/spread evaluation | both |
 | `A51i` | Computed/optional/private property-read and receiver-boundary shapes; read-only private receiver-prefix chains such as `receiver.#child.value` and `receiver.#child[key]` are now sync-admitted through owned property-read opcodes | Existing expression-program property evaluation for remaining private-adjacent property reads | both |
 | `A51j` | Property write, compound/logical write, update, delete, name-inference, key-span, and RHS-span shapes | Existing expression-program mutation evaluation | both |
-| `A51k` | Simple binary/unary/control/conditional operand spans | Existing expression-program evaluation | both |
+| `A51k` | Simple binary/unary/control/conditional operand spans; nested admitted literal-value operand spans now route through the production VM, while call/private/dynamic-neighbor operands remain outside this lane | Existing expression-program evaluation | both |
 | `A51l` | Catch/try/driver cleanup topology diagnostics not otherwise captured by concrete driver rows | Existing execution-plan runner | both |
 | `A51m` | Closed measured property-read span rollback diagnostics; source guard pins named, optional named, optional named-chain, and computed measured span rollback templates | Existing property-read expression evaluation for non-admitted shapes | both |
 | `B47a` | Resumable-only `yield*` state-slot and synthetic resume-target layout | Existing generator/async execution-plan route | resumable only |
@@ -674,8 +674,6 @@ above in the same slice.
 - `Property writes with name inference are not supported.`
 - `ResolvePropertyKey underflow in complex call argument.`
 - `Resume target '{resumeSymbol.Name}' is not in the activation slot layout.`
-- `Simple binary spans require simple activation-resolved or admitted dynamic operands.`
-- `Simple unary spans require a simple activation-resolved or admitted dynamic operand.`
 - `Spread sources only admit direct named member calls with simple arguments.`
 - `Template literal RHS span does not match expected boundary.`
 - `Template literal RHS span does not match expected nested property-write boundary.`

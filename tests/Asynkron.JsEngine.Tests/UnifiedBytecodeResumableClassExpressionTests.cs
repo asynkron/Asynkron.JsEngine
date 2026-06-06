@@ -380,6 +380,31 @@ public sealed class UnifiedBytecodeResumableClassExpressionTests(ITestOutputHelp
             static instruction => instruction.OpCode == UnifiedBytecodeOpCode.LoadClassLiteral);
     }
 
+    [Fact]
+    public void EvaluateResumable_ClassExpressionComputedNameActivationWrite_AdmitLoadClassLiteral()
+    {
+        var plan = GetFunctionPlan("""
+            function* g(key) {
+                yield 1;
+                var C = class {
+                    [key = "value"]() { return 1; }
+                };
+                return C;
+            }
+            """,
+            "g");
+
+        var result = UnifiedBytecodeProductionEligibility.EvaluateResumable(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor(IsGenerator: true));
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(
+            result.Program.Instructions,
+            static instruction => instruction.OpCode == UnifiedBytecodeOpCode.LoadClassLiteral);
+    }
+
     [Fact(Timeout = 5000)]
     public async Task GeneratorClassExpressionPublicInstanceFields_RoutesResumableAndInitializesFields()
     {
@@ -713,6 +738,55 @@ public sealed class UnifiedBytecodeResumableClassExpressionTests(ITestOutputHelp
     }
 
     [Fact(Timeout = 5000)]
+    public async Task GeneratorComputedPublicInstanceActivationWrite_RouteResumableAndSyncsName()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function* g(key) {
+                yield "ready";
+                var C = class {
+                    [key = "value"]() {
+                        return 42;
+                    }
+                };
+                var c = new C();
+                return key + "|" + c.value();
+            }
+
+            var iterator = g("initial");
+            var first = iterator.next();
+            var second = iterator.next();
+            first.value + ":" + first.done + "|" + second.value + ":" + second.done;
+            """);
+
+        Assert.Equal("ready:false|value|42:true", result);
+        AssertGeneratorFastPath("g", argc: 1);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task GeneratorComputedPublicStaticActivationUpdate_RouteResumableAndSyncsName()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function* g(index) {
+                yield "ready";
+                var C = class {
+                    static [index++] = 42;
+                };
+                return index + "|" + C[0];
+            }
+
+            var iterator = g(0);
+            var first = iterator.next();
+            var second = iterator.next();
+            first.value + ":" + first.done + "|" + second.value + ":" + second.done;
+            """);
+
+        Assert.Equal("ready:false|1|42:true", result);
+        AssertGeneratorFastPath("g", argc: 1);
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task GeneratorClassExpressionPublicAccessorsWithSuper_RoutesResumableAndPreservesReceiver()
     {
         await using var engine = CreateEngine();
@@ -816,24 +890,24 @@ public sealed class UnifiedBytecodeResumableClassExpressionTests(ITestOutputHelp
         """);
 
     [Fact]
-    public void EvaluateResumable_ClassExpressionComputedNameActivationWrite_DeclinesBeforeVm() =>
-        AssertClassExpressionDeclines("""
-        function* g(key) {
-            yield 1;
-            var C = class {
-                [key = "value"]() { return 1; }
-            };
-            return C;
-        }
-        """);
-
-    [Fact]
     public void EvaluateResumable_ClassExpressionComputedNameActivationCall_DeclinesBeforeVm() =>
         AssertClassExpressionDeclines("""
         function* g(read) {
             yield 1;
             var C = class {
                 [read()]() { return 1; }
+            };
+            return C;
+        }
+        """);
+
+    [Fact]
+    public void EvaluateResumable_ClassExpressionComputedNameActivationDelete_DeclinesBeforeVm() =>
+        AssertClassExpressionDeclines("""
+        function* g(key) {
+            yield 1;
+            var C = class {
+                [delete key]() { return 1; }
             };
             return C;
         }

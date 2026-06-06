@@ -3062,14 +3062,11 @@ internal static class UnifiedBytecodeProductionEligibility
 
             capturedName = identifier.Name.Name;
             hasActivationReference = true;
-            if (!IsClassComputedNameActivationReadOperation(operation.Kind))
+            if (!IsOwnedClassComputedNameActivationOperation(operation.Kind))
             {
                 dependencyReason = operation.Kind switch
                 {
                     ExpressionOpKind.LoadIdentifierCallTarget => "call-target preparation",
-                    ExpressionOpKind.ResolveIdentifierReference => "reference materialization",
-                    ExpressionOpKind.StoreResolvedIdentifier or ExpressionOpKind.StoreIdentifier => "activation binding write",
-                    ExpressionOpKind.UpdateIdentifier => "activation binding update",
                     ExpressionOpKind.DeleteIdentifier => "activation binding delete",
                     _ => $"unsupported {operation.Kind} operation"
                 };
@@ -3086,8 +3083,13 @@ internal static class UnifiedBytecodeProductionEligibility
         return false;
     }
 
-    private static bool IsClassComputedNameActivationReadOperation(ExpressionOpKind kind) =>
-        kind is ExpressionOpKind.LoadIdentifier or ExpressionOpKind.TypeOfIdentifier;
+    private static bool IsOwnedClassComputedNameActivationOperation(ExpressionOpKind kind) =>
+        kind is ExpressionOpKind.LoadIdentifier or
+            ExpressionOpKind.TypeOfIdentifier or
+            ExpressionOpKind.ResolveIdentifierReference or
+            ExpressionOpKind.StoreResolvedIdentifier or
+            ExpressionOpKind.StoreIdentifier or
+            ExpressionOpKind.UpdateIdentifier;
 
     private static bool IsB24cPublicStaticFieldClassLiteral(ClassDefinition definition)
     {

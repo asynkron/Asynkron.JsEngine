@@ -94,15 +94,17 @@ statement interpretation.
   B24g public non-computed instance-accessor subset whose accessor bodies do not
   capture activation slots, including accessor bodies that use `super`, plus
   the B24h public static/instance computed-field/method/accessor subset whose
-  computed names either avoid resumable activation slots or only read them, and
-  whose field initializers, constructor bodies, and member bodies do not capture
-  activation slots, including mixes with non-computed public fields/methods/accessors
-  under the same activation-safety rules, are resumable-admitted. The VM handler still delegates
+  computed names either avoid resumable activation slots or use owned activation
+  read/write/update/reference-store operations, and whose field initializers,
+  constructor bodies, and member bodies do not capture activation slots, including
+  mixes with non-computed public fields/methods/accessors under the same
+  activation-safety rules, are resumable-admitted. The VM handler still delegates
   class-definition evaluation to lower-level class machinery that can run
   expression programs and static-block IR plans, and B24d plus the remaining
   B24h/B24i shapes keep static-block, computed-super, computed-name
-  activation write/reference/call-target materialization, materialized-environment,
-  member-super, and activation-slot `extends` shapes declined.
+  activation delete/call-target dependencies, nested computed-name activation
+  captures, materialized-environment, member-super, and activation-slot `extends`
+  shapes declined.
 - `UnifiedBytecodeCompiler` now has generated audit coverage for every declared
   IR instruction record. Function-scoped `FunctionDeclarationInstruction`
   entries compile as no-ops after fast activation hoisting installs the callable
@@ -440,18 +442,19 @@ the narrow B24f private method/accessor class-literal shape, plus the B24g
 public non-computed instance-accessor subset whose accessor bodies do not
 capture activation slots, including accessor bodies that use `super`, plus the
 B24h public static/instance computed-field/method/accessor subset whose computed
-name programs either avoid resumable activation slots or only read them, and
-whose field initializer programs plus constructor/member bodies do not capture
-activation slots, including mixes with non-computed public fields/methods/accessors
-under the same activation-safety rules. Full bytecode execution is not done: class-literal creation still calls
+name programs either avoid resumable activation slots or use owned activation
+read/write/update/reference-store operations, and whose field initializer programs
+plus constructor/member bodies do not capture activation slots, including mixes
+with non-computed public fields/methods/accessors under the same activation-safety
+rules. Full bytecode execution is not done: class-literal creation still calls
 class-definition machinery that resolves extends/computed names/field
 initializers through expression programs and static blocks through
 `ExecutionPlanRunner.RunScript`; `extends` expressions that read resumable
 activation slots also remain declined until class-definition evaluation owns
 that environment bridge. B24d plus the remaining B24h and B24i shapes remain
-declined by the resumable shape gate: computed names that write/update/delete
-activation bindings, materialize references, or prepare/call activation-dependent
-targets still stay outside B24h, and static/private/capturing public accessor
+declined by the resumable shape gate: computed names that delete activation
+bindings, prepare/call activation-dependent targets, or create nested activation
+captures still stay outside B24h, and static/private/capturing public accessor
 neighbors remain outside the B24g/B24h subsets.
 
 - `B24a:ClassExpressionConstructor`

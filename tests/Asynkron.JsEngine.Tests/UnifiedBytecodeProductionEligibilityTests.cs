@@ -6028,6 +6028,46 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
+    public void Evaluate_PrivateNamedMethodCallArgument_AcceptsNestedCallTargetPreparation()
+    {
+        var plan = GetClassMethodPlan("""
+            class Holder {
+                #read(value) {
+                    return value + 1;
+                }
+
+                call(sink, receiver, value) {
+                    return sink(receiver.#read(value));
+                }
+            }
+            """,
+            "Holder",
+            "call");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(
+            result.Program.Instructions,
+            instruction => instruction.OpCode == UnifiedBytecodeOpCode.PrepareIdentifierCallTarget);
+        Assert.Contains(
+            result.Program.Instructions,
+            instruction => instruction.OpCode == UnifiedBytecodeOpCode.PrepareNamedCallTarget);
+        Assert.Equal(
+            2,
+            result.Program.Instructions.Count(
+                instruction => instruction.OpCode == UnifiedBytecodeOpCode.CallInvocationBoundary));
+        Assert.Contains(
+            result.Program.CallTargetConstants,
+            callTarget =>
+                callTarget.Kind == UnifiedBytecodeCallTargetKind.NamedMember &&
+                result.Program.StringConstants[callTarget.NameConstantIndex] == "#read");
+    }
+
+    [Fact]
     public void Evaluate_PrivateNamedPropertyDelete_IsRejectedBeforeEligibility()
     {
         var ex = Assert.Throws<ParseException>(() =>

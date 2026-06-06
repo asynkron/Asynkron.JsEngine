@@ -1397,8 +1397,12 @@ the final post-compile production subset check before VM entry.
   is exactly one non-spread eval-identifier argument; the VM invokes the eval host
   with the caller environment and syncs mutated caller slots back into unified
   bytecode-owned slots before execution continues.
-- Private-adjacent member targets outside the admitted direct named method-call
-  shape, arguments-object dependencies, unsupported non-with dynamic lookup,
+- Private named method calls route both as the primary call expression and as a
+  nested complex call argument through `PrepareNamedCallTarget` plus
+  `CallInvocationBoundary`, preserving receiver/private-brand semantics through
+  the class method's threaded private-name scopes. Private-adjacent member
+  targets outside those admitted named method-call shapes, arguments-object
+  dependencies, unsupported non-with dynamic lookup,
   deeper computed-member call receiver chains, complex receiver/key shapes,
   spread-onto-optional calls, and receiver-binding-sensitive adjacent families
   still decline before VM execution. (Synchronous spread calls are admitted as

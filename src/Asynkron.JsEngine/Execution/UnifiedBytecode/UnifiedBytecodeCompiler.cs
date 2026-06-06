@@ -8031,8 +8031,7 @@ internal static class UnifiedBytecodeCompiler
                 {
                     if (depth < 1 ||
                         op.IsOptional ||
-                        op.ShortCircuitOnNullishTarget ||
-                        op.GetString(expressionStringConstants).IsPrivateName())
+                        op.ShortCircuitOnNullishTarget)
                     {
                         RollBack();
                         reason = "Unsupported named call target in complex call argument.";

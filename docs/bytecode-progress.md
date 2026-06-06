@@ -147,6 +147,9 @@ The remaining non-retirement work is concentrated in:
   direct eval in parameters/body when the resumable path cannot prove
   declaration-free dynamic activation, arguments-object safety, or absence of a
   live `with` object in the closure chain.
+- A7 constructor/private-name activation boundary: constructor route eligibility
+  still leaves private-name constructor shapes outside the admitted constructor
+  activation lane.
 - A51 compiler leaves: the remaining named `UnsupportedPlanShape` buckets for
   topology, slot layout, scope/environment, driver state, destructuring,
   expression-span, call-boundary, literal, property, mutation, and cleanup

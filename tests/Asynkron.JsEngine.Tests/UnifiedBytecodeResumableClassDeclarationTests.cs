@@ -348,7 +348,7 @@ public sealed class UnifiedBytecodeResumableClassDeclarationTests(ITestOutputHel
     }
 
     [Fact]
-    public void EvaluateResumable_ClassDeclarationExtendsPublicFieldWithSuperCapturesActivation_DeclinesBeforeVm()
+    public void EvaluateResumable_ClassDeclarationExtendsPublicFieldWithSuperCapturesActivation_AdmitsDeclareClass()
     {
         var plan = GetFunctionPlan("""
             class Base {
@@ -369,12 +369,11 @@ public sealed class UnifiedBytecodeResumableClassDeclarationTests(ITestOutputHel
             plan,
             new UnifiedBytecodeProductionActivationDescriptor(IsGenerator: true));
 
-        Assert.False(result.IsEligible);
-        Assert.Equal(UnifiedBytecodeProductionDeclineCode.UnsupportedPlanShape, result.Code);
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
         Assert.Contains(
-            "public super field initializer captures activation binding 'seed'",
-            result.Reason,
-            StringComparison.Ordinal);
+            result.Program.Instructions,
+            static instruction => instruction.OpCode == UnifiedBytecodeOpCode.DeclareClass);
     }
 
     [Fact]
@@ -937,6 +936,36 @@ public sealed class UnifiedBytecodeResumableClassDeclarationTests(ITestOutputHel
 
         Assert.Equal("ready:false|42|true:false", result);
         AssertGeneratorFastPath("g", argc: 0);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task GeneratorClassDeclarationExtendsPublicFieldWithSuperCapturesActivation_RoutesResumable()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            class Base {
+                constructor(value) { this.seed = value; }
+                get value() { return this.seed + 1; }
+            }
+
+            function* g(seed) {
+                yield "ready";
+                class Box extends Base {
+                    constructor(value) { super(value); }
+                    field = super.value + seed;
+                }
+                var box = new Box(40);
+                yield box.field + "|" + (box instanceof Base);
+            }
+
+            var iterator = g(1);
+            var first = iterator.next();
+            var second = iterator.next();
+            first.value + ":" + first.done + "|" + second.value + ":" + second.done;
+            """);
+
+        Assert.Equal("ready:false|42|true:false", result);
+        AssertGeneratorFastPath("g", argc: 1);
     }
 
     [Fact(Timeout = 5000)]

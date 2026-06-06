@@ -3478,12 +3478,6 @@ internal static class UnifiedBytecodeProductionEligibility
                 return false;
             }
 
-            if (ExpressionProgramReferencesActivationSlot(initializerProgram, activationSlots, out var capturedName))
-            {
-                declineReason =
-                    $"Class declaration public super field initializer captures activation binding '{capturedName}' and needs the materialized body environment route.";
-                return false;
-            }
         }
 
         return true;

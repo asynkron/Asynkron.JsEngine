@@ -885,14 +885,13 @@ predicates and proof tests.
     B24h subset. Public instance super-member and public static super-member
     `extends` declarations now route even when their member bodies capture
     resumable activation slots, public instance super-field declarations route
-    when field initializers do not capture resumable activation slots, and public
+    even when field initializers capture resumable activation slots, and public
     non-computed static-field `extends` declarations also route when each
     initializer compiles as standalone unified bytecode and creates no nested
     closure, including static `super` field initializers. Dynamic/eval helpers
     plus otherwise complex class declaration neighbors (escaping nested
     activation-capturing computed names with `extends`, closure-producing static
-    blocks, closure-producing static field initializers, public super field
-    initializers that capture activation, static elements outside
+    blocks, closure-producing static field initializers, static elements outside
     the static-block-only/static-field subsets, and computed/private/static
     shapes outside the public B24h-compatible subset) are the remaining separate B36
     declaration-instantiation work.

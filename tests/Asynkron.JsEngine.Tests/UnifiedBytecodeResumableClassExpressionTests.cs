@@ -293,6 +293,68 @@ public sealed class UnifiedBytecodeResumableClassExpressionTests(ITestOutputHelp
             static instruction => instruction.OpCode == UnifiedBytecodeOpCode.LoadClassLiteral);
     }
 
+    [Fact]
+    public void EvaluateResumable_ClassExpressionComputedPublicStaticElements_AdmitLoadClassLiteral()
+    {
+        var plan = GetFunctionPlan("""
+            function* g() {
+                yield 0;
+                var C = class {
+                    static ["field"] = 40;
+
+                    static get [("value")]() {
+                        return this.field + 2;
+                    }
+
+                    static [("read")]() {
+                        return this.value + 1;
+                    }
+                };
+                return C.value;
+            }
+            """,
+            "g");
+
+        var result = UnifiedBytecodeProductionEligibility.EvaluateResumable(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor(IsGenerator: true));
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(
+            result.Program.Instructions,
+            static instruction => instruction.OpCode == UnifiedBytecodeOpCode.LoadClassLiteral);
+    }
+
+    [Fact]
+    public void EvaluateResumable_AsyncClassExpressionComputedPublicStaticElements_AdmitLoadClassLiteral()
+    {
+        var plan = GetFunctionPlan("""
+            async function run() {
+                await 0;
+                var C = class {
+                    static ["field"] = 40;
+
+                    static get [("value")]() {
+                        return this.field + 2;
+                    }
+                };
+                return C.value;
+            }
+            """,
+            "run");
+
+        var result = UnifiedBytecodeProductionEligibility.EvaluateResumable(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor(IsAsyncLike: true));
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(
+            result.Program.Instructions,
+            static instruction => instruction.OpCode == UnifiedBytecodeOpCode.LoadClassLiteral);
+    }
+
     [Fact(Timeout = 5000)]
     public async Task GeneratorClassExpressionPublicInstanceFields_RoutesResumableAndInitializesFields()
     {
@@ -547,6 +609,37 @@ public sealed class UnifiedBytecodeResumableClassExpressionTests(ITestOutputHelp
     }
 
     [Fact(Timeout = 5000)]
+    public async Task GeneratorComputedPublicStaticClassElements_RouteResumableAndResolveNames()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function* g() {
+                yield "ready";
+                var C = class {
+                    static ["field"] = 40;
+
+                    static get [("value")]() {
+                        return this.field + 2;
+                    }
+
+                    static [("read")]() {
+                        return this.value + 1;
+                    }
+                };
+                return C.value;
+            }
+
+            var iterator = g();
+            var first = iterator.next();
+            var second = iterator.next();
+            first.value + ":" + first.done + "|" + second.value + ":" + second.done;
+            """);
+
+        Assert.Equal("ready:false|42:true", result);
+        AssertGeneratorFastPath("g", argc: 0);
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task GeneratorClassExpressionPublicAccessorsWithSuper_RoutesResumableAndPreservesReceiver()
     {
         await using var engine = CreateEngine();
@@ -664,6 +757,18 @@ public sealed class UnifiedBytecodeResumableClassExpressionTests(ITestOutputHelp
             yield 1;
             var C = class {
                 ["field"] = seed;
+            };
+            return C;
+        }
+        """);
+
+    [Fact]
+    public void EvaluateResumable_ClassExpressionComputedStaticFieldWithActivationInitializer_DeclinesBeforeVm() =>
+        AssertClassExpressionDeclines("""
+        function* g(seed) {
+            yield 1;
+            var C = class {
+                static ["field"] = seed;
             };
             return C;
         }

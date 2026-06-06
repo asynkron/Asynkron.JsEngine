@@ -2715,14 +2715,7 @@ internal static class UnifiedBytecodeProductionEligibility
             return false;
         }
 
-        if (!definition.StaticBlocks.IsDefaultOrEmpty || !definition.StaticElements.IsDefaultOrEmpty)
-        {
-            declineReason =
-                "Class literal is outside B24: static elements remain owned by later B24 static-field/static-block slices; admitted subsets include the B24c public static-field subset.";
-            return false;
-        }
-
-        if (TryAdmitB24hComputedPublicInstanceClassLiteral(
+        if (TryAdmitB24hComputedPublicClassLiteral(
                 definition,
                 activationSlots,
                 out var b24hCandidate,
@@ -2733,6 +2726,13 @@ internal static class UnifiedBytecodeProductionEligibility
 
         if (b24hCandidate)
         {
+            return false;
+        }
+
+        if (!definition.StaticBlocks.IsDefaultOrEmpty || !definition.StaticElements.IsDefaultOrEmpty)
+        {
+            declineReason =
+                "Class literal is outside B24: static elements remain owned by later B24 static-field/static-block slices; admitted subsets include the B24c public static-field subset.";
             return false;
         }
 
@@ -2850,8 +2850,7 @@ internal static class UnifiedBytecodeProductionEligibility
         if (!definition.Fields.IsDefaultOrEmpty ||
             definition.Members.IsDefaultOrEmpty ||
             definition.Members.Length == 0 ||
-            !definition.StaticBlocks.IsDefaultOrEmpty ||
-            !definition.StaticElements.IsDefaultOrEmpty)
+            !definition.StaticBlocks.IsDefaultOrEmpty)
         {
             return false;
         }
@@ -2870,7 +2869,7 @@ internal static class UnifiedBytecodeProductionEligibility
         return true;
     }
 
-    private static bool TryAdmitB24hComputedPublicInstanceClassLiteral(
+    private static bool TryAdmitB24hComputedPublicClassLiteral(
         ClassDefinition definition,
         ActivationSlotShape activationSlots,
         out bool candidate,
@@ -2879,8 +2878,7 @@ internal static class UnifiedBytecodeProductionEligibility
         candidate = false;
         declineReason = string.Empty;
         if (definition.Extends is not null ||
-            !definition.StaticBlocks.IsDefaultOrEmpty ||
-            !definition.StaticElements.IsDefaultOrEmpty)
+            !definition.StaticBlocks.IsDefaultOrEmpty)
         {
             return false;
         }
@@ -2888,7 +2886,7 @@ internal static class UnifiedBytecodeProductionEligibility
         var hasComputedElement = false;
         foreach (var field in definition.Fields)
         {
-            if (field.IsStatic || field.IsPrivate)
+            if (field.IsPrivate)
             {
                 return false;
             }
@@ -2906,7 +2904,7 @@ internal static class UnifiedBytecodeProductionEligibility
 
         foreach (var member in definition.Members)
         {
-            if (member.IsStatic || member.IsPrivate)
+            if (member.IsPrivate)
             {
                 return false;
             }

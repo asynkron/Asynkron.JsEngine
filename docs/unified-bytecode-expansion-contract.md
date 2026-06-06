@@ -783,13 +783,13 @@ predicates and proof tests.
     mirrored from the resume-state flat slots and kept synchronized on slot
     writes. This admits `function* g(){ var n=1; var f=()=>n; yield f(); n=2;
     yield f(); }`, so the closure observes `1` then `2` on the resumable
-    generator route, and admits async-function closures that cross `await` and
-    observe post-resume slot writes. Async-generator captured-local literals,
-    lexical-this/private-name dependent literals, function declarations nested
-    inside an otherwise non-capturing function literal, and captured helper calls
-    inside the async body that still cross the call-target boundary decline until
-    their closure contexts, declaration-instantiation semantics, or call-context
-    semantics are represented by the resumable route. B23 remains partial.
+    generator route, and admits async-function closures that cross `await`,
+    observe post-resume slot writes, and are called directly inside the async
+    body. Async-generator captured-local literals, lexical-this/private-name
+    dependent literals, and function declarations nested inside an otherwise
+    non-capturing function literal decline until their closure contexts or
+    declaration-instantiation semantics are represented by the resumable route.
+    B23 remains partial.
   - HOISTED NESTED FUNCTION DECLARATIONS (`function helper(){...}`;
     `FunctionDeclarationInstruction` / `DeclareFunction`) inside a generator/async
     body are now partially admitted (B36): direct root function-scoped
@@ -803,9 +803,8 @@ predicates and proof tests.
     descriptor-backed block/Annex B declarations through materialized block
     environments. Async-generator captured helpers remain declined because that
     invoker does not yet prove the same materialized body environment lifetime.
-    Recursive/sibling helper graphs, dynamic/eval helpers, captured helper calls
-    inside async bodies that still cross the call-target boundary, and class
-    declarations are separate B36 declaration-instantiation work.
+    Recursive/sibling helper graphs, dynamic/eval helpers, and class declarations
+    are separate B36 declaration-instantiation work.
     `DeclareFunction` remains OFF the resumable opcode allowlist and
     `FunctionDeclarationInstruction` remains conditionally guarded by the
     invoker-proof activation flag; the boundary is pinned by

@@ -267,7 +267,7 @@ public sealed class UnifiedBytecodeResumableNestedFunctionTests(ITestOutputHelpe
     }
 
     [Fact(Timeout = 5000)]
-    public async Task AsyncHoistedFunctionDeclarationCapturesLocal_RoutesResumable()
+    public async Task AsyncHoistedFunctionDeclarationCapturesLocalAndCallsInsideBody_RoutesResumable()
     {
         await using var engine = CreateEngine();
         var result = await engine.EvaluateAndAwait("""
@@ -277,9 +277,9 @@ public sealed class UnifiedBytecodeResumableNestedFunctionTests(ITestOutputHelpe
                 function helper(){ return n; }
                 await p;
                 n = 13;
-                return helper;
+                return helper();
             }
-            run(Promise.resolve(0)).then(fn => done = fn(), e => done = String(e));
+            run(Promise.resolve(0)).then(v => done = v, e => done = String(e));
             done;
             """);
 
@@ -350,6 +350,27 @@ public sealed class UnifiedBytecodeResumableNestedFunctionTests(ITestOutputHelpe
                 return read;
             }
             run(Promise.resolve(0)).then(fn => done = fn());
+            done;
+            """);
+
+        Assert.Equal(2d, result);
+        AssertAsyncRouted();
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task AsyncNestedArrowCapturesLocalAndCallsInsideBody_RoutesResumable()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.EvaluateAndAwait("""
+            var done = undefined;
+            async function run(p){
+                var n = 1;
+                var read = () => n;
+                await p;
+                n = 2;
+                return read();
+            }
+            run(Promise.resolve(0)).then(v => done = v);
             done;
             """);
 

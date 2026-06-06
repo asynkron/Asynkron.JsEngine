@@ -582,6 +582,7 @@ above in the same slice.
 - `Computed member call targets require receiver and key operands.`
 - `Computed object key call target requires an activation-resolved identifier slot.`
 - `Computed object keys only admit activation-resolved zero-argument identifier calls.`
+- `Computed-prefix computed property writes with name inference are not supported.`
 - `Computed property reads require RequireObjectCoercible(Depth: 1) in the first production boundary.`
 - `Computed property reads require ResolvePropertyKey in the first production boundary.`
 - `Computed property writes with name inference are not supported in the general expression loop.`

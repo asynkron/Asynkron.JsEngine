@@ -94,6 +94,13 @@ not for every possible exception-region reachability question.
   - `rtk git diff --check`
   - AST seam scan for `EvaluateExpression\(|ProfileEvaluateExpression\(`
     with no matches.
+- Follow-up Faktorial issue
+  `planitem-planmanual1780730299657353000-unified-bytecode-remaining-burndown-03-com-b95fdc6b1a`
+  / PR #3328 added regression tests for the A51c boundary: zero-depth catch
+  free reads and stores do not enable
+  `ContainsOrdinaryDynamicIdentifierDependency`, the eligibility result remains
+  `UnsupportedPlanShape`, and a public catch-only free-read runtime computes on
+  the IR path without logging `unified-bytecode-production-fast-path`.
 
 ## Related
 

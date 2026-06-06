@@ -117,6 +117,12 @@ all-or-nothing until a separate routing issue proves production readiness.
     / PR #3253 first exposed the active-with try/catch/finally reachability gap,
     then repaired a quality-gate regression by splitting the zero-depth
     finally/catch free-callee scan from the main with-depth and plan-shape scan.
+    Follow-up Faktorial issue
+    `planitem-planmanual1780730299657353000-unified-bytecode-remaining-burndown-03-com-b95fdc6b1a`
+    / PR #3328 pinned the A51c no-route side of the same boundary for
+    zero-depth catch-only free reads and stores, proving they compute through
+    the existing IR path but must not become ordinary dynamic-name production
+    route evidence.
     Related ADR:
     `docs/adrs/0341-keep-with-depth-and-zero-depth-dynamic-name-scans-separate.md`.
 9b. When admitting sync `using` declarations to production unified bytecode,

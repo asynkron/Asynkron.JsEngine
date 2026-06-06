@@ -115,9 +115,10 @@ statement interpretation.
   `ClassDeclarationInstruction` is VM-owned through `DeclareClass`, with
   environment-backed lexical declaration installation and class-value creation
   handled inside the unified VM. The resumable route now admits the direct root
-  simple class-declaration subset through the same opcode; computed names,
-  `extends`, static elements, and static blocks remain declined before VM entry
-  as later class-definition-state work. Static synchronous
+  simple class-declaration subset and activation-safe computed public
+  class-declaration subset through the same opcode; `extends`, static blocks,
+  and computed/static neighbors outside the public B24h-compatible subset remain
+  declined before VM entry as later class-definition-state work. Static synchronous
   `BindingVariableDeclarationInstruction` shapes are now VM-owned through
   `ApplyDeclarationBindingTarget`; sync `using` declarations add an owned
   `RegisterDisposable` step before storage so resources are registered against
@@ -840,11 +841,13 @@ predicates and proof tests.
     each helper's VM flat slot and environment slot before `ExecuteResumable`
     starts, so self/sibling references resolve at call time from that environment.
     A43 admits descriptor-backed block/Annex B declarations on the sync route
-    through materialized block environments. Direct root simple class declarations now
-    route through `DeclareClass` after the resumable invoker materializes the
-    body environment; dynamic/eval helpers and complex class declarations
-    (`extends`, computed names, static elements, and static blocks) are the
-    remaining separate B36 declaration-instantiation work.
+    through materialized block environments. Direct root simple class declarations
+    and activation-safe computed public class declarations now route through
+    `DeclareClass` after the resumable invoker materializes the body environment;
+    dynamic/eval helpers and complex class declaration neighbors (`extends`,
+    static blocks, and computed/static shapes outside the public
+    B24h-compatible subset) are the remaining separate B36
+    declaration-instantiation work.
     `DeclareFunction` remains off the resumable opcode allowlist because
     descriptor-backed block/Annex B declarations still need persisted
     materialized block environments across suspension; direct root

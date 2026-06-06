@@ -270,7 +270,28 @@ internal static class UnifiedBytecodeCompiler
             maxStackDepth++;
         }
 
+        if (RequiresObjectLiteralFunctionMemberStack(expressionProgram))
+        {
+            maxStackDepth = Math.Max(maxStackDepth, 4);
+        }
+
         return maxStackDepth;
+    }
+
+    private static bool RequiresObjectLiteralFunctionMemberStack(ExpressionProgram expressionProgram)
+    {
+        for (var i = 0; i < expressionProgram.OperationCount; i++)
+        {
+            if (expressionProgram.GetOperation(i).Kind is ExpressionOpKind.DefineObjectMethod
+                or ExpressionOpKind.DefineComputedObjectMethod
+                or ExpressionOpKind.DefineObjectAccessor
+                or ExpressionOpKind.DefineComputedObjectAccessor)
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static bool RequiresValuePreservingIdentifierReferenceStoreStack(ExpressionProgram expressionProgram)
@@ -4654,6 +4675,7 @@ internal static class UnifiedBytecodeCompiler
                 unified,
                 literalConstants,
                 stringConstants,
+                functionLiteralConstants,
                 out reason))
         {
             return true;
@@ -8346,7 +8368,8 @@ internal static class UnifiedBytecodeCompiler
         UnifiedBytecodeSlotLayout? slotLayout,
         out int spanLength,
         out string reason,
-        bool allowsDynamicIdentifiers = false)
+        bool allowsDynamicIdentifiers = false,
+        ImmutableArray<FunctionLiteralDescriptor>.Builder? functionLiteralConstants = null)
     {
         if (expressionProgram.GetOperation(startIndex).Kind != ExpressionOpKind.CreateObject)
         {
@@ -8545,6 +8568,24 @@ internal static class UnifiedBytecodeCompiler
                 continue;
             }
 
+            if (TryAppendSimpleObjectLiteralMethodOrAccessorMemberSpan(
+                    expressionProgram,
+                    i,
+                    activationSlots,
+                    allowsDynamicIdentifiers,
+                    unified,
+                    literalConstants,
+                    stringConstants,
+                    callTargetConstants,
+                    slotLayout,
+                    functionLiteralConstants,
+                    out var methodMemberSpanLength,
+                    out reason))
+            {
+                i += methodMemberSpanLength;
+                continue;
+            }
+
             if (!TryAppendSimpleLiteralValueOperandSpan(
                     expressionProgram,
                     i,
@@ -8654,6 +8695,148 @@ internal static class UnifiedBytecodeCompiler
         spanLength = i - startIndex;
         reason = string.Empty;
         return true;
+    }
+
+    private static bool TryAppendSimpleObjectLiteralMethodOrAccessorMemberSpan(
+        ExpressionProgram expressionProgram,
+        int startIndex,
+        ActivationSlotShape activationSlots,
+        bool allowsDynamicIdentifiers,
+        ImmutableArray<UnifiedBytecodeInstruction>.Builder unified,
+        ImmutableArray<JsValue>.Builder literalConstants,
+        ImmutableArray<string>.Builder stringConstants,
+        ImmutableArray<UnifiedBytecodeCallTarget>.Builder? callTargetConstants,
+        UnifiedBytecodeSlotLayout? slotLayout,
+        ImmutableArray<FunctionLiteralDescriptor>.Builder? functionLiteralConstants,
+        out int spanLength,
+        out string reason)
+    {
+        spanLength = 0;
+        reason = string.Empty;
+
+        if (functionLiteralConstants is null)
+        {
+            return false;
+        }
+
+        var operation = expressionProgram.GetOperation(startIndex);
+        if (operation.Kind == ExpressionOpKind.LoadFunctionLiteral)
+        {
+            if (startIndex + 1 >= expressionProgram.OperationCount)
+            {
+                return false;
+            }
+
+            var defineOp = expressionProgram.GetOperation(startIndex + 1);
+            if (defineOp.Kind is not (ExpressionOpKind.DefineObjectMethod or ExpressionOpKind.DefineObjectAccessor))
+            {
+                return false;
+            }
+
+            AppendLoadFunctionLiteral(operation, expressionProgram, unified, functionLiteralConstants);
+            AppendStaticObjectMethodOrAccessorDefinition(defineOp, expressionProgram, unified, stringConstants);
+            spanLength = 2;
+            return true;
+        }
+
+        var startUnifiedCount = unified.Count;
+        var startLiteralCount = literalConstants.Count;
+        var startStringCount = stringConstants.Count;
+        var startFunctionLiteralCount = functionLiteralConstants.Count;
+        if (!TryAppendSimpleLiteralValueOperandSpan(
+                expressionProgram,
+                startIndex,
+                activationSlots,
+                allowsDynamicIdentifiers,
+                unified,
+                literalConstants,
+                stringConstants,
+                callTargetConstants,
+                slotLayout,
+                out var keySpanLength,
+                out reason))
+        {
+            reason = string.Empty;
+            return false;
+        }
+
+        var resolveIndex = startIndex + keySpanLength;
+        if (resolveIndex + 2 >= expressionProgram.OperationCount ||
+            expressionProgram.GetOperation(resolveIndex).Kind != ExpressionOpKind.ResolvePropertyKey ||
+            expressionProgram.GetOperation(resolveIndex + 1).Kind != ExpressionOpKind.LoadFunctionLiteral)
+        {
+            RollBackUnifiedBuilder(unified, startUnifiedCount);
+            RollBackUnifiedBuilder(literalConstants, startLiteralCount);
+            RollBackUnifiedBuilder(stringConstants, startStringCount);
+            functionLiteralConstants.Count = startFunctionLiteralCount;
+            reason = string.Empty;
+            return false;
+        }
+
+        var computedDefineOp = expressionProgram.GetOperation(resolveIndex + 2);
+        if (computedDefineOp.Kind is not (ExpressionOpKind.DefineComputedObjectMethod or ExpressionOpKind.DefineComputedObjectAccessor))
+        {
+            RollBackUnifiedBuilder(unified, startUnifiedCount);
+            RollBackUnifiedBuilder(literalConstants, startLiteralCount);
+            RollBackUnifiedBuilder(stringConstants, startStringCount);
+            functionLiteralConstants.Count = startFunctionLiteralCount;
+            reason = string.Empty;
+            return false;
+        }
+
+        unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.ResolvePropertyKey));
+        AppendLoadFunctionLiteral(expressionProgram.GetOperation(resolveIndex + 1), expressionProgram, unified, functionLiteralConstants);
+        AppendComputedObjectMethodOrAccessorDefinition(computedDefineOp, unified);
+        spanLength = keySpanLength + 3;
+        return true;
+    }
+
+    private static void AppendLoadFunctionLiteral(
+        PackedExpressionOp operation,
+        ExpressionProgram expressionProgram,
+        ImmutableArray<UnifiedBytecodeInstruction>.Builder unified,
+        ImmutableArray<FunctionLiteralDescriptor>.Builder functionLiteralConstants)
+    {
+        var functionLiteralIndex = functionLiteralConstants.Count;
+        functionLiteralConstants.Add(
+            operation.GetObject<FunctionLiteralDescriptor>(expressionProgram.ObjectConstants.AsSpan()));
+        unified.Add(new UnifiedBytecodeInstruction(
+            UnifiedBytecodeOpCode.LoadFunctionLiteral,
+            EncodeLoadFunctionLiteralOperand(functionLiteralIndex, operation.IsConstructorFunction)));
+    }
+
+    private static void AppendStaticObjectMethodOrAccessorDefinition(
+        PackedExpressionOp operation,
+        ExpressionProgram expressionProgram,
+        ImmutableArray<UnifiedBytecodeInstruction>.Builder unified,
+        ImmutableArray<string>.Builder stringConstants)
+    {
+        var nameIndex = stringConstants.Count;
+        stringConstants.Add(operation.GetString(expressionProgram.StringConstants.AsSpan()));
+        if (operation.Kind == ExpressionOpKind.DefineObjectMethod)
+        {
+            unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.DefineObjectMethod, nameIndex));
+            return;
+        }
+
+        unified.Add(new UnifiedBytecodeInstruction(
+            UnifiedBytecodeOpCode.DefineObjectAccessor,
+            EncodeObjectAccessorOperand(nameIndex, operation.AccessorKind)));
+    }
+
+    private static void AppendComputedObjectMethodOrAccessorDefinition(
+        PackedExpressionOp operation,
+        ImmutableArray<UnifiedBytecodeInstruction>.Builder unified)
+    {
+        if (operation.Kind == ExpressionOpKind.DefineComputedObjectMethod)
+        {
+            unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.DefineComputedObjectMethod));
+            return;
+        }
+
+        unified.Add(new UnifiedBytecodeInstruction(
+            UnifiedBytecodeOpCode.DefineComputedObjectAccessor,
+            EncodeObjectAccessorOperand(0, operation.AccessorKind)));
     }
 
     private static bool TryAppendSimpleLiteralValueOperandSpan(
@@ -15900,6 +16083,7 @@ internal static class UnifiedBytecodeCompiler
         ImmutableArray<UnifiedBytecodeInstruction>.Builder unified,
         ImmutableArray<JsValue>.Builder literalConstants,
         ImmutableArray<string>.Builder stringConstants,
+        ImmutableArray<FunctionLiteralDescriptor>.Builder functionLiteralConstants,
         out string reason)
     {
         // Handles: [ActivationResolvedValue, GetNamedProperty+, RHS, ProductionBinary]
@@ -16063,7 +16247,8 @@ internal static class UnifiedBytecodeCompiler
                 if (!TryAppendSimpleObjectLiteralSpan(
                         expressionProgram, rhsStart, activationSlots, unified, literalConstants, stringConstants,
                         callTargetConstants: null, slotLayout: null,
-                        out var objSpanLen, out reason) ||
+                        out var objSpanLen, out reason,
+                        functionLiteralConstants: functionLiteralConstants) ||
                     rhsStart + objSpanLen - 1 != rhsEnd)
                 {
                     reason = reason.Length == 0 ? "Object literal RHS span does not match expected boundary." : reason;

@@ -247,6 +247,26 @@ all-or-nothing until a separate routing issue proves production readiness.
     probe leaked a partial `box.child` prefix before a computed delete fallback
     emitted the real delete path. Related ADR:
     `docs/adrs/0358-keep-private-receiver-prefix-read-admission-speculative-and-rollback-safe.md`.
+9i. Keep nested simple operand-span admission bounded, mirrored, and
+    dependency-scoped. A nested binary, unary, `typeof`, logical-control, or
+    conditional operand span may route only when both
+    `UnifiedBytecodeProductionEligibility` and `UnifiedBytecodeCompiler` can
+    consume the same `endExclusive`-bounded region and emit only opcodes already
+    owned by the production VM. Split flat helpers from recursive helpers so a
+    simple flat span can still be used directly, while nested helpers prove that
+    each child consumes exactly its subregion before appending the parent op.
+    Compiler probes that emit while testing a bounded child region must roll
+    back every touched builder before trying the next fallback. Do not let this
+    A51k value-span lane recursively admit call neighbors, private-name
+    neighbors, dynamic lookup, assignment, update, delete, or other
+    side-effecting shapes; those remain owned by their existing dependency
+    families until a future proof pack changes them explicitly. WHY: Faktorial
+    issue
+    `planitem-planmanual1780730299657353000-unified-bytecode-remaining-burndown-03-com-e5b877aa15`
+    / PR #3345 admitted nested simple operand spans such as `(a + b) * (c ? d :
+    e)` and `typeof -(pick ? a : b)` after the bounded parser repair, while
+    keeping `a + helper()` declined as `CallDependency`. Related ADR:
+    `docs/adrs/0359-admit-nested-simple-operand-spans-through-bounded-recursive-walkers.md`.
 10. When invoking production unified bytecode from sync calls, keep the bridge
     slot-layout owned and fast-path ordered. The production unified route runs
     before direct specialized simple-return binary/chain shortcuts and the

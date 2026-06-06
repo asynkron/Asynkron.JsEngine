@@ -3869,6 +3869,9 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
             ExecutionPlan plan,
             JsValue newTarget)
         {
+            var canUseNonCapturingHomeObjectPath =
+                _homeObject is not null &&
+                !UnifiedBytecodeProductionEligibility.ContainsOrdinaryDynamicIdentifierDependency(plan);
             return !IsArrowFunction &&
                    newTarget.IsUndefined &&
                    !IsClassConstructor &&
@@ -3883,7 +3886,7 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                    _hasCapturedActivationInClosure &&
                    !_hasClosureWithObject &&
                    _lexicalThisEnvironment is null &&
-                   _homeObject is null &&
+                   (_homeObject is null || canUseNonCapturingHomeObjectPath) &&
                    PrivateNameScope is null &&
                    _capturedPrivateNameScopes.IsDefaultOrEmpty &&
                    _superConstructor is null &&

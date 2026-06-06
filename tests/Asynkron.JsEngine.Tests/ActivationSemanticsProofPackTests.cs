@@ -238,6 +238,53 @@ public sealed class ActivationSemanticsProofPackTests(ITestOutputHelper output) 
             static record => record.Message.Contains(UnifiedBytecodeProductionFastPathLog, StringComparison.Ordinal));
     }
 
+    [Fact(Timeout = 5000)]
+    public async Task ClassMethodCreatedInsideFunctionWithoutCapturedNames_UsesProductionUnifiedBytecode()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function make() {
+                return class {
+                    static seed = 41;
+                    static value() {
+                        return this.seed + 1;
+                    }
+                };
+            }
+
+            make().value();
+            """);
+
+        Assert.Equal(42d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=<anonymous> argc=0",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task ClassMethodCreatedInsideFunctionWithCapturedName_DoesNotUseNonCapturingHomeObjectPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function make(seed) {
+                return class {
+                    static value() {
+                        return seed + 1;
+                    }
+                };
+            }
+
+            make(41).value();
+            """);
+
+        Assert.Equal(42d, result);
+        Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=<anonymous>",
+                StringComparison.Ordinal));
+    }
+
     [Theory(Timeout = 5000)]
     [InlineData("""
         function probe(a) {

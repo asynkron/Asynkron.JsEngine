@@ -101,7 +101,10 @@ statement interpretation.
   identifier delete preserved as the class-body strict-error path), and whose field initializers,
   constructor bodies, and member bodies do not capture activation slots, including
   mixes with non-computed public fields/methods/accessors under the same
-  activation-safety rules, are resumable-admitted. The VM handler still delegates
+  activation-safety rules, and mixed public non-computed static fields plus
+  static methods/accessors when field initializers compile as standalone unified
+  bytecode and member/constructor bodies do not capture activation slots, are
+  resumable-admitted. The VM handler still delegates
   class-definition evaluation to lower-level class machinery that can run
   expression programs and static-block IR plans, and the remaining B24h/B24i
   shapes keep computed-super, computed-name
@@ -457,7 +460,10 @@ with non-computed public fields/methods/accessors under the same activation-safe
 rules, plus public non-computed static methods/accessors whose bodies do not
 capture activation slots and public non-computed static-field class literals with
 `extends` whose initializers compile as standalone unified bytecode and create no
-nested closure. Full bytecode execution is not done: class-literal creation still calls
+nested closure, plus mixed public non-computed static fields and static
+methods/accessors when static field initializers compile as standalone unified
+bytecode and member/constructor bodies do not capture activation slots. Full
+bytecode execution is not done: class-literal creation still calls
 class-definition machinery that resolves extends/computed names/field
 initializers through expression programs and static blocks through
 `ExecutionPlanRunner.RunScript`; `extends` expressions that read resumable
@@ -466,8 +472,8 @@ that environment bridge. The remaining B24h and B24i shapes remain declined by
 the resumable shape gate: computed names that use direct-eval/spread/construct/super
 or otherwise unadmitted call-target shapes, or create nested activation captures
 still stay outside B24h, and
-private/capturing public accessor neighbors and mixed static-member/static-field
-shapes remain outside the admitted B24 subsets.
+private/capturing public accessor neighbors and static-block-neighbor mixed
+static shapes remain outside the admitted B24 subsets.
 
 - `B24a:ClassExpressionConstructor`
 - `B24b:ClassExpressionInstanceFields`

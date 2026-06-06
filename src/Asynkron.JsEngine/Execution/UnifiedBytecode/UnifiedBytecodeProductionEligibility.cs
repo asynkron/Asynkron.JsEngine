@@ -2888,6 +2888,20 @@ internal static class UnifiedBytecodeProductionEligibility
             return false;
         }
 
+        if (TryAdmitB24MixedPublicStaticMemberAndFieldClassLiteral(
+                definition,
+                activationSlots,
+                out var mixedStaticCandidate,
+                out declineReason))
+        {
+            return true;
+        }
+
+        if (mixedStaticCandidate)
+        {
+            return false;
+        }
+
         if (TryAdmitB24PublicStaticMemberClassLiteral(
                 definition,
                 activationSlots,
@@ -4333,6 +4347,113 @@ internal static class UnifiedBytecodeProductionEligibility
 
         return definition.StaticElements.IsDefaultOrEmpty ||
                definition.StaticElements.Length == CountStaticFields(definition);
+    }
+
+    private static bool TryAdmitB24MixedPublicStaticMemberAndFieldClassLiteral(
+        ClassDefinition definition,
+        ActivationSlotShape activationSlots,
+        out bool candidate,
+        out string declineReason)
+    {
+        candidate = false;
+        declineReason = string.Empty;
+
+        if (definition.Fields.IsDefaultOrEmpty ||
+            definition.Members.IsDefaultOrEmpty ||
+            !definition.StaticBlocks.IsDefaultOrEmpty)
+        {
+            return false;
+        }
+
+        if (definition.StaticElements.IsDefaultOrEmpty ||
+            definition.StaticElements.Length != definition.Fields.Length)
+        {
+            return false;
+        }
+
+        foreach (var field in definition.Fields)
+        {
+            if (!field.IsStatic ||
+                field.IsPrivate ||
+                field.IsComputed)
+            {
+                return false;
+            }
+        }
+
+        foreach (var member in definition.Members)
+        {
+            if (!member.IsStatic ||
+                member.IsPrivate ||
+                member.IsComputed)
+            {
+                return false;
+            }
+        }
+
+        foreach (var element in definition.StaticElements)
+        {
+            if (element.Kind != ClassStaticElementKind.Field)
+            {
+                return false;
+            }
+        }
+
+        candidate = true;
+        if (FunctionCapturesActivationSlot(definition.Constructor, activationSlots, out var constructorCapturedName))
+        {
+            declineReason =
+                $"Class literal mixed static constructor body captures activation binding '{constructorCapturedName}' and is outside B24 until the materialized body environment route owns that dependency.";
+            return false;
+        }
+
+        foreach (var member in definition.Members)
+        {
+            if (FunctionCapturesActivationSlot(member.Function, activationSlots, out var capturedName))
+            {
+                declineReason =
+                    $"Class literal mixed static member body captures activation binding '{capturedName}' and is outside B24 until the materialized body environment route owns that dependency.";
+                return false;
+            }
+        }
+
+        var cache = ((IAstCacheable<ClassDefinitionProgramCache>)definition).GetOrCreateCache();
+        if (!cache.Succeeded)
+        {
+            declineReason =
+                $"Class literal mixed static field programs could not lower for B24 resumable production routing: {cache.FailureReason ?? "unknown failure"}.";
+            return false;
+        }
+
+        foreach (var initializerProgram in cache.FieldInitializerPrograms)
+        {
+            if (initializerProgram is null)
+            {
+                continue;
+            }
+
+            if (ExpressionProgramCreatesClosure(initializerProgram.Value))
+            {
+                declineReason =
+                    "Class literal mixed static field initializer creates a closure that needs the materialized class-definition environment route.";
+                return false;
+            }
+
+            if (UnifiedBytecodeCompiler.TryCompileStandaloneExpressionProgram(
+                    initializerProgram.Value,
+                    allowsDynamicIdentifiers: true,
+                    out _,
+                    out var initializerReason))
+            {
+                continue;
+            }
+
+            declineReason =
+                $"Class literal mixed static field initializer is outside B24 production routing: {initializerReason}";
+            return false;
+        }
+
+        return true;
     }
 
     private static bool TryAdmitB24PublicStaticMemberClassLiteral(

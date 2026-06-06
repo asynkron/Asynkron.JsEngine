@@ -9,11 +9,10 @@ namespace Asynkron.JsEngine.Tests;
 [Category(TestCategories.Debugging)]
 public sealed class BytecodeNonResidueDeclineRatchetTests
 {
-    private const int ExpectedKnownOpenNonResidueCount = 3;
+    private const int ExpectedKnownOpenNonResidueCount = 2;
 
     private static readonly string[] KnownOpenNonResidueDeclines =
     [
-        "A32_ChainedOptionalComputedDelete_Declines",
         "B23_B36_NestedFunctionDeclarationInResumable_Declines",
         "C3_TopLevelLexicalDestructuring_Declines"
     ];
@@ -95,7 +94,7 @@ public sealed class BytecodeNonResidueDeclineRatchetTests
             IsDynamicResidue: false,
             UnifiedBytecodeProductionDeclineCode.None),
         new(
-            "A32_ChainedOptionalComputedDelete_Declines",
+            "A32_ChainedOptionalComputedDelete_Admitted",
             """
             function d5A32(box, first, second) {
                 return delete box?.[first][second];
@@ -104,7 +103,7 @@ public sealed class BytecodeNonResidueDeclineRatchetTests
             SubjectKind.Function,
             "d5A32",
             IsDynamicResidue: false,
-            UnifiedBytecodeProductionDeclineCode.OptionalChainDependency),
+            UnifiedBytecodeProductionDeclineCode.None),
         new(
             "B8a_LexicalSlotAssignmentInResumable_Admitted",
             """
@@ -204,7 +203,7 @@ public sealed class BytecodeNonResidueDeclineRatchetTests
             IsDynamicResidue: true,
             UnifiedBytecodeProductionDeclineCode.CallDependency),
         new(
-            "D5_Residue_ResumableWithDynamicScope_Declines",
+            "D5_Residue_ResumableWithDynamicScope_Admitted",
             """
             function* d5ResumableWithDynamicScope(obj) {
                 with (obj) {
@@ -215,7 +214,7 @@ public sealed class BytecodeNonResidueDeclineRatchetTests
             SubjectKind.ResumableGenerator,
             "d5ResumableWithDynamicScope",
             IsDynamicResidue: true,
-            UnifiedBytecodeProductionDeclineCode.UnsupportedPlanShape),
+            UnifiedBytecodeProductionDeclineCode.None),
         new(
             "D5_Residue_AwaitedWithObject_Declines",
             """

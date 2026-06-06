@@ -85,8 +85,8 @@ Status: ☐ declined · ◐ partial · ☑ admitted (parity work remains on othe
 - [x] **A28** Optional-chain named read beyond single hop `a?.b?.c` — *OptionalChainDependency* — ◐/◐ — `:1464` ✅ #3161
 - [x] **A29** Optional-chain computed read beyond admitted `a?.[k]?.[j]` — *OptionalChainDependency* — ◐/◐ — `:1689` ✅ #3162
 - [x] **A30** Optional member/computed call beyond admitted `a?.b?.c()`, `o?.[k]()` — *OptionalChainDependency* — ◐/◐ — `:1232` ✅ #3165
-- [x] **A31** Optional short-circuit guard outside admitted spans — *OptionalChainDependency* — ◐/☐ — `:1992` ✅ (commit 7bb14bfbb): standalone multi-hop optional named/computed reads route; named and computed second-hop call arguments route (`fn(box?.value?.nested)`, `fn(box?.child?.value)`, `fn(box?.[key]?.[key])`, `fn(box?.[key]?.value)`, `fn(box?.prop?.[key])`). Remaining concrete `OptionalChainDependency` tests are owned by other rows: chained optional delete (A32) and the documented resumable-only optional-computed-hop call boundary.
-- [ ] **A32** Optional-chain delete chained `delete a?.b?.c` — *OptionalChainDependency* — ☐/☐ — `:1619` — ⚠️ FOUNDATION: ExpressionProgram IR is lossy for optional-chain deletes (terminal-hop optionality not encoded; `delete a?.b?.c` == `delete a?.b.c` in bytecode). Needs an IR-lowering change preserving terminal-hop optionality (broad blast radius, both interpreter + VM). Not a sync-route slice.
+- [x] **A31** Optional short-circuit guard outside admitted spans — *OptionalChainDependency* — ◐/☐ — `:1992` ✅ (commit 7bb14bfbb): standalone multi-hop optional named/computed reads route; named and computed second-hop call arguments route (`fn(box?.value?.nested)`, `fn(box?.child?.value)`, `fn(box?.[key]?.[key])`, `fn(box?.[key]?.value)`, `fn(box?.prop?.[key])`). The remaining documented concrete `OptionalChainDependency` sync delete lane is now covered by A32; resumable-only optional-computed-hop calls remain a plan-walk decline.
+- [x] **A32** Optional-chain delete chained `delete a?.b?.c` / `delete a?.[k1][k2]` — *OptionalChainDependency* — ◐/◐ — `:1619` ✅ (Codex): optional-delete shapes now route through production unified bytecode for terminal optional named deletes (`delete box?.value?.leaf`), non-terminal optional named deletes (`delete box?.value.leaf`), terminal optional computed deletes (`delete box?.[key]`, `delete box?.child?.[key]`), and optional computed-read receiver plus terminal computed delete (`delete box?.[first][second]`). Nullish short-circuit returns `true` without evaluating later key spans; present-path deletes and null-intermediate TypeErrors stay VM-owned.
 - [x] **A33** Array spread non-simple source `[...f().items]`, `[...gen()]` — *ObjectLiteralOrSpreadDependency* — ◐/◐ — `:2014` ✅ #3166
 - [x] **A34** Object spread non-simple source `{...f()}` — *ObjectLiteralOrSpreadDependency* — ◐/◐ — `:2036` ✅ #3167
 - [x] **A35a** Computed data property object literal (`DefineComputedObjectProperty`) — *ObjectLiteralOrSpreadDependency* — ☑/☑ — `:2019` ✅ computed keys/values route in sync and resumable literal spans; non-admitted key/value sub-shapes stay owned by their underlying dependency rows.
@@ -202,7 +202,7 @@ these allowlists — mechanical extensions against existing sync VM handlers.
 - [x] **D2** eval-injected runtime binding quarantine — ✅ (Codex): direct-eval literal sources containing `var` / `let` / `const` / `function` / `class` declarations decline with `CallDependency`, identifier-loaded eval source stays on the IR/eval path and computes correctly, and declaration-free `eval("local")` / non-injecting direct eval still route through the production fast path. Proof anchors: `Evaluate_DirectEvalDeclarationLiteral_DeclinesEvalInjectedRuntimeBinding`, `Evaluate_DirectEvalIdentifierSourceWithDynamicRead_DeclinesEvalInjectedRuntimeBinding`, `DirectEvalDeclarationDynamicLookup_StaysOnIrPath`, `DirectEvalIdentifierSourceWithRuntimeBinding_StaysOnIrPath`, `DirectEvalIdentifierCall_UsesCallerEnvironmentOnProductionFastPath`, and `DirectEvalThenOrdinaryDynamicReadStoreCall_UsesUnifiedBytecodeProductionFastPath`.
 - [x] **D3** `with` quarantine boundary ✅ (Codex): non-awaited sync and resumable `with (obj)` bodies are admitted through the VM-owned current-environment lane. The remaining D3 residue is awaited with-object evaluation and live `with` scopes outside that persisted-current-environment model; `EvaluateResumable` declines awaited `EnterWithInstruction.AwaitedProgram` with explicit D3 wording.
 - [x] **D4** `Function(...)` produced-body quarantine (body recurses into gate) ✅ (Codex): dynamic `Function` / `new Function` produced bodies now carry an explicit origin marker and are declined before the sync production unified-bytecode route, while the ordinary construction/call boundary and adjacent non-dynamic functions remain eligible. Pinned by `DynamicFunctionConstructorQuarantineTests.NewFunctionProducedBody_StaysOffProductionUnifiedBytecodeButOrdinaryFunctionStillRoutes`.
-- [ ] **D5** Standing CI gate: assert no `isDynamicResidue=false` decline ever fires on the corpus
+- [x] **D5** Standing CI gate: assert no `isDynamicResidue=false` decline ever fires on the corpus ✅ (Codex): `BytecodeNonResidueDeclineRatchetTests` pins the non-residue corpus and known-open count. The ratchet now admits the optional computed delete row and the stale non-awaited resumable `with` dynamic-residue row, leaving only the explicit B23/B36 nested declaration and C3 lexical destructuring non-residue rows.
 
 ## Phase E — Retire the fallback tiers (6 items)
 
@@ -220,26 +220,21 @@ these allowlists — mechanical extensions against existing sync VM handlers.
 | Phase | Items | Notes |
 |---|---:|---|
 | 0 — Make list finite | 5 | 5 complete / 0 open; Phase 0 inventory closure is complete |
-| A — Sync admission | 69 | 52 complete / 17 open; by decline code / promoted compiler leaf |
+| A — Sync admission | 69 | 53 complete / 16 open; by decline code / promoted compiler leaf |
 | B — Resumable parity + suspension | 57 | 52 complete / 5 open; class-expression decomposition added B24a-B24i |
 | C — Script route | 3 | 3 complete / 0 open; closes mostly via A/B |
-| D — Dynamic quarantine | 5 | 4 complete / 1 open; D1-D4 now pin terminal dynamic-residue boundaries |
+| D — Dynamic quarantine | 5 | 5 complete / 0 open; D1-D5 now pin terminal dynamic-residue boundaries |
 | E — Retire tiers | 6 | 3 complete / 3 open; E2/E3 = P0.2/P0.3 |
 | **Total** | **145** | finite current burn-down list after Phase 0 decomposition; future source drift must update audited inventories |
 
-**Status (134 concrete A+B+C+D checklist items):** 111 complete / 23 open. **The remaining non-retirement work is now concentrated in activation/dynamic residue boundaries, A51 compiler leaves, class-expression static/computed/super-neighbor rows, B23/B36 nested function/declaration contexts, optional chained delete, and D5.**
+**Status (134 concrete A+B+C+D checklist items):** 113 complete / 21 open. **The remaining non-retirement work is now concentrated in activation/dynamic residue boundaries, A51 compiler leaves, class-expression static/computed/super-neighbor rows, and B23/B36 nested function/declaration contexts.**
 
-Final proof evidence (2026-06-06): the focused contract and unified proof packs
-passed (`ExpressionProgramCoverageMapTests` 14, production eligibility 586,
-prototype 73, production invocation 557), the runner AST-eval seam scan returned
-no matches, and representative route-hit probes remained nonzero (`forloop` 40,
-`propertyaccess` 20, `functioncalls-lite` 1,600,002, `activation-noargs-lite`
-600,002, `forofiteration` 2,000). `forloop --memory` reported 6.93 MB total
-allocated. The default Test262 regression script selected 1,910 generated cases
-from the 523-entry `full` pack; 1,906 passed and 4 failed in the strict/non-strict
-Intl DateTimeFormat temporal resolved-time-zone rows (`formatRangeToParts` and
-`formatToParts`). No proof result reintroduced a non-residue discard-specific
-production decline.
+Final proof evidence (2026-06-06, A32/D5 slice): production eligibility 586,
+delete-focused production invocation 32, first-boundary stack-depth guard 20,
+`ExpressionProgramCoverageMapTests` 14, and `BytecodeNonResidueDeclineRatchetTests`
+20 all passed. `git diff --check` was clean, the runner AST-eval seam scan returned
+no matches, and `forloop --memory` reported 6.96 MB total allocated. No proof result
+reintroduced a non-residue discard-specific production decline.
 
 ## Known soft spots
 1. **Named compiler-decline leaves** (A51a-A51m/B47a) are now source-inventoried in the expansion contract; future `TryCompile` reason drift must update that contract and the focused source gate.
@@ -247,4 +242,4 @@ production decline.
 
 ---
 
-_Checklist status: 119 / 145 complete. The latest inventory slice admits non-awaited resumable `with` through a persisted current environment. Phase B stands at 52 / 57 complete. B23 remains partial for nested declarations inside literals; B36 remains partial for dynamic/eval helpers and complex class declarations. The resumable opcode gap inventory is 5, and the instruction gap inventory is 0._
+_Checklist status: 121 / 145 complete. The latest slice admits the remaining concrete optional-chain delete lanes and closes the D5 non-residue ratchet gate. Phase B stands at 52 / 57 complete. B23 remains partial for nested declarations inside literals; B36 remains partial for dynamic/eval helpers and complex class declarations. The resumable opcode gap inventory is 5, and the instruction gap inventory is 0._

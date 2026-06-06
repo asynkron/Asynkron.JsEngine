@@ -4477,6 +4477,22 @@ internal static class UnifiedBytecodeCompiler
             return false;
         }
 
+        if (TryAppendFirstBoundaryOptionalNamedThenNamedPropertyDelete(
+                expressionProgram,
+                activationSlots,
+                unified,
+                literalConstants,
+                stringConstants,
+                out reason))
+        {
+            return true;
+        }
+
+        if (!string.IsNullOrEmpty(reason))
+        {
+            return false;
+        }
+
         if (TryAppendFirstBoundaryOptionalNamedThenOptionalNamedPropertyDelete(
                 expressionProgram,
                 activationSlots,
@@ -14133,6 +14149,122 @@ internal static class UnifiedBytecodeCompiler
         return true;
     }
 
+    // Handles delete a?.b.c and delete a.b?.c.d. The source expression program carries an optional
+    // named receiver hop followed by a flag-only short-circuit guard before the terminal named delete.
+    private static bool TryAppendFirstBoundaryOptionalNamedThenNamedPropertyDelete(
+        ExpressionProgram expressionProgram,
+        ActivationSlotShape activationSlots,
+        ImmutableArray<UnifiedBytecodeInstruction>.Builder unified,
+        ImmutableArray<JsValue>.Builder literalConstants,
+        ImmutableArray<string>.Builder stringConstants,
+        out string reason)
+    {
+        if (expressionProgram.OperationCount < 7)
+        {
+            reason = string.Empty;
+            return false;
+        }
+
+        var expressionStringConstants = expressionProgram.StringConstants.AsSpan();
+        var optionalHopIndex = 1;
+        while (optionalHopIndex < expressionProgram.OperationCount)
+        {
+            var operation = expressionProgram.GetOperation(optionalHopIndex);
+            if (operation.Kind != ExpressionOpKind.GetNamedProperty ||
+                operation.IsOptional ||
+                operation.ShortCircuitOnNullishTarget ||
+                operation.GetString(expressionStringConstants).IsPrivateName())
+            {
+                break;
+            }
+
+            optionalHopIndex++;
+        }
+
+        if (optionalHopIndex >= expressionProgram.OperationCount)
+        {
+            reason = string.Empty;
+            return false;
+        }
+
+        var optionalHop = expressionProgram.GetOperation(optionalHopIndex);
+        var jumpIndex = optionalHopIndex + 1;
+        var deleteIndex = expressionProgram.OperationCount - 4;
+        var endJumpIndexInProgram = expressionProgram.OperationCount - 3;
+        var popIndex = expressionProgram.OperationCount - 2;
+        var trueIndex = expressionProgram.OperationCount - 1;
+        var deleteProperty = expressionProgram.GetOperation(deleteIndex);
+        if (deleteIndex != jumpIndex + 1 ||
+            optionalHop.Kind != ExpressionOpKind.GetNamedProperty ||
+            !optionalHop.IsOptional ||
+            optionalHop.ShortCircuitOnNullishTarget ||
+            optionalHop.GetString(expressionStringConstants).IsPrivateName() ||
+            expressionProgram.GetOperation(jumpIndex) is not { Kind: ExpressionOpKind.JumpIfShortCircuited } jumpIfShortCircuited ||
+            jumpIfShortCircuited.Target != popIndex ||
+            deleteProperty.Kind != ExpressionOpKind.DeleteNamedProperty ||
+            deleteProperty.GetString(expressionStringConstants).IsPrivateName() ||
+            expressionProgram.GetOperation(endJumpIndexInProgram).Kind != ExpressionOpKind.Jump ||
+            expressionProgram.GetOperation(endJumpIndexInProgram).Target != expressionProgram.OperationCount ||
+            expressionProgram.GetOperation(popIndex).Kind != ExpressionOpKind.Pop ||
+            !IsTrueLiteral(expressionProgram, trueIndex))
+        {
+            reason = string.Empty;
+            return false;
+        }
+
+        var unifiedCount = unified.Count;
+        var literalCount = literalConstants.Count;
+        var stringCount = stringConstants.Count;
+
+        if (!TryAppendActivationValueLoad(
+                expressionProgram.GetOperation(0),
+                expressionProgram,
+                activationSlots,
+                unified,
+                out reason))
+        {
+            RollBackUnifiedBuilder(unified, unifiedCount);
+            RollBackUnifiedBuilder(literalConstants, literalCount);
+            RollBackUnifiedBuilder(stringConstants, stringCount);
+            return false;
+        }
+
+        for (var index = 1; index < optionalHopIndex; index++)
+        {
+            var propertyRead = expressionProgram.GetOperation(index);
+            var propertyNameIndex = stringConstants.Count;
+            stringConstants.Add(propertyRead.GetString(expressionStringConstants));
+            unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.GetNamedProperty, propertyNameIndex));
+        }
+
+        var optionalPropertyNameIndex = stringConstants.Count;
+        stringConstants.Add(optionalHop.GetString(expressionStringConstants));
+        unified.Add(new UnifiedBytecodeInstruction(
+            UnifiedBytecodeOpCode.GetNamedPropertyOptional,
+            optionalPropertyNameIndex));
+
+        var shortCircuitJumpIndex = unified.Count;
+        unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.JumpIfShortCircuited, 0));
+
+        var deleteNameIndex = stringConstants.Count;
+        stringConstants.Add(deleteProperty.GetString(expressionStringConstants));
+        unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.DeleteNamedProperty, deleteNameIndex));
+        var endJumpIndex = unified.Count;
+        unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.Jump, 0));
+
+        var shortCircuitIndex = unified.Count;
+        unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.Pop));
+        AddTrueLiteral(unified, literalConstants);
+
+        unified[shortCircuitJumpIndex] = new UnifiedBytecodeInstruction(
+            UnifiedBytecodeOpCode.JumpIfShortCircuited,
+            shortCircuitIndex);
+        unified[endJumpIndex] = new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.Jump, unified.Count);
+
+        reason = string.Empty;
+        return true;
+    }
+
     // Handles delete a?.b?.c and delete a.b?.c?.d. The source expression program carries an optional
     // named receiver hop followed by the terminal optional-delete guard.
     private static bool TryAppendFirstBoundaryOptionalNamedThenOptionalNamedPropertyDelete(
@@ -14257,6 +14389,22 @@ internal static class UnifiedBytecodeCompiler
         ImmutableArray<string>.Builder stringConstants,
         out string reason)
     {
+        if (TryAppendFirstBoundaryOptionalComputedReadThenComputedPropertyDelete(
+                expressionProgram,
+                activationSlots,
+                unified,
+                literalConstants,
+                stringConstants,
+                out reason))
+        {
+            return true;
+        }
+
+        if (!string.IsNullOrEmpty(reason))
+        {
+            return false;
+        }
+
         if (TryAppendFirstBoundaryOptionalNamedThenComputedPropertyDelete(
                 expressionProgram,
                 activationSlots,
@@ -14296,6 +14444,161 @@ internal static class UnifiedBytecodeCompiler
             literalConstants,
             stringConstants,
             out reason);
+    }
+
+    // Handles delete a?.[k1][k2]. A nullish base skips both key spans and returns true; a present base
+    // evaluates k1 before the receiver read, then k2 before the terminal delete.
+    private static bool TryAppendFirstBoundaryOptionalComputedReadThenComputedPropertyDelete(
+        ExpressionProgram expressionProgram,
+        ActivationSlotShape activationSlots,
+        ImmutableArray<UnifiedBytecodeInstruction>.Builder unified,
+        ImmutableArray<JsValue>.Builder literalConstants,
+        ImmutableArray<string>.Builder stringConstants,
+        out string reason)
+    {
+        if (expressionProgram.OperationCount < 9)
+        {
+            reason = string.Empty;
+            return false;
+        }
+
+        var expressionStringConstants = expressionProgram.StringConstants.AsSpan();
+        var jumpIndex = 1;
+        while (jumpIndex < expressionProgram.OperationCount)
+        {
+            var operation = expressionProgram.GetOperation(jumpIndex);
+            if (operation.Kind != ExpressionOpKind.GetNamedProperty ||
+                operation.IsOptional ||
+                operation.ShortCircuitOnNullishTarget ||
+                operation.GetString(expressionStringConstants).IsPrivateName())
+            {
+                break;
+            }
+
+            jumpIndex++;
+        }
+
+        var deleteIndex = expressionProgram.OperationCount - 4;
+        var endJumpIndexInProgram = expressionProgram.OperationCount - 3;
+        var popIndex = expressionProgram.OperationCount - 2;
+        var trueIndex = expressionProgram.OperationCount - 1;
+        if (expressionProgram.GetOperation(jumpIndex) is not
+                { Kind: ExpressionOpKind.JumpIfNullish, ReplaceWithUndefined: true } jumpIfNullish ||
+            jumpIfNullish.Target <= jumpIndex + 1 ||
+            jumpIfNullish.Target >= deleteIndex ||
+            expressionProgram.GetOperation(jumpIfNullish.Target) is not { Kind: ExpressionOpKind.JumpIfShortCircuited } jumpIfShortCircuited ||
+            jumpIfShortCircuited.Target != popIndex ||
+            expressionProgram.GetOperation(deleteIndex).Kind != ExpressionOpKind.DeleteComputedProperty ||
+            expressionProgram.GetOperation(endJumpIndexInProgram).Kind != ExpressionOpKind.Jump ||
+            expressionProgram.GetOperation(endJumpIndexInProgram).Target != expressionProgram.OperationCount ||
+            expressionProgram.GetOperation(popIndex).Kind != ExpressionOpKind.Pop ||
+            !IsTrueLiteral(expressionProgram, trueIndex))
+        {
+            reason = string.Empty;
+            return false;
+        }
+
+        var computedReadIndex = jumpIfNullish.Target - 1;
+        if (computedReadIndex <= jumpIndex + 1 ||
+            expressionProgram.GetOperation(computedReadIndex).Kind != ExpressionOpKind.GetComputedProperty ||
+            !IsSupportedComputedPropertyKeySpan(
+                expressionProgram,
+                activationSlots,
+                startInclusive: jumpIndex + 1,
+                endExclusive: computedReadIndex) ||
+            !IsSupportedComputedPropertyKeySpan(
+                expressionProgram,
+                activationSlots,
+                startInclusive: jumpIfNullish.Target + 1,
+                endExclusive: deleteIndex))
+        {
+            reason = string.Empty;
+            return false;
+        }
+
+        var unifiedCount = unified.Count;
+        var literalCount = literalConstants.Count;
+        var stringCount = stringConstants.Count;
+
+        if (!TryAppendActivationValueLoad(
+                expressionProgram.GetOperation(0),
+                expressionProgram,
+                activationSlots,
+                unified,
+                out reason))
+        {
+            RollBackUnifiedBuilder(unified, unifiedCount);
+            RollBackUnifiedBuilder(literalConstants, literalCount);
+            RollBackUnifiedBuilder(stringConstants, stringCount);
+            return false;
+        }
+
+        for (var index = 1; index < jumpIndex; index++)
+        {
+            var propertyRead = expressionProgram.GetOperation(index);
+            var propertyNameIndex = stringConstants.Count;
+            stringConstants.Add(propertyRead.GetString(expressionStringConstants));
+            unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.GetNamedProperty, propertyNameIndex));
+        }
+
+        var nullishJumpIndex = unified.Count;
+        unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.JumpIfNullishReplaceUndefined, 0));
+
+        if (!TryAppendComputedPropertyKeySpan(
+                expressionProgram,
+                activationSlots,
+                unified,
+                literalConstants,
+                stringConstants,
+                startInclusive: jumpIndex + 1,
+                endExclusive: computedReadIndex,
+                out reason))
+        {
+            RollBackUnifiedBuilder(unified, unifiedCount);
+            RollBackUnifiedBuilder(literalConstants, literalCount);
+            RollBackUnifiedBuilder(stringConstants, stringCount);
+            return false;
+        }
+
+        unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.GetComputedProperty));
+
+        var shortCircuitJumpIndex = unified.Count;
+        unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.JumpIfShortCircuited, 0));
+
+        if (!TryAppendComputedPropertyKeySpan(
+                expressionProgram,
+                activationSlots,
+                unified,
+                literalConstants,
+                stringConstants,
+                startInclusive: jumpIfNullish.Target + 1,
+                endExclusive: deleteIndex,
+                out reason))
+        {
+            RollBackUnifiedBuilder(unified, unifiedCount);
+            RollBackUnifiedBuilder(literalConstants, literalCount);
+            RollBackUnifiedBuilder(stringConstants, stringCount);
+            return false;
+        }
+
+        unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.DeleteComputedProperty));
+        var endJumpIndex = unified.Count;
+        unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.Jump, 0));
+
+        var shortCircuitIndex = unified.Count;
+        unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.Pop));
+        AddTrueLiteral(unified, literalConstants);
+
+        unified[nullishJumpIndex] = new UnifiedBytecodeInstruction(
+            UnifiedBytecodeOpCode.JumpIfNullishReplaceUndefined,
+            shortCircuitJumpIndex);
+        unified[shortCircuitJumpIndex] = new UnifiedBytecodeInstruction(
+            UnifiedBytecodeOpCode.JumpIfShortCircuited,
+            shortCircuitIndex);
+        unified[endJumpIndex] = new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.Jump, unified.Count);
+
+        reason = string.Empty;
+        return true;
     }
 
     // Handles delete a?.b[k]. The source expression program carries the optional named hop and a

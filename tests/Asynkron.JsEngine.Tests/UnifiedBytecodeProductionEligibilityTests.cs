@@ -3219,10 +3219,8 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
-    public void Evaluate_DeepOptionalComputedDeleteChain_DeclinesAsOptionalChain()
+    public void Evaluate_OptionalComputedReadThenComputedDeleteChain_AcceptsOwnedPropertyOpcodes()
     {
-        // Optional hops in the deep chain are NOT admitted by the deep-delete walker; they stay on
-        // the dedicated optional-delete candidates / IR runner.
         var plan = GetFunctionPlan("""
             function remove(box, k1, k2) {
                 return delete box?.[k1][k2];
@@ -3234,8 +3232,14 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
             plan,
             new UnifiedBytecodeProductionActivationDescriptor());
 
-        Assert.False(result.IsEligible);
-        Assert.Equal(UnifiedBytecodeProductionDeclineCode.OptionalChainDependency, result.Code);
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.JumpIfNullishReplaceUndefined);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.GetComputedProperty);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.DeleteComputedProperty);
     }
 
     [Fact]
@@ -3317,7 +3321,7 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
-    public void Evaluate_NonTerminalOptionalNamedPropertyDelete_DeclinesAsOptionalChain()
+    public void Evaluate_NonTerminalOptionalNamedPropertyDelete_AcceptsOwnedPropertyOpcodes()
     {
         var plan = GetFunctionPlan("""
             function remove(box) {
@@ -3330,8 +3334,14 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
             plan,
             new UnifiedBytecodeProductionActivationDescriptor());
 
-        Assert.False(result.IsEligible);
-        Assert.Equal(UnifiedBytecodeProductionDeclineCode.OptionalChainDependency, result.Code);
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.GetNamedPropertyOptional);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.JumpIfShortCircuited);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.DeleteNamedProperty);
     }
 
     [Theory]

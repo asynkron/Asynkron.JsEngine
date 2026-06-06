@@ -65,10 +65,14 @@ public sealed class UnifiedBytecodeFirstBoundaryStackDepthGuardTests(ITestOutput
         yield return Shape("f", "function f(o, k) { return o?.[k].a; }");
         // OptionalNamedPropertyDelete: delete base?.a
         yield return Shape("f", "function f(o) { return delete o?.a; }");
+        // OptionalNamedThenNamedPropertyDelete: delete base?.a.b
+        yield return Shape("f", "function f(o) { return delete o?.a.b; }");
         // OptionalNamedThenComputedPropertyDelete: delete base?.a[k]
         yield return Shape("f", "function f(o, k) { return delete o?.a[k]; }");
         // OptionalComputedPropertyDeleteWithJump: delete base?.[k]
         yield return Shape("f", "function f(o, k) { return delete o?.[k]; }");
+        // OptionalComputedReadThenComputedPropertyDelete: delete base?.[k1][k2]
+        yield return Shape("f", "function f(o, k1, k2) { return delete o?.[k1][k2]; }");
     }
 
     [Theory]

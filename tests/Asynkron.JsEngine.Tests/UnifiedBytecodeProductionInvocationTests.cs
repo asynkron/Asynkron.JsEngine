@@ -7603,7 +7603,39 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     }
 
     [Fact(Timeout = 5000)]
-    public async Task NonTerminalOptionalNamedPropertyDelete_NullIntermediateStillThrows()
+    public async Task NonTerminalOptionalNamedPropertyDelete_UsesUnifiedBytecodeProductionFastPathAndNullIntermediateStillThrows()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            var threw = false;
+            function remove(box) {
+                return delete box?.value.leaf;
+            }
+
+            var value = { leaf: 42 };
+            var removed = remove({ value: value });
+            var skipped = remove(null);
+            try {
+                remove({ value: null });
+            } catch (e) {
+                threw = e instanceof TypeError;
+            }
+
+            removed + "|" +
+                skipped + "|" +
+                threw + "|" +
+                Object.prototype.hasOwnProperty.call(value, "leaf");
+            """);
+
+        Assert.Equal("true|true|true|false", result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=remove argc=1",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task NonTerminalOptionalNamedPropertyDelete_NullIntermediateThrowRemainsCatchable()
     {
         await using var engine = CreateEngine();
         await Assert.ThrowsAnyAsync<Exception>(async () =>
@@ -7882,6 +7914,45 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
         Assert.Contains(CurrentLogger!.Collector.Snapshot(),
             static record => record.Message.Contains(
                 "unified-bytecode-production-fast-path func=remove argc=2",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task OptionalComputedReadThenComputedPropertyDelete_UsesUnifiedBytecodeProductionFastPathAndSkipsNullishKeys()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            var hits = "";
+            var firstKey = {
+                toString() {
+                    hits += "first,";
+                    return "child";
+                }
+            };
+            var secondKey = {
+                toString() {
+                    hits += "second,";
+                    return "value";
+                }
+            };
+
+            function remove(box, k1, k2) {
+                return delete box?.[k1][k2];
+            }
+
+            var child = { value: 42 };
+            var removed = remove({ child: child }, firstKey, secondKey);
+            var skipped = remove(null, firstKey, secondKey);
+            removed + "|" +
+                skipped + "|" +
+                hits + "|" +
+                Object.prototype.hasOwnProperty.call(child, "value");
+            """);
+
+        Assert.Equal("true|true|first,second,|false", result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=remove argc=3",
                 StringComparison.Ordinal));
     }
 

@@ -114,6 +114,24 @@ public sealed class UnifiedBytecodeProductionObjectSpreadNonSimpleSourceTests(IT
     }
 
     [Fact(Timeout = 5000)]
+    public async Task MethodThenTrailingSpreadInFirstBoundaryObjectLiteralRhs_UsesProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            var log = [];
+            function compare(extra) {
+                return this.value === { m() { return 1; }, ...extra };
+            }
+
+            compare({ get a() { log.push("a"); return 2; } });
+            log.join(",");
+            """);
+
+        Assert.Equal("a", result?.ToString());
+        AssertRouted("compare", 1);
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task NonSimpleSpreadSource_InvokesGettersInSourceOrder()
     {
         await using var engine = CreateEngine();

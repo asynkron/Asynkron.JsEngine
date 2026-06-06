@@ -363,24 +363,24 @@ all-or-nothing until a separate routing issue proves production readiness.
      through that same `PendingAwait` bridge. Awaited delegated sources may route
      when the source expression lowers to `AwaitValue` before the existing
      `YieldStar` driver, so `yield* await ...` must use the same resumable
-     async-generator settlement path instead of the IR runner. Declined
-     async-generator bodies still use the explicitly classified
-     `CreateClassifiedAsyncGeneratorDeclinedBodyRunner` fallback until the VM
-     owns their semantics; non-simple parameter lists, captured hoisted helpers,
-     and other route-ineligible bodies must continue settling through that path.
-     Future widening must pair public route-hit tests with nearby public
-     declined-neighbor settlement tests and source gates proving the accepted
-     step body and `UnifiedBytecodeVirtualMachine` do not delegate back to
-     `ExecutionPlanRunner`, `ExpressionProgram`, or AST/expression evaluation
-     bridges. Retained `ExecutionPlanRunner.AsyncGeneratorStepResult`
-     references are adapter types, and the classified declined-body helper is
-     the only async-generator runner construction surface. If a source gate
-     scans the whole invoker, remove only the exact classified fallback field,
-     factory, resume-mode mapper, and runner dispatch markers before enforcing
-     accepted-route no-delegation; do not replace the guard with broad
-     `ExecutionPlanRunner` allowances. Do not treat direct-yield or delegated
-     `yield*` admission as broad async-generator support or add VM fallback into
-     those existing evaluators.
+     async-generator settlement path instead of the IR runner. The remaining
+     `AsyncGeneratorInvoker` runner fallback is now retired: when
+     `EvaluateResumable` declines an async-generator body, initialization must
+     fail with an explicit unsupported-route reason instead of constructing
+     `CreateClassifiedAsyncGeneratorDeclinedBodyRunner`. Non-simple parameter
+     lists, destructuring forms, and any other route-ineligible async-generator
+     shapes stay explicit rejections until resumable invocation owns their
+     semantics, such as IteratorBindingInitialization. Future widening must pair
+     public route-hit tests with nearby public unsupported-route tests and
+     source gates proving the invoker no longer constructs runner fallbacks
+     while the accepted step body and `UnifiedBytecodeVirtualMachine` do not
+     delegate back to `ExecutionPlanRunner`, `ExpressionProgram`, or
+     AST/expression evaluation bridges. Retained
+     `ExecutionPlanRunner.AsyncGeneratorStepResult` references are adapter
+     types; do not reintroduce runner construction or replace the guard with
+     broad `ExecutionPlanRunner` allowances. Do not treat direct-yield,
+     delegated `yield*`, or captured-helper admission as broad async-generator
+     support, and do not add VM fallback into those existing evaluators.
      WHY: issue
      #3135 / PR #3142 added the first async-generator resumable route and kept
      delegated async-generator `yield*` declined until a later slice owned
@@ -427,9 +427,18 @@ all-or-nothing until a separate routing issue proves production readiness.
      generic resumable activation decision; keep `AsyncGeneratorInvoker` on the
      conservative direct-eval decline until a future async-generator-specific
      proof changes that flag and pins the declined neighbor.
+     Faktorial issue
+     `planitem-planmanual1780730299657353000-unified-bytecode-remaining-burndown-05-fal-ca5d6207cf`
+     / PR #3362 superseded the classified declined-body fallback boundary after
+     the async-generator route had widened enough for E6 retirement. The
+     delivery deleted the async-generator runner fallback and the quality-gate
+     repair aligned broad async-generator tests to assert explicit
+     unsupported-route rejection for route-ineligible neighbors instead of
+     legacy settlement through `ExecutionPlanRunner`.
      Related ADRs:
      `docs/adrs/0349-keep-declined-async-generator-bodies-on-classified-runner-fallback.md`,
-     `docs/adrs/0352-keep-resumable-direct-eval-admission-route-family-scoped.md`.
+     `docs/adrs/0352-keep-resumable-direct-eval-admission-route-family-scoped.md`,
+     `docs/adrs/0363-retire-async-generator-runner-fallback-with-explicit-route-rejections.md`.
 10e. When admitting resumable generator or async shapes that contain nested
      function literals or `try/finally` cleanup, prove the surrounding
      suspension context, not only the direct opcode allowlist. A nested function

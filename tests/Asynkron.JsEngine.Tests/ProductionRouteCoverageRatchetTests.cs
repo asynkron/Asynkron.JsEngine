@@ -219,6 +219,9 @@ public sealed class ProductionRouteCoverageRatchetTests(ITestOutputHelper output
     [InlineData("function* g(){ yield [1,2]; } g().next();", "unified-bytecode-resumable-generator-fast-path func=g")]
     [InlineData("function* g(){ yield new.target; } g().next();", "unified-bytecode-resumable-generator-fast-path func=g")]
     [InlineData("function* g(){ yield /ab+c/gi; } g().next();", "unified-bytecode-resumable-generator-fast-path func=g")]
+    // Resumable switch body: switch-style breakable markers are compiler metadata only and must keep
+    // routing through ExecuteResumable instead of falling back to the resumable IR runner.
+    [InlineData("function* g(n){ yield 'start'; switch(n){ case 1: yield 'one'; break; default: yield 'other'; } yield 'done'; } var it=g(1); it.next(); it.next(); it.next();", "unified-bytecode-resumable-generator-fast-path func=g")]
     // B37: an UNTAGGED template literal with a substitution (`` `v${x}` ``) inside a resumable generator
     // body. The per-hole String(value) coercion lowers to the ToString opcode, now admitted to the resumable
     // allowlist + ExecuteResumable handler (literal twin of the sync JsOps.ToJsString). The substitution

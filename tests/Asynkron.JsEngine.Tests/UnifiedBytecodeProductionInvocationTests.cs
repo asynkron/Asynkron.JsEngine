@@ -7111,6 +7111,109 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     }
 
     [Fact(Timeout = 5000)]
+    public async Task ComputedPrefixComputedPropertyWrite_UsesUnifiedBytecodeProductionFastPathAndResolvesPrefixAndKeyOnce()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            var prefixHits = 0;
+            var keyHits = 0;
+            var setHits = 0;
+            var key = {
+                toString() {
+                    keyHits++;
+                    return "slot";
+                }
+            };
+            var target = {
+                get slot() { return this._slot; },
+                set slot(value) { setHits++; this._slot = value; }
+            };
+            var box = {
+                get a() {
+                    prefixHits++;
+                    return { child: target };
+                }
+            };
+
+            function write(box, k1, k2, value) {
+                return box[k1].child[k2] = value;
+            }
+
+            var assigned = write(box, "a", key, 42);
+            [assigned, target.slot, prefixHits, keyHits, setHits].join(",");
+            """);
+
+        Assert.Equal("42,42,1,1,1", result as string);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=write argc=4",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task ComputedPrefixComputedCompoundPropertyWrite_UsesUnifiedBytecodeProductionFastPathAndResolvesPrefixAndKeyOnce()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            var prefixHits = 0;
+            var keyHits = 0;
+            var getHits = 0;
+            var setHits = 0;
+            var key = {
+                toString() {
+                    keyHits++;
+                    return "slot";
+                }
+            };
+            var target = {
+                _slot: 10,
+                get slot() { getHits++; return this._slot; },
+                set slot(value) { setHits++; this._slot = value; }
+            };
+            var box = {
+                get a() {
+                    prefixHits++;
+                    return { child: target };
+                }
+            };
+
+            function bump(box, k1, k2, value) {
+                return box[k1].child[k2] += value;
+            }
+
+            var assigned = bump(box, "a", key, 5);
+            [assigned, target._slot, prefixHits, keyHits, getHits, setHits].join(",");
+            """);
+
+        Assert.Equal("15,15,1,1,1,1", result as string);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=bump argc=4",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task ComputedPrefixComputedLogicalPropertyWrite_ShortCircuits_UsesUnifiedBytecodeProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function orAssign(box, k1, k2, value) {
+                return box[k1].child[k2] ||= value;
+            }
+
+            var present = orAssign({ a: { child: { slot: 7 } } }, "a", "slot", 99);
+            var missing = orAssign({ a: { child: { slot: 0 } } }, "a", "slot", 42);
+            [present, missing].join(",");
+            """);
+
+        Assert.Equal("7,42", result as string);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=orAssign argc=4",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task NestedNamedComputedPropertyWrite_BinaryKey_UsesUnifiedBytecodeProductionFastPathAndResolvesKeyOnce()
     {
         await using var engine = CreateEngine();

@@ -4726,6 +4726,14 @@ internal static class UnifiedBytecodeProductionEligibility
                     {
                         break;
                     }
+                    if (TryIsFirstBoundaryComputedPrefixComputedPropertyWriteCandidate(
+                            program,
+                            identifierConstants,
+                            activationSlots,
+                            allowsDynamicIdentifiers))
+                    {
+                        break;
+                    }
 
                     if (ContainsPropertyWriteOperation(program))
                     {
@@ -4745,6 +4753,7 @@ internal static class UnifiedBytecodeProductionEligibility
                     if (TryIsFirstBoundaryPropertyWriteCandidate(program, identifierConstants, activationSlots, allowsDynamicIdentifiers) ||
                         TryIsFirstBoundaryNestedNamedComputedPropertyWriteCandidate(program, identifierConstants, activationSlots, allowsDynamicIdentifiers) ||
                         TryIsFirstBoundaryComputedPrefixNamedPropertyWriteCandidate(program, identifierConstants, activationSlots, allowsDynamicIdentifiers) ||
+                        TryIsFirstBoundaryComputedPrefixComputedPropertyWriteCandidate(program, identifierConstants, activationSlots, allowsDynamicIdentifiers) ||
                         TryIsFirstBoundaryNestedNamedPropertyWriteCandidate(program, identifierConstants, activationSlots) ||
                         isFirstBoundaryNamedCompoundPropertyWriteCandidate ||
                         isFirstBoundaryNamedLogicalPropertyWriteCandidate ||
@@ -11653,6 +11662,21 @@ internal static class UnifiedBytecodeProductionEligibility
                 keyStart++;
             }
 
+            if (receiverChainOk &&
+                keyStart == 1 &&
+                TryMeasureSimpleComputedPropertyReadOperandSpan(
+                    program,
+                    0,
+                    identifierConstants,
+                    activationSlots,
+                    out var receiverSpanLength,
+                    allowsDynamicIdentifiers) &&
+                receiverSpanLength > 1 &&
+                receiverSpanLength < readStart)
+            {
+                keyStart = receiverSpanLength;
+            }
+
             if (!receiverChainOk ||
                 keyStart >= readStart ||
                 !IsSupportedComputedPropertyKeySpan(
@@ -11822,6 +11846,20 @@ internal static class UnifiedBytecodeProductionEligibility
             }
 
             keyStart++;
+        }
+
+        if (keyStart == 1 &&
+            TryMeasureSimpleComputedPropertyReadOperandSpan(
+                program,
+                0,
+                identifierConstants,
+                activationSlots,
+                out var receiverSpanLength,
+                allowsDynamicIdentifiers) &&
+            receiverSpanLength > 1 &&
+            receiverSpanLength < propertyWriteIndex)
+        {
+            keyStart = receiverSpanLength;
         }
 
         for (var rhsLength = 1; rhsLength <= 3; rhsLength += 2)
@@ -12226,6 +12264,87 @@ internal static class UnifiedBytecodeProductionEligibility
             identifierConstants,
             activationSlots,
             allowsDynamicIdentifiers);
+    }
+
+    // Computed property-read receiver prefix followed by a computed property write
+    // (`box[k1].child[k2] = value`):
+    // [computed-read receiver-prefix span, terminal computed key span, value, SetComputedProperty].
+    private static bool TryIsFirstBoundaryComputedPrefixComputedPropertyWriteCandidate(
+        ExpressionProgram program,
+        ReadOnlySpan<IdentifierOperand> identifierConstants,
+        ActivationSlotShape activationSlots,
+        bool allowsDynamicIdentifiers)
+    {
+        if (program.OperationCount < 8)
+        {
+            return false;
+        }
+
+        var setComputedIndex = program.OperationCount - 1;
+        var lastOp = program.GetOperation(setComputedIndex);
+        if (lastOp.Kind != ExpressionOpKind.SetComputedProperty ||
+            lastOp.AllowNameInference)
+        {
+            return false;
+        }
+
+        if (!TryMeasureSimpleComputedPropertyReadOperandSpan(
+                program,
+                0,
+                identifierConstants,
+                activationSlots,
+                out var receiverSpanLength,
+                allowsDynamicIdentifiers))
+        {
+            return false;
+        }
+
+        if (receiverSpanLength <= 0 || receiverSpanLength >= setComputedIndex)
+        {
+            return false;
+        }
+
+        var simpleValueIndex = setComputedIndex - 1;
+        if (receiverSpanLength < simpleValueIndex &&
+            IsSupportedComputedPropertyKeySpan(
+                program,
+                startInclusive: receiverSpanLength,
+                endExclusive: simpleValueIndex,
+                identifierConstants,
+                activationSlots,
+                allowsDynamicIdentifiers) &&
+            IsSimpleOperand(
+                program.GetOperation(simpleValueIndex),
+                identifierConstants,
+                activationSlots,
+                allowsDynamicIdentifiers))
+        {
+            return true;
+        }
+
+        for (var valueStart = receiverSpanLength + 1; valueStart < setComputedIndex; valueStart++)
+        {
+            if (IsSupportedComputedPropertyKeySpan(
+                    program,
+                    startInclusive: receiverSpanLength,
+                    endExclusive: valueStart,
+                    identifierConstants,
+                    activationSlots,
+                    allowsDynamicIdentifiers) &&
+                TryValidateAdmittedComplexCallArgumentRegion(
+                    program,
+                    argsStartIndex: valueStart,
+                    callIndex: setComputedIndex,
+                    expectedArgumentCount: 1,
+                    identifierConstants,
+                    activationSlots,
+                    allowsDynamicIdentifiers))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static bool TryIsFirstBoundaryPropertyUpdateCandidate(

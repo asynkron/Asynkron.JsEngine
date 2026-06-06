@@ -137,6 +137,18 @@ Phase B stands at **54 / 57** complete. The D5 non-residue ratchet has **0**
 known-open rows, the resumable opcode gap inventory has **5** remaining gaps,
 and the resumable instruction gap inventory has **0** remaining gaps.
 
+Class Literal Resumable Parity now has one checklist-open B24 row: **B24h**.
+The maintained checklist marks B24a-B24g complete and B24i complete for the
+activation-safe public non-computed `super` subset, but the B24i closure is not
+a claim of full class-definition bytecode execution. Static, computed, private,
+capturing, or otherwise mixed `super` class-member shapes remain bounded by the
+same class-definition environment bridge as the B24h residue. Treat any parent
+plan item that marked the B24h child complete as partial-slice closure only; the
+source-of-truth checklist still keeps B24h open until computed-name
+delete/call-target ownership, nested activation-capturing computed names,
+computed-super overlap, private/capturing neighbors, static-block overlap, and
+the broader class-definition environment bridge are owned.
+
 The remaining non-retirement work is concentrated in:
 
 - A1/A2 dynamic activation residue: captured closures now route for the

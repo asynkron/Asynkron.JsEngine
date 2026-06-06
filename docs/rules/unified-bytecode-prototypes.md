@@ -352,12 +352,24 @@ all-or-nothing until a separate routing issue proves production readiness.
      body environment and pre-populating the compiled VM flat slot before
      `ExecuteResumable`; async/async-generator captured helpers,
      recursive/sibling helper graphs, dynamic/eval helpers, block/Annex B
-     declarations, and class declarations remain declined. Related ADRs:
+     declarations, and class declarations remain declined. Issue #gh3304 /
+     PR #3307 repaired red `main` after the selector treated nested literals
+     that capture per-iteration or block-scoped bindings as if the materialized
+     body-environment proof covered them. It does not: root activation slots,
+     block/catch/per-iteration environments, lexical/private closure context,
+     and class-definition environments are separate ownership lifetimes.
+     Nested function literals that capture scoped bindings outside the root
+     activation must decline until the resumable VM materializes those block
+     environments across suspension. Keep adjacent positive proof for admitted
+     activation-owned class-literal computed names so this guard does not
+     collapse into a broad "any activation read in a literal declines" rule.
+     Related ADRs:
      `docs/adrs/0323-keep-resumable-unified-bytecode-context-sensitive-cleanup-declined.md`,
      `docs/adrs/0324-keep-resumable-generator-context-cleanup-declines-explicit.md`,
      `docs/adrs/0333-admit-generator-captured-function-literals-through-materialized-resumable-body-environment.md`,
+     `docs/adrs/0335-admit-generator-captured-hoisted-helpers-through-materialized-body-environment.md`,
      and
-     `docs/adrs/0335-admit-generator-captured-hoisted-helpers-through-materialized-body-environment.md`
+     `docs/adrs/0350-keep-resumable-scoped-closure-literals-declined-until-block-environments-are-owned.md`
 10f. When admitting class literals inside resumable unified bytecode, classify
      each class element by the class-definition state it needs during creation,
      not by the presence of `LoadClassLiteral` alone. Public member functions

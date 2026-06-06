@@ -4608,6 +4608,35 @@ internal static class UnifiedBytecodeCompiler
             return false;
         }
 
+        var propertyReadUnifiedCount = unified.Count;
+        var propertyReadLiteralCount = literalConstants.Count;
+        var propertyReadStringCount = stringConstants.Count;
+        if (TryAppendSimplePropertyReadOperandSpan(
+                expressionProgram,
+                0,
+                expressionProgram.OperationCount,
+                activationSlots,
+                allowsDynamicIdentifiers,
+                unified,
+                literalConstants,
+                stringConstants,
+                out var propertyReadSpanLength,
+                out reason,
+                allowPrivateNamedPrefix: true) &&
+            propertyReadSpanLength == expressionProgram.OperationCount)
+        {
+            return true;
+        }
+
+        RollBackUnifiedBuilder(unified, propertyReadUnifiedCount);
+        RollBackUnifiedBuilder(literalConstants, propertyReadLiteralCount);
+        RollBackUnifiedBuilder(stringConstants, propertyReadStringCount);
+
+        if (!string.IsNullOrEmpty(reason))
+        {
+            return false;
+        }
+
         if (TryAppendFirstBoundaryOptionalNamedPropertyRead(
                 expressionProgram,
                 activationSlots,
@@ -6551,6 +6580,17 @@ internal static class UnifiedBytecodeCompiler
                !operation.IsOptional &&
                !operation.ShortCircuitOnNullishTarget &&
                !operation.GetString(stringConstants).IsPrivateName();
+    }
+
+    private static bool IsPlainNamedPropertyReadOperandPrefix(
+        PackedExpressionOp operation,
+        ReadOnlySpan<string> stringConstants,
+        bool allowPrivateNamedPrefix)
+    {
+        return operation.Kind == ExpressionOpKind.GetNamedProperty &&
+               !operation.IsOptional &&
+               !operation.ShortCircuitOnNullishTarget &&
+               (allowPrivateNamedPrefix || !operation.GetString(stringConstants).IsPrivateName());
     }
 
     private static bool TryAppendNamedSuperCallTargetPreparation(
@@ -9792,7 +9832,8 @@ internal static class UnifiedBytecodeCompiler
         ImmutableArray<JsValue>.Builder literalConstants,
         ImmutableArray<string>.Builder stringConstants,
         out int spanLength,
-        out string reason)
+        out string reason,
+        bool allowPrivateNamedPrefix = false)
     {
         if (TryMeasureSimpleComputedPropertyReadOperandSpan(
                 expressionProgram,
@@ -9802,7 +9843,8 @@ internal static class UnifiedBytecodeCompiler
                 allowsDynamicIdentifiers,
                 out var keyStart,
                 out var keyEndExclusive,
-                out spanLength))
+                out spanLength,
+                allowPrivateNamedPrefix))
         {
             return TryAppendMeasuredSimpleComputedPropertyReadOperandSpan(
                 expressionProgram,
@@ -9824,7 +9866,8 @@ internal static class UnifiedBytecodeCompiler
                 endExclusive,
                 activationSlots,
                 allowsDynamicIdentifiers,
-                out spanLength))
+                out spanLength,
+                allowPrivateNamedPrefix))
         {
             return TryAppendMeasuredSimpleNamedPropertyReadOperandSpan(
                 expressionProgram,
@@ -9849,7 +9892,8 @@ internal static class UnifiedBytecodeCompiler
         int endExclusive,
         ActivationSlotShape activationSlots,
         bool allowsDynamicIdentifiers,
-        out int spanLength)
+        out int spanLength,
+        bool allowPrivateNamedPrefix = false)
     {
         spanLength = 0;
         if (startIndex + 1 >= endExclusive ||
@@ -9862,10 +9906,12 @@ internal static class UnifiedBytecodeCompiler
             return false;
         }
 
-        var expressionStringConstants = expressionProgram.StringConstants.AsSpan();
         var index = startIndex + 1;
         while (index < endExclusive &&
-               IsPlainNamedPropertyRead(expressionProgram.GetOperation(index), expressionStringConstants))
+               IsPlainNamedPropertyReadOperandPrefix(
+                   expressionProgram.GetOperation(index),
+                   expressionProgram.StringConstants.AsSpan(),
+                   allowPrivateNamedPrefix))
         {
             index++;
         }
@@ -9887,7 +9933,8 @@ internal static class UnifiedBytecodeCompiler
         bool allowsDynamicIdentifiers,
         out int keyStart,
         out int keyEndExclusive,
-        out int spanLength)
+        out int spanLength,
+        bool allowPrivateNamedPrefix = false)
     {
         keyStart = 0;
         keyEndExclusive = 0;
@@ -9902,10 +9949,12 @@ internal static class UnifiedBytecodeCompiler
             return false;
         }
 
-        var expressionStringConstants = expressionProgram.StringConstants.AsSpan();
         keyStart = startIndex + 1;
         while (keyStart < endExclusive &&
-               IsPlainNamedPropertyRead(expressionProgram.GetOperation(keyStart), expressionStringConstants))
+               IsPlainNamedPropertyReadOperandPrefix(
+                   expressionProgram.GetOperation(keyStart),
+                   expressionProgram.StringConstants.AsSpan(),
+                   allowPrivateNamedPrefix))
         {
             keyStart++;
         }
@@ -9940,7 +9989,10 @@ internal static class UnifiedBytecodeCompiler
 
             var end = requireIndex + 3;
             while (end < endExclusive &&
-                   IsPlainNamedPropertyRead(expressionProgram.GetOperation(end), expressionStringConstants))
+                   IsPlainNamedPropertyReadOperandPrefix(
+                       expressionProgram.GetOperation(end),
+                       expressionProgram.StringConstants.AsSpan(),
+                       allowPrivateNamedPrefix))
             {
                 end++;
             }
@@ -12307,6 +12359,15 @@ internal static class UnifiedBytecodeCompiler
             return false;
         }
 
+        var binary = expressionProgram.GetOperation(expressionProgram.OperationCount - 2);
+        var propertySet = expressionProgram.GetOperation(expressionProgram.OperationCount - 1);
+        if (binary.Kind != ExpressionOpKind.Binary ||
+            propertySet.Kind != ExpressionOpKind.SetNamedProperty)
+        {
+            reason = string.Empty;
+            return false;
+        }
+
         var stringTable = expressionProgram.StringConstants.AsSpan();
         var duplicateIndex = 1;
         while (duplicateIndex < expressionProgram.OperationCount)
@@ -12340,8 +12401,6 @@ internal static class UnifiedBytecodeCompiler
 
         var duplicateTarget = expressionProgram.GetOperation(duplicateIndex);
         var propertyRead = expressionProgram.GetOperation(duplicateIndex + 1);
-        var binary = expressionProgram.GetOperation(expressionProgram.OperationCount - 2);
-        var propertySet = expressionProgram.GetOperation(expressionProgram.OperationCount - 1);
         if (duplicateTarget.Kind != ExpressionOpKind.DuplicateTop ||
             propertyRead.Kind != ExpressionOpKind.GetNamedProperty ||
             binary.Kind != ExpressionOpKind.Binary ||

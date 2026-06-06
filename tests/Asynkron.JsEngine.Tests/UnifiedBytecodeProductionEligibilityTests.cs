@@ -6023,6 +6023,124 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
+    public void Evaluate_PrivateReceiverPrefixNamedPropertyRead_AcceptsOwnedPropertyOpcodes()
+    {
+        var plan = GetClassMethodPlan("""
+            class Holder {
+                #child = { value: 42 };
+                read(receiver) {
+                    return receiver.#child.value;
+                }
+            }
+            """,
+            "Holder",
+            "read");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.True(result.Program.Instructions.Count(
+            instruction => instruction.OpCode == UnifiedBytecodeOpCode.GetNamedProperty) >= 2);
+    }
+
+    [Fact]
+    public void Evaluate_PrivateReceiverPrefixComputedPropertyRead_AcceptsOwnedPropertyOpcodes()
+    {
+        var plan = GetClassMethodPlan("""
+            class Holder {
+                #child = { value: 42 };
+                read(receiver, key) {
+                    return receiver.#child[key];
+                }
+            }
+            """,
+            "Holder",
+            "read");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(
+            result.Program.Instructions,
+            instruction => instruction.OpCode == UnifiedBytecodeOpCode.GetNamedProperty);
+        Assert.Contains(
+            result.Program.Instructions,
+            instruction => instruction.OpCode == UnifiedBytecodeOpCode.GetComputedProperty);
+    }
+
+    [Fact]
+    public void Evaluate_PrivateReceiverPrefixCall_StillDeclines()
+    {
+        var plan = GetClassMethodPlan("""
+            class Holder {
+                #child = { value() { return 42; } };
+                call(receiver) {
+                    return receiver.#child.value();
+                }
+            }
+            """,
+            "Holder",
+            "call");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.False(result.IsEligible);
+        Assert.NotEqual(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+    }
+
+    [Fact]
+    public void Evaluate_PrivateReceiverPrefixMutation_StillDeclines()
+    {
+        var plan = GetClassMethodPlan("""
+            class Holder {
+                #child = { value: 1 };
+                write(receiver, value) {
+                    return receiver.#child.value = value;
+                }
+            }
+            """,
+            "Holder",
+            "write");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.False(result.IsEligible);
+        Assert.NotEqual(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+    }
+
+    [Fact]
+    public void Evaluate_PrivateReceiverPrefixComputedUpdate_StillDeclines()
+    {
+        var plan = GetClassMethodPlan("""
+            class Holder {
+                #child = { value: 1 };
+                update(receiver, key) {
+                    return receiver.#child[key]++;
+                }
+            }
+            """,
+            "Holder",
+            "update");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.False(result.IsEligible);
+        Assert.NotEqual(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+    }
+
+    [Fact]
     public void Evaluate_PrivateNamedPropertyWrite_AcceptsNamedPropertyOpcode()
     {
         var plan = GetClassMethodPlan("""

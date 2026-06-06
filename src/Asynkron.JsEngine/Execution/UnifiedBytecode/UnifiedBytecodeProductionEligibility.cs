@@ -2985,8 +2985,19 @@ internal static class UnifiedBytecodeProductionEligibility
         {
             if (!IsB36PlainExtendsClassDeclaration(cache, activationSlots, out var plainExtendsDeclineReason))
             {
-                declineReason = plainExtendsDeclineReason;
-                return false;
+                if (!TryAdmitB36ComputedPublicInstanceMemberExtendsClassDeclaration(
+                        cache,
+                        activationSlots,
+                        out var computedExtendsCandidate,
+                        out declineReason))
+                {
+                    if (!computedExtendsCandidate)
+                    {
+                        declineReason = plainExtendsDeclineReason;
+                    }
+
+                    return false;
+                }
             }
 
             if (!UnifiedBytecodeCompiler.TryCompileStandaloneExpressionProgram(
@@ -3160,6 +3171,59 @@ internal static class UnifiedBytecodeProductionEligibility
         }
 
         return true;
+    }
+
+    private static bool TryAdmitB36ComputedPublicInstanceMemberExtendsClassDeclaration(
+        ClassDefinitionProgramCache cache,
+        ActivationSlotShape activationSlots,
+        out bool candidate,
+        out string declineReason)
+    {
+        var definition = cache.Definition;
+        candidate = false;
+        declineReason = string.Empty;
+
+        if (!definition.Fields.IsDefaultOrEmpty ||
+            !definition.StaticElements.IsDefaultOrEmpty ||
+            !definition.StaticBlockPlans.IsDefaultOrEmpty ||
+            definition.Members.IsDefaultOrEmpty)
+        {
+            return false;
+        }
+
+        var hasComputedInstanceMember = false;
+        foreach (var member in definition.Members)
+        {
+            if (member.IsStatic || member.IsPrivate)
+            {
+                return false;
+            }
+
+            if (member.IsComputed)
+            {
+                hasComputedInstanceMember = true;
+            }
+        }
+
+        if (!hasComputedInstanceMember)
+        {
+            return false;
+        }
+
+        candidate = true;
+        if (!IsB36AdmittedPlainExtendsConstructor(
+                definition.Constructor,
+                activationSlots,
+                out declineReason))
+        {
+            return false;
+        }
+
+        return TryAdmitB36ComputedPublicClassDeclaration(
+            cache,
+            activationSlots,
+            out _,
+            out declineReason);
     }
 
     private static bool IsB36AdmittedPlainExtendsConstructor(

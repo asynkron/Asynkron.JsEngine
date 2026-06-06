@@ -866,8 +866,11 @@ predicates and proof tests.
     now route through the same `DeclareClass` path when every static block body is
     production-unified-bytecode eligible and creates no nested closures; the block
     body must log `unified-bytecode-production-fast-path static-block`, not the
-    classified static-block IR fallback. Dynamic/eval helpers plus otherwise
-    complex class declaration neighbors (computed names with `extends`,
+    classified static-block IR fallback. Public instance computed-member
+    `extends` declarations now route by composing the standalone superclass
+    compile check, the B36 constructor predicate, and the B24h computed public
+    member gate. Dynamic/eval helpers plus otherwise complex class declaration
+    neighbors (nested activation-capturing computed names with `extends`,
     closure-producing static blocks, static elements outside the static-block-only
     subset, and computed/static shapes outside the public B24h-compatible subset)
     are the remaining separate B36

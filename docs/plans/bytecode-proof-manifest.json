@@ -255,6 +255,27 @@
           ]
         },
         {
+          "id": "B36-class-declaration-extends-computed-public-member-routes",
+          "claim": "admitted",
+          "kind": "runtime",
+          "source": "class Base {}\nfunction* g(key) {\n  yield 'ready';\n  class Box extends Base {\n    [key = 'value']() {\n      return 42;\n    }\n  }\n  var box = new Box();\n  yield key + '|' + box.value() + '|' + (box instanceof Base);\n}\nvar iterator = g('initial');\nvar first = iterator.next();\nvar second = iterator.next();\nfirst.value + ':' + first.done + '|' + second.value + ':' + second.done;",
+          "expectedResult": "ready:false|value|42|true:false",
+          "requiredLogs": [
+            "unified-bytecode-resumable-generator-fast-path func=g"
+          ]
+        },
+        {
+          "id": "B36-class-declaration-extends-computed-name-nested-activation-capture-declines",
+          "claim": "open",
+          "kind": "eligibility",
+          "subject": "resumable-generator",
+          "functionName": "g",
+          "source": "class Base {}\nfunction* g(key) {\n  yield 'ready';\n  class Box extends Base {\n    [(() => key)()]() {\n      return 1;\n    }\n  }\n  yield typeof Box;\n}",
+          "expectedEligible": false,
+          "declineCode": "UnsupportedPlanShape",
+          "reasonContains": "not supported by B24h"
+        },
+        {
           "id": "B36-class-declaration-explicit-derived-constructor-routes",
           "claim": "admitted",
           "kind": "runtime",

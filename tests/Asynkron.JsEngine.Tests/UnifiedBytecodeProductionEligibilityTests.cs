@@ -661,6 +661,33 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
+    public void EvaluateResumable_YieldStarMissingSyntheticStateSlot_DeclinesBeforeVm()
+    {
+        var plan = GetFunctionPlan("""
+            function* gen(values) {
+                yield* values;
+            }
+            """,
+            "gen");
+        var yieldStar = Assert.Single(plan.Instructions.OfType<YieldStarInstruction>());
+        var instructionIndex = plan.Instructions.IndexOf(yieldStar);
+        var malformedPlan = plan with
+        {
+            Instructions = plan.Instructions.SetItem(
+                instructionIndex,
+                yieldStar with { StateSlotSymbol = null })
+        };
+
+        var result = UnifiedBytecodeProductionEligibility.EvaluateResumable(
+            malformedPlan,
+            new UnifiedBytecodeProductionActivationDescriptor(IsGenerator: true));
+
+        Assert.False(result.IsEligible);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.UnsupportedPlanShape, result.Code);
+        Assert.Contains("yield* requires a state slot for resumable unified bytecode routing.", result.Reason);
+    }
+
+    [Fact]
     public void EvaluateResumable_GeneratorBreakAfterYield_AcceptsBreakInstruction()
     {
         var plan = GetFunctionPlan("""
@@ -7727,6 +7754,55 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
             instruction.OpCode == UnifiedBytecodeOpCode.TdzHeadInit);
         Assert.Contains(result.Program.Instructions, instruction =>
             instruction.OpCode == UnifiedBytecodeOpCode.ForInInit);
+    }
+
+    [Fact]
+    public void Evaluate_ForInGeneratedStateSlotRoutesButMalformedStateSlotDeclinesBeforeVm()
+    {
+        var plan = GetFunctionPlan("""
+            function collect(obj) {
+                var keys = "";
+                for (var key in obj) {
+                    keys = keys + key;
+                }
+
+                return keys;
+            }
+            """,
+            "collect");
+
+        var routedResult = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(routedResult.IsEligible, routedResult.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, routedResult.Code);
+        Assert.Contains(routedResult.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.ForInInit);
+
+        var forInInit = Assert.Single(plan.Instructions.OfType<ForInInitInstruction>());
+        var instructionIndex = plan.Instructions.IndexOf(forInInit);
+        var malformedPlan = plan with
+        {
+            Instructions = plan.Instructions.SetItem(
+                instructionIndex,
+                forInInit with
+                {
+                    StateSlot = Symbol.Synthetic("__a51d_missing_forin_state"),
+                    StateSlotIndex = -1
+                })
+        };
+
+        var malformedResult = UnifiedBytecodeProductionEligibility.Evaluate(
+            malformedPlan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.False(malformedResult.IsEligible);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.UnsupportedPlanShape, malformedResult.Code);
+        Assert.StartsWith(
+            "Plan is not eligible for production unified bytecode routing:",
+            malformedResult.Reason,
+            StringComparison.Ordinal);
     }
 
     [Fact]

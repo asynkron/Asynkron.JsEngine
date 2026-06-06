@@ -276,6 +276,28 @@
           "reasonContains": "not supported by B24h"
         },
         {
+          "id": "B36-class-declaration-extends-public-super-method-routes",
+          "claim": "admitted",
+          "kind": "runtime",
+          "source": "class Base {\n  value() { return this.seed + 1; }\n}\nfunction* g() {\n  yield 'ready';\n  class Box extends Base {\n    constructor(seed) {\n      super();\n      this.seed = seed;\n    }\n    value() { return super.value() + 1; }\n  }\n  var box = new Box(40);\n  yield box.value() + '|' + (box instanceof Base);\n}\nvar iterator = g();\nvar first = iterator.next();\nvar second = iterator.next();\nfirst.value + ':' + first.done + '|' + second.value + ':' + second.done;",
+          "expectedResult": "ready:false|42|true:false",
+          "requiredLogs": [
+            "unified-bytecode-resumable-generator-fast-path func=g",
+            "unified-bytecode-production-fast-path func=<anonymous>"
+          ]
+        },
+        {
+          "id": "B36-class-declaration-extends-public-super-method-captures-activation-declines",
+          "claim": "open",
+          "kind": "eligibility",
+          "subject": "resumable-generator",
+          "functionName": "g",
+          "source": "class Base {\n  value() { return 40; }\n}\nfunction* g(seed) {\n  yield 'ready';\n  class Box extends Base {\n    value() { return super.value() + seed; }\n  }\n  yield typeof Box;\n}",
+          "expectedEligible": false,
+          "declineCode": "UnsupportedPlanShape",
+          "reasonContains": "public super member body captures activation binding 'seed'"
+        },
+        {
           "id": "B36-class-declaration-extends-public-static-field-routes",
           "claim": "admitted",
           "kind": "runtime",

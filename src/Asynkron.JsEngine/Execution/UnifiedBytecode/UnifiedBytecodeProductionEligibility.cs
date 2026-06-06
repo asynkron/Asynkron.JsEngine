@@ -2984,39 +2984,15 @@ internal static class UnifiedBytecodeProductionEligibility
         declineReason = string.Empty;
         if (cache.ExtendsProgram is { } extendsProgram)
         {
-            var acceptedExtendsClassDeclarationShell =
-                IsB36PlainExtendsClassDeclaration(cache, activationSlots, out var plainExtendsDeclineReason);
-
-            if (!acceptedExtendsClassDeclarationShell)
-            {
-                if (TryAdmitB36ComputedPublicInstanceMemberExtendsClassDeclaration(
-                        cache,
-                        activationSlots,
-                        out var computedExtendsCandidate,
-                        out declineReason))
-                {
-                    acceptedExtendsClassDeclarationShell = true;
-                }
-                else
-                {
-                    var staticFieldExtendsCandidate = false;
-                    if (!computedExtendsCandidate &&
-                        TryAdmitB36PublicStaticFieldExtendsClassDeclaration(
-                            cache,
-                            activationSlots,
-                            out staticFieldExtendsCandidate,
-                            out declineReason))
-                    {
-                        acceptedExtendsClassDeclarationShell = true;
-                    }
-                    else if (!computedExtendsCandidate && !staticFieldExtendsCandidate)
-                    {
-                        declineReason = plainExtendsDeclineReason;
-                    }
-                }
-            }
-
-            if (!acceptedExtendsClassDeclarationShell)
+            if (!IsB36PlainExtendsClassDeclaration(
+                    cache,
+                    activationSlots,
+                    out var plainExtendsDeclineReason) &&
+                !TryAdmitB36SpecializedExtendsClassDeclaration(
+                    cache,
+                    activationSlots,
+                    plainExtendsDeclineReason,
+                    out declineReason))
             {
                 return false;
             }
@@ -3104,6 +3080,58 @@ internal static class UnifiedBytecodeProductionEligibility
             definition.Constructor,
             activationSlots,
             out declineReason);
+    }
+
+    private static bool TryAdmitB36SpecializedExtendsClassDeclaration(
+        ClassDefinitionProgramCache cache,
+        ActivationSlotShape activationSlots,
+        string plainExtendsDeclineReason,
+        out string declineReason)
+    {
+        if (TryAdmitB36ComputedPublicInstanceMemberExtendsClassDeclaration(
+                cache,
+                activationSlots,
+                out var candidate,
+                out declineReason))
+        {
+            return true;
+        }
+
+        if (candidate)
+        {
+            return false;
+        }
+
+        if (TryAdmitB36PublicInstanceSuperMemberExtendsClassDeclaration(
+                cache,
+                activationSlots,
+                out candidate,
+                out declineReason))
+        {
+            return true;
+        }
+
+        if (candidate)
+        {
+            return false;
+        }
+
+        if (TryAdmitB36PublicStaticFieldExtendsClassDeclaration(
+                cache,
+                activationSlots,
+                out candidate,
+                out declineReason))
+        {
+            return true;
+        }
+
+        if (candidate)
+        {
+            return false;
+        }
+
+        declineReason = plainExtendsDeclineReason;
+        return false;
     }
 
     private static bool TryAdmitB36StaticBlockClassDeclaration(
@@ -3245,6 +3273,57 @@ internal static class UnifiedBytecodeProductionEligibility
             activationSlots,
             out _,
             out declineReason);
+    }
+
+    private static bool TryAdmitB36PublicInstanceSuperMemberExtendsClassDeclaration(
+        ClassDefinitionProgramCache cache,
+        ActivationSlotShape activationSlots,
+        out bool candidate,
+        out string declineReason)
+    {
+        var definition = cache.Definition;
+        candidate = false;
+        declineReason = string.Empty;
+
+        if (!definition.Fields.IsDefaultOrEmpty ||
+            !definition.StaticBlockPlans.IsDefaultOrEmpty ||
+            !definition.StaticElements.IsDefaultOrEmpty ||
+            definition.Members.IsDefaultOrEmpty)
+        {
+            return false;
+        }
+
+        foreach (var member in definition.Members)
+        {
+            if (member.IsStatic ||
+                member.IsPrivate ||
+                member.IsComputed ||
+                !FunctionContainsSuper(member.Callable.Function))
+            {
+                return false;
+            }
+        }
+
+        candidate = true;
+        if (!IsB36AdmittedPlainExtendsConstructor(
+                definition.Constructor,
+                activationSlots,
+                out declineReason))
+        {
+            return false;
+        }
+
+        foreach (var member in definition.Members)
+        {
+            if (FunctionCapturesActivationSlot(member.Callable.Function, activationSlots, out var capturedName))
+            {
+                declineReason =
+                    $"Class declaration public super member body captures activation binding '{capturedName}' and needs the materialized body environment route.";
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private static bool TryAdmitB36PublicStaticFieldExtendsClassDeclaration(

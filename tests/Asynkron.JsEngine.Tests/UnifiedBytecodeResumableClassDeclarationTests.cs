@@ -232,6 +232,65 @@ public sealed class UnifiedBytecodeResumableClassDeclarationTests(ITestOutputHel
     }
 
     [Fact]
+    public void EvaluateResumable_ClassDeclarationExtendsPublicMethodWithSuper_AdmitsDeclareClass()
+    {
+        var plan = GetFunctionPlan("""
+            class Base {
+                value() { return 41; }
+            }
+
+            function* g() {
+                yield "ready";
+                class Box extends Base {
+                    value() { return super.value() + 1; }
+                }
+                yield typeof Box;
+            }
+            """,
+            "g");
+
+        var result = UnifiedBytecodeProductionEligibility.EvaluateResumable(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor(IsGenerator: true));
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(
+            result.Program.Instructions,
+            static instruction => instruction.OpCode == UnifiedBytecodeOpCode.DeclareClass);
+    }
+
+    [Fact]
+    public void EvaluateResumable_ClassDeclarationExtendsPublicMethodWithSuperCapturesActivation_DeclinesBeforeVm()
+    {
+        var plan = GetFunctionPlan("""
+            class Base {
+                value() { return 40; }
+            }
+
+            function* g(seed) {
+                yield "ready";
+                class Box extends Base {
+                    value() { return super.value() + seed; }
+                }
+                yield typeof Box;
+            }
+            """,
+            "g");
+
+        var result = UnifiedBytecodeProductionEligibility.EvaluateResumable(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor(IsGenerator: true));
+
+        Assert.False(result.IsEligible);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.UnsupportedPlanShape, result.Code);
+        Assert.Contains(
+            "public super member body captures activation binding 'seed'",
+            result.Reason,
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void EvaluateResumable_ClassDeclarationExtendsPublicStaticField_AdmitsDeclareClass()
     {
         var plan = GetFunctionPlan("""
@@ -578,6 +637,39 @@ public sealed class UnifiedBytecodeResumableClassDeclarationTests(ITestOutputHel
 
         Assert.Equal("ready:false|value|42|true:false", result);
         AssertGeneratorFastPath("g", argc: 1);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task GeneratorClassDeclarationExtendsPublicMethodWithSuper_RoutesResumableAndPreservesReceiver()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            class Base {
+                value() { return this.seed + 1; }
+            }
+
+            function* g() {
+                yield "ready";
+                class Box extends Base {
+                    constructor(seed) {
+                        super();
+                        this.seed = seed;
+                    }
+
+                    value() { return super.value() + 1; }
+                }
+                var box = new Box(40);
+                yield box.value() + "|" + (box instanceof Base);
+            }
+
+            var iterator = g();
+            var first = iterator.next();
+            var second = iterator.next();
+            first.value + ":" + first.done + "|" + second.value + ":" + second.done;
+            """);
+
+        Assert.Equal("ready:false|42|true:false", result);
+        AssertGeneratorFastPath("g", argc: 0);
     }
 
     [Fact(Timeout = 5000)]

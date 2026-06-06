@@ -787,6 +787,32 @@ public sealed class UnifiedBytecodeResumableClassExpressionTests(ITestOutputHelp
     }
 
     [Fact(Timeout = 5000)]
+    public async Task GeneratorComputedPublicInstanceActivationCall_RouteResumableAndResolveName()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function* g(read) {
+                yield "ready";
+                var C = class {
+                    [read()]() {
+                        return 42;
+                    }
+                };
+                var c = new C();
+                return c.value();
+            }
+
+            var iterator = g(() => "value");
+            var first = iterator.next();
+            var second = iterator.next();
+            first.value + ":" + first.done + "|" + second.value + ":" + second.done;
+            """);
+
+        Assert.Equal("ready:false|42:true", result);
+        AssertGeneratorFastPath("g", argc: 1);
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task GeneratorClassExpressionPublicAccessorsWithSuper_RoutesResumableAndPreservesReceiver()
     {
         await using var engine = CreateEngine();
@@ -890,12 +916,37 @@ public sealed class UnifiedBytecodeResumableClassExpressionTests(ITestOutputHelp
         """);
 
     [Fact]
-    public void EvaluateResumable_ClassExpressionComputedNameActivationCall_DeclinesBeforeVm() =>
+    public void EvaluateResumable_ClassExpressionComputedNameDirectActivationCall_AdmitLoadClassLiteral()
+    {
+        var plan = GetFunctionPlan("""
+            function* g(read) {
+                yield 1;
+                var C = class {
+                    [read()]() { return 1; }
+                };
+                return C;
+            }
+            """,
+            "g");
+
+        var result = UnifiedBytecodeProductionEligibility.EvaluateResumable(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor(IsGenerator: true));
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(
+            result.Program.Instructions,
+            static instruction => instruction.OpCode == UnifiedBytecodeOpCode.LoadClassLiteral);
+    }
+
+    [Fact]
+    public void EvaluateResumable_ClassExpressionComputedNameActivationCallArgument_DeclinesBeforeVm() =>
         AssertClassExpressionDeclines("""
-        function* g(read) {
+        function* g(read, helper) {
             yield 1;
             var C = class {
-                [read()]() { return 1; }
+                [helper(read)]() { return 1; }
             };
             return C;
         }

@@ -3538,13 +3538,6 @@ internal static class UnifiedBytecodeProductionEligibility
                 continue;
             }
 
-            if (ExpressionProgramCreatesClosure(initializerProgram.Value))
-            {
-                declineReason =
-                    "Class declaration is outside B36: static field initializer creates a closure that needs the materialized class-definition environment route.";
-                return false;
-            }
-
             if (UnifiedBytecodeCompiler.TryCompileStandaloneExpressionProgram(
                     initializerProgram.Value,
                     allowsDynamicIdentifiers: true,

@@ -441,15 +441,28 @@
           ]
         },
         {
-          "id": "B36-class-declaration-extends-static-field-closure-declines",
+          "id": "B36-class-declaration-extends-static-field-closure-routes",
+          "claim": "admitted",
+          "kind": "runtime",
+          "source": "class Base {}\nfunction* g(seed) {\n  yield 'ready';\n  class Box extends Base {\n    static read = () => seed + 1;\n  }\n  var box = new Box();\n  yield Box.read() + '|' + (box instanceof Base);\n}\nvar iterator = g(41);\nvar first = iterator.next();\nvar second = iterator.next();\nfirst.value + ':' + first.done + '|' + second.value + ':' + second.done;",
+          "expectedResult": "ready:false|42|true:false",
+          "requiredLogs": [
+            "unified-bytecode-resumable-generator-fast-path func=g",
+            "unified-bytecode-production-fast-path func=<anonymous>"
+          ]
+        },
+        {
+          "id": "B36-class-declaration-extends-static-field-super-closure-declines",
           "claim": "open",
-          "kind": "eligibility",
-          "subject": "resumable-generator",
-          "functionName": "g",
-          "source": "class Base {}\nfunction* g(seed) {\n  yield 'ready';\n  class Box extends Base {\n    static read = () => seed;\n  }\n  yield typeof Box;\n}",
-          "expectedEligible": false,
-          "declineCode": "UnsupportedPlanShape",
-          "reasonContains": "static field initializer creates a closure"
+          "kind": "runtime",
+          "source": "class Base {\n  static value = 41;\n}\nfunction* g(seed) {\n  yield 'ready';\n  class Box extends Base {\n    static read = () => super.value + seed;\n  }\n  yield Box.read();\n}\nvar iterator = g(1);\nvar first = iterator.next();\nvar second = iterator.next();\nfirst.value + ':' + first.done + '|' + second.value + ':' + second.done;",
+          "expectedResult": "ready:false|42:false",
+          "requiredLogs": [
+            "unified-bytecode-resumable-generator-fast-path func=g"
+          ],
+          "forbiddenLogs": [
+            "unified-bytecode-production-fast-path func=<anonymous>"
+          ]
         },
         {
           "id": "B36-class-declaration-explicit-derived-constructor-routes",

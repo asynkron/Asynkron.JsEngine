@@ -3849,8 +3849,7 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                    _homeObject is null &&
                    PrivateNameScope is null &&
                    _capturedPrivateNameScopes.IsDefaultOrEmpty &&
-                   _superConstructor is null &&
-                   _superPrototype is null &&
+                   CanUseProductionUnifiedBytecodeIgnoredSuperBindingPath(plan) &&
                    _instanceFields.IsDefaultOrEmpty &&
                    // Generalized past SimpleReturnProgram bodies (A6): a multi-statement arrow body is
                    // admitted over the FULL instruction stream, not just a single `return <expr>;`. The
@@ -3926,6 +3925,26 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
         {
             return plan.SimpleReturnProgram is { } returnProgram &&
                    !ContainsSuperOperation(returnProgram);
+        }
+
+        private bool CanUseProductionUnifiedBytecodeIgnoredSuperBindingPath(ExecutionPlan plan)
+        {
+            if (_superConstructor is null && _superPrototype is null)
+            {
+                return true;
+            }
+
+            var instructions = plan.Instructions;
+            for (var i = 0; i < instructions.Length; i++)
+            {
+                if (UnifiedBytecodeProductionEligibility.TryGetExpressionProgram(instructions[i], out var program) &&
+                    ContainsSuperOperation(program))
+                {
+                    return false;
+                }
+            }
+
+            return true;
         }
 
         private static bool CanUseProductionUnifiedBytecodeArrowActivationDependencyPath(ExecutionPlan plan)

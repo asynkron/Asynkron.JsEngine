@@ -490,7 +490,7 @@ public sealed class UnifiedBytecodeResumableClassDeclarationTests(ITestOutputHel
     }
 
     [Fact]
-    public void EvaluateResumable_ClassDeclarationExtendsStaticFieldClosureInitializer_DeclinesBeforeVm()
+    public void EvaluateResumable_ClassDeclarationExtendsStaticFieldClosureInitializer_AdmitsDeclareClass()
     {
         var plan = GetFunctionPlan("""
             class Base {}
@@ -508,12 +508,11 @@ public sealed class UnifiedBytecodeResumableClassDeclarationTests(ITestOutputHel
             plan,
             new UnifiedBytecodeProductionActivationDescriptor(IsGenerator: true));
 
-        Assert.False(result.IsEligible);
-        Assert.Equal(UnifiedBytecodeProductionDeclineCode.UnsupportedPlanShape, result.Code);
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
         Assert.Contains(
-            "static field initializer creates a closure",
-            result.Reason,
-            StringComparison.Ordinal);
+            result.Program.Instructions,
+            static instruction => instruction.OpCode == UnifiedBytecodeOpCode.DeclareClass);
     }
 
     [Fact]
@@ -1080,6 +1079,34 @@ public sealed class UnifiedBytecodeResumableClassDeclarationTests(ITestOutputHel
     }
 
     [Fact(Timeout = 5000)]
+    public async Task GeneratorClassDeclarationExtendsStaticFieldClosureInitializer_RoutesResumable()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            class Base {
+            }
+
+            function* g(seed) {
+                yield "ready";
+                class Box extends Base {
+                    static read = () => seed + 1;
+                }
+                var box = new Box();
+                yield Box.read() + "|" + (box instanceof Base);
+            }
+
+            var iterator = g(41);
+            var first = iterator.next();
+            var second = iterator.next();
+            first.value + ":" + first.done + "|" + second.value + ":" + second.done;
+            """);
+
+        Assert.Equal("ready:false|42|true:false", result);
+        AssertGeneratorFastPath("g", argc: 1);
+        AssertProductionFastPath("<anonymous>");
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task GeneratorClassDeclarationExplicitDerivedConstructor_RoutesResumableAndConstructorFastPath()
     {
         await using var engine = CreateEngine();
@@ -1289,10 +1316,18 @@ public sealed class UnifiedBytecodeResumableClassDeclarationTests(ITestOutputHel
                 StringComparison.Ordinal));
 
     private void AssertProductionFastPath(string functionName) =>
-        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
-            record => record.Message.Contains(
-                $"{ProductionFastPathLog} func={functionName}",
-                StringComparison.Ordinal));
+        Assert.True(
+            CurrentLogger!.Collector.Snapshot().Any(
+                record => record.Message.Contains(
+                    $"{ProductionFastPathLog} func={functionName}",
+                    StringComparison.Ordinal)),
+            string.Join(
+                Environment.NewLine,
+                CurrentLogger!.Collector.Snapshot()
+                    .Select(static record => record.Message)
+                    .Where(static message => message.Contains(
+                        ProductionFastPathLog,
+                        StringComparison.Ordinal))));
 
     private static ExecutionPlan GetFunctionPlan(string source, string functionName)
     {

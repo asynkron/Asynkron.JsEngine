@@ -523,7 +523,7 @@ semantic bridge or mis-parking dynamic residue as ordinary fallback work.
 | `A51b` | Activation-slot metadata, slot-layout, declaration / assignment / update storage targets | Existing execution-plan runner | both |
 | `A51c` | Catch binding, lexical dynamic declaration, active-with dynamic-name, TDZ-head binding storage | Existing environment-aware execution-plan runner | both |
 | `A51d` | Iterator, for-in, `yield*`, resume-target, and driver state slots | Existing iterator/generator/async IR drivers | both; `yield*`/resume-target are resumable-owned |
-| `A51e` | Array/object destructuring state slots and targets | Existing destructuring IR helpers | both |
+| `A51e` | Array/object destructuring state slots and simple script declaration targets are compiler-owned for the admitted lane; remaining nested/default/parameter/disposal destructuring stays under R6 / `DestructuringDependency` | Existing destructuring IR helpers for remaining R6 shapes | both |
 | `A51f` | General expression-loop unsupported op, binding-target expression, dynamic identifier, `arguments`, and private-neighbor gaps | Expression-program / execution-plan runner | both |
 | `A51g` | Call-target preparation, direct-eval call boundary, member/super/private call-target, invocation-boundary shapes | Existing call/eval/super IR paths | both; dynamic residue remains D1/D4 |
 | `A51h` | Array/object/template literal, spread source, computed object key, and simple literal-span shapes | Existing expression-program literal/spread evaluation | both |
@@ -1908,7 +1908,9 @@ support today.
   `TargetVariableKind`: `var` targets use the ordinary dynamic assignment path,
   while `let` / `const` targets use the VM dynamic lexical initialize path
   against the hoist-time TDZ binding. Other unsupported destructuring shapes
-  still decline with `DestructuringDependency` or `UnsupportedPlanShape`.
+  still decline with `DestructuringDependency` or `UnsupportedPlanShape`. This
+  closes the A51e compiler leaf for simple script declaration destructuring; it
+  does not admit nested/default/parameter/disposal destructuring.
 - `ObjectDestructuringInitInstruction`,
   `ObjectDestructuringPropertyInstruction`,
   `ObjectDestructuringRestInstruction`, and

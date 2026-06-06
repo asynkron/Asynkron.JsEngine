@@ -949,6 +949,32 @@ public sealed class UnifiedBytecodeResumableClassExpressionTests(ITestOutputHelp
     }
 
     [Fact(Timeout = 5000)]
+    public async Task GeneratorComputedPublicInstanceActivationDelete_RejectsStrictIdentifierDelete()
+    {
+        await using var engine = CreateEngine();
+        var exception = await Assert.ThrowsAsync<ThrowSignal>(async () => await engine.Evaluate("""
+            function* g(key) {
+                yield "ready";
+                var C = class {
+                    [delete key]() {
+                        return key;
+                    }
+                };
+                var c = new C();
+                return c.false();
+            }
+
+            var iterator = g("value");
+            var first = iterator.next();
+            var second = iterator.next();
+            first.value + ":" + first.done + "|" + second.value + ":" + second.done;
+            """));
+
+        Assert.Contains("SyntaxError", exception.Message, StringComparison.Ordinal);
+        Assert.Contains("Delete of an unqualified identifier", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task GeneratorClassExpressionPublicAccessorsWithSuper_RoutesResumableAndPreservesReceiver()
     {
         await using var engine = CreateEngine();
@@ -1161,12 +1187,37 @@ public sealed class UnifiedBytecodeResumableClassExpressionTests(ITestOutputHelp
     }
 
     [Fact]
-    public void EvaluateResumable_ClassExpressionComputedNameActivationDelete_DeclinesBeforeVm() =>
+    public void EvaluateResumable_ClassExpressionComputedNameActivationDelete_AdmitLoadClassLiteral()
+    {
+        var plan = GetFunctionPlan("""
+            function* g(key) {
+                yield 1;
+                var C = class {
+                    [delete key]() { return 1; }
+                };
+                return C;
+            }
+            """,
+            "g");
+
+        var result = UnifiedBytecodeProductionEligibility.EvaluateResumable(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor(IsGenerator: true));
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(
+            result.Program.Instructions,
+            static instruction => instruction.OpCode == UnifiedBytecodeOpCode.LoadClassLiteral);
+    }
+
+    [Fact]
+    public void EvaluateResumable_ClassExpressionComputedNameNestedActivationCapture_DeclinesBeforeVm() =>
         AssertClassExpressionDeclines("""
         function* g(key) {
             yield 1;
             var C = class {
-                [delete key]() { return 1; }
+                [(() => key)()]() { return 1; }
             };
             return C;
         }

@@ -131,10 +131,19 @@ public sealed partial class BytecodeProofManifestTests(ITestOutputHelper output)
     {
         await using var engine = CreateEngine();
 
-        var result = await engine.Evaluate(Require(proof.Source, proof.Id, nameof(proof.Source)));
-        if (!string.IsNullOrWhiteSpace(proof.ExpectedResult))
+        if (!string.IsNullOrWhiteSpace(proof.ExpectedThrowContains))
         {
-            Assert.Equal(proof.ExpectedResult, result?.ToString());
+            var exception = await Assert.ThrowsAsync<ThrowSignal>(async () =>
+                await engine.Evaluate(Require(proof.Source, proof.Id, nameof(proof.Source))));
+            Assert.Contains(proof.ExpectedThrowContains, exception.Message, StringComparison.Ordinal);
+        }
+        else
+        {
+            var result = await engine.Evaluate(Require(proof.Source, proof.Id, nameof(proof.Source)));
+            if (!string.IsNullOrWhiteSpace(proof.ExpectedResult))
+            {
+                Assert.Equal(proof.ExpectedResult, result?.ToString());
+            }
         }
 
         var snapshot = CurrentLogger!.Collector.Snapshot();
@@ -293,6 +302,8 @@ public sealed partial class BytecodeProofManifestTests(ITestOutputHelper output)
         public string? ReasonContains { get; set; }
 
         public string? ExpectedResult { get; set; }
+
+        public string? ExpectedThrowContains { get; set; }
 
         public List<string> RequiredLogs { get; set; } = [];
 

@@ -104,6 +104,33 @@ public sealed class UnifiedBytecodeResumableClassDeclarationTests(ITestOutputHel
     }
 
     [Fact]
+    public void EvaluateResumable_ClassDeclarationComputedNameActivationDelete_AdmitsDeclareClass()
+    {
+        var plan = GetFunctionPlan("""
+            function* g(key) {
+                yield "ready";
+                class Box {
+                    [delete key]() {
+                        return 42;
+                    }
+                }
+                yield typeof Box;
+            }
+            """,
+            "g");
+
+        var result = UnifiedBytecodeProductionEligibility.EvaluateResumable(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor(IsGenerator: true));
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(
+            result.Program.Instructions,
+            static instruction => instruction.OpCode == UnifiedBytecodeOpCode.DeclareClass);
+    }
+
+    [Fact]
     public void EvaluateResumable_ClassDeclarationExtends_DeclinesBeforeVm()
     {
         var plan = GetFunctionPlan("""
@@ -181,6 +208,32 @@ public sealed class UnifiedBytecodeResumableClassDeclarationTests(ITestOutputHel
 
         Assert.Equal("ready:false|value|42|7:false", result);
         AssertGeneratorFastPath("g", argc: 1);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task GeneratorComputedPublicClassDeclarationActivationDelete_RejectsStrictIdentifierDelete()
+    {
+        await using var engine = CreateEngine();
+        var exception = await Assert.ThrowsAsync<ThrowSignal>(async () => await engine.Evaluate("""
+            function* g(key) {
+                yield "ready";
+                class Box {
+                    [delete key]() {
+                        return key;
+                    }
+                }
+                var box = new Box();
+                yield box.false();
+            }
+
+            var iterator = g("value");
+            var first = iterator.next();
+            var second = iterator.next();
+            first.value + ":" + first.done + "|" + second.value + ":" + second.done;
+            """));
+
+        Assert.Contains("SyntaxError", exception.Message, StringComparison.Ordinal);
+        Assert.Contains("Delete of an unqualified identifier", exception.Message, StringComparison.Ordinal);
     }
 
     [Fact(Timeout = 5000)]

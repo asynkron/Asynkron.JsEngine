@@ -89,7 +89,7 @@
     },
     {
       "id": "B24h",
-      "title": "Computed class-member names are partial; activation-delete neighbors still decline",
+      "title": "Computed class-member names are partial; nested activation-capturing computed names still decline",
       "status": "open",
       "proofs": [
         {
@@ -103,12 +103,19 @@
           ]
         },
         {
-          "id": "B24h-computed-name-activation-delete-declines",
+          "id": "B24h-computed-name-activation-delete-throws",
+          "claim": "admitted",
+          "kind": "runtime",
+          "source": "function* g(key) {\n  yield 'ready';\n  var C = class {\n    [delete key]() { return key; }\n  };\n  var c = new C();\n  return c.false();\n}\nvar iterator = g('value');\nvar first = iterator.next();\nvar second = iterator.next();\nfirst.value + ':' + first.done + '|' + second.value + ':' + second.done;",
+          "expectedThrowContains": "Delete of an unqualified identifier"
+        },
+        {
+          "id": "B24h-computed-name-nested-activation-capture-declines",
           "claim": "open",
           "kind": "eligibility",
           "subject": "resumable-generator",
           "functionName": "g",
-          "source": "function* g(key) {\n  yield 1;\n  var C = class {\n    [delete key]() { return 1; }\n  };\n  return C;\n}",
+          "source": "function* g(key) {\n  yield 1;\n  var C = class {\n    [(() => key)()]() { return 1; }\n  };\n  return C;\n}",
           "expectedEligible": false,
           "declineCode": "UnsupportedPlanShape",
           "reasonContains": "B24"
@@ -120,6 +127,13 @@
       "title": "Nested declaration parity is partial; complex class declarations remain outside resumable bytecode",
       "status": "open",
       "proofs": [
+        {
+          "id": "B36-class-declaration-computed-name-activation-delete-throws",
+          "claim": "admitted",
+          "kind": "runtime",
+          "source": "function* g(key) {\n  yield 'ready';\n  class Box {\n    [delete key]() { return key; }\n  }\n  var box = new Box();\n  yield box.false();\n}\nvar iterator = g('value');\nvar first = iterator.next();\nvar second = iterator.next();\nfirst.value + ':' + first.done + '|' + second.value + ':' + second.done;",
+          "expectedThrowContains": "Delete of an unqualified identifier"
+        },
         {
           "id": "B36-class-declaration-extends-declines",
           "claim": "open",

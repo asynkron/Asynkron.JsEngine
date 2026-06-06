@@ -97,14 +97,15 @@ statement interpretation.
   nested closures, and the B24h public static/instance
   computed-field/method/accessor subset whose
   computed names either avoid resumable activation slots or use owned activation
-  read/write/update/reference-store operations, and whose field initializers,
+  read/write/update/reference-store/delete operations (with unqualified
+  identifier delete preserved as the class-body strict-error path), and whose field initializers,
   constructor bodies, and member bodies do not capture activation slots, including
   mixes with non-computed public fields/methods/accessors under the same
   activation-safety rules, are resumable-admitted. The VM handler still delegates
   class-definition evaluation to lower-level class machinery that can run
   expression programs and static-block IR plans, and the remaining B24h/B24i
   shapes keep computed-super, computed-name
-  activation delete/call-target dependencies, nested computed-name activation
+  unadmitted call-target dependencies, nested computed-name activation
   captures, materialized-environment, member-super, and activation-slot `extends`
   shapes declined.
 - `UnifiedBytecodeCompiler` now has generated audit coverage for every declared
@@ -447,7 +448,8 @@ capture activation slots, including accessor bodies that use `super`, the B24d
 static-block-only subset whose static blocks do not create nested closures, and
 the B24h public static/instance computed-field/method/accessor subset whose computed
 name programs either avoid resumable activation slots or use owned activation
-read/write/update/reference-store operations, including bounded non-spread
+read/write/update/reference-store/delete operations, including the strict-error
+unqualified identifier delete path and bounded non-spread
 activation-target calls whose argument region is already admitted by the
 production complex-call-argument walker, and whose field initializer programs
 plus constructor/member bodies do not capture activation slots, including mixes
@@ -458,9 +460,9 @@ initializers through expression programs and static blocks through
 `ExecutionPlanRunner.RunScript`; `extends` expressions that read resumable
 activation slots also remain declined until class-definition evaluation owns
 that environment bridge. The remaining B24h and B24i shapes remain declined by
-the resumable shape gate: computed names that delete activation bindings, use
-direct-eval/spread/construct/super or otherwise unadmitted call-target shapes,
-or create nested activation captures still stay outside B24h, and
+the resumable shape gate: computed names that use direct-eval/spread/construct/super
+or otherwise unadmitted call-target shapes, or create nested activation captures
+still stay outside B24h, and
 static/private/capturing public accessor neighbors remain outside the B24g/B24h
 subsets.
 

@@ -87,8 +87,11 @@ activation-call widening.
   the then-current activation-call-argument decline proof, later superseded by
   `EvaluateResumable_ClassExpressionComputedNameActivationCallArgument_AdmitLoadClassLiteral`
   when the bounded argument region became admitted.
-- Existing nearby proof kept
-  `EvaluateResumable_ClassExpressionComputedNameActivationDelete_DeclinesBeforeVm`.
+- Existing nearby proof was later superseded by
+  `EvaluateResumable_ClassExpressionComputedNameActivationDelete_AdmitLoadClassLiteral`
+  once activation-delete computed names were admitted; the remaining nearby
+  decline proof is
+  `EvaluateResumable_ClassExpressionComputedNameNestedActivationCapture_DeclinesBeforeVm`.
 - Build-stage verification recorded focused
   `UnifiedBytecodeResumableClassExpressionTests` with 50 passed,
   `rtk git diff --check` clean, no runner AST-eval seam matches, and

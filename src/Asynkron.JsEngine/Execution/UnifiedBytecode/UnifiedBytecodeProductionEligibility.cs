@@ -3477,7 +3477,8 @@ internal static class UnifiedBytecodeProductionEligibility
             ExpressionOpKind.ResolveIdentifierReference or
             ExpressionOpKind.StoreResolvedIdentifier or
             ExpressionOpKind.StoreIdentifier or
-            ExpressionOpKind.UpdateIdentifier;
+            ExpressionOpKind.UpdateIdentifier or
+            ExpressionOpKind.DeleteIdentifier;
 
     private static bool IsB24dStaticBlockClassLiteral(
         ClassDefinition definition,

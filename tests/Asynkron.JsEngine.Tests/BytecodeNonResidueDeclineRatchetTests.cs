@@ -9,12 +9,9 @@ namespace Asynkron.JsEngine.Tests;
 [Category(TestCategories.Debugging)]
 public sealed class BytecodeNonResidueDeclineRatchetTests
 {
-    private const int ExpectedKnownOpenNonResidueCount = 1;
+    private const int ExpectedKnownOpenNonResidueCount = 0;
 
-    private static readonly string[] KnownOpenNonResidueDeclines =
-    [
-        "B23_B36_NestedFunctionDeclarationInResumable_Declines"
-    ];
+    private static readonly string[] KnownOpenNonResidueDeclines = [];
 
     private static readonly RatchetRow[] Rows =
     [
@@ -118,7 +115,7 @@ public sealed class BytecodeNonResidueDeclineRatchetTests
             IsDynamicResidue: false,
             UnifiedBytecodeProductionDeclineCode.None),
         new(
-            "B23_B36_NestedFunctionDeclarationInResumable_Declines",
+            "B23_B36_NestedFunctionDeclarationInResumable_Admitted",
             """
             function* d5B23B36() {
                 function helper() {
@@ -131,7 +128,29 @@ public sealed class BytecodeNonResidueDeclineRatchetTests
             SubjectKind.ResumableGenerator,
             "d5B23B36",
             IsDynamicResidue: false,
-            UnifiedBytecodeProductionDeclineCode.UnsupportedPlanShape),
+            UnifiedBytecodeProductionDeclineCode.None,
+            AllowsRootFunctionDeclarationInstructions: true),
+        new(
+            "B23_B36_NestedFunctionLiteralWithInnerDeclaration_Admitted",
+            """
+            function* d5B23B36Inner() {
+                var n = 1;
+                var f = function() {
+                    function inner() {
+                        return n;
+                    }
+
+                    return inner();
+                };
+
+                yield f();
+            }
+            """,
+            SubjectKind.ResumableGenerator,
+            "d5B23B36Inner",
+            IsDynamicResidue: false,
+            UnifiedBytecodeProductionDeclineCode.None,
+            AllowsMaterializedBodyEnvironmentFunctionLiterals: true),
         new(
             "B26_FreeWriteInResumable_Admitted",
             """
@@ -232,11 +251,11 @@ public sealed class BytecodeNonResidueDeclineRatchetTests
     // Function-constructor-produced bodies are runtime-created source and are not represented by the
     // current ExecutionPlan-only eligibility helpers. The Function call boundary itself is not residue.
 
-    public static TheoryData<string, string, SubjectKind, string, bool, int> CorpusRows
+    public static TheoryData<string, string, SubjectKind, string, bool, int, bool, bool> CorpusRows
     {
         get
         {
-            var rows = new TheoryData<string, string, SubjectKind, string, bool, int>();
+            var rows = new TheoryData<string, string, SubjectKind, string, bool, int, bool, bool>();
             foreach (var row in Rows)
             {
                 rows.Add(
@@ -245,7 +264,9 @@ public sealed class BytecodeNonResidueDeclineRatchetTests
                     row.SubjectKind,
                     row.FunctionName,
                     row.IsDynamicResidue,
-                    (int)row.ExpectedDeclineCode);
+                    (int)row.ExpectedDeclineCode,
+                    row.AllowsRootFunctionDeclarationInstructions,
+                    row.AllowsMaterializedBodyEnvironmentFunctionLiterals);
             }
 
             return rows;
@@ -260,10 +281,17 @@ public sealed class BytecodeNonResidueDeclineRatchetTests
         SubjectKind subjectKind,
         string functionName,
         bool isDynamicResidue,
-        int expectedDeclineCodeValue)
+        int expectedDeclineCodeValue,
+        bool allowsRootFunctionDeclarationInstructions,
+        bool allowsMaterializedBodyEnvironmentFunctionLiterals)
     {
         var expectedDeclineCode = (UnifiedBytecodeProductionDeclineCode)expectedDeclineCodeValue;
-        var result = Evaluate(source, subjectKind, functionName);
+        var result = Evaluate(
+            source,
+            subjectKind,
+            functionName,
+            allowsRootFunctionDeclarationInstructions,
+            allowsMaterializedBodyEnvironmentFunctionLiterals);
         if (expectedDeclineCode == UnifiedBytecodeProductionDeclineCode.None)
         {
             Assert.True(result.IsEligible, $"{name}: {result.Code} {result.Reason}");
@@ -315,7 +343,9 @@ public sealed class BytecodeNonResidueDeclineRatchetTests
     private static UnifiedBytecodeProductionEligibilityResult Evaluate(
         string source,
         SubjectKind subjectKind,
-        string functionName)
+        string functionName,
+        bool allowsRootFunctionDeclarationInstructions,
+        bool allowsMaterializedBodyEnvironmentFunctionLiterals)
     {
         return subjectKind switch
         {
@@ -325,10 +355,18 @@ public sealed class BytecodeNonResidueDeclineRatchetTests
             SubjectKind.Script => UnifiedBytecodeProductionEligibility.EvaluateScript(GetScriptPlan(source)),
             SubjectKind.ResumableGenerator => UnifiedBytecodeProductionEligibility.EvaluateResumable(
                 GetFunctionPlan(source, functionName),
-                new UnifiedBytecodeProductionActivationDescriptor(IsGenerator: true)),
+                new UnifiedBytecodeProductionActivationDescriptor(
+                    IsGenerator: true,
+                    AllowsRootFunctionDeclarationInstructions: allowsRootFunctionDeclarationInstructions,
+                    AllowsMaterializedBodyEnvironmentFunctionLiterals:
+                    allowsMaterializedBodyEnvironmentFunctionLiterals)),
             SubjectKind.ResumableAsync => UnifiedBytecodeProductionEligibility.EvaluateResumable(
                 GetFunctionPlan(source, functionName),
-                new UnifiedBytecodeProductionActivationDescriptor(IsAsyncLike: true)),
+                new UnifiedBytecodeProductionActivationDescriptor(
+                    IsAsyncLike: true,
+                    AllowsRootFunctionDeclarationInstructions: allowsRootFunctionDeclarationInstructions,
+                    AllowsMaterializedBodyEnvironmentFunctionLiterals:
+                    allowsMaterializedBodyEnvironmentFunctionLiterals)),
             _ => throw new ArgumentOutOfRangeException(nameof(subjectKind), subjectKind, null)
         };
     }
@@ -370,5 +408,7 @@ public sealed class BytecodeNonResidueDeclineRatchetTests
         SubjectKind SubjectKind,
         string FunctionName,
         bool IsDynamicResidue,
-        UnifiedBytecodeProductionDeclineCode ExpectedDeclineCode);
+        UnifiedBytecodeProductionDeclineCode ExpectedDeclineCode,
+        bool AllowsRootFunctionDeclarationInstructions = false,
+        bool AllowsMaterializedBodyEnvironmentFunctionLiterals = false);
 }

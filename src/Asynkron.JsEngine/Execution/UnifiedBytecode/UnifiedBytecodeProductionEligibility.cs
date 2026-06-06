@@ -1868,6 +1868,11 @@ internal static class UnifiedBytecodeProductionEligibility
         out string capturedName)
     {
         capturedName = string.Empty;
+        if (DirectFunctionDeclarationsNeedLexicalThisOrPrivateNameContext(function, out capturedName))
+        {
+            return true;
+        }
+
         var cache = ((IAstCacheable<ExecutionPlanCache>)function).GetOrCreateCache();
         if (!cache.Succeeded || cache.Plan is not { } plan)
         {
@@ -1893,6 +1898,23 @@ internal static class UnifiedBytecodeProductionEligibility
             }
         }
 
+        return false;
+    }
+
+    private static bool DirectFunctionDeclarationsNeedLexicalThisOrPrivateNameContext(
+        FunctionExpression function,
+        out string capturedName)
+    {
+        foreach (var statement in function.Body.Statements)
+        {
+            if (statement is FunctionDeclaration functionDeclaration &&
+                FunctionLiteralNeedsLexicalThisOrPrivateNameContext(functionDeclaration.Function, out capturedName))
+            {
+                return true;
+            }
+        }
+
+        capturedName = string.Empty;
         return false;
     }
 
@@ -2029,6 +2051,11 @@ internal static class UnifiedBytecodeProductionEligibility
         out string capturedName)
     {
         capturedName = string.Empty;
+        if (DirectFunctionDeclarationsCaptureActivationSlot(function, activationSlots, out capturedName))
+        {
+            return true;
+        }
+
         var cache = ((IAstCacheable<ExecutionPlanCache>)function).GetOrCreateCache();
         if (!cache.Succeeded || cache.Plan is not { } plan)
         {
@@ -2059,14 +2086,26 @@ internal static class UnifiedBytecodeProductionEligibility
             {
                 return true;
             }
+        }
 
-            if (instruction is FunctionDeclarationInstruction)
+        return false;
+    }
+
+    private static bool DirectFunctionDeclarationsCaptureActivationSlot(
+        FunctionExpression function,
+        ActivationSlotShape activationSlots,
+        out string capturedName)
+    {
+        foreach (var statement in function.Body.Statements)
+        {
+            if (statement is FunctionDeclaration functionDeclaration &&
+                FunctionCapturesActivationSlot(functionDeclaration.Function, activationSlots, out capturedName))
             {
-                capturedName = NestedFunctionDeclarationBoundary;
                 return true;
             }
         }
 
+        capturedName = string.Empty;
         return false;
     }
 

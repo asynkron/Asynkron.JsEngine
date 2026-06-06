@@ -777,9 +777,14 @@ predicates and proof tests.
     the resumable body. Lexical-this/private-name dependent literals now route
     when the resumable invoker proves the context and creates a per-call
     invocation environment for nested arrows to capture. Function declarations
-    nested inside an otherwise non-capturing function literal still decline until
-    declaration-instantiation semantics are represented by the resumable route.
-    B23 remains partial.
+    nested inside function literals route as well: the outer resumable VM creates
+    the literal, and the literal's normal invocation path owns declaration
+    instantiation. The eligibility analyzer inspects those direct nested
+    declarations through the literal AST so an inner declaration that captures an
+    outer resumable slot requests the existing materialized body-environment
+    proof instead of triggering an opaque B23/B36 decline. B23 is admitted; the
+    remaining nested declaration work is in B36's dynamic/eval helper and complex
+    class declaration lanes.
   - HOISTED NESTED FUNCTION DECLARATIONS (`function helper(){...}`;
     `FunctionDeclarationInstruction` / `DeclareFunction`) inside a generator/async
     body are now partially admitted (B36): direct root function-scoped
@@ -1816,8 +1821,8 @@ the final post-compile production subset check before VM entry.
   through the B23 materialized-body-environment slice when they capture root body
   locals, and lexical/private-context captures are admitted when the resumable
   invoker proves and materializes the per-call context. Nested declarations inside
-  those function literals remain covered by the B23 declaration-instantiation
-  decline.
+  those function literals use the literal's normal invocation-time declaration
+  instantiation path and are no longer a B23 decline.
   Separately,
   a `var x = <literal>` whose literal contains no suspension still declines at the
   resumable var-declaration lowering boundary (`SimpleVariableDeclarationInstruction`

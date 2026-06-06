@@ -23,7 +23,9 @@ namespace Asynkron.JsEngine.Tests;
 ///     materializes a body environment that mirrors root activation slots so captured closures observe slot
 ///     mutations across suspension. Async functions and async generators now share that materialized
 ///     environment. Lexical-this/private-name literals route when the invoker proves and materializes the
-///     per-call invocation context; function declarations nested inside literals remain declined.
+///     per-call invocation context. Function declarations nested inside literals route as well: the outer
+///     resumable VM creates the literal, and the literal's normal invocation path owns declaration
+///     instantiation while capturing the materialized resumable body environment when needed.
 ///
 ///     B36 — direct root hoisted function declarations are materialised by the resumable invokers before
 ///     `ExecuteResumable` starts. Recursive and sibling helper references resolve at call time from that same
@@ -163,6 +165,34 @@ public sealed class UnifiedBytecodeResumableNestedFunctionTests(ITestOutputHelpe
             """);
 
         Assert.Equal(3d, result);
+        AssertGeneratorRouted();
+    }
+
+    // B23/B36 overlap: a nested function literal can contain its own hoisted declaration. The outer
+    // resumable VM only creates the literal; the literal's normal invocation path owns its declaration
+    // instantiation, while the materialized resumable body environment supplies captured outer slots.
+    [Fact(Timeout = 5000)]
+    public async Task GeneratorNestedFunctionLiteralWithInnerDeclarationCapturingLocal_RoutesResumable()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function* g(){
+                var n = 1;
+                var f = function(){
+                    function inner(){ return n; }
+                    return inner();
+                };
+                yield f();
+                n = 2;
+                yield f();
+            }
+            var it = g();
+            var a = it.next().value;
+            var b = it.next().value;
+            a + "|" + b;
+            """);
+
+        Assert.Equal("1|2", result);
         AssertGeneratorRouted();
     }
 
@@ -641,7 +671,7 @@ public sealed class UnifiedBytecodeResumableNestedFunctionTests(ITestOutputHelpe
     }
 
     [Fact]
-    public void EvaluateResumable_NestedFunctionLiteralWithInnerDeclarationCapturingLocal_StillDeclines()
+    public void EvaluateResumable_NestedFunctionLiteralWithInnerDeclarationCapturingLocal_DeclinesWithoutEnvironmentProof()
     {
         var plan = TopLevelGeneratorPlan("""
             function* g(){
@@ -659,7 +689,33 @@ public sealed class UnifiedBytecodeResumableNestedFunctionTests(ITestOutputHelpe
             new UnifiedBytecodeProductionActivationDescriptor(IsGenerator: true));
 
         Assert.False(result.IsEligible);
-        Assert.Contains("contains a function declaration", result.Reason, StringComparison.Ordinal);
+        Assert.Contains("captures activation binding 'n'", result.Reason, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void EvaluateResumable_NestedFunctionLiteralWithInnerDeclarationCapturingLocal_AdmitsWithMaterializedBodyEnvironmentProof()
+    {
+        var plan = TopLevelGeneratorPlan("""
+            function* g(){
+                var n = 1;
+                var f = function(){
+                    function inner(){ return n; }
+                    return inner();
+                };
+                yield f();
+            }
+            """, "g");
+
+        var result = UnifiedBytecodeProductionEligibility.EvaluateResumable(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor(
+                IsGenerator: true,
+                AllowsMaterializedBodyEnvironmentFunctionLiterals: true));
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Contains(
+            result.Program.Instructions,
+            static instruction => instruction.OpCode == UnifiedBytecodeOpCode.LoadFunctionLiteral);
     }
 
     private void AssertGeneratorRouted() =>

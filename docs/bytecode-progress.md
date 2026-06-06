@@ -6,8 +6,10 @@ This page is a compact map of where unified bytecode is now and what still
 needs to be handled before the engine can reasonably claim full bytecode
 execution.
 
-Source-of-truth details remain in
-`docs/unified-bytecode-expansion-contract.md`. This page is the overview.
+The finite checklist source of truth remains
+`docs/plans/bytecode-burndown-checklist.md`; source-checked drift inventories
+remain in `docs/unified-bytecode-expansion-contract.md`. This page is the
+overview.
 
 ## Legend
 
@@ -124,6 +126,39 @@ Phase 0 inventory closure is complete as of 2026-06-05. The burndown checklist
 now has 145 finite items: 122 complete and 23 open. The last coarse leaves were
 split into A35a-A35e object-literal member opcode leaves and B24a-B24i
 class-expression semantic leaves.
+
+### Current Retrospective Accounting
+
+The latest checklist recount is unchanged at **122 / 145 complete**. Across the
+concrete A+B+C+D sections, **114 / 134** are complete and **20** remain open.
+Phase B stands at **53 / 57** complete. The D5 non-residue ratchet has **0**
+known-open rows, the resumable opcode gap inventory has **5** remaining gaps,
+and the resumable instruction gap inventory has **0** remaining gaps.
+
+The remaining non-retirement work is concentrated in:
+
+- A1/A2 dynamic activation residue: captured dynamic activation chains,
+  direct-eval shapes that still depend on the implicit `arguments` object
+  beyond the bounded admitted route, and async/generator parity for the dynamic
+  activation lane. `TypedAstEvaluator.UnifiedBytecodeResumableActivation.cs`
+  still declines direct eval in parameters/body when the resumable path cannot
+  prove declaration-free dynamic activation, arguments-object safety, or absence
+  of a live `with` object in the closure chain.
+- A51 compiler leaves: the remaining named `UnsupportedPlanShape` buckets for
+  topology, slot layout, scope/environment, driver state, destructuring,
+  expression-span, call-boundary, literal, property, mutation, and cleanup
+  diagnostics.
+- B24d/B24h/B24i class-definition state: static blocks, computed-name/class
+  element neighbors that still need activation/call/delete ownership, mixed
+  private/capturing class shapes, and broader class-definition environment
+  bridging.
+- B36 resumable declarations: dynamic/eval helpers and complex class
+  declarations (`extends`, computed names, static elements, and static blocks)
+  remain on the IR route while direct root helpers, recursive/sibling helper
+  graphs, block/Annex B declarations, and simple class declarations are already
+  accounted for as admitted partial progress.
+- E-retirement work: classify or remove the remaining tier-1 expression and
+  tier-2 statement IR fallback paths after A/B/C parity is actually proven.
 
 ## Needs-Handling Progress
 

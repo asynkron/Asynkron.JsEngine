@@ -2873,6 +2873,16 @@ internal static class UnifiedBytecodeProductionEligibility
             return false;
         }
 
+        if (IsB24dStaticBlockClassLiteral(definition, out declineReason))
+        {
+            return true;
+        }
+
+        if (!string.IsNullOrEmpty(declineReason))
+        {
+            return false;
+        }
+
         if (!definition.StaticBlocks.IsDefaultOrEmpty || !definition.StaticElements.IsDefaultOrEmpty)
         {
             declineReason =
@@ -3235,6 +3245,54 @@ internal static class UnifiedBytecodeProductionEligibility
             ExpressionOpKind.StoreIdentifier or
             ExpressionOpKind.UpdateIdentifier;
 
+    private static bool IsB24dStaticBlockClassLiteral(
+        ClassDefinition definition,
+        out string declineReason)
+    {
+        declineReason = string.Empty;
+        if (definition.Extends is not null ||
+            !definition.Members.IsDefaultOrEmpty ||
+            !definition.Fields.IsDefaultOrEmpty ||
+            definition.StaticBlocks.IsDefaultOrEmpty)
+        {
+            return false;
+        }
+
+        if (definition.StaticElements.IsDefaultOrEmpty ||
+            definition.StaticElements.Length != definition.StaticBlocks.Length)
+        {
+            return false;
+        }
+
+        foreach (var element in definition.StaticElements)
+        {
+            if (element.Kind != ClassStaticElementKind.Block)
+            {
+                return false;
+            }
+        }
+
+        var cache = ((IAstCacheable<ClassDefinitionProgramCache>)definition).GetOrCreateCache();
+        if (!cache.Succeeded)
+        {
+            declineReason =
+                $"Class literal static-block plans could not lower for B24d resumable production routing: {cache.FailureReason ?? "unknown failure"}.";
+            return false;
+        }
+
+        foreach (var block in definition.StaticBlocks)
+        {
+            if (ClassStaticBlockClosureDetector.ContainsClosureProducingExpression(block.Body))
+            {
+                declineReason =
+                    "Class literal is outside B24d: static block creates a closure that needs the materialized body environment route.";
+                return false;
+            }
+        }
+
+        return true;
+    }
+
     private static bool IsB24cPublicStaticFieldClassLiteral(ClassDefinition definition)
     {
         if (definition.Extends is not null ||
@@ -3380,6 +3438,73 @@ internal static class UnifiedBytecodeProductionEligibility
                 if (!ShouldStop && member.Function is not null)
                 {
                     VisitFunctionExpression(member.Function);
+                }
+            }
+        }
+    }
+
+    private sealed class ClassStaticBlockClosureDetector : AstVisitor
+    {
+        [ThreadStatic] private static ClassStaticBlockClosureDetector? _instance;
+
+        private bool _found;
+
+        public static bool ContainsClosureProducingExpression(BlockStatement block)
+        {
+            var detector = _instance ??= new ClassStaticBlockClosureDetector();
+            detector._found = false;
+            detector.ShouldStop = false;
+            detector.VisitBlockStatement(block);
+            return detector._found;
+        }
+
+        protected override void VisitFunctionDeclaration(FunctionDeclaration node)
+        {
+            _found = true;
+            ShouldStop = true;
+        }
+
+        protected override void VisitFunctionExpression(FunctionExpression node)
+        {
+            _found = true;
+            ShouldStop = true;
+        }
+
+        protected override void VisitClassDeclaration(ClassDeclaration node)
+        {
+            _found = true;
+            ShouldStop = true;
+        }
+
+        protected override void VisitClassExpression(ClassExpression node)
+        {
+            _found = true;
+            ShouldStop = true;
+        }
+
+        protected override void VisitObjectExpression(ObjectExpression node)
+        {
+            foreach (var member in node.Members)
+            {
+                if (ShouldStop)
+                {
+                    break;
+                }
+
+                if (member.Key is ExpressionNode keyExpression)
+                {
+                    VisitExpression(keyExpression);
+                }
+
+                if (!ShouldStop && member.Value is not null)
+                {
+                    VisitExpression(member.Value);
+                }
+
+                if (!ShouldStop && member.Function is not null)
+                {
+                    _found = true;
+                    ShouldStop = true;
                 }
             }
         }

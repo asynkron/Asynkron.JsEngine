@@ -682,14 +682,22 @@ all-or-nothing until a separate routing issue proves production readiness.
     with or without a decline reason, must not leave partial stack instructions
     or constants behind for the next fallback path. Pair accepted examples with
     adjacent unsupported examples so partial-emission stack drift is caught by
-    the focused proof pack. WHY: issue
+    the focused proof pack. For measured span helpers that append into shared
+    unified, literal, or string builders, include a post-emission rollback guard
+    and source-gated coverage for the explicit rollback diagnostic template, so
+    a later key/RHS/continuation failure cannot silently leave partial emitted
+    state or an undocumented nested reason. WHY: issue
     `planitem-planmanual1780198120145433000-widen-unified-bytecode-production-conditio-0aa2351edc`
     / PR #2812 found that
     `TryAppendFirstBoundaryNamedLogicalPropertySet` could append base/property
     setup before later RHS or neighbor-shape rejection. The accepted repair
     staged unified instructions plus literal and string constants in scratch
     builders, then replaced the shared builders only after the complete direct
-    named logical-assignment shape was accepted.
+    named logical-assignment shape was accepted. Faktorial issue
+    `planitem-planmanual1780730299657353000-unified-bytecode-remaining-burndown-03-com-d452fce244`
+    / PR #3337 closed A51m after the measured computed property-read helper
+    still needed an explicit rollback diagnostic plus source coverage alongside
+    the existing named and optional measured read-span helpers.
 15. When proving no-route behavior for unsupported property-read-adjacent
     shapes through public invocation logs, assert absence of
     `unified-bytecode-production-fast-path` for the exact function or method

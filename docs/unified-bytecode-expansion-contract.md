@@ -53,11 +53,11 @@ statement interpretation.
   workloads without requiring the external profiler.
 
 ## Current Completion Audit
-- Current-main rebaseline: on `e2e0da918` (2026-06-05), the focused contract
+- Current-main rebaseline: on this worktree (2026-06-06), the focused contract
   drift gate
   `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~ExpressionProgramCoverageMapTests&FullyQualifiedName~UnifiedBytecodeExpansionContract"`
   passed. The checked inventories remain current: 6 sync prototype opcode guard
-  gaps, 19 resumable opcode allowlist gaps, 9 resumable instruction allowlist
+  gaps, 15 resumable opcode allowlist gaps, 5 resumable instruction allowlist
   gaps, A35 split into 5 object-literal member leaves, B24 split into 9
   class-expression leaves, and no general expression lowering gaps.
 - Completing the decline-burndown plan did not make unified bytecode the only
@@ -2004,3 +2004,33 @@ rtk ./tools/profile activation-noargs-lite --route-hits
 rtk ./tools/profile forofiteration --route-hits
 rtk ./tools/profile forloop --memory
 ```
+
+## Current Final-Proof Evidence
+
+2026-06-06 local proof run:
+
+- Contract and unified proof packs: `ExpressionProgramCoverageMapTests` 14/14,
+  `UnifiedBytecodeProductionEligibilityTests` 586/586,
+  `UnifiedBytecodePrototypeTests` 73/73, and
+  `UnifiedBytecodeProductionInvocationTests` 557/557 passed. The runner seam
+  scan
+  `rtk rg "EvaluateExpression\\(|ProfileEvaluateExpression\\(" src/Asynkron.JsEngine/Ast/TypedAstEvaluator.ExecutionPlanRunner*`
+  returned no matches.
+- Route-hit probes confirmed current production VM entry:
+  `forloop` 40, `propertyaccess` 20, `functioncalls-lite` 1,600,002,
+  `activation-noargs-lite` 600,002, and `forofiteration` 2,000
+  `unified-bytecode-production-fast-path` hits.
+- `rtk ./tools/profile forloop --memory` reported `Total allocated 6.93 MB`.
+- `rtk ./tools/run-test262-regressions.sh --list` reported
+  `full (523 entries)`, `annexb (15 entries)`, `array-prototype (31 entries)`,
+  `gh1832-private-accessor-logical-assignment (7 entries)`, `intl (82 entries)`,
+  `language (76 entries)`, `proxy (3 entries)`, `regexp (115 entries)`, and
+  `temporal (208 entries)`.
+- `rtk ./tools/run-test262-regressions.sh` selected 1,910 generated cases:
+  1,906 passed and 4 failed. The residual failures were the strict and
+  non-strict rows for
+  `intl402/DateTimeFormat/prototype/formatRangeToParts/temporal-objects-resolved-time-zone.js`
+  and
+  `intl402/DateTimeFormat/prototype/formatToParts/temporal-objects-resolved-time-zone.js`.
+  These Test262 Intl residuals do not add a discard-specific production
+  unified-bytecode decline.

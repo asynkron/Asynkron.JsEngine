@@ -44,7 +44,7 @@ non-awaited `with`, the `Function` call boundary itself.
 
 - [x] **P0.1** Grammar-coverage appendix → `docs/plans/bytecode-grammar-coverage.md` ✅ (covers switch+`let`, do-while, sequence, BigInt literal/arithmetic/`typeof`, `static {}`, super-in-instance/static-fields, `new.target`, labeled-block break — each mapped to its lowering owner + test anchor). **Surfaced 1 real new leaf → A52 (`debugger;`).**
 - [x] **P0.2** Enumerate the `UnsupportedPlanShape` compiler umbrellas (A51 / B47 / E2): promoted current `UnifiedBytecodeCompiler.TryCompile` reason templates into named owner leaves A51a-A51m plus B47a, with exact source-template drift coverage in `docs/unified-bytecode-expansion-contract.md`.
-- [x] **P0.3** Diff `UnifiedBytecodeOpCode` enum vs the sync admit-switch (E3) and the two resumable allowlists; name every enum/instruction-but-not-admitted gap. ✅ (2026-06-05): contract now drift-checks sync prototype opcode guard gaps (6 resumable-only opcodes), resumable opcode allowlist gaps (19 opcodes; `LoadClassLiteral` is allowlisted and shape-gated by B24a), and resumable instruction allowlist gaps (9 instruction records after B36 conditional function-declaration admission) against source.
+- [x] **P0.3** Diff `UnifiedBytecodeOpCode` enum vs the sync admit-switch (E3) and the two resumable allowlists; name every enum/instruction-but-not-admitted gap. ✅ (2026-06-06): contract now drift-checks sync prototype opcode guard gaps (6 resumable-only opcodes), resumable opcode allowlist gaps (15 opcodes), and resumable instruction allowlist gaps (5 instruction records) against source.
 - [x] **P0.4** Decompose the coarse leaves: split **B24** (class expression) into per-member shapes and **A35** into concrete object-literal member opcode leaves. ✅ (2026-06-05): A35 is now A35a-A35e; B24 is now B24a-B24i; the expansion contract drift-checks both decompositions.
 - [x] **P0.5** Delete the dead `LabelControlFlow` enum member + stale contract-doc rows (zero emission sites; labeled loop break/continue already admitted on sync). *(= old E1.)*
 
@@ -228,10 +228,22 @@ these allowlists — mechanical extensions against existing sync VM handlers.
 
 **Status (134 concrete A+B+C+D checklist items):** 96 complete / 38 open. **Resumable is the bulk of the remaining work; class-expression static blocks, computed/super class members, async-generator delegation, driver state, and fallback-tier retirement remain significant gaps.**
 
+Final proof evidence (2026-06-06): the focused contract and unified proof packs
+passed (`ExpressionProgramCoverageMapTests` 14, production eligibility 586,
+prototype 73, production invocation 557), the runner AST-eval seam scan returned
+no matches, and representative route-hit probes remained nonzero (`forloop` 40,
+`propertyaccess` 20, `functioncalls-lite` 1,600,002, `activation-noargs-lite`
+600,002, `forofiteration` 2,000). `forloop --memory` reported 6.93 MB total
+allocated. The default Test262 regression script selected 1,910 generated cases
+from the 523-entry `full` pack; 1,906 passed and 4 failed in the strict/non-strict
+Intl DateTimeFormat temporal resolved-time-zone rows (`formatRangeToParts` and
+`formatToParts`). No proof result reintroduced a non-residue discard-specific
+production decline.
+
 ## Known soft spots
 1. **Named compiler-decline leaves** (A51a-A51m/B47a) are now source-inventoried in the expansion contract; future `TryCompile` reason drift must update that contract and the focused source gate.
 2. **Resumable suspension machinery** (B30–B33, B41, B3/B39) — inventory is complete, but per-item cost is unbounded (persisting driver/try/finally/iterator state across resume); these may subdivide during implementation. Treat the Phase B count of 57 as a lower bound for effort.
 
 ---
 
-_Checklist status: 105 / 145 complete. The latest C3 slice proved top-level script routing inherits representative admitted A/B production shapes through the shared gate while preserving explicit dynamic and script-safety declines. Phase B stands at 44 / 57 complete, and the concrete A+B+C checklist stands at 95 complete / 34 open. B23 remains partial for async captured literals and lexical/private closure contexts; B36 remains partial for async/async-generator captured helpers, recursive/sibling helper graphs, block/Annex B declarations, and class declarations. The resumable opcode gap inventory is now 20 because `RegisterDisposable` is sync-only, and the instruction gap inventory remains 7._
+_Checklist status: 105 / 145 complete. The latest C3 slice proved top-level script routing inherits representative admitted A/B production shapes through the shared gate while preserving explicit dynamic and script-safety declines. Phase B stands at 44 / 57 complete, and the concrete A+B+C checklist stands at 95 complete / 34 open. B23 remains partial for async captured literals and lexical/private closure contexts; B36 remains partial for async/async-generator captured helpers, recursive/sibling helper graphs, block/Annex B declarations, and class declarations. The resumable opcode gap inventory is now 15, and the instruction gap inventory is now 5._

@@ -529,6 +529,19 @@ all-or-nothing until a separate routing issue proves production readiness.
      bridged for class creation, while the latter still needs a materialized
      body environment that outlives class creation. Related ADR:
      `docs/adrs/0329-admit-resumable-class-literal-static-fields-with-owned-environments.md`.
+     Faktorial issue
+     `planitem-planmanual1780730299657353000-unified-bytecode-remaining-burndown-04-cla-c4d613c27d`
+     / PR #3349 then admitted the narrow B24h direct activation-call computed
+     name subset. A computed name such as `[read()]` may route when the scanner
+     proves and consumes exactly the adjacent activation call-target plus
+     zero-argument `Call` operation pair; that does not admit activation values
+     passed as arguments to another callee, activation deletes, construct or
+     super-construct dependencies, nested computed-name literals that capture
+     activation slots, activation-capturing field initializers, or capturing
+     constructor/member bodies. Future B24h widening must keep these dependency
+     families separate and pair every positive route with nearby no-route proof
+     for the still-unowned class-definition environment state. Related ADR:
+     `docs/adrs/0360-admit-direct-activation-calls-in-computed-class-names.md`.
 10g. When admitting iterator init driver shapes, keep source-payload shape and
      iterator driver kind as separate concepts. An iterator driver must carry
      exactly one source payload (`IterableProgram` or `AwaitedProgram`), and a

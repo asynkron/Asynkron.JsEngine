@@ -1,6 +1,6 @@
 # Bytecode Progress Map
 
-Date: 2026-06-05
+Date: 2026-06-06
 
 This page is a compact map of where unified bytecode is now and what still
 needs to be handled before the engine can reasonably claim full bytecode
@@ -114,8 +114,8 @@ residue rather than ordinary E5 retirement work.
 
 The remaining default-admission gaps are now inventoried directly. The sync
 prototype guard has 6 currently non-admitted resumable-only opcodes; the
-resumable opcode allowlist has 19 non-admitted opcodes; and the resumable
-instruction allowlist has 9 non-admitted IR instruction records. Those lists
+resumable opcode allowlist has 15 non-admitted opcodes; and the resumable
+instruction allowlist has 5 non-admitted IR instruction records. Those lists
 are drift-checked in `ExpressionProgramCoverageMapTests`, so future opcode or
 instruction additions cannot hide behind the old default buckets.
 
@@ -282,6 +282,16 @@ Zero route hits do not necessarily mean the syntax family has no bytecode
 support. They mean the measured workload shape did not enter the production
 unified-bytecode fast path. That is why route-hit evidence must be read
 together with the source shape and eligibility boundary.
+
+Final proof rerun on 2026-06-06 confirmed the representative production route
+subset used by the expansion contract: `forloop` 40 hits, `propertyaccess` 20,
+`functioncalls-lite` 1,600,002, `activation-noargs-lite` 600,002, and
+`forofiteration` 2,000. The same run reported `forloop --memory` total
+allocation at 6.93 MB. The default Test262 regression script selected 1,910
+generated cases from the 523-entry `full` pack; 1,906 passed and 4 failed in
+the strict/non-strict Intl DateTimeFormat temporal resolved-time-zone rows
+(`formatRangeToParts` and `formatToParts`). Those residuals are Intl semantics
+evidence, not a retained discard-specific production bytecode gate.
 
 ## Practical Reading
 

@@ -777,34 +777,32 @@ predicates and proof tests.
   - NESTED FUNCTION LITERALS (`var h = function(){...}`) inside generator/async
     bodies are now split by capture analysis. Non-capturing literals route through
     `ExecuteResumable` via `LoadFunctionLiteral` and `EnsureHasName`; object
-    method/accessor literals use the same path. Generator and async-function
-    nested function literals that capture a root body local also route after
-    invocation setup materializes a body environment whose activation slots are
-    mirrored from the resume-state flat slots and kept synchronized on slot
-    writes. This admits `function* g(){ var n=1; var f=()=>n; yield f(); n=2;
-    yield f(); }`, so the closure observes `1` then `2` on the resumable
-    generator route, and admits async-function closures that cross `await`,
-    observe post-resume slot writes, and are called directly inside the async
-    body. Async-generator captured-local literals, lexical-this/private-name
-    dependent literals, and function declarations nested inside an otherwise
-    non-capturing function literal decline until their closure contexts or
-    declaration-instantiation semantics are represented by the resumable route.
-    B23 remains partial.
+    method/accessor literals use the same path. Generator, async-function, and
+    async-generator nested function literals that capture a root body local also
+    route after invocation setup materializes a body environment whose activation
+    slots are mirrored from the resume-state flat slots and kept synchronized on
+    slot writes. This admits `function* g(){ var n=1; var f=()=>n; yield f();
+    n=2; yield f(); }`, so the closure observes `1` then `2` on the resumable
+    generator route, and admits async-function / async-generator closures that
+    cross `await`, observe post-resume slot writes, and are called directly inside
+    the resumable body. Lexical-this/private-name dependent literals and function
+    declarations nested inside an otherwise non-capturing function literal decline
+    until their closure contexts or declaration-instantiation semantics are
+    represented by the resumable route. B23 remains partial.
   - HOISTED NESTED FUNCTION DECLARATIONS (`function helper(){...}`;
     `FunctionDeclarationInstruction` / `DeclareFunction`) inside a generator/async
     body are now partially admitted (B36): direct root function-scoped
     declarations route when the resumable invoker pre-populates the helper's
     compiled VM flat slot before `ExecuteResumable` starts. Non-capturing
     helpers route in generators, async functions, and async generators. The
-    sync-generator and async-function routes also admit helpers that capture root
-    body locals after invocation setup materializes the resumable body environment
-    and creates the helper against that environment, so the helper observes
-    flat-slot mutations across `yield`/resume or `await`/resume. A43 now admits
-    descriptor-backed block/Annex B declarations through materialized block
-    environments. Async-generator captured helpers remain declined because that
-    invoker does not yet prove the same materialized body environment lifetime.
-    Recursive/sibling helper graphs, dynamic/eval helpers, and class declarations
-    are separate B36 declaration-instantiation work.
+    sync-generator, async-function, and async-generator routes also admit helpers
+    that capture root body locals after invocation setup materializes the
+    resumable body environment and creates the helper against that environment, so
+    the helper observes flat-slot mutations across `yield`/resume or
+    `await`/resume. A43 now admits descriptor-backed block/Annex B declarations
+    through materialized block environments. Recursive/sibling helper graphs,
+    dynamic/eval helpers, and class declarations are separate B36
+    declaration-instantiation work.
     `DeclareFunction` remains OFF the resumable opcode allowlist and
     `FunctionDeclarationInstruction` remains conditionally guarded by the
     invoker-proof activation flag; the boundary is pinned by

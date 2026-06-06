@@ -11,24 +11,22 @@ namespace Asynkron.JsEngine.Tests;
 ///     the resumable VM. Generator nested literals that capture root body locals now route through a
 ///     materialized body environment that aliases closure captures with flat slots. Direct root hoisted
 ///     function declarations now route when the declared helper does not capture the resumable activation;
-///     sync-generator and async-function declarations that capture root body locals route through a
-///     materialized body environment. Async-generator captured declarations remain declined until B36 owns
-///     their iterator-lifetime declaration-instantiation boundary.
+///     sync-generator, async-function, and async-generator declarations that capture root body locals route
+///     through a materialized body environment.
 ///
 ///     Why declined (architecture, not a missing handler):
 ///
 ///     B23 — a nested function literal that does not close over the resumable activation can be created with
 ///     the captured outer environment and stored in a flat slot. The first generator-only captured-local slice
 ///     materializes a body environment that mirrors root activation slots so captured closures observe slot
-///     mutations across suspension. Async functions now share that materialized environment; async-generator
-///     captured-local literals remain declined.
+///     mutations across suspension. Async functions and async generators now share that materialized
+///     environment.
 ///
 ///     B36 — direct root hoisted function declarations are materialised by the resumable invokers before
 ///     `ExecuteResumable` starts. The sync-generator and async-function paths also admit helpers that capture
 ///     root body locals once they own a materialized body environment that mirrors flat-slot state across
-///     suspension. This slice is intentionally narrow: async-generator captured declarations,
-///     sibling/recursive declaration bindings, dynamic scope, and block-declaration runtime semantics remain
-///     declined.
+///     suspension. This slice is intentionally narrow: sibling/recursive declaration bindings, dynamic scope,
+///     and block-declaration runtime semantics remain declined.
 /// </summary>
 [Category(TestCategories.RuntimeSemantics)]
 public sealed class UnifiedBytecodeResumableNestedFunctionTests(ITestOutputHelper output)
@@ -288,20 +286,21 @@ public sealed class UnifiedBytecodeResumableNestedFunctionTests(ITestOutputHelpe
     }
 
     [Fact(Timeout = 5000)]
-    public async Task AsyncGeneratorHoistedFunctionDeclarationCapturesLocal_CorrectButDeclinesToRunner()
+    public async Task AsyncGeneratorHoistedFunctionDeclarationCapturesLocal_RoutesResumable()
     {
         await using var engine = CreateEngine();
         var result = await engine.EvaluateAndAwait("""
             var done = undefined;
-            async function* values(){
+            async function* values(p){
                 var n = 13;
                 function helper(){ return n; }
+                await p;
                 yield helper();
                 n = 14;
                 yield helper();
             }
             async function run(){
-                var it = values();
+                var it = values(Promise.resolve(0));
                 var a = await it.next();
                 var b = await it.next();
                 return a.value + "|" + b.value;
@@ -311,7 +310,35 @@ public sealed class UnifiedBytecodeResumableNestedFunctionTests(ITestOutputHelpe
             """);
 
         Assert.Equal("13|14", result);
-        AssertAsyncGeneratorNotRouted();
+        AssertAsyncGeneratorRouted();
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task AsyncGeneratorNestedArrowCapturesLocalAcrossYields_RoutesResumable()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.EvaluateAndAwait("""
+            var done = undefined;
+            async function* values(p){
+                var n = 1;
+                var read = () => n;
+                await p;
+                yield read();
+                n = 2;
+                yield read();
+            }
+            async function run(){
+                var it = values(Promise.resolve(0));
+                var a = await it.next();
+                var b = await it.next();
+                return a.value + "|" + b.value;
+            }
+            run().then(v => done = v);
+            done;
+            """);
+
+        Assert.Equal("1|2", result);
+        AssertAsyncGeneratorRouted();
     }
 
     // B23 async variant: an async function materializes and name-infers a non-capturing nested function
@@ -506,6 +533,31 @@ public sealed class UnifiedBytecodeResumableNestedFunctionTests(ITestOutputHelpe
             plan,
             new UnifiedBytecodeProductionActivationDescriptor(
                 IsAsyncLike: true,
+                AllowsMaterializedBodyEnvironmentFunctionLiterals: true));
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Contains(
+            result.Program.Instructions,
+            static instruction => instruction.OpCode == UnifiedBytecodeOpCode.LoadFunctionLiteral);
+    }
+
+    [Fact]
+    public void EvaluateResumable_AsyncGeneratorNestedFunctionLiteralCapturingLocal_AdmitsWithMaterializedBodyEnvironmentProof()
+    {
+        var plan = TopLevelGeneratorPlan("""
+            async function* values(p){
+                var n = 1;
+                var f = () => n;
+                await p;
+                yield f();
+            }
+            """, "values");
+
+        var result = UnifiedBytecodeProductionEligibility.EvaluateResumable(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor(
+                IsAsyncLike: true,
+                IsGenerator: true,
                 AllowsMaterializedBodyEnvironmentFunctionLiterals: true));
 
         Assert.True(result.IsEligible, result.Reason);

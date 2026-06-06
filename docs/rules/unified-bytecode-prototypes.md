@@ -210,6 +210,23 @@ all-or-nothing until a separate routing issue proves production readiness.
     / PR #3336 closed the A51a `Unsupported entrypoint.` subfamily by proving
     valid compiler-produced plans have supported entrypoints while keeping the
     malformed-plan guardrails intact.
+9g. Keep A51l closed as a decomposed diagnostics bucket, not as a reusable
+    catch/try/driver cleanup umbrella. Catch-binding and dynamic environment
+    storage diagnostics belong to A51c; invalid targets, active try-completion
+    targets, and remaining loop-control topology belong to A51a; iterator,
+    for-in, `yield*`, resume-target, driver state-slot, and iterator-close
+    state-slot diagnostics belong to A51d; logical property-write cleanup-start
+    diagnostics belong to A51j; and resumable finally-cleanup guards remain
+    explicit eligibility declines until the VM owns those semantics. Future
+    compiler reason templates in this area must update the source-backed
+    coverage-map guard, expansion contract, and checklist owner mapping in the
+    same slice. Do not reintroduce an A51l row or generic "not otherwise
+    captured" bucket to make new cleanup diagnostics look accounted for. WHY:
+    Faktorial issue
+    `planitem-planmanual1780730299657353000-unified-bytecode-remaining-burndown-03-com-c499586fbd`
+    / delivery PR #3330 closed A51l by proving the current catch/try/driver
+    cleanup reason templates already map to concrete owners. Related ADR:
+    `docs/adrs/0357-keep-a51l-catch-try-driver-cleanup-diagnostics-decomposed.md`.
 10. When invoking production unified bytecode from sync calls, keep the bridge
     slot-layout owned and fast-path ordered. The production unified route runs
     before direct specialized simple-return binary/chain shortcuts and the

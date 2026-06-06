@@ -524,7 +524,7 @@ semantic bridge or mis-parking dynamic residue as ordinary fallback work.
 | `A51c` | Catch binding, lexical dynamic declaration, active-with dynamic-name, TDZ-head binding storage | Existing environment-aware execution-plan runner | both |
 | `A51d` | Iterator, for-in, `yield*`, resume-target, and driver state slots | Existing iterator/generator/async IR drivers | both; `yield*`/resume-target are resumable-owned |
 | `A51e` | Array/object destructuring state slots and simple script declaration targets are compiler-owned for the admitted lane; remaining nested/default/parameter/disposal destructuring stays under R6 / `DestructuringDependency` | Existing destructuring IR helpers for remaining R6 shapes | both |
-| `A51f` | General expression-loop unsupported op, binding-target expression, dynamic identifier, `arguments`, and private-neighbor gaps | Expression-program / execution-plan runner | both |
+| `A51f` | Closed umbrella for general expression-loop unsupported op, binding-target expression, dynamic identifier, `arguments`, and private-neighbor gaps; decomposed into A51f1-A51f5 below | Expression-program / execution-plan runner | both |
 | `A51g` | Call-target preparation, direct-eval call boundary, member/super/private call-target, invocation-boundary shapes | Existing call/eval/super IR paths | both; dynamic residue remains D1/D4 |
 | `A51h` | Array/object/template literal, spread source, computed object key, and simple literal-span shapes | Existing expression-program literal/spread evaluation | both |
 | `A51i` | Computed/optional/private property-read and receiver-boundary shapes | Existing expression-program property evaluation | both |
@@ -533,6 +533,30 @@ semantic bridge or mis-parking dynamic residue as ordinary fallback work.
 | `A51l` | Catch/try/driver cleanup topology diagnostics not otherwise captured by concrete driver rows | Existing execution-plan runner | both |
 | `A51m` | Measured property-read span rollback diagnostics | Existing property-read expression evaluation | both |
 | `B47a` | Resumable-only `yield*` state-slot and synthetic resume-target layout | Existing generator/async execution-plan route | resumable only |
+
+### A51f Expression-Loop Leaves (current)
+
+The A51f umbrella is decomposed rather than closed as a runtime widening. The
+current compiler still has source-backed declines in
+`UnifiedBytecodeCompiler.TryAppendExpressionProgramOps` and nearby expression
+value-load helpers, and eligibility keeps the existing fallback route intact for
+non-admitted sync and resumable bodies.
+
+- `A51f1:GeneralExpressionLoopUnsupportedOp` - fallback catch-all for expression
+  opcodes that are not directly handled by the general expression loop, including
+  helper-level unsupported simple/base/property-read op diagnostics.
+- `A51f2:BindingTargetExpressionContext` - `ApplyBindingTarget` remains admitted
+  only when the compilation context supplies binding-target constants; otherwise
+  the existing binding-target program bridge remains the fallback.
+- `A51f3:DynamicIdentifierExpressionLoop` - unresolved identifier loads, stores,
+  updates, references, calls, deletes, and `typeof` remain gated by active-with or
+  materialized-activation dynamic-name ownership.
+- `A51f4:ImplicitArgumentsExpressionLoop` - implicit `arguments` assignment
+  references, call targets, and `typeof` stay separate from parameter or lexical
+  `arguments` bindings and keep the existing arguments-object fallback.
+- `A51f5:PrivateNeighborExpressionLoop` - private named property reads/deletes,
+  private receiver-neighbor reads, and private super/member call neighbors stay
+  declined until private-name lexical state is owned by the VM route.
 
 ### Compiler Decline Reason Templates (current)
 

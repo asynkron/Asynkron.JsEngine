@@ -8,10 +8,10 @@ single largest remaining sync-route category. **Headline finding: this is an
 ## The crucial finding
 
 The production VM **already resolves captured variables by name through the live
-`JsEnvironment` chain**: `LoadDynamicIdentifier` / `StoreDynamicIdentifier` /
-`UpdateDynamicIdentifier` walk into the enclosing activation's heap slot
-(`UnifiedBytecodeVirtualMachine.Execute` `:85-107`, `:258`; `GetDynamicIdentifierValue`
-`:5508`, `StoreDynamicIdentifierValue` `:5527`). The call environment is chained
+`JsEnvironment` chain**: `LoadDynamicIdentifier`, the dynamic assignment-reference
+store pair, and `UpdateDynamicIdentifier` walk into the enclosing activation's heap slot
+(`UnifiedBytecodeVirtualMachine.Execute`; `GetDynamicIdentifierValue`;
+`StoreDynamicIdentifierValue`). The call environment is chained
 `body → functionEnvironment → _closure` (`CreateSimpleIrActivationEnvironment`
 `:4274-4285`), so **reads and writes both work by reference for free** — a captured
 `n++` mutates the outer binding because the store goes straight to the enclosing

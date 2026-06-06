@@ -3290,7 +3290,6 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                     UnifiedBytecodeOpCode.InitializeDynamicLexical or
                     UnifiedBytecodeOpCode.LoadImportMeta or
                     UnifiedBytecodeOpCode.LoadDynamicIdentifier or
-                    UnifiedBytecodeOpCode.StoreDynamicIdentifier or
                     UnifiedBytecodeOpCode.ResolveDynamicIdentifierReference or
                     UnifiedBytecodeOpCode.LoadDynamicIdentifierReference or
                     UnifiedBytecodeOpCode.StoreDynamicIdentifierReference or

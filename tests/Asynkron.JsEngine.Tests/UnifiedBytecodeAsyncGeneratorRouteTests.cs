@@ -345,7 +345,7 @@ public sealed class UnifiedBytecodeAsyncGeneratorRouteTests(ITestOutputHelper ou
     }
 
     [Fact(Timeout = 5000)]
-    public async Task AsyncGeneratorCapturedHoistedHelper_DeclinesResumableButSettles()
+    public async Task AsyncGeneratorCapturedHoistedHelper_RoutesResumableAndSettles()
     {
         await using var engine = CreateEngine();
         var result = await engine.EvaluateAndAwait("""
@@ -371,7 +371,10 @@ public sealed class UnifiedBytecodeAsyncGeneratorRouteTests(ITestOutputHelper ou
             """);
 
         Assert.Equal("5:false|undefined:true", result?.ToString());
-        AssertNotRouted("func=values");
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            record => record.Message.Contains(
+                $"{ResumableAsyncGeneratorFastPathLog} func=values argc=1",
+                StringComparison.Ordinal));
     }
 
     [Fact]

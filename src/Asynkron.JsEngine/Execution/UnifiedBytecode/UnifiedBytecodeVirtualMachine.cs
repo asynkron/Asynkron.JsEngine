@@ -953,27 +953,6 @@ internal static class UnifiedBytecodeVirtualMachine
                         programCounter++;
                         break;
 
-                    case UnifiedBytecodeOpCode.StoreDynamicIdentifier:
-                        var dynamicStoredValue = stack[stackPointer - 1];
-                        StoreDynamicIdentifierValue(
-                            program.StringConstants[DecodeDynamicStoreNameOperand(instruction.Operand)],
-                            DecodeDynamicStoreAllowsNameInference(instruction.Operand),
-                            dynamicStoredValue,
-                            RequireDynamicEnvironment(currentCallingEnvironment),
-                            context);
-                        if (context.ShouldStopEvaluation)
-                        {
-                            if (TryHandleCurrentContextThrow(slots))
-                            {
-                                break;
-                            }
-
-                            return JsValue.Undefined;
-                        }
-
-                        programCounter++;
-                        break;
-
                     case UnifiedBytecodeOpCode.ResolveDynamicIdentifierReference:
                         dynamicIdentifierReferences ??= new AssignmentReference[instructions.Length];
                         dynamicIdentifierReferences[dynamicIdentifierReferenceCount++] =

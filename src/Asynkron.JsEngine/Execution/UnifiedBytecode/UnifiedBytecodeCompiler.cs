@@ -4872,7 +4872,10 @@ internal static class UnifiedBytecodeCompiler
                     var storeIdentifierNameIndex = stringConstants.Count;
                     stringConstants.Add(storeIdentifier.Name.Name ?? string.Empty);
                     unified.Add(new UnifiedBytecodeInstruction(
-                        UnifiedBytecodeOpCode.StoreDynamicIdentifier,
+                        UnifiedBytecodeOpCode.ResolveDynamicIdentifierReference,
+                        storeIdentifierNameIndex));
+                    unified.Add(new UnifiedBytecodeInstruction(
+                        UnifiedBytecodeOpCode.StoreDynamicIdentifierReference,
                         EncodeDynamicStoreOperand(storeIdentifierNameIndex, operation)));
                     break;
 
@@ -16543,19 +16546,6 @@ internal static class UnifiedBytecodeCompiler
             default:
                 return false;
         }
-    }
-
-    private static void AppendDynamicStoreInstruction(
-        Symbol targetSymbol,
-        bool allowNameInference,
-        ImmutableArray<UnifiedBytecodeInstruction>.Builder unified,
-        ImmutableArray<string>.Builder stringConstants)
-    {
-        var targetNameIndex = stringConstants.Count;
-        stringConstants.Add(targetSymbol.Name);
-        unified.Add(new UnifiedBytecodeInstruction(
-            UnifiedBytecodeOpCode.StoreDynamicIdentifier,
-            EncodeDynamicStoreOperand(targetNameIndex, allowNameInference)));
     }
 
     private static int EncodeDefineObjectPropertyOperand(int stringConstantIndex, PackedExpressionOp defineProperty)

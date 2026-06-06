@@ -74,7 +74,6 @@ public sealed class ExpressionProgramCoverageMapTests
         "LeaveWith",
         "PushEnvironment",
         "RegisterDisposable",
-        "StoreDynamicIdentifier",
         "SuperConstructInvocationBoundary"
     ];
 

@@ -249,7 +249,6 @@ statement interpretation.
 - `DeclareDynamicVar`
 - `DeclareDynamicLexical`
 - `InitializeDynamicLexical`
-- `StoreDynamicIdentifier`
 - `ResolveDynamicIdentifierReference`
 - `LoadDynamicIdentifierReference`
 - `StoreDynamicIdentifierReference`
@@ -398,7 +397,6 @@ the admitted subset stays 1:1 with `UnifiedBytecodeVirtualMachine.ExecuteResumab
 - `LeaveWith`
 - `PushEnvironment`
 - `RegisterDisposable`
-- `StoreDynamicIdentifier`
 - `SuperConstructInvocationBoundary`
 
 ### Resumable Instruction Allowlist Gaps (current)
@@ -1593,8 +1591,8 @@ the final post-compile production subset check before VM entry.
   `ResolveDynamicIdentifierReference` → `StoreDynamicIdentifierReference` sequence:
   the pending `AssignmentReference` lives on `UnifiedBytecodeResumeState`, so the
   store target selected before the RHS cannot change while suspended. Dynamic
-  compound/logical writes, dynamic declaration opcodes, `StoreDynamicIdentifier`,
-  and `eval`/`with` remain off the route. The `ExecuteResumable`
+  compound/logical writes, dynamic declaration opcodes, and `eval`/`with`
+  remain off the route. The `ExecuteResumable`
   handlers resolve BY NAME against the LIVE closure environment threaded onto
   `UnifiedBytecodeResumeState.CallingEnvironment` (the same field #3108 threads
   for call dispatch), reusing the sync `GetDynamicIdentifierValue` /

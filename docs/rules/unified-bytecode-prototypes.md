@@ -1165,8 +1165,7 @@ all-or-nothing until a separate routing issue proves production readiness.
     as the receiver when the identifier comes from that object. Outside active
     `with`, admit only the exact ordinary-environment dynamic-name opcode
     family that the bridge explicitly enables:
-    `LoadDynamicIdentifier`, `StoreDynamicIdentifier`,
-    `UpdateDynamicIdentifier`, `TypeOfDynamicIdentifier`,
+    `LoadDynamicIdentifier`, `UpdateDynamicIdentifier`, `TypeOfDynamicIdentifier`,
     `DeleteDynamicIdentifier`, `ResolveDynamicIdentifierReference`,
     `LoadDynamicIdentifierReference`, and
     `StoreDynamicIdentifierReference`. Direct eval source execution and any

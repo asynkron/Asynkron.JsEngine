@@ -94,7 +94,7 @@ public sealed class ProductionRouteCoverageRatchetTests(ITestOutputHelper output
     [InlineData("var g=1; function f(){ return delete g; } f();", "unified-bytecode-production-fast-path func=f")]
     // A16: computed-property delete with a FREE identifier as the key (free computed delete key).
     [InlineData("var k='a'; function f(o){ return delete o[k]; } f({a:1});", "unified-bytecode-production-fast-path func=f")]
-    // A14: free identifier STORE (StoreDynamicIdentifier) — sloppy-mode global creation.
+    // A14: free identifier STORE — sloppy-mode global creation through the dynamic reference pair.
     [InlineData("function f(){ createdGlobalRatchet=99; return createdGlobalRatchet; } f();", "unified-bytecode-production-fast-path func=f")]
     // A11: calls with COMPLEX arguments — nested call (g(h(x))), binary with a nested-call operand
     // (g(a + h(b))), member call argument (g(o.m(x))), and computed-member call argument

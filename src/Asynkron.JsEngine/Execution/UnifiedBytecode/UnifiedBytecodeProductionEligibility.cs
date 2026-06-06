@@ -2170,8 +2170,9 @@ internal static class UnifiedBytecodeProductionEligibility
                 // assigned value on the operand stack for the following Pop, matching the sync VM. Compound
                 // and logical STORE shapes (`n += v`, `n &&= v`) use the same pending reference stack plus
                 // LoadDynamicIdentifierReference and either StoreDynamicIdentifierReference or
-                // PopDynamicIdentifierReference for short-circuit cleanup. Dynamic declarations and single-shot
-                // StoreDynamicIdentifier stay omitted unless another proven shape requires them.
+                // PopDynamicIdentifierReference for short-circuit cleanup. The old single-shot
+                // StoreDynamicIdentifier opcode has been retired; dynamic stores lower through the reference
+                // pair so the assignment target is explicit.
                 UnifiedBytecodeOpCode.UpdateDynamicIdentifier or
                 UnifiedBytecodeOpCode.ResolveDynamicIdentifierReference or
                 UnifiedBytecodeOpCode.LoadDynamicIdentifierReference or
@@ -11860,7 +11861,6 @@ internal static class UnifiedBytecodeProductionEligibility
                 case UnifiedBytecodeOpCode.DeclareDynamicVar:
                 case UnifiedBytecodeOpCode.DeclareDynamicLexical:
                 case UnifiedBytecodeOpCode.InitializeDynamicLexical:
-                case UnifiedBytecodeOpCode.StoreDynamicIdentifier:
                 case UnifiedBytecodeOpCode.ResolveDynamicIdentifierReference:
                 case UnifiedBytecodeOpCode.LoadDynamicIdentifierReference:
                 case UnifiedBytecodeOpCode.StoreDynamicIdentifierReference:

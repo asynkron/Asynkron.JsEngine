@@ -20,7 +20,7 @@ namespace Asynkron.JsEngine.Tests;
 ///     machinery (the eligibility expression walk already plumbs <c>allowsOrdinaryDynamicIdentifiers</c>
 ///     and <c>ContainsOrdinaryDynamicIdentifierDependency</c> already classifies each opcode as a free
 ///     dynamic-identifier dependency) routes every shape through the sync VM, which owns the
-///     <c>StoreDynamicIdentifier</c> / <c>UpdateDynamicIdentifier</c> / <c>DeleteDynamicIdentifier</c>
+///     dynamic assignment-reference writes / <c>UpdateDynamicIdentifier</c> / <c>DeleteDynamicIdentifier</c>
 ///     handlers (sloppy global creation, strict unresolvable-assignment throw, configurable-aware delete).
 /// </summary>
 [Category(TestCategories.RuntimeSemantics)]

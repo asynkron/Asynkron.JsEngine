@@ -60,8 +60,8 @@ name inference tied to the syntax form that owns the binding name.
      `& 0x7FFFFFFF`. Both the run-loop and the step/debug-loop handlers must
      decode the flag and call `EnsureHasName` using
      `GetSlotName(program, slotIndex)` before writing to `slots[slotIndex]`.
-   - **`StoreDynamicIdentifier`** — `AllowNameInference` is bit 0 of the
-     operand; the string-constant index occupies bits 1+.
+   - **`StoreDynamicIdentifierReference`** — `AllowNameInference` is bit 0 of
+     the operand; the string-constant index occupies bits 1+.
    - **`DefineObjectProperty` / `DefineComputedObjectProperty`** —
      `AllowNameInference` is bit 1, decoded via
      `DecodeDefineObjectPropertyAllowNameInference`.

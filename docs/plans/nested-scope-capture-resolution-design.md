@@ -129,8 +129,8 @@ the captured-name set is safe. The `HasOnlyRootFlatSlotMappings` guard is theref
 broader than the real hazard.
 
 The captured-name set is recoverable from the compiled plan: it is exactly the set of names
-carried by dynamic-identifier ops (`LoadDynamicIdentifier`/`StoreDynamicIdentifier`/
-`UpdateDynamicIdentifier`/`TypeOfDynamicIdentifier`/`ResolveDynamicIdentifierReference`/…,
+carried by dynamic-identifier ops (`LoadDynamicIdentifier`, dynamic assignment-reference
+stores, `UpdateDynamicIdentifier`, `TypeOfDynamicIdentifier`, `ResolveDynamicIdentifierReference`, …,
 enumerated at `TypedAstEvaluator.SyncFunctionInvoker.cs:3308-3318`). The nested-scope
 binding-name set is `plan.ScopeLexicalBindings` for every non-root scope id
 (`ExecutionPlan.cs:35`,`51`) plus the slot symbols in `plan.FlatSlotMappings` non-root

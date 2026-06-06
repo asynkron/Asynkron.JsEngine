@@ -22,7 +22,6 @@ internal enum UnifiedBytecodeOpCode : byte
     DeclareDynamicVar,
     DeclareDynamicLexical,
     InitializeDynamicLexical,
-    StoreDynamicIdentifier,
     ResolveDynamicIdentifierReference,
     LoadDynamicIdentifierReference,
     StoreDynamicIdentifierReference,

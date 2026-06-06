@@ -9215,8 +9215,9 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
                 "private bool TryGetExecutionPlan(out ExecutionPlan plan)",
                 "async-function resumable setup accepted path",
                 [
-                    "SuperBinding? resumableSuperBinding = null;\n" +
-                    "            if (RequiresResumableSuperEnvironment(program) &&\n" +
+                    "SuperBinding? resumableSuperBinding = null;",
+                    "var requiresResumableSuperBinding = RequiresResumableSuperEnvironment(program);",
+                    "if (requiresResumableSuperBinding &&\n" +
                     "                !TryCreateResumableSuperBinding(closure, boundThis, homeObject, out resumableSuperBinding))",
                     "ResumableSuperBinding = resumableSuperBinding,"
                 ]),
@@ -9237,8 +9238,9 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
                 "private bool TryGetExecutionPlan(out ExecutionPlan plan)",
                 "async-generator resumable setup accepted path",
                 [
-                    "SuperBinding? resumableSuperBinding = null;\n" +
-                    "            if (RequiresResumableSuperEnvironment(program) &&\n" +
+                    "SuperBinding? resumableSuperBinding = null;",
+                    "var requiresResumableSuperBinding = RequiresResumableSuperEnvironment(program);",
+                    "if (requiresResumableSuperBinding &&\n" +
                     "                !TryCreateResumableSuperBinding(closure, boundThis, homeObject, out resumableSuperBinding))",
                     "ResumableSuperBinding = resumableSuperBinding,"
                 ])

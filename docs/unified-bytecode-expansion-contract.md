@@ -869,11 +869,14 @@ predicates and proof tests.
     classified static-block IR fallback. Public instance computed-member
     `extends` declarations now route by composing the standalone superclass
     compile check, the B36 constructor predicate, and the B24h computed public
-    member gate. Dynamic/eval helpers plus otherwise complex class declaration
-    neighbors (nested activation-capturing computed names with `extends`,
-    closure-producing static blocks, static elements outside the static-block-only
-    subset, and computed/static shapes outside the public B24h-compatible subset)
-    are the remaining separate B36
+    member gate. Public non-computed static-field `extends` declarations also
+    route when each initializer compiles as standalone unified bytecode and
+    creates no nested closure. Dynamic/eval helpers plus otherwise complex class
+    declaration neighbors (nested activation-capturing computed names with
+    `extends`, closure-producing static blocks, closure-producing static field
+    initializers, static elements outside the static-block-only/static-field
+    subsets, and computed/private/static shapes outside the public
+    B24h-compatible subset) are the remaining separate B36
     declaration-instantiation work.
     `DeclareFunction` remains off the resumable opcode allowlist because
     descriptor-backed block/Annex B declarations still need persisted

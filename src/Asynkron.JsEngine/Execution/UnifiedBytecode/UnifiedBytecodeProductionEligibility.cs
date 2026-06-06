@@ -2981,23 +2981,44 @@ internal static class UnifiedBytecodeProductionEligibility
 
         var cache = descriptor.ProgramCache;
         var definition = cache.Definition;
+        declineReason = string.Empty;
         if (cache.ExtendsProgram is { } extendsProgram)
         {
-            if (!IsB36PlainExtendsClassDeclaration(cache, activationSlots, out var plainExtendsDeclineReason))
+            var acceptedExtendsClassDeclarationShell =
+                IsB36PlainExtendsClassDeclaration(cache, activationSlots, out var plainExtendsDeclineReason);
+
+            if (!acceptedExtendsClassDeclarationShell)
             {
-                if (!TryAdmitB36ComputedPublicInstanceMemberExtendsClassDeclaration(
+                if (TryAdmitB36ComputedPublicInstanceMemberExtendsClassDeclaration(
                         cache,
                         activationSlots,
                         out var computedExtendsCandidate,
                         out declineReason))
                 {
-                    if (!computedExtendsCandidate)
+                    acceptedExtendsClassDeclarationShell = true;
+                }
+                else
+                {
+                    var staticFieldExtendsCandidate = false;
+                    if (!computedExtendsCandidate &&
+                        TryAdmitB36PublicStaticFieldExtendsClassDeclaration(
+                            cache,
+                            activationSlots,
+                            out staticFieldExtendsCandidate,
+                            out declineReason))
+                    {
+                        acceptedExtendsClassDeclarationShell = true;
+                    }
+                    else if (!computedExtendsCandidate && !staticFieldExtendsCandidate)
                     {
                         declineReason = plainExtendsDeclineReason;
                     }
-
-                    return false;
                 }
+            }
+
+            if (!acceptedExtendsClassDeclarationShell)
+            {
+                return false;
             }
 
             if (!UnifiedBytecodeCompiler.TryCompileStandaloneExpressionProgram(
@@ -3226,6 +3247,85 @@ internal static class UnifiedBytecodeProductionEligibility
             out declineReason);
     }
 
+    private static bool TryAdmitB36PublicStaticFieldExtendsClassDeclaration(
+        ClassDefinitionProgramCache cache,
+        ActivationSlotShape activationSlots,
+        out bool candidate,
+        out string declineReason)
+    {
+        var definition = cache.Definition;
+        candidate = false;
+        declineReason = string.Empty;
+
+        if (!definition.Members.IsDefaultOrEmpty ||
+            !definition.StaticBlockPlans.IsDefaultOrEmpty ||
+            definition.Fields.IsDefaultOrEmpty)
+        {
+            return false;
+        }
+
+        if (definition.StaticElements.IsDefaultOrEmpty ||
+            definition.StaticElements.Length != definition.Fields.Length)
+        {
+            return false;
+        }
+
+        foreach (var element in definition.StaticElements)
+        {
+            if (element.Kind != ClassStaticElementKind.Field)
+            {
+                return false;
+            }
+        }
+
+        foreach (var field in definition.Fields)
+        {
+            if (!field.IsStatic || field.IsPrivate || field.IsComputed)
+            {
+                return false;
+            }
+        }
+
+        candidate = true;
+        if (!IsB36AdmittedPlainExtendsConstructor(
+                definition.Constructor,
+                activationSlots,
+                out declineReason))
+        {
+            return false;
+        }
+
+        foreach (var initializerProgram in cache.FieldInitializerPrograms)
+        {
+            if (initializerProgram is null)
+            {
+                continue;
+            }
+
+            if (ExpressionProgramCreatesClosure(initializerProgram.Value))
+            {
+                declineReason =
+                    "Class declaration is outside B36: static field initializer creates a closure that needs the materialized class-definition environment route.";
+                return false;
+            }
+
+            if (UnifiedBytecodeCompiler.TryCompileStandaloneExpressionProgram(
+                    initializerProgram.Value,
+                    allowsDynamicIdentifiers: true,
+                    out _,
+                    out var initializerReason))
+            {
+                continue;
+            }
+
+            declineReason =
+                $"Class declaration static field initializer is outside B36 production routing: {initializerReason}";
+            return false;
+        }
+
+        return true;
+    }
+
     private static bool IsB36AdmittedPlainExtendsConstructor(
         LoweredClassCallable constructor,
         ActivationSlotShape activationSlots,
@@ -3350,12 +3450,22 @@ internal static class UnifiedBytecodeProductionEligibility
                 continue;
             }
 
-            foreach (var operation in program.EnumerateOperations())
+            if (ExpressionProgramCreatesClosure(program))
             {
-                if (operation.Kind is ExpressionOpKind.LoadFunctionLiteral or ExpressionOpKind.LoadClassLiteral)
-                {
-                    return true;
-                }
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool ExpressionProgramCreatesClosure(ExpressionProgram program)
+    {
+        foreach (var operation in program.EnumerateOperations())
+        {
+            if (operation.Kind is ExpressionOpKind.LoadFunctionLiteral or ExpressionOpKind.LoadClassLiteral)
+            {
+                return true;
             }
         }
 

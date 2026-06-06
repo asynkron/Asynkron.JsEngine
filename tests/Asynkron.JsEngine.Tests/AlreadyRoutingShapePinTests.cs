@@ -1,4 +1,8 @@
 using System;
+using System.Linq;
+using Asynkron.JsEngine.Ast;
+using Asynkron.JsEngine.Execution;
+using Asynkron.JsEngine.Execution.UnifiedBytecode;
 using Xunit;
 using Xunit.Abstractions;
 
@@ -164,5 +168,78 @@ public sealed class AlreadyRoutingShapePinTests(ITestOutputHelper output) : Inte
         await using var engine = CreateEngine();
         await engine.Evaluate(source);
         AssertRouted("unified-bytecode-production-fast-path func=f");
+    }
+
+    // A51a — "Unsupported entrypoint." is a malformed-plan integrity backstop, not an
+    // active decline for valid compiler-produced plans. ExecutionPlanBuilder always records
+    // an in-range EntryPoint for function, script, and resumable plans; the compiler,
+    // production eligibility, and with-depth analysis keep the defensive check for manually
+    // constructed or corrupted plans.
+    [Theory]
+    [InlineData("function f(){ return 1; } f();", "f")]
+    [InlineData("function f(){ for(;;){ break; } return 2; } f();", "f")]
+    [InlineData("function f(){ if (true) { return 3; } return 4; } f();", "f")]
+    public async Task A51a_CompiledFunctionPlans_HaveSupportedEntrypointsAndRoute(string source, string functionName)
+    {
+        var plan = GetFunctionPlan(source, functionName);
+        AssertSupportedEntrypoint(plan);
+
+        await using var engine = CreateEngine();
+        await engine.Evaluate(source);
+        AssertRouted($"unified-bytecode-production-fast-path func={functionName}");
+    }
+
+    [Fact]
+    public async Task A51a_CompiledScriptPlan_HasSupportedEntrypointAndRoutes()
+    {
+        var plan = GetScriptPlan("var x = 1; x + 1;");
+        AssertSupportedEntrypoint(plan);
+
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("var x = 1; x + 1;");
+        Assert.Equal(2d, result);
+        AssertRouted("unified-bytecode-production-fast-path script");
+    }
+
+    [Fact]
+    public void A51a_CompiledResumablePlan_HasSupportedEntrypointAndAdmits()
+    {
+        var plan = GetFunctionPlan(
+            """
+            function* gen(input) {
+                var x = yield input;
+                return x + 1;
+            }
+            """,
+            "gen");
+        AssertSupportedEntrypoint(plan);
+
+        var result = UnifiedBytecodeProductionEligibility.EvaluateResumable(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor(IsGenerator: true));
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+    }
+
+    private static void AssertSupportedEntrypoint(ExecutionPlan plan) =>
+        Assert.InRange(plan.EntryPoint, 0, plan.Instructions.Length - 1);
+
+    private static ExecutionPlan GetFunctionPlan(string source, string functionName)
+    {
+        var pipeline = AstTestHelpers.ParseAndAnalyze(source);
+        var declaration = Assert.IsType<FunctionDeclaration>(pipeline.Analyzed.Body
+            .Single(node => node is FunctionDeclaration f && f.Name?.Name == functionName));
+        var cache = ((IAstCacheable<ExecutionPlanCache>)declaration.Function).GetOrCreateCache();
+        Assert.True(cache.Succeeded, cache.FailureReason);
+        return Assert.IsType<ExecutionPlan>(cache.Plan);
+    }
+
+    private static ExecutionPlan GetScriptPlan(string source)
+    {
+        var pipeline = AstTestHelpers.ParseAndAnalyze(source);
+        var cache = ((IAstCacheable<ScriptPlanCache>)pipeline.Analyzed).GetOrCreateCache();
+        Assert.True(cache.Succeeded, cache.FailureReason);
+        return Assert.IsType<ExecutionPlan>(cache.Plan);
     }
 }

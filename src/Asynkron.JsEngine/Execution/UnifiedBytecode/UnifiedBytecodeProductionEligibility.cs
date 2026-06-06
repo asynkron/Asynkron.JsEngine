@@ -1430,11 +1430,26 @@ internal static class UnifiedBytecodeProductionEligibility
         UnifiedBytecodeProductionActivationDescriptor activation,
         out string declineReason)
     {
-        if (!TryGetResumableExpressionProgram(instruction, out var program) ||
-            !ExpressionProgramHasActivationCapturingFunctionLiteral(
-                    program,
-                    activationSlots,
-                    out var capturedName))
+        if (!TryGetResumableExpressionProgram(instruction, out var program))
+        {
+            declineReason = string.Empty;
+            return false;
+        }
+
+        if (ExpressionProgramHasScopedCapturingFunctionLiteral(
+                program,
+                activationSlots,
+                out var scopedCapturedName))
+        {
+            declineReason =
+                $"Nested function literal captures scoped binding '{scopedCapturedName}' and is not eligible for resumable unified bytecode routing until the resumable route materializes block environments.";
+            return true;
+        }
+
+        if (!ExpressionProgramHasActivationCapturingFunctionLiteral(
+                program,
+                activationSlots,
+                out var capturedName))
         {
             declineReason = string.Empty;
             return false;
@@ -1801,6 +1816,135 @@ internal static class UnifiedBytecodeProductionEligibility
 
         return false;
     }
+
+    private static bool ExpressionProgramHasScopedCapturingFunctionLiteral(
+        ExpressionProgram program,
+        ActivationSlotShape activationSlots,
+        out string capturedName)
+    {
+        capturedName = string.Empty;
+        if (program.IsEmpty)
+        {
+            return false;
+        }
+
+        var objectConstants = program.ObjectConstants.AsSpan();
+        foreach (var operation in program.EnumerateOperations())
+        {
+            if (operation.Kind != ExpressionOpKind.LoadFunctionLiteral)
+            {
+                continue;
+            }
+
+            var descriptor = operation.GetObject<FunctionLiteralDescriptor>(objectConstants);
+            if (FunctionCapturesScopedBindingOutsideActivation(
+                    descriptor.Function,
+                    activationSlots,
+                    out capturedName))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool FunctionCapturesScopedBindingOutsideActivation(
+        FunctionExpression function,
+        ActivationSlotShape outerActivationSlots,
+        out string capturedName)
+    {
+        capturedName = string.Empty;
+        var cache = ((IAstCacheable<ExecutionPlanCache>)function).GetOrCreateCache();
+        if (!cache.Succeeded || cache.Plan is not { } plan)
+        {
+            capturedName = "<unknown>";
+            return true;
+        }
+
+        if (plan.ActivationSlots is not { } nestedActivationSlots)
+        {
+            capturedName = "<unknown>";
+            return true;
+        }
+
+        foreach (var instruction in plan.Instructions)
+        {
+            if (TryGetExpressionProgram(instruction, out var nestedProgram) &&
+                ExpressionProgramReferencesScopedBindingOutsideActivation(
+                    nestedProgram,
+                    nestedActivationSlots,
+                    outerActivationSlots,
+                    out capturedName))
+            {
+                return true;
+            }
+
+            if (instruction is FunctionDeclarationInstruction { Descriptor: { } descriptor } &&
+                FunctionCapturesScopedBindingOutsideActivation(
+                    descriptor.Function,
+                    outerActivationSlots,
+                    out capturedName))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool ExpressionProgramReferencesScopedBindingOutsideActivation(
+        ExpressionProgram program,
+        ActivationSlotShape nestedActivationSlots,
+        ActivationSlotShape outerActivationSlots,
+        out string capturedName)
+    {
+        capturedName = string.Empty;
+        if (program.IsEmpty)
+        {
+            return false;
+        }
+
+        var identifierConstants = program.IdentifierConstants.AsSpan();
+        var objectConstants = program.ObjectConstants.AsSpan();
+        foreach (var operation in program.EnumerateOperations())
+        {
+            if (operation.Kind == ExpressionOpKind.LoadFunctionLiteral)
+            {
+                var descriptor = operation.GetObject<FunctionLiteralDescriptor>(objectConstants);
+                if (FunctionCapturesScopedBindingOutsideActivation(
+                        descriptor.Function,
+                        outerActivationSlots,
+                        out capturedName))
+                {
+                    return true;
+                }
+
+                continue;
+            }
+
+            if (!TryGetIdentifierDependency(operation, identifierConstants, out var identifier) ||
+                IsScopedBindingInActivation(identifier, nestedActivationSlots) ||
+                IsScopedBindingInActivation(identifier, outerActivationSlots))
+            {
+                continue;
+            }
+
+            if (identifier.ScopeId >= 0 || identifier.FlatSlotId >= 0)
+            {
+                capturedName = identifier.Name.Name;
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool IsScopedBindingInActivation(
+        IdentifierOperand identifier,
+        ActivationSlotShape activationSlots) =>
+        identifier.ScopeId == activationSlots.ScopeId ||
+        identifier.FlatSlotId < 0 && activationSlots.SlotMap.ContainsKey(identifier.Name);
 
     internal static bool PlanNeedsNestedFunctionLiteralLexicalThisOrPrivateNameContext(ExecutionPlan plan)
     {

@@ -596,6 +596,25 @@ public sealed class UnifiedBytecodeResumableNestedFunctionTests(ITestOutputHelpe
     }
 
     [Fact]
+    public void EvaluateResumable_NestedFunctionLiteralCapturingPerIterationBinding_Declines()
+    {
+        var plan = TopLevelGeneratorPlan("""
+            function* g(values) {
+                for (const v of values) {
+                    yield () => v;
+                }
+            }
+            """, "g");
+
+        var result = UnifiedBytecodeProductionEligibility.EvaluateResumable(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor(IsGenerator: true));
+
+        Assert.False(result.IsEligible);
+        Assert.Contains("scoped binding 'v'", result.Reason, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void EvaluateResumable_NestedArrowLexicalThis_AdmitsWithContextProof()
     {
         var plan = TopLevelGeneratorPlan("""

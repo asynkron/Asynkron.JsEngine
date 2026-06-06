@@ -87,17 +87,24 @@ public static partial class TypedAstEvaluator
 
     private static bool HasResumableCapturedOrDynamicActivationDecline(
         FunctionExpression function,
-        JsEnvironment closure) =>
+        JsEnvironment closure,
+        bool allowDeclarationFreeDirectEval) =>
         closure.HasWithObjectInChain() ||
         DynamicScopeDetector.ContainsDirectEvalInParameters(function.Parameters) ||
-        ResumableDirectEvalActivationDetector.ContainsDynamicActivationDependency(function.Body);
+        (allowDeclarationFreeDirectEval
+            ? ResumableDirectEvalActivationDetector.ContainsDynamicActivationDependency(function.Body)
+            : DynamicScopeDetector.ContainsDirectEval(function.Body));
 
-    private static bool HasResumableArgumentsObjectDependency(FunctionExpression function) =>
+    private static bool HasResumableArgumentsObjectDependency(
+        FunctionExpression function,
+        bool allowDeclarationFreeDirectEval) =>
         !function.IsArrow &&
         (ArgumentsReferenceDetector.ContainsArgumentsReference(function.Body) ||
          ArgumentsReferenceDetector.ContainsArgumentsReferenceInParameters(function.Parameters) ||
          DynamicScopeDetector.ContainsDirectEvalInParameters(function.Parameters) ||
-         ResumableDirectEvalActivationDetector.ContainsArgumentsObjectDependency(function.Body));
+         (allowDeclarationFreeDirectEval
+             ? ResumableDirectEvalActivationDetector.ContainsArgumentsObjectDependency(function.Body)
+             : DynamicScopeDetector.ContainsDirectEval(function.Body)));
 
     private sealed class ResumableDirectEvalActivationDetector : AstVisitor
     {

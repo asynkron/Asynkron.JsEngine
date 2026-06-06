@@ -1267,6 +1267,8 @@ internal static class UnifiedBytecodeProductionEligibility
 
         switch (instruction)
         {
+            case ClassDeclarationInstruction classDeclaration:
+                return IsResumableClassDeclaration(classDeclaration.Descriptor, out declineReason);
             // B36 narrow slice: function-scoped declarations lower as no-op IR records because the
             // resumable invoker has already populated their flat slots during activation setup. The
             // activation flag is set only after the invoker proves every direct root declaration is
@@ -1407,6 +1409,20 @@ internal static class UnifiedBytecodeProductionEligibility
         declineReason =
             $"Nested function literal captures activation binding '{capturedName}' and is not eligible for resumable unified bytecode routing until the resume state owns a materialized body environment.";
         return true;
+    }
+
+    internal static bool PlanNeedsMaterializedResumableClassDeclarationEnvironment(ExecutionPlan plan)
+    {
+        for (var i = 0; i < plan.Instructions.Length; i++)
+        {
+            if (plan.Instructions[i] is ClassDeclarationInstruction { Descriptor: { } descriptor } &&
+                IsResumableClassDeclaration(descriptor, out _))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     internal static bool PlanNeedsMaterializedResumableBodyEnvironment(ExecutionPlan plan)
@@ -1862,6 +1878,18 @@ internal static class UnifiedBytecodeProductionEligibility
                         program.ClassLiteralConstants[instruction.Operand],
                         out declineReason))
                 {
+                    return true;
+                }
+
+                continue;
+            }
+
+            if (instruction.OpCode == UnifiedBytecodeOpCode.DeclareClass)
+            {
+                if ((uint)instruction.Operand >= (uint)program.ClassDeclarationConstants.Length)
+                {
+                    declineReason =
+                        "Class declaration operand is outside the unified bytecode class declaration constants.";
                     return true;
                 }
 
@@ -2326,6 +2354,45 @@ internal static class UnifiedBytecodeProductionEligibility
 
         declineReason = string.Empty;
         return true;
+    }
+
+    private static bool IsResumableClassDeclaration(
+        ClassDeclarationDescriptor descriptor,
+        out string declineReason)
+    {
+        if (!descriptor.ProgramCache.Succeeded)
+        {
+            declineReason =
+                $"Class declaration could not lower class runtime metadata for resumable production routing: {descriptor.ProgramCache.FailureReason ?? "unknown failure"}.";
+            return false;
+        }
+
+        if (descriptor.ProgramCache.ExtendsProgram is not null ||
+            HasClassExpressionProgram(descriptor.ProgramCache.MemberNamePrograms) ||
+            HasClassExpressionProgram(descriptor.ProgramCache.FieldNamePrograms) ||
+            descriptor.ProgramCache.Definition.StaticElements is { IsDefaultOrEmpty: false } ||
+            descriptor.ProgramCache.Definition.StaticBlockPlans is { IsDefaultOrEmpty: false })
+        {
+            declineReason =
+                "Class declaration is outside B36: extends, computed names, static elements, and static blocks remain owned by later class-definition slices.";
+            return false;
+        }
+
+        declineReason = string.Empty;
+        return true;
+    }
+
+    private static bool HasClassExpressionProgram(ImmutableArray<ExpressionProgram?> programs)
+    {
+        for (var i = 0; i < programs.Length; i++)
+        {
+            if (programs[i] is not null)
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static bool IsB24gPublicInstanceAccessorClassLiteral(ClassDefinition definition)

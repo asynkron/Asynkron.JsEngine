@@ -3951,6 +3951,49 @@ internal static class UnifiedBytecodeVirtualMachine
                         break;
                     }
 
+                case UnifiedBytecodeOpCode.DeclareClass:
+                    {
+                        var classDeclaration = program.ClassDeclarationConstants[instruction.Operand];
+                        var classDeclarationEnvironment = RequireDynamicEnvironment(state.CallingEnvironment);
+                        SyncUnifiedSlotsToEnvironment(
+                            program,
+                            slots,
+                            slotEnvironments,
+                            classDeclarationEnvironment);
+
+                        JsValue classValue = default;
+                        try
+                        {
+                            classValue = TypedAstEvaluator.CreateClassValueFromDeclaration(
+                                classDeclaration,
+                                classDeclarationEnvironment,
+                                context);
+                        }
+                        catch (ThrowSignal signal)
+                        {
+                            context.SetThrow(signal.ThrownValue);
+                        }
+
+                        if (context.ShouldStopEvaluation)
+                        {
+                            state.IsCompleted = true;
+                            return UnifiedBytecodeStepResult.Throw(context.FlowValue);
+                        }
+
+                        classDeclarationEnvironment.DefineJsValue(
+                            classDeclaration.Name,
+                            classValue,
+                            isLexicalBinding: true,
+                            blocksFunctionScopeOverride: true);
+                        SyncEnvironmentToUnifiedSlots(
+                            program,
+                            slots,
+                            slotEnvironments,
+                            classDeclarationEnvironment);
+                        programCounter++;
+                        break;
+                    }
+
                 case UnifiedBytecodeOpCode.LoadClassLiteral:
                     {
                         var classExpression = program.ClassLiteralConstants[instruction.Operand];

@@ -1,0 +1,186 @@
+using Asynkron.JsEngine.Ast;
+using Asynkron.JsEngine.Execution;
+using Asynkron.JsEngine.Execution.UnifiedBytecode;
+using Xunit.Abstractions;
+
+namespace Asynkron.JsEngine.Tests;
+
+/// <summary>
+///     Proof pack for the narrow B36 direct root class-declaration slice in resumable bodies.
+///     Simple class declarations can route through <see cref="UnifiedBytecodeOpCode.DeclareClass" />;
+///     complex class-definition state such as computed names stays declined before VM execution.
+/// </summary>
+[Category(TestCategories.RuntimeSemantics)]
+public sealed class UnifiedBytecodeResumableClassDeclarationTests(ITestOutputHelper output)
+    : InternalTestBase(output)
+{
+    private const string ResumableGeneratorFastPathLog = "unified-bytecode-resumable-generator-fast-path";
+    private const string ResumableAsyncFastPathLog = "unified-bytecode-resumable-async-fast-path";
+    private const string ResumableAsyncGeneratorFastPathLog =
+        "unified-bytecode-resumable-async-generator-fast-path";
+
+    [Fact]
+    public void EvaluateResumable_ClassDeclaration_AdmitsDeclareClass()
+    {
+        var plan = GetFunctionPlan("""
+            function* g() {
+                yield "ready";
+                class Box {
+                    constructor(value) {
+                        this.value = value;
+                    }
+                }
+                var box = new Box(7);
+                yield box.value;
+            }
+            """,
+            "g");
+
+        var result = UnifiedBytecodeProductionEligibility.EvaluateResumable(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor(IsGenerator: true));
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(
+            result.Program.Instructions,
+            static instruction => instruction.OpCode == UnifiedBytecodeOpCode.DeclareClass);
+    }
+
+    [Fact]
+    public void EvaluateResumable_ClassDeclarationComputedName_DeclinesBeforeVm()
+    {
+        var plan = GetFunctionPlan("""
+            function* g(key) {
+                yield "ready";
+                class Box {
+                    [key]() {
+                        return 1;
+                    }
+                }
+                yield typeof Box;
+            }
+            """,
+            "g");
+
+        var result = UnifiedBytecodeProductionEligibility.EvaluateResumable(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor(IsGenerator: true));
+
+        Assert.False(result.IsEligible);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.UnsupportedPlanShape, result.Code);
+        Assert.Contains("outside B36", result.Reason, StringComparison.Ordinal);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task GeneratorClassDeclaration_RoutesResumableAndKeepsBodyScope()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function* g() {
+                yield "ready";
+                class Box {
+                    constructor(value) {
+                        this.value = value;
+                    }
+                }
+                var box = new Box(7);
+                yield box.value;
+            }
+
+            var iterator = g();
+            var first = iterator.next();
+            var second = iterator.next();
+            var outside = typeof Box;
+            first.value + ":" + first.done + "|" +
+                second.value + ":" + second.done + "|" +
+                outside;
+            """);
+
+        Assert.Equal("ready:false|7:false|undefined", result);
+        AssertGeneratorFastPath("g", argc: 0);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task AsyncClassDeclarationAfterAwait_RoutesResumable()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.EvaluateAndAwait("""
+            var output = undefined;
+            async function run(seed) {
+                await 0;
+                class Box {
+                    constructor(value) {
+                        this.value = value;
+                    }
+                }
+                var box = new Box(seed);
+                return box.value;
+            }
+
+            run(5).then(value => output = value);
+            output;
+            """);
+
+        Assert.Equal(5d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                $"{ResumableAsyncFastPathLog} func=run argc=1",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task AsyncGeneratorClassDeclaration_RoutesResumable()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.EvaluateAndAwait("""
+            var output = undefined;
+
+            async function* values(seed) {
+                yield "ready";
+                class Box {
+                    constructor(value) {
+                        this.value = value;
+                    }
+                }
+                var box = new Box(seed);
+                yield box.value;
+            }
+
+            async function run() {
+                var iterator = values(8);
+                var first = await iterator.next();
+                var second = await iterator.next();
+                var third = await iterator.next();
+                return first.value + ":" + first.done + "|" +
+                    second.value + ":" + second.done + "|" +
+                    String(third.value) + ":" + third.done;
+            }
+
+            run().then(value => output = value);
+            output;
+            """);
+
+        Assert.Equal("ready:false|8:false|undefined:true", result?.ToString());
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                $"{ResumableAsyncGeneratorFastPathLog} func=values argc=1",
+                StringComparison.Ordinal));
+    }
+
+    private void AssertGeneratorFastPath(string functionName, int argc) =>
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            record => record.Message.Contains(
+                $"{ResumableGeneratorFastPathLog} func={functionName} argc={argc}",
+                StringComparison.Ordinal));
+
+    private static ExecutionPlan GetFunctionPlan(string source, string functionName)
+    {
+        var pipeline = AstTestHelpers.ParseAndAnalyze(source);
+        var declaration = Assert.IsType<FunctionDeclaration>(pipeline.Analyzed.Body
+            .Single(node => node is FunctionDeclaration f && f.Name?.Name == functionName));
+        var cache = ((IAstCacheable<ExecutionPlanCache>)declaration.Function).GetOrCreateCache();
+        Assert.True(cache.Succeeded, cache.FailureReason);
+        return Assert.IsType<ExecutionPlan>(cache.Plan);
+    }
+}

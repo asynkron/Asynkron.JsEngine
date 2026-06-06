@@ -57,7 +57,7 @@ statement interpretation.
   drift gate
   `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~ExpressionProgramCoverageMapTests&FullyQualifiedName~UnifiedBytecodeExpansionContract"`
   passed. The checked inventories remain current: 6 sync prototype opcode guard
-  gaps, 15 resumable opcode allowlist gaps, 5 resumable instruction allowlist
+  gaps, 14 resumable opcode allowlist gaps, 4 resumable instruction allowlist
   gaps, A35 split into 5 object-literal member leaves, B24 split into 9
   class-expression leaves, and no general expression lowering gaps.
 - Completing the decline-burndown plan did not make unified bytecode the only
@@ -105,7 +105,10 @@ statement interpretation.
   boundary, but they are no longer a stale compiler-decline row.
   `ClassDeclarationInstruction` is VM-owned through `DeclareClass`, with
   environment-backed lexical declaration installation and class-value creation
-  handled inside the unified VM. Static synchronous
+  handled inside the unified VM. The resumable route now admits the direct root
+  simple class-declaration subset through the same opcode; computed names,
+  `extends`, static elements, and static blocks remain declined before VM entry
+  as later class-definition-state work. Static synchronous
   `BindingVariableDeclarationInstruction` shapes are now VM-owned through
   `ApplyDeclarationBindingTarget`; sync `using` declarations add an owned
   `RegisterDisposable` step before storage so resources are registered against
@@ -388,7 +391,6 @@ These are the declared `UnifiedBytecodeOpCode` names not admitted by
 the admitted subset stays 1:1 with `UnifiedBytecodeVirtualMachine.ExecuteResumable`.
 
 - `ApplyBindingTarget`
-- `DeclareClass`
 - `DeclareDynamicLexical`
 - `DeclareDynamicVar`
 - `DeclareFunction`
@@ -408,12 +410,12 @@ the admitted subset stays 1:1 with `UnifiedBytecodeVirtualMachine.ExecuteResumab
 These are declared `ExecutionInstruction` records not admitted by
 `IsSupportedResumableInstruction`. Some compile to opcode families that already
 exist on the sync VM, but the plan-level resumable setup or suspension state is
-not yet proven for them. `FunctionDeclarationInstruction` is no longer in this
-gap inventory, but direct root function-scoped declarations still require the
-resumable invoker's activation proof before the conditional allowlist arm admits
-them.
+not yet proven for them. `FunctionDeclarationInstruction` and the direct root
+simple `ClassDeclarationInstruction` subset are no longer in this gap inventory,
+but both remain conditionally guarded by the resumable invoker/body-environment
+proof needed by their declaration-instantiation semantics. Complex class
+definition state still declines through the B36 class-declaration predicate.
 
-- `ClassDeclarationInstruction`
 - `EnterWithInstruction`
 - `LeaveWithInstruction`
 - `PushEnvironmentInstruction`
@@ -807,8 +809,11 @@ predicates and proof tests.
     each helper's VM flat slot and environment slot before `ExecuteResumable`
     starts, so self/sibling references resolve at call time from that environment.
     A43 now admits descriptor-backed block/Annex B declarations through
-    materialized block environments. Dynamic/eval helpers and class declarations
-    are the remaining separate B36 declaration-instantiation work.
+    materialized block environments. Direct root simple class declarations now
+    route through `DeclareClass` after the resumable invoker materializes the
+    body environment; dynamic/eval helpers and complex class declarations
+    (`extends`, computed names, static elements, and static blocks) are the
+    remaining separate B36 declaration-instantiation work.
     `DeclareFunction` remains OFF the resumable opcode allowlist and
     `FunctionDeclarationInstruction` remains conditionally guarded by the
     invoker-proof activation flag; the boundary is pinned by

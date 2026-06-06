@@ -83,7 +83,8 @@ public static partial class TypedAstEvaluator
 
             var needsMaterializedBodyEnvironment =
                 UnifiedBytecodeProductionEligibility.PlanNeedsMaterializedResumableBodyEnvironment(plan) ||
-                HoistedFunctionDeclarationsNeedMaterializedBodyEnvironment(hoistedFunctionDeclarations);
+                HoistedFunctionDeclarationsNeedMaterializedBodyEnvironment(hoistedFunctionDeclarations) ||
+                UnifiedBytecodeProductionEligibility.PlanNeedsMaterializedResumableClassDeclarationEnvironment(plan);
             var needsNestedFunctionLiteralLexicalThisOrPrivateNameContext =
                 UnifiedBytecodeProductionEligibility.PlanNeedsNestedFunctionLiteralLexicalThisOrPrivateNameContext(plan);
             var activation = new UnifiedBytecodeProductionActivationDescriptor(

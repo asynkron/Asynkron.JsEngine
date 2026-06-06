@@ -542,6 +542,19 @@ all-or-nothing until a separate routing issue proves production readiness.
      families separate and pair every positive route with nearby no-route proof
      for the still-unowned class-definition environment state. Related ADR:
      `docs/adrs/0360-admit-direct-activation-calls-in-computed-class-names.md`.
+     Issue #gh3354 / PR #3356 repaired the red-main boundary from that widening:
+     the direct activation-call exception is class-expression-literal specific,
+     not a shared class-declaration exception. Class declaration B24h scans must
+     keep `allowDirectActivationCall: false` until a future slice explicitly
+     owns declaration binding plus class-definition environment semantics for
+     computed-name activation calls. Shared dependency helpers that serve both
+     class literals and declarations need a route-family parameter for call-target
+     skips, and future proof must pair the class-expression positive route with
+     a class-declaration no-route regression. WHY: the PR #3349 scanner helper
+     was reused across class expressions and declarations, admitting a
+     `DeclareClass` route that still belongs behind the existing B24h decline.
+     Related ADR:
+     `docs/adrs/0362-keep-computed-class-declaration-direct-activation-calls-declined.md`.
 10g. When admitting iterator init driver shapes, keep source-payload shape and
      iterator driver kind as separate concepts. An iterator driver must carry
      exactly one source payload (`IterableProgram` or `AwaitedProgram`), and a

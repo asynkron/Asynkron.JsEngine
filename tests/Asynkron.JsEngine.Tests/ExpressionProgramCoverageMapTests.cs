@@ -72,7 +72,6 @@ public sealed class ExpressionProgramCoverageMapTests
         "EnterWith",
         "InitializeDynamicLexical",
         "LeaveWith",
-        "RegisterDisposable",
         "SuperConstructInvocationBoundary"
     ];
 

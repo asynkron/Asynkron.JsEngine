@@ -144,10 +144,13 @@ public static partial class TypedAstEvaluator
                 return false;
             }
 
+            var needsFunctionEnvironmentForDisposal =
+                UnifiedBytecodeProductionEligibility.PlanNeedsResumableFunctionEnvironmentForDisposal(plan);
             var needsMaterializedBodyEnvironment =
                 UnifiedBytecodeProductionEligibility.PlanNeedsMaterializedResumableBodyEnvironment(plan) ||
                 HoistedFunctionDeclarationsNeedMaterializedBodyEnvironment(hoistedFunctionDeclarations) ||
-                UnifiedBytecodeProductionEligibility.PlanNeedsMaterializedResumableClassDeclarationEnvironment(plan);
+                UnifiedBytecodeProductionEligibility.PlanNeedsMaterializedResumableClassDeclarationEnvironment(plan) ||
+                needsFunctionEnvironmentForDisposal;
             var needsNestedFunctionLiteralLexicalThisOrPrivateNameContext =
                 UnifiedBytecodeProductionEligibility.PlanNeedsNestedFunctionLiteralLexicalThisOrPrivateNameContext(plan);
             var activation = new UnifiedBytecodeProductionActivationDescriptor(
@@ -311,7 +314,9 @@ public static partial class TypedAstEvaluator
             var context = realmState.CreateContext();
             try
             {
-                var step = UnifiedBytecodeVirtualMachine.ExecuteResumable(unifiedState, mode, argument, context);
+                var step = UnifiedBytecodeVirtualMachine.DisposeCompletedResumableStep(
+                    unifiedState,
+                    UnifiedBytecodeVirtualMachine.ExecuteResumable(unifiedState, mode, argument, context));
                 return step.Kind switch
                 {
                     UnifiedBytecodeStepKind.Yield => new ExecutionPlanRunner.AsyncGeneratorStepResult(

@@ -1115,6 +1115,17 @@ internal static class UnifiedBytecodeProductionEligibility
             return true;
         }
 
+        if (!TryBuildActiveScopeDepths(
+                plan.Instructions,
+                plan.EntryPoint,
+                out var activeScopeDepths,
+                out var scopeDepthReason))
+        {
+            declineCode = UnifiedBytecodeProductionDeclineCode.UnsupportedPlanShape;
+            declineReason = scopeDepthReason;
+            return true;
+        }
+
         for (var instructionIndex = 0; instructionIndex < plan.Instructions.Length; instructionIndex++)
         {
             var instruction = plan.Instructions[instructionIndex];
@@ -1162,6 +1173,15 @@ internal static class UnifiedBytecodeProductionEligibility
                         "Only flat-slot lexical block environments are eligible for resumable unified bytecode routing.";
                     return true;
                 }
+            }
+
+            if (IsUsingDeclarationInstruction(instruction) &&
+                activeScopeDepths[instructionIndex] != 0)
+            {
+                declineCode = UnifiedBytecodeProductionDeclineCode.UnsupportedPlanShape;
+                declineReason =
+                    "Only function-body using declarations are eligible for resumable unified bytecode routing.";
+                return true;
             }
 
             if (!IsSupportedResumableInstruction(instruction, activationSlots, activation, out declineReason))
@@ -1276,11 +1296,27 @@ internal static class UnifiedBytecodeProductionEligibility
         UnifiedBytecodeProductionActivationDescriptor activation,
         out string declineReason)
     {
-        if (instruction is SimpleVariableDeclarationInstruction { VarKind: VariableKind.Using or VariableKind.AwaitUsing } or
-            BindingVariableDeclarationInstruction { VarKind: VariableKind.Using or VariableKind.AwaitUsing })
+        if (instruction is SimpleVariableDeclarationInstruction { VarKind: VariableKind.AwaitUsing } or
+            BindingVariableDeclarationInstruction { VarKind: VariableKind.AwaitUsing })
         {
             declineReason =
-                "using declarations require sync production scope-exit disposal ownership and are not eligible for resumable unified bytecode routing.";
+                "await using declarations require async-dispose settlement and are not eligible for resumable unified bytecode routing.";
+            return false;
+        }
+
+        if (instruction is SimpleVariableDeclarationInstruction { VarKind: VariableKind.Using } simpleUsing &&
+            !activationSlots.SlotMap.ContainsKey(simpleUsing.TargetSymbol))
+        {
+            declineReason =
+                "Only function-body using declarations are eligible for resumable unified bytecode routing.";
+            return false;
+        }
+
+        if (instruction is BindingVariableDeclarationInstruction { VarKind: VariableKind.Using } bindingUsing &&
+            !IsActivationScopeDeclarationBindingTarget(bindingUsing.TargetProgram, activationSlots))
+        {
+            declineReason =
+                "Only function-body using declarations are eligible for resumable unified bytecode routing.";
             return false;
         }
 
@@ -1316,6 +1352,11 @@ internal static class UnifiedBytecodeProductionEligibility
             // ApplyDeclarationBindingTarget opcode is admitted in the resumable allowlist (kept 1:1 with the
             // ExecuteResumable handler).
             case BindingVariableDeclarationInstruction { AwaitedProgram: not null, InitializerProgram: null }:
+            // Direct function-body sync `using value = resource` lowers through the generic binding
+            // declaration path even for identifier targets. The upfront target-scope gate admits only
+            // activation-scope bindings, and the compiler emits DuplicateTop -> RegisterDisposable before
+            // ApplyDeclarationBindingTarget stores the const binding.
+            case BindingVariableDeclarationInstruction { VarKind: VariableKind.Using, AwaitedProgram: null, InitializerProgram: { } }:
             case AssignmentSlotInstruction { AwaitedProgram: null, ValueProgram: { } }:
             // Compound slot instructions with a non-static free/captured target lower through the same
             // pre-resolved dynamic AssignmentReference stack as B26 plain writes: ResolveDynamicIdentifierReference
@@ -1477,6 +1518,262 @@ internal static class UnifiedBytecodeProductionEligibility
         }
 
         return false;
+    }
+
+    internal static bool PlanNeedsResumableFunctionEnvironmentForDisposal(ExecutionPlan plan)
+    {
+        if (plan.ActivationSlots is not { } activationSlots)
+        {
+            return false;
+        }
+
+        if (!TryBuildActiveScopeDepths(
+                plan.Instructions,
+                plan.EntryPoint,
+                out var activeScopeDepths,
+                out _))
+        {
+            return false;
+        }
+
+        for (var i = 0; i < plan.Instructions.Length; i++)
+        {
+            switch (plan.Instructions[i])
+            {
+                case SimpleVariableDeclarationInstruction { VarKind: VariableKind.Using } simpleUsing
+                    when activeScopeDepths[i] == 0 &&
+                         activationSlots.SlotMap.ContainsKey(simpleUsing.TargetSymbol):
+                    return true;
+                case BindingVariableDeclarationInstruction { VarKind: VariableKind.Using } bindingUsing
+                    when activeScopeDepths[i] == 0 &&
+                         IsActivationScopeDeclarationBindingTarget(bindingUsing.TargetProgram, activationSlots):
+                    return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool IsUsingDeclarationInstruction(ExecutionInstruction instruction) =>
+        instruction is SimpleVariableDeclarationInstruction { VarKind: VariableKind.Using or VariableKind.AwaitUsing } or
+            BindingVariableDeclarationInstruction { VarKind: VariableKind.Using or VariableKind.AwaitUsing };
+
+    private static bool TryBuildActiveScopeDepths(
+        ImmutableArray<ExecutionInstruction> instructions,
+        int entryPoint,
+        out int[] activeScopeDepths,
+        out string reason)
+    {
+        activeScopeDepths = new int[instructions.Length];
+        Array.Fill(activeScopeDepths, -1);
+
+        if ((uint)entryPoint >= (uint)instructions.Length)
+        {
+            reason = "Unsupported entrypoint.";
+            return false;
+        }
+
+        var pending = new Stack<(int InstructionIndex, int ScopeDepth)>();
+        pending.Push((entryPoint, 0));
+        while (pending.Count > 0)
+        {
+            var (instructionIndex, scopeDepth) = pending.Pop();
+            if ((uint)instructionIndex >= (uint)instructions.Length)
+            {
+                reason = "Instruction flow reached an invalid target index.";
+                return false;
+            }
+
+            if (scopeDepth < 0)
+            {
+                reason = "Instruction flow leaves a lexical environment when none is active.";
+                return false;
+            }
+
+            var existingDepth = activeScopeDepths[instructionIndex];
+            if (existingDepth >= 0)
+            {
+                if (existingDepth != scopeDepth)
+                {
+                    reason = "Instruction flow reaches the same instruction with inconsistent lexical-environment depth.";
+                    return false;
+                }
+
+                continue;
+            }
+
+            activeScopeDepths[instructionIndex] = scopeDepth;
+            var instruction = instructions[instructionIndex];
+            if (!TryGetSuccessorScopeDepth(instruction, scopeDepth, out var successorScopeDepth, out reason))
+            {
+                return false;
+            }
+
+            switch (instruction)
+            {
+                case BranchInstruction branch:
+                    if (!TryPushScopeDepth(branch.AlternateIndex, successorScopeDepth, instructions, pending, out reason) ||
+                        !TryPushScopeDepth(branch.ConsequentIndex, successorScopeDepth, instructions, pending, out reason))
+                    {
+                        return false;
+                    }
+
+                    break;
+
+                case EnterTryInstruction enterTry:
+                    if (!TryPushScopeDepth(enterTry.Next, successorScopeDepth, instructions, pending, out reason))
+                    {
+                        return false;
+                    }
+
+                    if (enterTry.HandlerIndex >= 0 &&
+                        !TryPushScopeDepth(enterTry.HandlerIndex, successorScopeDepth, instructions, pending, out reason))
+                    {
+                        return false;
+                    }
+
+                    if (enterTry.FinallyIndex >= 0 &&
+                        !TryPushScopeDepth(enterTry.FinallyIndex, successorScopeDepth, instructions, pending, out reason))
+                    {
+                        return false;
+                    }
+
+                    break;
+
+                case JumpInstruction jump:
+                    if (!TryPushScopeDepth(jump.TargetIndex, successorScopeDepth, instructions, pending, out reason))
+                    {
+                        return false;
+                    }
+
+                    break;
+
+                case BreakInstruction breakInstruction:
+                    if (!TryPushScopeDepth(breakInstruction.TargetIndex, successorScopeDepth, instructions, pending, out reason))
+                    {
+                        return false;
+                    }
+
+                    break;
+
+                case ContinueInstruction continueInstruction:
+                    if (!TryPushScopeDepth(continueInstruction.TargetIndex, successorScopeDepth, instructions, pending, out reason))
+                    {
+                        return false;
+                    }
+
+                    break;
+
+                case ReturnInstruction:
+                case ThrowInstruction:
+                    break;
+
+                default:
+                    if (instruction.Next >= 0 &&
+                        !TryPushScopeDepth(instruction.Next, successorScopeDepth, instructions, pending, out reason))
+                    {
+                        return false;
+                    }
+
+                    break;
+            }
+        }
+
+        reason = string.Empty;
+        return true;
+    }
+
+    private static bool TryGetSuccessorScopeDepth(
+        ExecutionInstruction instruction,
+        int scopeDepth,
+        out int successorScopeDepth,
+        out string reason)
+    {
+        switch (instruction)
+        {
+            case PushEnvironmentInstruction:
+            case EnterCatchInstruction:
+                successorScopeDepth = scopeDepth + 1;
+                reason = string.Empty;
+                return true;
+
+            case PopEnvironmentInstruction:
+                if (scopeDepth == 0)
+                {
+                    successorScopeDepth = 0;
+                    reason = "PopEnvironment instruction is not preceded by an active lexical environment.";
+                    return false;
+                }
+
+                successorScopeDepth = scopeDepth - 1;
+                reason = string.Empty;
+                return true;
+
+            default:
+                successorScopeDepth = scopeDepth;
+                reason = string.Empty;
+                return true;
+        }
+    }
+
+    private static bool TryPushScopeDepth(
+        int instructionIndex,
+        int scopeDepth,
+        ImmutableArray<ExecutionInstruction> instructions,
+        Stack<(int InstructionIndex, int ScopeDepth)> pending,
+        out string reason)
+    {
+        if ((uint)instructionIndex >= (uint)instructions.Length)
+        {
+            reason = "Instruction flow reached an invalid target index.";
+            return false;
+        }
+
+        pending.Push((instructionIndex, scopeDepth));
+        reason = string.Empty;
+        return true;
+    }
+
+    private static bool IsActivationScopeDeclarationBindingTarget(
+        BindingTargetProgram target,
+        ActivationSlotShape activationSlots)
+    {
+        switch (target)
+        {
+            case IdentifierBindingTargetProgram identifier:
+                return identifier.ScopeId == activationSlots.ScopeId &&
+                       identifier.SlotIndex >= 0 ||
+                       activationSlots.SlotMap.TryGetValue(identifier.Name, out var activationSlotIndex) &&
+                       identifier.SlotIndex == activationSlotIndex;
+
+            case ArrayBindingTargetProgram arrayBinding:
+                foreach (var element in arrayBinding.Elements)
+                {
+                    if (element.Target is { } elementTarget &&
+                        !IsActivationScopeDeclarationBindingTarget(elementTarget, activationSlots))
+                    {
+                        return false;
+                    }
+                }
+
+                return arrayBinding.RestElement is null ||
+                       IsActivationScopeDeclarationBindingTarget(arrayBinding.RestElement, activationSlots);
+
+            case ObjectBindingTargetProgram objectBinding:
+                foreach (var property in objectBinding.Properties)
+                {
+                    if (!IsActivationScopeDeclarationBindingTarget(property.Target, activationSlots))
+                    {
+                        return false;
+                    }
+                }
+
+                return objectBinding.RestElement is null ||
+                       IsActivationScopeDeclarationBindingTarget(objectBinding.RestElement, activationSlots);
+
+            default:
+                return false;
+        }
     }
 
     private static bool ExpressionProgramContainsApplyBindingTarget(ExpressionProgram program)
@@ -1991,6 +2288,14 @@ internal static class UnifiedBytecodeProductionEligibility
                 // (each evaluation yields a distinct RegExp with its own lastIndex) are preserved.
                 UnifiedBytecodeOpCode.LoadRegexLiteral or
                 UnifiedBytecodeOpCode.StoreSlot or
+                // Direct function-body `using` declarations inside resumable functions. The compiler emits
+                // DuplicateTop -> RegisterDisposable before InitializeSlot / ApplyDeclarationBindingTarget,
+                // so the resource is registered against the forced resumable function environment while the
+                // declaration value remains on the operand stack for binding storage. The invoker finalizes
+                // Completed/Throw steps through DisposeCompletedResumableStep, so sync disposers run on
+                // normal completion, return, and throw. Block-scope using stays declined by the instruction
+                // target-scope gate until ExecuteResumable owns a persisted environment stack.
+                UnifiedBytecodeOpCode.RegisterDisposable or
                 // Slot increment / decrement (`x++`, `x--`, `++x`, `--x`). The opcode reads
                 // `slots[index]`, checks the resume state's const-slot bitmap, computes the numeric ++/--
                 // in place, and pushes the old or new value; it never touches the operand stack across a

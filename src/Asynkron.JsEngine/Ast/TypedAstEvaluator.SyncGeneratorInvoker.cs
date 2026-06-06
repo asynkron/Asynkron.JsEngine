@@ -81,10 +81,13 @@ public static partial class TypedAstEvaluator
                 return false;
             }
 
+            var needsFunctionEnvironmentForDisposal =
+                UnifiedBytecodeProductionEligibility.PlanNeedsResumableFunctionEnvironmentForDisposal(plan);
             var needsMaterializedBodyEnvironment =
                 UnifiedBytecodeProductionEligibility.PlanNeedsMaterializedResumableBodyEnvironment(plan) ||
                 HoistedFunctionDeclarationsNeedMaterializedBodyEnvironment(hoistedFunctionDeclarations) ||
-                UnifiedBytecodeProductionEligibility.PlanNeedsMaterializedResumableClassDeclarationEnvironment(plan);
+                UnifiedBytecodeProductionEligibility.PlanNeedsMaterializedResumableClassDeclarationEnvironment(plan) ||
+                needsFunctionEnvironmentForDisposal;
             var needsNestedFunctionLiteralLexicalThisOrPrivateNameContext =
                 UnifiedBytecodeProductionEligibility.PlanNeedsNestedFunctionLiteralLexicalThisOrPrivateNameContext(plan);
             var activation = new UnifiedBytecodeProductionActivationDescriptor(
@@ -230,7 +233,9 @@ public static partial class TypedAstEvaluator
             JsValue value,
             EvaluationContext context)
         {
-            var step = UnifiedBytecodeVirtualMachine.ExecuteResumable(state, mode, value, context);
+            var step = UnifiedBytecodeVirtualMachine.DisposeCompletedResumableStep(
+                state,
+                UnifiedBytecodeVirtualMachine.ExecuteResumable(state, mode, value, context));
             return step.Kind switch
             {
                 UnifiedBytecodeStepKind.Yield =>

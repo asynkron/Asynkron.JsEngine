@@ -112,8 +112,11 @@ statement interpretation.
   `BindingVariableDeclarationInstruction` shapes are now VM-owned through
   `ApplyDeclarationBindingTarget`; sync `using` declarations add an owned
   `RegisterDisposable` step before storage so resources are registered against
-  the active environment. Binding defaults, computed binding names, assignment
-  targets, awaited declarations, and `await using` declarations still decline
+  the active environment. Direct function-body sync `using` declarations inside
+  resumable generator/async bodies also route through `RegisterDisposable`, with
+  disposal finalized when the resumable frame completes or throws. Binding
+  defaults, computed binding names, assignment targets, awaited declarations,
+  block-scoped resumable `using`, and `await using` declarations still decline
   before VM execution.
 - Expression lowering is still the largest surface. `ExpressionOpKind` contains
   more shapes than the general unified lowering loop accepts. Several operations
@@ -395,7 +398,6 @@ the admitted subset stays 1:1 with `UnifiedBytecodeVirtualMachine.ExecuteResumab
 - `EnterWith`
 - `InitializeDynamicLexical`
 - `LeaveWith`
-- `RegisterDisposable`
 - `SuperConstructInvocationBoundary`
 
 ### Resumable Instruction Allowlist Gaps (current)
@@ -1127,9 +1129,9 @@ the final post-compile production subset check before VM entry.
   on the sync route. Neither opcode uses name fallback or calls back into
   `ExpressionProgram`, `ExecutionPlanRunner`, or AST evaluation.
 - Unsupported binding declaration shapes, unsupported object/array destructuring
-  driver instructions, unsupported dynamic lookup, `await using`, resumable
-  `using`, resumable materialized block environments, and scope-entry shapes
-  without flat mappings remain pre-VM declines.
+  driver instructions, unsupported dynamic lookup, `await using`, block-scoped
+  resumable `using`, resumable materialized block environments, and scope-entry
+  shapes without flat mappings remain pre-VM declines.
 
 ## Production With-Backed Dynamic Name Boundary
 - Current production dynamic-name support is with-backed and compiler-gated.

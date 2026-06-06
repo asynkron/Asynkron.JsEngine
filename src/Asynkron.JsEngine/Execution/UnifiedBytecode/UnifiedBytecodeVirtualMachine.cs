@@ -4239,6 +4239,20 @@ internal static class UnifiedBytecodeVirtualMachine
                     programCounter++;
                     break;
 
+                case UnifiedBytecodeOpCode.RegisterDisposable:
+                    {
+                        var resumableDisposableValue = stack[--stackPointer];
+                        RegisterDisposableResource(resumableDisposableValue, state.CallingEnvironment, context);
+                        if (context.ShouldStopEvaluation)
+                        {
+                            state.IsCompleted = true;
+                            return UnifiedBytecodeStepResult.Throw(context.FlowValue);
+                        }
+
+                        programCounter++;
+                        break;
+                    }
+
                 case UnifiedBytecodeOpCode.ApplyBindingTarget:
                     {
                         // Assignment destructuring (`({x: y} = source)`) inside a resumable body. The value is
@@ -6848,6 +6862,28 @@ internal static class UnifiedBytecodeVirtualMachine
         state.ProgramCounter = programCounter;
         state.StackPointer = stackPointer;
         return UnifiedBytecodeStepResult.Completed(JsValue.Undefined);
+    }
+
+    internal static UnifiedBytecodeStepResult DisposeCompletedResumableStep(
+        UnifiedBytecodeResumeState state,
+        UnifiedBytecodeStepResult step)
+    {
+        if (!state.IsCompleted ||
+            step.Kind is not (UnifiedBytecodeStepKind.Completed or UnifiedBytecodeStepKind.Throw))
+        {
+            return step;
+        }
+
+        var pendingError = step.Kind == UnifiedBytecodeStepKind.Throw
+            ? new ThrowSignal(step.Value)
+            : null;
+        var disposeError = DisposeActiveFunctionEnvironmentResourcesCore(state.CallingEnvironment, pendingError);
+        if (disposeError is null || ReferenceEquals(disposeError, pendingError))
+        {
+            return step;
+        }
+
+        return UnifiedBytecodeStepResult.Throw(disposeError.ThrownValue);
     }
 
     private static bool TryConsumePendingAwaitResume(
@@ -9570,8 +9606,29 @@ internal static class UnifiedBytecodeVirtualMachine
             return true;
         }
 
+        var disposeError = DisposeActiveFunctionEnvironmentResourcesCore(
+            environment,
+            context.IsThrow ? new ThrowSignal(context.FlowValue) : null);
+        if (disposeError is null)
+        {
+            return true;
+        }
+
+        context.SetThrow(disposeError.ThrownValue);
+        return false;
+    }
+
+    private static ThrowSignal? DisposeActiveFunctionEnvironmentResourcesCore(
+        JsEnvironment? environment,
+        ThrowSignal? pendingError)
+    {
+        if (environment is null)
+        {
+            return pendingError;
+        }
+
         var currentEnvironment = environment;
-        var disposeError = context.IsThrow ? new ThrowSignal(context.FlowValue) : null;
+        var disposeError = pendingError;
         while (currentEnvironment is not null)
         {
             if (currentEnvironment.HasDisposableResources)
@@ -9587,13 +9644,7 @@ internal static class UnifiedBytecodeVirtualMachine
             currentEnvironment = currentEnvironment.Enclosing;
         }
 
-        if (disposeError is null)
-        {
-            return true;
-        }
-
-        context.SetThrow(disposeError.ThrownValue);
-        return false;
+        return disposeError;
     }
 
     private static void CollectEnumerablePropertyKeys(JsValue value, List<JsValue> keys)

@@ -257,6 +257,10 @@ public sealed class ProductionRouteCoverageRatchetTests(ITestOutputHelper output
     [InlineData("async function f(p){ let [a,b]=await p; return a+b; } f(Promise.resolve([1,2]));", "unified-bytecode-resumable-async-fast-path func=f")]
     // B44 object form: `let {x} = await p` routes through the same await-into-binding lowering.
     [InlineData("async function f(p){ let {x}=await p; return x; } f(Promise.resolve({x:7}));", "unified-bytecode-resumable-async-fast-path func=f")]
+    // Direct function-body sync `using` declarations in resumable bodies register through
+    // RegisterDisposable and dispose when the resumable frame completes.
+    [InlineData("function* g(r){ using value=r; yield 1; return 2; } var it=g({[Symbol.dispose](){}}); it.next(); it.next();", "unified-bytecode-resumable-generator-fast-path func=g")]
+    [InlineData("async function f(r){ await Promise.resolve(0); using value=r; return 2; } f({[Symbol.dispose](){}});", "unified-bytecode-resumable-async-fast-path func=f")]
     public async Task AdmittedShape_StillRoutesThroughProduction(string source, string expectedLog)
     {
         await using var engine = CreateEngine();

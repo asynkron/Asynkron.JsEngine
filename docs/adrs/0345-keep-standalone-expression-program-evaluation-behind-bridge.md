@@ -26,6 +26,13 @@ remains outside that route must be explicitly classified, either as a bridge,
 class-definition/class-field support, profiling, dynamic-boundary work, or a
 fallback-only surface.
 
+PR #3360 tightened the E4 source gate after the initial guard still used broad
+file-level permission for `EvaluateLoweredExpressionProgram(...)` callers. That
+was too coarse for files such as `TypedAstEvaluator.ExpressionPrograms.cs` and
+`TypedAstEvaluator.SyncFunctionInvoker.cs`, where bridge definitions,
+dynamic-boundary forwarding, class-field support, and fallback-only execution
+can coexist.
+
 ## Decision
 
 Keep direct standalone `ExpressionProgram` runner calls centralized in
@@ -44,6 +51,10 @@ Keep direct standalone `ExpressionProgram` runner calls centralized in
   owner-classified. A new caller should name whether it is a
   class-definition/class-field surface, bridge/profiling helper,
   dynamic-boundary helper, or fallback-only path.
+- Source gates should classify by role, not only by source file. When multiple
+  roles can live in the same file, match the defining line or nearby marker
+  that proves the specific bridge, dynamic-boundary, class-field, or
+  fallback-only purpose.
 - The simple-IR return expression path in `SyncFunctionInvoker` remains
   fallback-only. Production-accepted routes are considered first and return
   through `UnifiedBytecodeVirtualMachine` before this simple-IR fallback is
@@ -58,6 +69,9 @@ Keep direct standalone `ExpressionProgram` runner calls centralized in
   execution.
 - Future expression-bytecode refactors must update the bridge or the source
   gate classification when adding a new lowered expression-program caller.
+- A file-level allowlist can hide role drift inside a legitimate owner file.
+  Treat a new `EvaluateLoweredExpressionProgram(...)` line in an existing owner
+  file as unclassified until its purpose is proven.
 - If a future slice deletes the simple-IR fallback call, the guardrail should be
   moved from "fallback-only classified" to "tombstoned" rather than silently
   leaving an allowlist entry.
@@ -82,6 +96,17 @@ Keep direct standalone `ExpressionProgram` runner calls centralized in
   available in this runtime (`No such file or directory`), so the learn pass
   used the runtime allocator endpoint `POST /api/adrs/next`, which returned
   `{"adr_id":345}`.
+- PR #3360, from Faktorial issue
+  `planitem-planmanual1780730299657353000-unified-bytecode-remaining-burndown-05-fal-5c9c48de33`,
+  refined `SourceGate_E4_LoweredExpressionProgramCallers_AreClassified` from a
+  broad file allowlist into explicit role classification. The delivery branch
+  commit was `20bedcd83`; the merged PR commit on `main` was `6b44841ce`.
+  Focused verification passed:
+  - `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~ExecutionPlanDiagnosticsTests&FullyQualifiedName~SourceGate_E4"`:
+    2 tests.
+  - `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionInvocationTests&FullyQualifiedName~SourceGate"`:
+    4 tests.
+  - `rtk git diff --check`.
 
 ## Related
 

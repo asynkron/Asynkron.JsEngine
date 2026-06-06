@@ -447,7 +447,9 @@ capture activation slots, including accessor bodies that use `super`, the B24d
 static-block-only subset whose static blocks do not create nested closures, and
 the B24h public static/instance computed-field/method/accessor subset whose computed
 name programs either avoid resumable activation slots or use owned activation
-read/write/update/reference-store operations, and whose field initializer programs
+read/write/update/reference-store operations, including bounded non-spread
+activation-target calls whose argument region is already admitted by the
+production complex-call-argument walker, and whose field initializer programs
 plus constructor/member bodies do not capture activation slots, including mixes
 with non-computed public fields/methods/accessors under the same activation-safety
 rules. Full bytecode execution is not done: class-literal creation still calls
@@ -456,10 +458,11 @@ initializers through expression programs and static blocks through
 `ExecutionPlanRunner.RunScript`; `extends` expressions that read resumable
 activation slots also remain declined until class-definition evaluation owns
 that environment bridge. The remaining B24h and B24i shapes remain declined by
-the resumable shape gate: computed names that delete activation
-bindings, prepare/call activation-dependent targets, or create nested activation
-captures still stay outside B24h, and static/private/capturing public accessor
-neighbors remain outside the B24g/B24h subsets.
+the resumable shape gate: computed names that delete activation bindings, use
+direct-eval/spread/construct/super or otherwise unadmitted call-target shapes,
+or create nested activation captures still stay outside B24h, and
+static/private/capturing public accessor neighbors remain outside the B24g/B24h
+subsets.
 
 - `B24a:ClassExpressionConstructor`
 - `B24b:ClassExpressionInstanceFields`
@@ -516,7 +519,7 @@ semantic bridge or mis-parking dynamic residue as ordinary fallback work.
 | Script fallback | `TypedAstEvaluator.ExecutionPlanRunner.Core.RunScript` callers from script evaluation | Top-level scripts try the production selector first when eligible, then fall back to `ExecutionPlanRunner.RunScript` for remaining script safety declines such as unowned lexical/dynamic shapes | `rtk rg -n "ExecutionPlanRunner\\.RunScript|EvaluateScript|RunScript" src/Asynkron.JsEngine/Ast/TypedAstEvaluator.ExecutionPlanRunner.Core.cs src/Asynkron.JsEngine/Ast/Legacy/StatementNodeExtensions.cs` |
 | Async function fallback | `TypedAstEvaluator.AsyncFunctionInvoker` | `EvaluateResumable` is attempted for admitted async bodies; declined bodies construct an `ExecutionPlanRunner` through `CreateClassifiedAsyncDeclinedBodyRunner`, while accepted super-property bodies snapshot `ResumableSuperBinding` into the resume state instead of constructing a runner-backed setup environment | `rtk rg -n "EvaluateResumable|CreateClassifiedAsyncDeclinedBodyRunner|TryCreateResumableSuperBinding|ResumableSuperBinding|new ExecutionPlanRunner|GetOrCreateExecutionEnvironmentForInternalUse" src/Asynkron.JsEngine/Ast/TypedAstEvaluator.AsyncFunctionInvoker.cs` |
 | Generator fallback | `TypedAstEvaluator.SyncGeneratorInvoker` and `TypedAstEvaluator.GeneratorFunctionBase` | `EvaluateResumable` is attempted for admitted generator bodies; declined bodies use the classified `CreateClassifiedGeneratorDeclinedBodyRunner` boundary, while accepted super-property bodies snapshot `ResumableSuperBinding` into the resume state instead of constructing a runner-backed setup environment | `rtk rg -n "EvaluateResumable|CreateClassifiedGeneratorDeclinedBodyRunner|TryCreateResumableSuperBinding|ResumableSuperBinding|new ExecutionPlanRunner|GetOrCreateExecutionEnvironmentForInternalUse" src/Asynkron.JsEngine/Ast/TypedAstEvaluator.SyncGeneratorInvoker.cs src/Asynkron.JsEngine/Ast/TypedAstEvaluator.GeneratorFunctionBase.cs` |
-| Async-generator fallback | `TypedAstEvaluator.AsyncGeneratorInvoker` | `EvaluateResumable` covers admitted async-generator bodies; declined bodies stay on the runner-backed async-generator path through `CreateClassifiedAsyncGeneratorDeclinedBodyRunner`, accepted super-property bodies snapshot `ResumableSuperBinding` into the resume state, and step-result adaptation is not itself route admission | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionInvocationTests&FullyQualifiedName~SourceGate_ProductionUnifiedBytecodeScriptAndResumableAcceptedPaths_DoNotDelegateToAstOrExecutionPlanRunner"` |
+| Async-generator fallback | `TypedAstEvaluator.AsyncGeneratorInvoker` | `EvaluateResumable` covers admitted async-generator bodies; declined bodies no longer construct `CreateClassifiedAsyncGeneratorDeclinedBodyRunner` and fail explicitly until the VM admits the declined semantics. Accepted super-property bodies snapshot `ResumableSuperBinding` into the resume state, and step-result adaptation is not itself route admission | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~BytecodeProofManifestTests|FullyQualifiedName~UnifiedBytecodeAsyncGeneratorRouteTests"` |
 | Class/static-block bridge | `ClassDefinitionExtensions.ExecuteStaticBlock` | Static-block-only class expressions can route through resumable `LoadClassLiteral`; static blocks still execute their cached static-block plan through `ExecutionPlanRunner.RunScript`, while closure-producing static blocks remain a materialized-environment boundary | `rtk rg -n "ExecuteStaticBlock|ExecutionPlanRunner\\.RunScript" src/Asynkron.JsEngine/Ast/ClassDefinitionExtensions.cs docs/plans/bytecode-burndown-checklist.md` |
 | Standalone expression, binding, and profiling bridges | `TypedAstEvaluator.ExpressionPrograms`, `TypedAstEvaluator.BindingTargetPrograms`, and `ExecutionPlanRunner.Core` helper entrypoints | Quarantined helper surfaces construct runners for standalone expression execution, binding-target programs, and profiling loops; these are helper-owned bridges, not normal production route callbacks from the VM | `rtk rg -n "EvaluateStandaloneExpressionProgram|ApplyStandaloneBindingTargetProgram|ProfileEvaluateExpressionProgramLoop" src/Asynkron.JsEngine/Ast` |
 | Dynamic residue boundary | Direct eval, live `with`, eval-injected runtime bindings, and `Function(...)`-produced bodies | Terminal dynamic residue stays out of ordinary E5 fallback retirement until a future issue owns those semantics explicitly | `rtk rg -n "Dynamic Residue|D1|D3|D4|Function\\(" docs/plans/bytecode-burndown-checklist.md docs/rules/unified-bytecode-prototypes.md` |

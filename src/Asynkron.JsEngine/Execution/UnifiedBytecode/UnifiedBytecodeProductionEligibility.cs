@@ -3378,7 +3378,12 @@ internal static class UnifiedBytecodeProductionEligibility
             if (operation.Kind == ExpressionOpKind.LoadIdentifierCallTarget)
             {
                 if (allowDirectActivationCall &&
-                    TrySkipDirectClassComputedNameActivationCall(program, operationIndex, out var callOperationIndex))
+                    TrySkipAdmittedClassComputedNameActivationCall(
+                        program,
+                        operationIndex,
+                        identifierConstants,
+                        activationSlots,
+                        out var callOperationIndex))
                 {
                     operationIndex = callOperationIndex;
                     continue;
@@ -3409,26 +3414,58 @@ internal static class UnifiedBytecodeProductionEligibility
         return false;
     }
 
-    private static bool TrySkipDirectClassComputedNameActivationCall(
+    private static bool TrySkipAdmittedClassComputedNameActivationCall(
         ExpressionProgram program,
         int callTargetOperationIndex,
+        ReadOnlySpan<IdentifierOperand> identifierConstants,
+        ActivationSlotShape activationSlots,
         out int callOperationIndex)
     {
         callOperationIndex = callTargetOperationIndex;
-        if (callTargetOperationIndex + 1 >= program.OperationCount)
+
+        var callTarget = program.GetOperation(callTargetOperationIndex);
+        if (callTarget.Kind != ExpressionOpKind.LoadIdentifierCallTarget ||
+            callTarget.IsArguments)
         {
             return false;
         }
 
-        var callOperation = program.GetOperation(callTargetOperationIndex + 1);
-        if (callOperation is
-            {
-                Kind: ExpressionOpKind.Call,
-                ArgumentCount: 0
-            })
+        var targetIdentifier = callTarget.GetIdentifier(identifierConstants);
+        if (string.Equals(targetIdentifier.Name.Name, "eval", StringComparison.Ordinal) ||
+            !TryResolveActivationSlot(targetIdentifier, activationSlots))
         {
-            callOperationIndex = callTargetOperationIndex + 1;
-            return true;
+            return false;
+        }
+
+        for (var candidateIndex = callTargetOperationIndex + 1;
+             candidateIndex < program.OperationCount;
+             candidateIndex++)
+        {
+            var callOperation = program.GetOperation(candidateIndex);
+            if (callOperation.Kind != ExpressionOpKind.Call)
+            {
+                continue;
+            }
+
+            if (!callOperation.HasExplicitThis ||
+                callOperation.IsDirectEval ||
+                callOperation.SpreadMaskConstantIndex >= 0)
+            {
+                return false;
+            }
+
+            if (TryValidateAdmittedComplexCallArgumentRegion(
+                    program,
+                    argsStartIndex: callTargetOperationIndex + 1,
+                    callIndex: candidateIndex,
+                    expectedArgumentCount: callOperation.ArgumentCount,
+                    identifierConstants,
+                    activationSlots,
+                    allowsDynamicIdentifiers: false))
+            {
+                callOperationIndex = candidateIndex;
+                return true;
+            }
         }
 
         return false;

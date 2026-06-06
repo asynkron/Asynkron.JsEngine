@@ -84,7 +84,9 @@ activation-call widening.
   `EvaluateResumable_ClassExpressionComputedNameDirectActivationCall_AdmitLoadClassLiteral`,
   `GeneratorComputedPublicInstanceActivationCall_RouteResumableAndResolveName`,
   and
-  `EvaluateResumable_ClassExpressionComputedNameActivationCallArgument_DeclinesBeforeVm`.
+  the then-current activation-call-argument decline proof, later superseded by
+  `EvaluateResumable_ClassExpressionComputedNameActivationCallArgument_AdmitLoadClassLiteral`
+  when the bounded argument region became admitted.
 - Existing nearby proof kept
   `EvaluateResumable_ClassExpressionComputedNameActivationDelete_DeclinesBeforeVm`.
 - Build-stage verification recorded focused

@@ -1,0 +1,256 @@
+{
+  "version": 1,
+  "description": "Executable proof manifest for unified-bytecode burndown claims. A checklist row is done only when its semantic claim is represented here by admitted or retired-fallback proof rows and the verifier test passes. Open and hard-quarantined proof rows keep the matching checklist item open.",
+  "items": [
+    {
+      "id": "A1",
+      "title": "Captured activation subset admitted; dynamic activation residue remains open in A2/D3",
+      "status": "partial",
+      "proofs": [
+        {
+          "id": "A1-captured-closure-routes",
+          "claim": "admitted",
+          "kind": "runtime",
+          "source": "function outer() { let n = 0; function inc() { n++; return n; } return inc() + ':' + inc(); }\nouter();",
+          "expectedResult": "1:2",
+          "requiredLogs": [
+            "unified-bytecode-production-fast-path func=inc"
+          ]
+        },
+        {
+          "id": "A1-activation-residue-umbrella-stays-open-through-direct-eval",
+          "claim": "open",
+          "kind": "runtime",
+          "source": "eval('var injected = 1');\nString(injected);",
+          "expectedResult": "1",
+          "forbiddenLogs": [
+            "unified-bytecode-production-fast-path script"
+          ],
+          "requiredLogs": [
+            "classified-script-ir-fallback reason=production-unified-bytecode-declined"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "A2",
+      "title": "Direct eval and runtime-injected dynamic activation residue",
+      "status": "open",
+      "proofs": [
+        {
+          "id": "A2-direct-eval-script-fallback",
+          "claim": "open",
+          "kind": "runtime",
+          "source": "eval('var injected = 1');\nString(injected);",
+          "expectedResult": "1",
+          "forbiddenLogs": [
+            "unified-bytecode-production-fast-path script"
+          ],
+          "requiredLogs": [
+            "classified-script-ir-fallback reason=production-unified-bytecode-declined",
+            "code=CallDependency"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "A7",
+      "title": "Private-name class constructor activation remains hard-quarantined",
+      "status": "open",
+      "proofs": [
+        {
+          "id": "A7-private-name-constructor-stays-off-production-route",
+          "claim": "hard-quarantined",
+          "kind": "runtime",
+          "source": "class C { #value; constructor(value) { this.#value = value; } read() { return this.#value; } }\nString(new C(7).read());",
+          "expectedResult": "7",
+          "forbiddenLogs": [
+            "unified-bytecode-production-fast-path func=C"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "B24d",
+      "title": "Static-block-only resumable class expressions route through LoadClassLiteral",
+      "status": "done",
+      "proofs": [
+        {
+          "id": "B24d-static-block-class-expression-routes",
+          "claim": "admitted",
+          "kind": "runtime",
+          "source": "function* g(seed) {\n  var observed = 0;\n  yield 'ready';\n  var C = class Box {\n    static {\n      Box.value = seed + 1;\n      observed = Box.value + 1;\n    }\n  };\n  return C.value + '|' + observed;\n}\nvar iterator = g(40);\nvar first = iterator.next();\nvar second = iterator.next();\nfirst.value + ':' + first.done + '|' + second.value + ':' + second.done;",
+          "expectedResult": "ready:false|41|42:true",
+          "requiredLogs": [
+            "unified-bytecode-resumable-generator-fast-path func=g"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "B24h",
+      "title": "Computed class-member names are partial; activation-delete neighbors still decline",
+      "status": "open",
+      "proofs": [
+        {
+          "id": "B24h-computed-name-activation-call-argument-routes",
+          "claim": "admitted",
+          "kind": "runtime",
+          "source": "function* g(read, helper) {\n  yield 'ready';\n  var C = class {\n    [helper(read)]() { return 42; }\n  };\n  var c = new C();\n  return c.value();\n}\nvar iterator = g(() => 'value', reader => reader());\nvar first = iterator.next();\nvar second = iterator.next();\nfirst.value + ':' + first.done + '|' + second.value + ':' + second.done;",
+          "expectedResult": "ready:false|42:true",
+          "requiredLogs": [
+            "unified-bytecode-resumable-generator-fast-path func=g"
+          ]
+        },
+        {
+          "id": "B24h-computed-name-activation-delete-declines",
+          "claim": "open",
+          "kind": "eligibility",
+          "subject": "resumable-generator",
+          "functionName": "g",
+          "source": "function* g(key) {\n  yield 1;\n  var C = class {\n    [delete key]() { return 1; }\n  };\n  return C;\n}",
+          "expectedEligible": false,
+          "declineCode": "UnsupportedPlanShape",
+          "reasonContains": "B24"
+        }
+      ]
+    },
+    {
+      "id": "B36",
+      "title": "Nested declaration parity is partial; complex class declarations remain outside resumable bytecode",
+      "status": "open",
+      "proofs": [
+        {
+          "id": "B36-class-declaration-extends-declines",
+          "claim": "open",
+          "kind": "eligibility",
+          "subject": "resumable-generator",
+          "functionName": "g",
+          "source": "class Base {}\nfunction* g() {\n  yield 'ready';\n  class Box extends Base {\n  }\n  yield typeof Box;\n}",
+          "expectedEligible": false,
+          "declineCode": "UnsupportedPlanShape",
+          "reasonContains": "outside B36"
+        }
+      ]
+    },
+    {
+      "id": "E4",
+      "title": "AST/expression-program evaluation bridges are source-gated but not retired",
+      "status": "open",
+      "proofs": [
+        {
+          "id": "E4-standalone-expression-program-bridge-still-present",
+          "claim": "open",
+          "kind": "source-presence",
+          "path": "src/Asynkron.JsEngine/Ast/TypedAstEvaluator.ExpressionPrograms.cs",
+          "pattern": "EvaluateStandaloneExpressionProgram("
+        },
+        {
+          "id": "E4-lowered-expression-program-bridge-still-present",
+          "claim": "open",
+          "kind": "source-presence",
+          "path": "src/Asynkron.JsEngine/Ast/ClassPropertyNameResolver.cs",
+          "pattern": "EvaluateLoweredExpressionProgram("
+        },
+        {
+          "id": "E4-dynamic-expression-ast-eval-still-present-in-expression-legacy",
+          "claim": "open",
+          "kind": "source-presence",
+          "path": "src/Asynkron.JsEngine/Ast/Legacy/ExpressionNodeExtensions.cs",
+          "pattern": "EvaluateDynamicExpressionProgram("
+        },
+        {
+          "id": "E4-dynamic-expression-ast-eval-still-present-in-statement-legacy",
+          "claim": "open",
+          "kind": "source-presence",
+          "path": "src/Asynkron.JsEngine/Ast/Legacy/StatementNodeExtensions.cs",
+          "pattern": "EvaluateDynamicExpressionProgram("
+        },
+        {
+          "id": "E4-dynamic-expression-ast-eval-still-present-in-loop-legacy",
+          "claim": "open",
+          "kind": "source-presence",
+          "path": "src/Asynkron.JsEngine/Ast/Legacy/LoopPlanExtensions.cs",
+          "pattern": "EvaluateDynamicExpressionProgram("
+        }
+      ]
+    },
+    {
+      "id": "E5",
+      "title": "ExecutionPlanRunner tier-2 IR evaluation remains reachable from classified fallback paths",
+      "status": "open",
+      "proofs": [
+        {
+          "id": "E5-ir-runner-type-still-present",
+          "claim": "open",
+          "kind": "source-presence",
+          "path": "src/Asynkron.JsEngine/Ast/TypedAstEvaluator.ExecutionPlanRunner.Core.cs",
+          "pattern": "private sealed partial class ExecutionPlanRunner"
+        },
+        {
+          "id": "E5-ir-runner-script-entry-still-present",
+          "claim": "open",
+          "kind": "source-presence",
+          "path": "src/Asynkron.JsEngine/Ast/TypedAstEvaluator.ExecutionPlanRunner.Core.cs",
+          "pattern": "public static JsValue RunScript("
+        },
+        {
+          "id": "E5-ir-runner-sync-entry-still-present",
+          "claim": "open",
+          "kind": "source-presence",
+          "path": "src/Asynkron.JsEngine/Ast/TypedAstEvaluator.ExecutionPlanRunner.Core.cs",
+          "pattern": "public JsValue RunSync("
+        },
+        {
+          "id": "E5-ir-runner-async-step-entry-still-present",
+          "claim": "open",
+          "kind": "source-presence",
+          "path": "src/Asynkron.JsEngine/Ast/TypedAstEvaluator.ExecutionPlanRunner.Core.cs",
+          "pattern": "ExecuteAsyncStep("
+        },
+        {
+          "id": "E5-script-ir-fallback-still-runs-execution-plan-runner",
+          "claim": "open",
+          "kind": "source-presence",
+          "path": "src/Asynkron.JsEngine/Ast/Legacy/StatementNodeExtensions.cs",
+          "pattern": "ExecutionPlanRunner.RunScript("
+        },
+        {
+          "id": "E5-function-runner-fallback-still-constructs-runner",
+          "claim": "open",
+          "kind": "source-presence",
+          "path": "src/Asynkron.JsEngine/Ast/TypedAstEvaluator.SyncFunctionInvoker.cs",
+          "pattern": "new ExecutionPlanRunner("
+        },
+        {
+          "id": "E5-sync-generator-declined-body-runner-still-present",
+          "claim": "open",
+          "kind": "source-presence",
+          "path": "src/Asynkron.JsEngine/Ast/TypedAstEvaluator.SyncGeneratorInvoker.cs",
+          "pattern": "CreateClassifiedGeneratorDeclinedBodyRunner"
+        },
+        {
+          "id": "E5-async-function-ir-step-runner-still-present",
+          "claim": "open",
+          "kind": "source-presence",
+          "path": "src/Asynkron.JsEngine/Ast/TypedAstEvaluator.AsyncFunctionInvoker.cs",
+          "pattern": "ExecuteAsyncStep("
+        }
+      ]
+    },
+    {
+      "id": "E6",
+      "title": "AsyncGeneratorInvoker declined-body IR fallback is retired",
+      "status": "done",
+      "proofs": [
+        {
+          "id": "E6-async-generator-declined-body-runner-helper-absent",
+          "claim": "retired-fallback",
+          "kind": "source-absence",
+          "path": "src/Asynkron.JsEngine/Ast/TypedAstEvaluator.AsyncGeneratorInvoker.cs",
+          "pattern": "CreateClassifiedAsyncGeneratorDeclinedBodyRunner"
+        }
+      ]
+    }
+  ]
+}

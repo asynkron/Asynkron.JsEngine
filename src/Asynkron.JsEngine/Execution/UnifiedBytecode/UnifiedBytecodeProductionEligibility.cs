@@ -3116,6 +3116,20 @@ internal static class UnifiedBytecodeProductionEligibility
             return false;
         }
 
+        if (TryAdmitB36PublicStaticSuperMemberExtendsClassDeclaration(
+                cache,
+                activationSlots,
+                out candidate,
+                out declineReason))
+        {
+            return true;
+        }
+
+        if (candidate)
+        {
+            return false;
+        }
+
         if (TryAdmitB36PublicInstanceSuperFieldExtendsClassDeclaration(
                 cache,
                 activationSlots,
@@ -3333,6 +3347,57 @@ internal static class UnifiedBytecodeProductionEligibility
             {
                 declineReason =
                     $"Class declaration public super member body captures activation binding '{capturedName}' and needs the materialized body environment route.";
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static bool TryAdmitB36PublicStaticSuperMemberExtendsClassDeclaration(
+        ClassDefinitionProgramCache cache,
+        ActivationSlotShape activationSlots,
+        out bool candidate,
+        out string declineReason)
+    {
+        var definition = cache.Definition;
+        candidate = false;
+        declineReason = string.Empty;
+
+        if (!definition.Fields.IsDefaultOrEmpty ||
+            !definition.StaticBlockPlans.IsDefaultOrEmpty ||
+            !definition.StaticElements.IsDefaultOrEmpty ||
+            definition.Members.IsDefaultOrEmpty)
+        {
+            return false;
+        }
+
+        foreach (var member in definition.Members)
+        {
+            if (!member.IsStatic ||
+                member.IsPrivate ||
+                member.IsComputed ||
+                !FunctionContainsSuper(member.Callable.Function))
+            {
+                return false;
+            }
+        }
+
+        candidate = true;
+        if (!IsB36AdmittedPlainExtendsConstructor(
+                definition.Constructor,
+                activationSlots,
+                out declineReason))
+        {
+            return false;
+        }
+
+        foreach (var member in definition.Members)
+        {
+            if (FunctionCapturesActivationSlot(member.Callable.Function, activationSlots, out var capturedName))
+            {
+                declineReason =
+                    $"Class declaration public static super member body captures activation binding '{capturedName}' and needs the materialized body environment route.";
                 return false;
             }
         }

@@ -2888,32 +2888,38 @@ internal static class UnifiedBytecodeProductionEligibility
         var hasComputedElement = false;
         foreach (var field in definition.Fields)
         {
-            if (!field.IsComputed)
+            if (field.IsStatic || field.IsPrivate)
             {
                 return false;
             }
 
-            if (field.IsStatic || field.IsPrivate || field.ComputedName is null)
+            if (field.IsComputed)
             {
-                return false;
-            }
+                if (field.ComputedName is null)
+                {
+                    return false;
+                }
 
-            hasComputedElement = true;
+                hasComputedElement = true;
+            }
         }
 
         foreach (var member in definition.Members)
         {
-            if (!member.IsComputed)
+            if (member.IsStatic || member.IsPrivate)
             {
                 return false;
             }
 
-            if (member.IsStatic || member.IsPrivate || member.ComputedName is null)
+            if (member.IsComputed)
             {
-                return false;
-            }
+                if (member.ComputedName is null)
+                {
+                    return false;
+                }
 
-            hasComputedElement = true;
+                hasComputedElement = true;
+            }
         }
 
         if (!hasComputedElement)
@@ -2939,6 +2945,11 @@ internal static class UnifiedBytecodeProductionEligibility
 
         for (var i = 0; i < cache.MemberNamePrograms.Length; i++)
         {
+            if (!definition.Members[i].IsComputed)
+            {
+                continue;
+            }
+
             if (cache.MemberNamePrograms[i] is not { } nameProgram)
             {
                 declineReason =
@@ -2956,6 +2967,11 @@ internal static class UnifiedBytecodeProductionEligibility
 
         for (var i = 0; i < cache.FieldNamePrograms.Length; i++)
         {
+            if (!definition.Fields[i].IsComputed)
+            {
+                continue;
+            }
+
             if (cache.FieldNamePrograms[i] is not { } nameProgram)
             {
                 declineReason =

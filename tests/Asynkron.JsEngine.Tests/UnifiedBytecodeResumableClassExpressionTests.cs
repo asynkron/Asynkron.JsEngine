@@ -254,6 +254,45 @@ public sealed class UnifiedBytecodeResumableClassExpressionTests(ITestOutputHelp
             static instruction => instruction.OpCode == UnifiedBytecodeOpCode.LoadClassLiteral);
     }
 
+    [Fact]
+    public void EvaluateResumable_ClassExpressionMixedComputedAndNonComputedPublicInstanceElements_AdmitsLoadClassLiteral()
+    {
+        var plan = GetFunctionPlan("""
+            function* g() {
+                yield 0;
+                var C = class {
+                    ["field"] = 40;
+                    extra = this.field + 1;
+
+                    get value() {
+                        return this.extra + 1;
+                    }
+
+                    plain() {
+                        return this.extra;
+                    }
+
+                    [("read")]() {
+                        return this.value + 1;
+                    }
+                };
+                var c = new C();
+                return c.value;
+            }
+            """,
+            "g");
+
+        var result = UnifiedBytecodeProductionEligibility.EvaluateResumable(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor(IsGenerator: true));
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(
+            result.Program.Instructions,
+            static instruction => instruction.OpCode == UnifiedBytecodeOpCode.LoadClassLiteral);
+    }
+
     [Fact(Timeout = 5000)]
     public async Task GeneratorClassExpressionPublicInstanceFields_RoutesResumableAndInitializesFields()
     {
@@ -471,6 +510,43 @@ public sealed class UnifiedBytecodeResumableClassExpressionTests(ITestOutputHelp
     }
 
     [Fact(Timeout = 5000)]
+    public async Task GeneratorMixedComputedAndNonComputedPublicInstanceClassElements_RouteResumable()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function* g() {
+                yield "ready";
+                var C = class {
+                    ["field"] = 40;
+                    extra = this.field + 1;
+
+                    get value() {
+                        return this.extra + 1;
+                    }
+
+                    plain() {
+                        return this.extra;
+                    }
+
+                    [("read")]() {
+                        return this.value + 1;
+                    }
+                };
+                var c = new C();
+                return c.value;
+            }
+
+            var iterator = g();
+            var first = iterator.next();
+            var second = iterator.next();
+            first.value + ":" + first.done + "|" + second.value + ":" + second.done;
+            """);
+
+        Assert.Equal("ready:false|42:true", result);
+        AssertGeneratorFastPath("g", argc: 0);
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task GeneratorClassExpressionPublicAccessorsWithSuper_RoutesResumableAndPreservesReceiver()
     {
         await using var engine = CreateEngine();
@@ -576,6 +652,18 @@ public sealed class UnifiedBytecodeResumableClassExpressionTests(ITestOutputHelp
             yield 1;
             var C = class {
                 get [key]() { return 1; }
+            };
+            return C;
+        }
+        """);
+
+    [Fact]
+    public void EvaluateResumable_ClassExpressionComputedFieldWithActivationInitializer_DeclinesBeforeVm() =>
+        AssertClassExpressionDeclines("""
+        function* g(seed) {
+            yield 1;
+            var C = class {
+                ["field"] = seed;
             };
             return C;
         }

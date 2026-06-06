@@ -3079,6 +3079,7 @@ internal static class UnifiedBytecodeProductionEligibility
             if (ExpressionProgramHasUnsupportedClassComputedNameActivationDependency(
                     nameProgram,
                     activationSlots,
+                    allowDirectActivationCall: false,
                     out var capturedName,
                     out var dependencyReason))
             {
@@ -3105,6 +3106,7 @@ internal static class UnifiedBytecodeProductionEligibility
             if (ExpressionProgramHasUnsupportedClassComputedNameActivationDependency(
                     nameProgram,
                     activationSlots,
+                    allowDirectActivationCall: false,
                     out var capturedName,
                     out var dependencyReason))
             {
@@ -3264,6 +3266,7 @@ internal static class UnifiedBytecodeProductionEligibility
             if (ExpressionProgramHasUnsupportedClassComputedNameActivationDependency(
                     nameProgram,
                     activationSlots,
+                    allowDirectActivationCall: true,
                     out var capturedName,
                     out var dependencyReason))
             {
@@ -3290,6 +3293,7 @@ internal static class UnifiedBytecodeProductionEligibility
             if (ExpressionProgramHasUnsupportedClassComputedNameActivationDependency(
                     nameProgram,
                     activationSlots,
+                    allowDirectActivationCall: true,
                     out var capturedName,
                     out var dependencyReason))
             {
@@ -3326,6 +3330,7 @@ internal static class UnifiedBytecodeProductionEligibility
     private static bool ExpressionProgramHasUnsupportedClassComputedNameActivationDependency(
         ExpressionProgram program,
         ActivationSlotShape activationSlots,
+        bool allowDirectActivationCall,
         out string capturedName,
         out string dependencyReason)
     {
@@ -3370,7 +3375,8 @@ internal static class UnifiedBytecodeProductionEligibility
             capturedName = identifier.Name.Name;
             if (operation.Kind == ExpressionOpKind.LoadIdentifierCallTarget)
             {
-                if (TrySkipDirectClassComputedNameActivationCall(program, operationIndex, out var callOperationIndex))
+                if (allowDirectActivationCall &&
+                    TrySkipDirectClassComputedNameActivationCall(program, operationIndex, out var callOperationIndex))
                 {
                     operationIndex = callOperationIndex;
                     continue;

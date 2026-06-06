@@ -131,7 +131,7 @@ public sealed class UnifiedBytecodeResumableClassDeclarationTests(ITestOutputHel
     }
 
     [Fact]
-    public void EvaluateResumable_ClassDeclarationExtends_DeclinesBeforeVm()
+    public void EvaluateResumable_ClassDeclarationExtends_AdmitsDeclareClass()
     {
         var plan = GetFunctionPlan("""
             class Base {}
@@ -148,9 +148,33 @@ public sealed class UnifiedBytecodeResumableClassDeclarationTests(ITestOutputHel
             plan,
             new UnifiedBytecodeProductionActivationDescriptor(IsGenerator: true));
 
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(
+            result.Program.Instructions,
+            static instruction => instruction.OpCode == UnifiedBytecodeOpCode.DeclareClass);
+    }
+
+    [Fact]
+    public void EvaluateResumable_ClassDeclarationActivationExtends_DeclinesBeforeVm()
+    {
+        var plan = GetFunctionPlan("""
+            function* g(Base) {
+                yield "ready";
+                class Box extends Base {
+                }
+                yield typeof Box;
+            }
+            """,
+            "g");
+
+        var result = UnifiedBytecodeProductionEligibility.EvaluateResumable(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor(IsGenerator: true));
+
         Assert.False(result.IsEligible);
         Assert.Equal(UnifiedBytecodeProductionDeclineCode.UnsupportedPlanShape, result.Code);
-        Assert.Contains("outside B36", result.Reason, StringComparison.Ordinal);
+        Assert.Contains("superclass captures activation binding 'Base'", result.Reason, StringComparison.Ordinal);
     }
 
     [Fact(Timeout = 5000)]
@@ -234,6 +258,39 @@ public sealed class UnifiedBytecodeResumableClassDeclarationTests(ITestOutputHel
 
         Assert.Contains("SyntaxError", exception.Message, StringComparison.Ordinal);
         Assert.Contains("Delete of an unqualified identifier", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task GeneratorClassDeclarationExtends_RoutesResumableAndPreservesSuperclass()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            class Base {
+                constructor(seed) {
+                    this.seed = seed;
+                }
+
+                read() {
+                    return this.seed + 1;
+                }
+            }
+
+            function* g() {
+                yield "ready";
+                class Box extends Base {
+                }
+                var box = new Box(41);
+                yield box.read() + "|" + (box instanceof Base);
+            }
+
+            var iterator = g();
+            var first = iterator.next();
+            var second = iterator.next();
+            first.value + ":" + first.done + "|" + second.value + ":" + second.done;
+            """);
+
+        Assert.Equal("ready:false|42|true:false", result);
+        AssertGeneratorFastPath("g", argc: 0);
     }
 
     [Fact(Timeout = 5000)]

@@ -2979,21 +2979,45 @@ internal static class UnifiedBytecodeProductionEligibility
             return false;
         }
 
-        var definition = descriptor.ProgramCache.Definition;
-        if (descriptor.ProgramCache.ExtendsProgram is not null ||
-            definition.StaticBlockPlans is { IsDefaultOrEmpty: false })
+        var cache = descriptor.ProgramCache;
+        var definition = cache.Definition;
+        if (definition.StaticBlockPlans is { IsDefaultOrEmpty: false })
         {
             declineReason =
-                "Class declaration is outside B36: extends and static blocks remain owned by later class-definition slices.";
+                "Class declaration is outside B36: static blocks remain owned by later class-definition slices.";
             return false;
+        }
+
+        if (cache.ExtendsProgram is { } extendsProgram)
+        {
+            if (!IsB36SimpleExtendsClassDeclaration(definition))
+            {
+                declineReason =
+                    "Class declaration is outside B36: only constructorless class declarations with a simple extends clause are admitted by the current class-definition slice.";
+                return false;
+            }
+
+            if (ExpressionProgramReferencesActivationSlot(extendsProgram, activationSlots, out var capturedName))
+            {
+                declineReason =
+                    $"Class declaration superclass captures activation binding '{capturedName}' and remains outside B36 until the class-definition environment route owns activation-dependent extends expressions.";
+                return false;
+            }
         }
 
         if (HasClassExpressionProgram(descriptor.ProgramCache.MemberNamePrograms) ||
             HasClassExpressionProgram(descriptor.ProgramCache.FieldNamePrograms) ||
             definition.StaticElements is { IsDefaultOrEmpty: false })
         {
+            if (cache.ExtendsProgram is not null)
+            {
+                declineReason =
+                    "Class declaration is outside B36: computed names or static elements with extends remain owned by later class-definition slices.";
+                return false;
+            }
+
             if (TryAdmitB36ComputedPublicClassDeclaration(
-                    descriptor.ProgramCache,
+                    cache,
                     activationSlots,
                     out var b24hCandidate,
                     out declineReason))
@@ -3014,6 +3038,13 @@ internal static class UnifiedBytecodeProductionEligibility
         declineReason = string.Empty;
         return true;
     }
+
+    private static bool IsB36SimpleExtendsClassDeclaration(LoweredClassDefinition definition) =>
+        definition.Constructor.Function.IsDefaultDerivedConstructor &&
+        definition.Members.IsDefaultOrEmpty &&
+        definition.Fields.IsDefaultOrEmpty &&
+        definition.StaticElements.IsDefaultOrEmpty &&
+        definition.StaticBlockPlans.IsDefaultOrEmpty;
 
     private static bool TryAdmitB36ComputedPublicClassDeclaration(
         ClassDefinitionProgramCache cache,

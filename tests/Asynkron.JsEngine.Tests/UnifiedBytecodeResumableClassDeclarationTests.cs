@@ -180,7 +180,7 @@ public sealed class UnifiedBytecodeResumableClassDeclarationTests(ITestOutputHel
     }
 
     [Fact]
-    public void EvaluateResumable_ClassDeclarationExplicitDerivedConstructor_DeclinesBeforeVm()
+    public void EvaluateResumable_ClassDeclarationExplicitDerivedConstructor_AdmitsDeclareClass()
     {
         var plan = GetFunctionPlan("""
             function* g(Base) {
@@ -199,9 +199,40 @@ public sealed class UnifiedBytecodeResumableClassDeclarationTests(ITestOutputHel
             plan,
             new UnifiedBytecodeProductionActivationDescriptor(IsGenerator: true));
 
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(
+            result.Program.Instructions,
+            static instruction => instruction.OpCode == UnifiedBytecodeOpCode.DeclareClass);
+    }
+
+    [Fact]
+    public void EvaluateResumable_ClassDeclarationExplicitDerivedConstructorCapturesActivation_DeclinesBeforeVm()
+    {
+        var plan = GetFunctionPlan("""
+            function* g(Base, outer) {
+                yield "ready";
+                class Box extends Base {
+                    constructor(value) {
+                        super(outer);
+                        this.value = value;
+                    }
+                }
+                yield typeof Box;
+            }
+            """,
+            "g");
+
+        var result = UnifiedBytecodeProductionEligibility.EvaluateResumable(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor(IsGenerator: true));
+
         Assert.False(result.IsEligible);
         Assert.Equal(UnifiedBytecodeProductionDeclineCode.UnsupportedPlanShape, result.Code);
-        Assert.Contains("only constructorless class declarations", result.Reason, StringComparison.Ordinal);
+        Assert.Contains(
+            "explicit derived constructor body captures activation binding 'outer'",
+            result.Reason,
+            StringComparison.Ordinal);
     }
 
     [Fact(Timeout = 5000)]
@@ -354,6 +385,62 @@ public sealed class UnifiedBytecodeResumableClassDeclarationTests(ITestOutputHel
 
         Assert.Equal("ready:false|42|true:false", result);
         AssertGeneratorFastPath("g", argc: 1);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task GeneratorClassDeclarationExplicitDerivedConstructor_RoutesResumableAndConstructorFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function makeBase(extra) {
+                return class Base {
+                    constructor(seed) {
+                        this.seed = seed;
+                    }
+
+                    read() {
+                        return this.seed + extra;
+                    }
+                };
+            }
+
+            function* g(Base) {
+                yield "ready";
+                class Box extends Base {
+                    constructor(seed) {
+                        super(seed);
+                        this.local = seed + 1;
+                    }
+                }
+                var box = new Box(40);
+                yield box.read() + "|" + box.local + "|" + (box instanceof Base);
+            }
+
+            var Base = makeBase(2);
+            var iterator = g(Base);
+            var first = iterator.next();
+            var second = iterator.next();
+            first.value + ":" + first.done + "|" + second.value + ":" + second.done;
+            """);
+
+        Assert.Equal("ready:false|42|41|true:false", result);
+        AssertGeneratorFastPath("g", argc: 1);
+        var logs = CurrentLogger!.Collector.Snapshot();
+        var routedConstructor = logs.Any(
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=Box argc=1",
+                StringComparison.Ordinal));
+        Assert.True(
+            routedConstructor,
+            string.Join(
+                Environment.NewLine,
+                logs
+                    .Select(static record => record.Message)
+                    .Where(static message =>
+                        message.Contains("Box", StringComparison.Ordinal) ||
+                        message.Contains("SyncFunctionInvoker", StringComparison.Ordinal) ||
+                        message.Contains("simple-ir", StringComparison.Ordinal) ||
+                        message.Contains("unified-bytecode-production", StringComparison.Ordinal))));
     }
 
     [Fact(Timeout = 5000)]

@@ -2990,10 +2990,9 @@ internal static class UnifiedBytecodeProductionEligibility
 
         if (cache.ExtendsProgram is { } extendsProgram)
         {
-            if (!IsB36SimpleExtendsClassDeclaration(definition))
+            if (!IsB36PlainExtendsClassDeclaration(definition, activationSlots, out var plainExtendsDeclineReason))
             {
-                declineReason =
-                    "Class declaration is outside B36: only constructorless class declarations with a simple extends clause are admitted by the current class-definition slice.";
+                declineReason = plainExtendsDeclineReason;
                 return false;
             }
 
@@ -3043,12 +3042,135 @@ internal static class UnifiedBytecodeProductionEligibility
         return true;
     }
 
-    private static bool IsB36SimpleExtendsClassDeclaration(LoweredClassDefinition definition) =>
-        definition.Constructor.Function.IsDefaultDerivedConstructor &&
-        definition.Members.IsDefaultOrEmpty &&
-        definition.Fields.IsDefaultOrEmpty &&
-        definition.StaticElements.IsDefaultOrEmpty &&
-        definition.StaticBlockPlans.IsDefaultOrEmpty;
+    private static bool IsB36PlainExtendsClassDeclaration(
+        LoweredClassDefinition definition,
+        ActivationSlotShape activationSlots,
+        out string declineReason)
+    {
+        declineReason = string.Empty;
+        if (!definition.Members.IsDefaultOrEmpty ||
+            !definition.Fields.IsDefaultOrEmpty ||
+            !definition.StaticElements.IsDefaultOrEmpty ||
+            !definition.StaticBlockPlans.IsDefaultOrEmpty)
+        {
+            declineReason =
+                "Class declaration is outside B36: only plain extends class declarations without member, field, static element, or static block class-definition state are admitted by the current class-definition slice.";
+            return false;
+        }
+
+        return IsB36AdmittedPlainExtendsConstructor(
+            definition.Constructor,
+            activationSlots,
+            out declineReason);
+    }
+
+    private static bool IsB36AdmittedPlainExtendsConstructor(
+        LoweredClassCallable constructor,
+        ActivationSlotShape activationSlots,
+        out string declineReason)
+    {
+        declineReason = string.Empty;
+        var function = constructor.Function;
+        if (function.IsDefaultDerivedConstructor)
+        {
+            return true;
+        }
+
+        if (function.IsAsync ||
+            function.IsGenerator ||
+            function.IsArrow ||
+            function.IsDynamicFunctionConstructorBody ||
+            !HasB36AdmittedExplicitDerivedConstructorParameters(function) ||
+            constructor.PlanSeed.Plan is not { } plan ||
+            !HasB36AdmittedExplicitDerivedConstructorPlanShape(plan))
+        {
+            declineReason =
+                "Class declaration is outside B36: explicit derived constructor is outside the currently admitted public super(...) constructor shape.";
+            return false;
+        }
+
+        if (FunctionCapturesActivationSlot(function, activationSlots, out var capturedName))
+        {
+            declineReason =
+                $"Class declaration is outside B36: explicit derived constructor body captures activation binding '{capturedName}' and needs the materialized body environment route.";
+            return false;
+        }
+
+        var result = Evaluate(plan, new UnifiedBytecodeProductionActivationDescriptor());
+        if (result.IsEligible)
+        {
+            return true;
+        }
+
+        declineReason =
+            $"Class declaration is outside B36: explicit derived constructor plan is outside production unified bytecode ({result.Reason}).";
+        return false;
+    }
+
+    private static bool HasB36AdmittedExplicitDerivedConstructorParameters(FunctionExpression function)
+    {
+        for (var i = 0; i < function.Parameters.Length; i++)
+        {
+            var parameter = function.Parameters[i];
+            if (parameter is not { Pattern: null, Name: not null })
+            {
+                return false;
+            }
+
+            if (parameter.IsRest)
+            {
+                return i == function.Parameters.Length - 1 && parameter.DefaultValue is null;
+            }
+
+            if (parameter.DefaultValue is not null and not LiteralExpression)
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static bool HasB36AdmittedExplicitDerivedConstructorPlanShape(ExecutionPlan plan)
+    {
+        var hasSuperConstruct = false;
+        foreach (var instruction in plan.Instructions)
+        {
+            if (!TryGetExpressionProgram(instruction, out var program))
+            {
+                continue;
+            }
+
+            foreach (var operation in program.EnumerateOperations())
+            {
+                if (operation.IsArguments)
+                {
+                    return false;
+                }
+
+                switch (operation.Kind)
+                {
+                    case ExpressionOpKind.LoadThis:
+                    case ExpressionOpKind.LoadNamedSuperCallTarget:
+                    case ExpressionOpKind.LoadComputedSuperCallTarget:
+                    case ExpressionOpKind.EnsureSuperReference:
+                        break;
+                    case ExpressionOpKind.GetNamedSuperProperty:
+                    case ExpressionOpKind.GetComputedSuperProperty:
+                    case ExpressionOpKind.SetNamedSuperProperty:
+                    case ExpressionOpKind.SetComputedSuperProperty:
+                    case ExpressionOpKind.UpdateNamedSuperProperty:
+                    case ExpressionOpKind.UpdateComputedSuperProperty:
+                        return false;
+                    case ExpressionOpKind.SuperConstruct:
+                        hasSuperConstruct = true;
+                        break;
+                }
+            }
+        }
+
+        return hasSuperConstruct;
+    }
 
     private static bool TryAdmitB36ComputedPublicClassDeclaration(
         ClassDefinitionProgramCache cache,

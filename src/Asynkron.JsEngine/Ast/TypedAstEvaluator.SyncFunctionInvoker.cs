@@ -3438,6 +3438,8 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
             bool canUseImplicitArgumentsObjectDependencyPath = false,
             bool allowImplicitArgumentsObjectPropertyReadOperands = false)
         {
+            var canUseClassConstructorActivationPath =
+                canUseDerivedClassConstructorPath || canUseBaseClassConstructorPath;
             var hasUnprovenDynamicActivation = !_allowIdentifierCache &&
                                                !canUseDynamicNamePath &&
                                                !canUseOrdinaryDynamicNamePath &&
@@ -3449,7 +3451,8 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                 HasCapturedOrDynamicActivation:
                     _hasCapturedActivationInClosure &&
                     !canUseArrowFunctionPath &&
-                    !canUseCapturedClosurePath ||
+                    !canUseCapturedClosurePath &&
+                    !canUseClassConstructorActivationPath ||
                     _hasClosureWithObject && !canUseDynamicNamePath ||
                     hasUnprovenDynamicActivation,
                 HasArgumentsObjectDependency:
@@ -3797,6 +3800,8 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                 _hasParameterExpressions && HasOnlySimpleIdentifierOrLiteralDefaultParameters() ||
                 !_hasParameterExpressions && TryGetProductionUnifiedBytecodeFinalRestParameterIndex(out _) ||
                 _function.IsDefaultDerivedConstructor && TryGetDefaultDerivedConstructorRestParameter(out _);
+            var hasSuperBinding = _superConstructor is not null || _superPrototype is not null;
+            var hasAdmittedPlanShape = CanUseProductionUnifiedBytecodeDerivedClassConstructorPlanShape(plan);
             return IsClassConstructor &&
                    _isDerivedClassConstructor &&
                    !newTarget.IsUndefined &&
@@ -3810,8 +3815,8 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                    _homeObject is null &&
                    PrivateNameScope is null &&
                    _capturedPrivateNameScopes.IsDefaultOrEmpty &&
-                   (_superConstructor is not null || _superPrototype is not null) &&
-                   CanUseProductionUnifiedBytecodeDerivedClassConstructorPlanShape(plan);
+                   hasSuperBinding &&
+                   hasAdmittedPlanShape;
         }
 
         private bool CanUseProductionUnifiedBytecodeArrowFunctionActivation(

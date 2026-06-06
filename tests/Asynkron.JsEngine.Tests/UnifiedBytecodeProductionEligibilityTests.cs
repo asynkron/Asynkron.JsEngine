@@ -2249,7 +2249,7 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
                 AllowsOrdinaryDynamicIdentifierEnvironmentOperations: true));
 
         Assert.True(
-            UnifiedBytecodeProductionEligibility.ContainsOnlyImplicitArgumentsObjectDynamicIdentifierDependency(plan));
+            UnifiedBytecodeProductionEligibility.ContainsOrdinaryDynamicIdentifierDependency(plan));
         Assert.True(result.IsEligible, result.Reason);
         Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
         Assert.Contains(result.Program.Instructions, instruction =>

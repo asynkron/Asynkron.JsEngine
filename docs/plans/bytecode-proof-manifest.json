@@ -255,15 +255,37 @@
           ]
         },
         {
-          "id": "B36-class-declaration-explicit-derived-constructor-declines",
+          "id": "B36-class-declaration-explicit-derived-constructor-routes",
+          "claim": "admitted",
+          "kind": "runtime",
+          "source": "function makeBase(extra) {\n  return class Base {\n    constructor(seed) { this.seed = seed; }\n    read() { return this.seed + extra; }\n  };\n}\nfunction* g(Base) {\n  yield 'ready';\n  class Box extends Base {\n    constructor(seed) {\n      super(seed);\n      this.local = seed + 1;\n    }\n  }\n  var box = new Box(40);\n  yield box.read() + '|' + box.local + '|' + (box instanceof Base);\n}\nvar Base = makeBase(2);\nvar iterator = g(Base);\nvar first = iterator.next();\nvar second = iterator.next();\nfirst.value + ':' + first.done + '|' + second.value + ':' + second.done;",
+          "expectedResult": "ready:false|42|41|true:false",
+          "requiredLogs": [
+            "unified-bytecode-resumable-generator-fast-path func=g",
+            "unified-bytecode-production-fast-path func=Box"
+          ]
+        },
+        {
+          "id": "B36-class-declaration-explicit-derived-constructor-captures-activation-declines",
           "claim": "open",
           "kind": "eligibility",
           "subject": "resumable-generator",
           "functionName": "g",
-          "source": "function* g(Base) {\n  yield 'ready';\n  class Box extends Base {\n    constructor(value) {\n      super(value);\n    }\n  }\n  yield typeof Box;\n}",
+          "source": "function* g(Base, outer) {\n  yield 'ready';\n  class Box extends Base {\n    constructor(value) {\n      super(outer);\n      this.value = value;\n    }\n  }\n  yield typeof Box;\n}",
           "expectedEligible": false,
           "declineCode": "UnsupportedPlanShape",
-          "reasonContains": "only constructorless class declarations"
+          "reasonContains": "explicit derived constructor body captures activation binding 'outer'"
+        },
+        {
+          "id": "B36-class-declaration-extends-static-block-declines",
+          "claim": "open",
+          "kind": "eligibility",
+          "subject": "resumable-generator",
+          "functionName": "g",
+          "source": "class Base {}\nfunction* g() {\n  yield 'ready';\n  class Box extends Base {\n    static { this.seed = 1; }\n  }\n  yield typeof Box;\n}",
+          "expectedEligible": false,
+          "declineCode": "UnsupportedPlanShape",
+          "reasonContains": "static blocks remain owned"
         }
       ]
     },

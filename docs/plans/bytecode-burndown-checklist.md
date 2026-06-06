@@ -219,7 +219,7 @@ these allowlists — mechanical extensions against existing sync VM handlers.
 - [x] **E1** *(moved to P0.5 — dead `LabelControlFlow` deletion)*
 - [x] **E2** Promote each wrapped `TryCompile` reason to a named decline *(= P0.2; A51/B47 decomposed and drift-guarded)*
 - [x] **E3** Diff opcode enum vs admit-switch; name every gap *(= P0.3)* ✅
-- [ ] **E4** Remove `ExpressionProgram` (tier-1) from hot path (after A/C admit its coverage) — source-retirement proof now lives in `docs/plans/bytecode-proof-manifest.json`: the row remains open while `EvaluateStandaloneExpressionProgram`, `EvaluateLoweredExpressionProgram`, and legacy `EvaluateDynamicExpressionProgram` bridges are present.
+- [ ] **E4** Remove `ExpressionProgram` (tier-1) from hot path (after A/C admit its coverage) — source-retirement proof now lives in `docs/plans/bytecode-proof-manifest.json`: the ordinary sync generic simple-return-expression branch in `TryInvokeIrFast` no longer executes `ExpressionProgram`, but the row remains open while `EvaluateStandaloneExpressionProgram`, the class-definition/class-field/class-property-name `EvaluateLoweredExpressionProgram` bridges, and legacy `EvaluateDynamicExpressionProgram` bridges are present.
 - [ ] **E5** Remove `ExecutionPlanRunner` (tier-2 IR) from hot path (after A/B/C parity) — current owner inventory is classification-only, not a retirement claim: ordinary sync `TryInvokeIrFast` no longer constructs `ExecutionPlanRunner` or calls `RunSync`; unsupported ordinary sync shapes decline there with `simple-ir-activation-runner-declined` and then the outer `InvokeWithContextSlow` runner remains the classified fallback after production unified bytecode, simple expression routes, `SyncIrCallTrampoline`, and constructor/class invocation bridges decline; script fallback remains classified in `RunScriptViaClassifiedIrFallback`, which delegates to `ExecutionPlanRunner.RunScript`, after `EvaluateScript` declines; async functions and sync generators still construct runner-backed fallbacks when `EvaluateResumable` declines; async generators no longer construct a runner fallback after `EvaluateResumable` declines and instead fail explicitly until the VM admits the declined semantics; class/static-block bridge remains in `ClassDefinitionExtensions.ExecuteStaticBlock` via `ExecutionPlanRunner.RunScript`; standalone expression, binding-target, and profiling helpers remain helper-owned runner bridges; dynamic residue (live `with`, eval-injected runtime bindings, and `Function(...)`-produced bodies) remains outside ordinary E5 work. Source-retirement proof now lives in `docs/plans/bytecode-proof-manifest.json`: final closure requires the `ExecutionPlanRunner` type and `RunScript` / `RunSync` / `ExecuteAsyncStep` entry points plus known fallback construction sites to be absent.
 - [x] **E6** Delete remaining `AsyncGeneratorInvoker` IR fallback after the async-generator route widens past the current #3135 direct-yield boundary. Direct yield, non-awaited `yield*`, awaited-source `yield* await`, delegated return/throw, pending-await settlement, try/finally cleanup, captured hoisted helpers, and declaration-free direct eval stay covered by the async-generator route proof pack. Declined async-generator bodies no longer construct `CreateClassifiedAsyncGeneratorDeclinedBodyRunner`; non-simple parameter lists now fail explicitly until resumable invocation owns IteratorBindingInitialization.
 
@@ -239,15 +239,17 @@ these allowlists — mechanical extensions against existing sync VM handlers.
 
 **Status (134 concrete A+B+C+D checklist items):** 116 complete / 18 open. **The remaining non-retirement work is now concentrated in activation/dynamic residue boundaries (A1/A2), constructor/private-name activation boundaries (A7), remaining A51 compiler leaves, class-expression computed/super-neighbor work (B24h), and B36 nested declaration/class contexts.** The remaining retirement work is E4 (remove `ExpressionProgram` from the hot path) and E5 (remove `ExecutionPlanRunner` from the hot path after A/B/C parity); E1 is an alias for P0.5 rather than a second Phase E retirement closure.
 
-Latest proof evidence (2026-06-06, B24h/B36 activation-delete class names):
-focused class-expression/class-declaration proof routes now admit `[delete key]`
-computed names through `LoadClassLiteral` and `DeclareClass`, then raise the
-strict-mode `SyntaxError` for unqualified identifier delete when the source is
-executed. The proof manifest keeps the real remaining B24h residue on nested
-activation-capturing computed names, and the runner AST-eval seam scan returned
-no matches. The broader E4/E5 source scan still finds `ExpressionProgram`
-bridges and `ExecutionPlanRunner` entry points, so this is a B24h/B36
-contraction rather than bytecode-only completion.
+Latest proof evidence (2026-06-06, E4 ordinary sync simple-return bridge):
+`TryInvokeIrFast` no longer executes a generic `SimpleReturnProgram` through
+`EvaluateLoweredExpressionProgram`; that branch now declines to the classified
+fallback after production bytecode, parameter/binary fast paths, and
+`SyncIrCallTrampoline` decline. `ExecutionPlanDiagnosticsTests` now requires
+zero fallback-only lowered-expression callers, and the focused ordinary-sync
+source-gate/activation/diagnostic pack passed 74 tests. The broader E4/E5 source
+scan still finds class-definition/class-field/class-property-name
+`ExpressionProgram` bridges, legacy dynamic expression bridges, and
+`ExecutionPlanRunner` entry points, so this is an E4 contraction rather than
+bytecode-only completion.
 
 ## Known soft spots
 1. **Named compiler-decline leaves** (A51a-A51m/B47a) are now source-inventoried in the expansion contract; future `TryCompile` reason drift must update that contract and the focused source gate.

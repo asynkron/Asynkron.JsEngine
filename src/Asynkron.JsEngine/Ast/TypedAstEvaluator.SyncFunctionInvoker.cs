@@ -2811,53 +2811,11 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                 return false;
             }
 
-            if (plan.IrCallShape != IrCallShape.SimpleReturnExpression ||
-                plan.SimpleReturnProgram is not { } returnProgram)
-            {
-                RealmState.Logger?.LogInformation(
-                    "simple-ir-activation-runner-declined func={Function} argc={ArgumentCount}",
-                    _function.Name?.Name ?? "<anonymous>",
-                    arguments.Count);
-                return false;
-            }
-
-            JsEnvironment? executionEnvironment = null;
-            try
-            {
-                context.MarkThisInitialized();
-
-                executionEnvironment = CreateSimpleIrActivationEnvironment(arguments, thisValue, plan, context);
-                RealmState.Logger?.LogInformation(
-                    "simple-ir-activation-fast-path func={Function} argc={ArgumentCount}",
-                    _function.Name?.Name ?? "<anonymous>",
-                    arguments.Count);
-
-                // E4 fallback-only expression-program bridge: production-accepted routes return through
-                // UnifiedBytecodeVirtualMachine before this simple-IR fallback is considered.
-                RealmState.Logger?.LogInformation(
-                    "simple-ir-return-fast-path func={Function} argc={ArgumentCount}",
-                    _function.Name?.Name ?? "<anonymous>",
-                    arguments.Count);
-                result = EvaluateLoweredExpressionProgram(
-                    returnProgram,
-                    executionEnvironment,
-                    context,
-                    newTarget);
-
-                return TryCompleteIrFastExpressionResult(context, callingContext, ref result);
-            }
-            catch (ThrowSignal signal) when (callingContext is not null)
-            {
-                callingContext.SetThrow(signal.ThrownValue);
-                result = signal.ThrownValue;
-                return true;
-            }
-            finally
-            {
-                // Context lifetime is owned by InvokeWithContextSlow; only the transient
-                // activation environments created above are owned by this fast path.
-                ReturnSimpleIrActivationEnvironment(executionEnvironment);
-            }
+            RealmState.Logger?.LogInformation(
+                "simple-ir-activation-runner-declined func={Function} argc={ArgumentCount}",
+                _function.Name?.Name ?? "<anonymous>",
+                arguments.Count);
+            return false;
         }
 
         [MethodImpl(JsEngineConstants.Inlining)]

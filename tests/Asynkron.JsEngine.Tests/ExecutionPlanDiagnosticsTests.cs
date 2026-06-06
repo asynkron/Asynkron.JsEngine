@@ -386,11 +386,9 @@ public sealed class ExecutionPlanDiagnosticsTests(ITestOutputHelper output) : In
             "EvaluateLoweredExpressionProgram call-site drift detected; classify new callers as bridge, dynamic, class-definition/class-field, profiling, or fallback-only:\n" +
             string.Join('\n', unclassified));
 
-        var syncInvokerFallbackCalls = classifiedMatches
-            .Where(static match => string.Equals(match.Classification, "fallback-only", StringComparison.Ordinal))
-            .ToArray();
-
-        Assert.Single(syncInvokerFallbackCalls);
+        Assert.DoesNotContain(
+            classifiedMatches,
+            static match => string.Equals(match.Classification, "fallback-only", StringComparison.Ordinal));
     }
 
     private static string? ClassifyLoweredExpressionProgramCaller(
@@ -412,9 +410,6 @@ public sealed class ExecutionPlanDiagnosticsTests(ITestOutputHelper output) : In
                 "class-field",
             "src/Asynkron.JsEngine/Ast/ClassPropertyNameResolver.cs" =>
                 "class-property-name",
-            "src/Asynkron.JsEngine/Ast/TypedAstEvaluator.SyncFunctionInvoker.cs"
-                when nearbyText.Contains("E4 fallback-only expression-program bridge", StringComparison.Ordinal) =>
-                    "fallback-only",
             "src/Asynkron.JsEngine/Ast/TypedAstEvaluator.SyncFunctionInvoker.cs"
                 when nearbyText.Contains("resolvedField.InitializerProgram", StringComparison.Ordinal) =>
                     "class-field",

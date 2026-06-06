@@ -799,10 +799,14 @@ predicates and proof tests.
     that capture root body locals after invocation setup materializes the
     resumable body environment and creates the helper against that environment, so
     the helper observes flat-slot mutations across `yield`/resume or
-    `await`/resume. A43 now admits descriptor-backed block/Annex B declarations
-    through materialized block environments. Recursive/sibling helper graphs,
-    dynamic/eval helpers, and class declarations are separate B36
-    declaration-instantiation work.
+    `await`/resume. Recursive and sibling helper graphs now route through the
+    same pre-populated declaration environment: all admitted root helpers are
+    created against the shared closure/body environment, then the invoker fills
+    each helper's VM flat slot and environment slot before `ExecuteResumable`
+    starts, so self/sibling references resolve at call time from that environment.
+    A43 now admits descriptor-backed block/Annex B declarations through
+    materialized block environments. Dynamic/eval helpers and class declarations
+    are the remaining separate B36 declaration-instantiation work.
     `DeclareFunction` remains OFF the resumable opcode allowlist and
     `FunctionDeclarationInstruction` remains conditionally guarded by the
     invoker-proof activation flag; the boundary is pinned by

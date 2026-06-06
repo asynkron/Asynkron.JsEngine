@@ -26,16 +26,6 @@ public static partial class TypedAstEvaluator
             return false;
         }
 
-        HashSet<Symbol>? rootDeclarationNames = null;
-        foreach (var statement in function.Body.Statements)
-        {
-            if (statement is FunctionDeclaration functionDeclaration)
-            {
-                rootDeclarationNames ??= new HashSet<Symbol>();
-                rootDeclarationNames.Add(functionDeclaration.Name);
-            }
-        }
-
         ImmutableArray<ResumableHoistedFunctionDeclaration>.Builder? builder = null;
         foreach (var statement in function.Body.Statements)
         {
@@ -53,10 +43,6 @@ public static partial class TypedAstEvaluator
             if (!AllowsIdentifierCaching(functionDeclaration.Function) ||
                 UnifiedBytecodeProductionEligibility.FunctionLiteralNeedsLexicalThisOrPrivateNameContext(
                     functionDeclaration.Function,
-                    out _) ||
-                UnifiedBytecodeProductionEligibility.FunctionReferencesIdentifierNamed(
-                    functionDeclaration.Function,
-                    rootDeclarationNames!,
                     out _) ||
                 UnifiedBytecodeProductionEligibility.FunctionCapturesActivationSlot(
                     functionDeclaration.Function,

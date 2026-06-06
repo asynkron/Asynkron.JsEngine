@@ -11,8 +11,9 @@ namespace Asynkron.JsEngine.Tests;
 ///     the resumable VM. Generator nested literals that capture root body locals now route through a
 ///     materialized body environment that aliases closure captures with flat slots. Direct root hoisted
 ///     function declarations now route when the declared helper does not capture the resumable activation;
-///     sync-generator, async-function, and async-generator declarations that capture root body locals route
-///     through a materialized body environment.
+///     recursive/sibling helper graphs use the same pre-populated declaration environment; sync-generator,
+///     async-function, and async-generator declarations that capture root body locals route through a
+///     materialized body environment.
 ///
 ///     Why declined (architecture, not a missing handler):
 ///
@@ -23,10 +24,11 @@ namespace Asynkron.JsEngine.Tests;
 ///     environment.
 ///
 ///     B36 — direct root hoisted function declarations are materialised by the resumable invokers before
-///     `ExecuteResumable` starts. The sync-generator and async-function paths also admit helpers that capture
-///     root body locals once they own a materialized body environment that mirrors flat-slot state across
-///     suspension. This slice is intentionally narrow: sibling/recursive declaration bindings, dynamic scope,
-///     and block-declaration runtime semantics remain declined.
+///     `ExecuteResumable` starts. Recursive and sibling helper references resolve at call time from that same
+///     pre-populated declaration environment. Sync-generator, async-function, and async-generator paths also
+///     admit helpers that capture root body locals once they own a materialized body environment that mirrors
+///     flat-slot state across suspension. This slice is intentionally narrow: dynamic scope and block-declaration
+///     runtime semantics remain declined.
 /// </summary>
 [Category(TestCategories.RuntimeSemantics)]
 public sealed class UnifiedBytecodeResumableNestedFunctionTests(ITestOutputHelper output)
@@ -125,10 +127,9 @@ public sealed class UnifiedBytecodeResumableNestedFunctionTests(ITestOutputHelpe
         AssertGeneratorRouted();
     }
 
-    // B36 boundary: recursive helper graphs are still outside this slice, even when the result is correct
-    // on the existing runner.
+    // B36 hoisting proof: recursive helper graphs use the pre-populated declaration environment.
     [Fact(Timeout = 5000)]
-    public async Task GeneratorHoistedFunctionDeclarationRecursiveHelper_CorrectButDeclinesToRunner()
+    public async Task GeneratorHoistedFunctionDeclarationRecursiveHelper_RoutesResumable()
     {
         await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
@@ -141,13 +142,12 @@ public sealed class UnifiedBytecodeResumableNestedFunctionTests(ITestOutputHelpe
             """);
 
         Assert.Equal(24d, result);
-        AssertGeneratorNotRouted();
+        AssertGeneratorRouted();
     }
 
-    // B36 boundary: sibling helper declaration graphs stay declined until declaration ordering is owned by
-    // the resumable route.
+    // B36 hoisting proof: sibling helper references resolve after all root declarations are pre-populated.
     [Fact(Timeout = 5000)]
-    public async Task GeneratorHoistedFunctionDeclarationSiblingHelper_CorrectButDeclinesToRunner()
+    public async Task GeneratorHoistedFunctionDeclarationSiblingHelper_RoutesResumable()
     {
         await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
@@ -161,7 +161,7 @@ public sealed class UnifiedBytecodeResumableNestedFunctionTests(ITestOutputHelpe
             """);
 
         Assert.Equal(3d, result);
-        AssertGeneratorNotRouted();
+        AssertGeneratorRouted();
     }
 
     // B32 boundary: external .return()/.throw() while suspended in a protected try must run the pending
@@ -469,6 +469,29 @@ public sealed class UnifiedBytecodeResumableNestedFunctionTests(ITestOutputHelpe
     {
         var plan = TopLevelGeneratorPlan("""
             function* g(){ function helper(){ return 5; } yield helper(); }
+            """, "g");
+
+        var result = UnifiedBytecodeProductionEligibility.EvaluateResumable(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor(
+                IsGenerator: true,
+                AllowsRootFunctionDeclarationInstructions: true));
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.DoesNotContain(
+            result.Program.Instructions,
+            static instruction => instruction.OpCode == UnifiedBytecodeOpCode.DeclareFunction);
+    }
+
+    [Fact]
+    public void EvaluateResumable_HoistedFunctionDeclarationHelperGraph_AdmitsWithActivationProof()
+    {
+        var plan = TopLevelGeneratorPlan("""
+            function* g(){
+                function helper(n){ return n === 0 ? other() : n * helper(n - 1); }
+                function other(){ return 1; }
+                yield helper(4);
+            }
             """, "g");
 
         var result = UnifiedBytecodeProductionEligibility.EvaluateResumable(

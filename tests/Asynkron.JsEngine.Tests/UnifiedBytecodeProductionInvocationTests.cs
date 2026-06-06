@@ -42,7 +42,7 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     }
 
     [Fact(Timeout = 5000)]
-    public async Task TopLevelLexicalDestructuring_UsesClassifiedScriptIrFallback()
+    public async Task TopLevelLexicalDestructuring_UsesUnifiedBytecodeProductionFastPath()
     {
         await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
@@ -55,18 +55,41 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
         var snapshot = CurrentLogger!.Collector.Snapshot();
         Assert.Contains(snapshot,
             static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path script",
+                StringComparison.Ordinal));
+        Assert.DoesNotContain(snapshot,
+            static record => record.Message.Contains(
                 "classified-script-ir-fallback reason=production-unified-bytecode-declined",
                 StringComparison.Ordinal));
-        Assert.Contains(snapshot,
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task TopLevelConstDestructuring_InitializesConstBindingOnce()
+    {
+        await using var engine = CreateEngine();
+        var error = await Assert.ThrowsAsync<ThrowSignal>(async () => await engine.Evaluate("""
+            const source = { value: 7 };
+            const { value } = source;
+            value = 8;
+            """));
+
+        Assert.Contains("constant variable", error.Message, StringComparison.Ordinal);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
             static record => record.Message.Contains(
-                "code=UnsupportedPlanShape",
+                "unified-bytecode-production-fast-path script",
                 StringComparison.Ordinal));
-        Assert.Contains(snapshot,
-            static record => record.Message.Contains(
-                "detail=Plan is not eligible for production unified bytecode routing",
-                StringComparison.Ordinal) &&
-                record.Message.Contains("destructuring target", StringComparison.Ordinal));
-        Assert.DoesNotContain(snapshot,
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task TopLevelLexicalDestructuring_SourceExpressionSeesTargetTdz()
+    {
+        await using var engine = CreateEngine();
+        var error = await Assert.ThrowsAsync<ThrowSignal>(async () => await engine.Evaluate("""
+            const { value } = { value: value };
+            """));
+
+        Assert.Contains("before initialization", error.Message, StringComparison.Ordinal);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
             static record => record.Message.Contains(
                 "unified-bytecode-production-fast-path script",
                 StringComparison.Ordinal));

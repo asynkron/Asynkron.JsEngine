@@ -882,7 +882,7 @@ predicates and proof tests.
 | `ObjectLiteralOrSpreadDependency` | Object/array spread sources outside simple operands, direct named/computed member-call spans, receiver/callee-optional named/computed member-call spans, identifier-call and named-property-of-call array-spread sources (A33: `[...f()]`, `[...gen()]`, `[...f().items]`, `[a, ...f(), c]`), identifier-call and named-property-of-call OBJECT-spread sources (A34: `{...f()}`, `{...gen()}`, `{...f().inner}`, `{a, ...f(), c:3}` — the shared `TryMeasureSimpleSpreadSourceOperandSpan` source measurer, consulted in the object-literal gate only when the property terminates in `ObjectSpread`; getters fire in source order, non-enumerables are skipped, null/undefined is a no-op), and simple-control-expression spans in spread sources, computed object keys, or object property values over activation-slot or admitted dynamic receiver/key/argument operands, and object methods/accessors only when they appear inside restricted simple literal spans (A35: a property VALUE that is a bare-identifier call `{x: g()}`/`{a: g(arg)}` via `TryMeasureSimpleDirectIdentifierCallOperandSpan`, mirroring the already-admitted member-call value `{a: o.m()}`; and a shorthand-method/accessor member followed by a LATER member — most importantly a trailing object-spread `{m(){}, ...o}`/`{get a(){}, ...o}` — via `TryMeasureSimpleObjectLiteralMethodOrAccessorMemberSpan`, which keeps the literal-span measurement from terminating at the method/accessor define; computed key + value subexpressions evaluate left-to-right, preserving PropertyDefinitionEvaluation order) | Existing sync IR literal/spread route for remaining spans | Literal/spread lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_ObjectLiteralUnsupportedFeatures_DeclineWithExplicitCodes"` |
 | `PrivateFieldDependency` | Private-name operations outside the admitted routes; `#name in obj`, direct private named reads/writes/updates, direct private named compound/logical writes, and direct private named method calls are VM-owned when the surrounding class method is otherwise production-eligible. Private member deletes are parser early errors before production eligibility. | Existing private-name route for remaining private member access | Private-name lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_PrivateFieldIn_AcceptsAndVmChecksPrivateBrand"` |
 | `ForInDriverStateDependency` | Unsupported for-in driver state outside the lowered synchronous source and resumable awaited-source lanes | Existing for-in IR driver route | Driver-state lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~EvaluateResumable_AwaitedForInSource_AdmitsAwaitValueAndForInDriver"` |
-| `DestructuringDependency` | Awaited binding values, unsupported destructuring driver shapes, and targets outside the admitted driver or descriptor-backed lanes; declaration defaults and computed binding names route through `ApplyDeclarationBindingTarget` | Existing destructuring IR route for remaining shapes | Destructuring driver lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_DeclarationDestructuringDescriptorShapes_AcceptDescriptorOpcode"` |
+| `DestructuringDependency` | Awaited binding values, unsupported destructuring driver shapes, disposal-aware binding targets, and targets outside the admitted driver or descriptor-backed lanes; top-level script `var` / `let` / `const` simple destructuring targets are admitted through driver descriptors, and declaration defaults plus computed binding names route through `ApplyDeclarationBindingTarget` | Existing destructuring IR route for remaining shapes | Destructuring driver lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_DeclarationDestructuringDescriptorShapes_AcceptDescriptorOpcode"` |
 | `UnsupportedPlanShape` | Missing activation slot metadata, unsupported instruction families, unsupported compiler shapes, unsupported resumable opcodes, and unknown production opcode defaults. A49 (`Activation slot metadata is required.`): unreachable for any valid compiled function/script plan — `ExecutionPlanBuilder` always populates a non-null `ActivationSlotShape` (and the nested-function restamp carries it forward), so this arm is a pure defensive backstop; trivial plans (top-level expression script, empty `function f(){}`) already route. A41 is now admitted for explicit slot-resolved CONSUMED identifier assignments: `return (x = 5);`, `var y = (x = 5);`, `g(x = 5)`, and chained `(x = z = 5)` lower `StoreResolvedIdentifier` to `DuplicateTop` + `StoreSlot`, preserving the assignment value and writing the flat slot. The remaining identifier-reference slot boundary is the name-only activation-slot match (`...resolves only by activation-slot name lookup...`), kept declined because dynamic/`with` shadowing cannot be proven from name lookup alone. | Existing execution-plan route | Statement/control-flow ownership lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~ExpressionProgramCoverageMapTests&FullyQualifiedName~UnifiedBytecodeExpansionContract_ListsRequiredHeadingsAndCurrentEnums"` |
 | `CallInvocationBoundary` | Plan-structural call invocation outside the currently executable call boundary, separate from descriptor-level `CallDependency` | Existing sync IR call route | Wider call invocation lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~ExpressionProgramCoverageMapTests&FullyQualifiedName~UnifiedBytecodeExpansionContract_ListsRequiredHeadingsAndCurrentEnums"` |
 
@@ -1879,13 +1879,12 @@ support today.
   array destructuring model described above. Targets resolve to a flat
   activation slot when one exists; at **script scope** the step-wise driver
   **state** symbol (`__arrDestr_iter`) is given a synthetic scratch activation
-  slot by `AddSyntheticDestructuringStateSlots`, and a `VariableKind.Var`
-  **target** that has no flat slot is stored dynamically by name through the
-  driver descriptor's `TargetNameConstantIndex` (the `var` target is already
-  hoisted into the materialized script environment before the VM runs).
-  Non-`var` (`let`/`const`) script-scope targets, and all other unsupported
-  destructuring shapes, still decline with `DestructuringDependency` or
-  `UnsupportedPlanShape`.
+  slot by `AddSyntheticDestructuringStateSlots`. Dynamic script targets store
+  by name through the driver descriptor's `TargetNameConstantIndex` and
+  `TargetVariableKind`: `var` targets use the ordinary dynamic assignment path,
+  while `let` / `const` targets use the VM dynamic lexical initialize path
+  against the hoist-time TDZ binding. Other unsupported destructuring shapes
+  still decline with `DestructuringDependency` or `UnsupportedPlanShape`.
 - `ObjectDestructuringInitInstruction`,
   `ObjectDestructuringPropertyInstruction`,
   `ObjectDestructuringRestInstruction`, and
@@ -1893,12 +1892,12 @@ support today.
   direct-slot object destructuring model described above (static keys,
   identifier targets, no defaults, no nested patterns, optional identifier
   rest). At **script scope** the driver **state** symbol (`__objDestr_src`) is
-  given a synthetic scratch activation slot, and `VariableKind.Var` **targets**
-  with no flat slot store dynamically by name through the descriptor's
-  `TargetNameConstantIndex`. Static nested binding declarations with
-  identifier/rest targets are admitted through `ApplyDeclarationBindingTarget`.
-  Computed/dynamic-name keys, defaults, assignment targets, non-`var` script
-  targets, awaited binding values, and `await using` declarations
+  given a synthetic scratch activation slot, and dynamic `var` / `let` /
+  `const` **targets** with no flat slot store by name through the descriptor's
+  `TargetNameConstantIndex` plus `TargetVariableKind`. Static nested binding
+  declarations with identifier/rest targets are admitted through
+  `ApplyDeclarationBindingTarget`. Computed/dynamic-name keys, defaults,
+  assignment targets, awaited binding values, and `await using` declarations
   still decline with `DestructuringDependency` or `UnsupportedPlanShape`. ADR
   [`0284`](adrs/0284-keep-unified-bytecode-object-destructuring-model-first-and-static-key-owned.md)
   records the model-first decision and admit/decline boundary.

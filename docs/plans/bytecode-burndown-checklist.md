@@ -194,7 +194,7 @@ these allowlists — mechanical extensions against existing sync VM handlers.
 
 - [x] **C1** Script `typeof <ident>` reading block-scoped lexical (stale flat-slot liveness): `for(let i){}; typeof i` — *UnsupportedPlanShape* — ☑/n/a ✅ (Codex)
 - [x] **C2** Script with no `ScriptCompletionSlot` — ☑/n/a ✅ (Codex)
-- [x] **C3** Script inheriting any per-shape decline (union gate; closes via A/B) — *UnsupportedPlanShape* — ☑/n/a ✅ (Codex): focused C3 proof rows now pin top-level scripts that compose admitted property reads/calls, control flow, dynamic global reads/calls, completion-slot endings, and script-scope `var` destructuring through the shared production unified-bytecode gate. The ratchet explicitly names top-level lexical destructuring as a known script-specific safety decline and keeps eval-injected script bindings in dynamic residue, so future non-residue script declines must be added deliberately instead of silently falling back.
+- [x] **C3** Script inheriting any per-shape decline (union gate; closes via A/B) — *UnsupportedPlanShape* — ☑/n/a ✅ (Codex): focused C3 proof rows now pin top-level scripts that compose admitted property reads/calls, control flow, dynamic global reads/calls, completion-slot endings, and script-scope `var` / `let` / `const` destructuring through the shared production unified-bytecode gate. Eval-injected script bindings remain dynamic residue, so future non-residue script declines must be added deliberately instead of silently falling back.
 
 ## Phase D — Dynamic quarantine gates (5 items)
 
@@ -202,7 +202,7 @@ these allowlists — mechanical extensions against existing sync VM handlers.
 - [x] **D2** eval-injected runtime binding quarantine — ✅ (Codex): direct-eval literal sources containing `var` / `let` / `const` / `function` / `class` declarations decline with `CallDependency`, identifier-loaded eval source stays on the IR/eval path and computes correctly, and declaration-free `eval("local")` / non-injecting direct eval still route through the production fast path. Proof anchors: `Evaluate_DirectEvalDeclarationLiteral_DeclinesEvalInjectedRuntimeBinding`, `Evaluate_DirectEvalIdentifierSourceWithDynamicRead_DeclinesEvalInjectedRuntimeBinding`, `DirectEvalDeclarationDynamicLookup_StaysOnIrPath`, `DirectEvalIdentifierSourceWithRuntimeBinding_StaysOnIrPath`, `DirectEvalIdentifierCall_UsesCallerEnvironmentOnProductionFastPath`, and `DirectEvalThenOrdinaryDynamicReadStoreCall_UsesUnifiedBytecodeProductionFastPath`.
 - [x] **D3** `with` quarantine boundary ✅ (Codex): non-awaited sync and resumable `with (obj)` bodies are admitted through the VM-owned current-environment lane. The remaining D3 residue is awaited with-object evaluation and live `with` scopes outside that persisted-current-environment model; `EvaluateResumable` declines awaited `EnterWithInstruction.AwaitedProgram` with explicit D3 wording.
 - [x] **D4** `Function(...)` produced-body quarantine (body recurses into gate) ✅ (Codex): dynamic `Function` / `new Function` produced bodies now carry an explicit origin marker and are declined before the sync production unified-bytecode route, while the ordinary construction/call boundary and adjacent non-dynamic functions remain eligible. Pinned by `DynamicFunctionConstructorQuarantineTests.NewFunctionProducedBody_StaysOffProductionUnifiedBytecodeButOrdinaryFunctionStillRoutes`.
-- [x] **D5** Standing CI gate: assert no `isDynamicResidue=false` decline ever fires on the corpus ✅ (Codex): `BytecodeNonResidueDeclineRatchetTests` pins the non-residue corpus and known-open count. The ratchet now admits the optional computed delete row and the stale non-awaited resumable `with` dynamic-residue row, leaving only the explicit B23/B36 nested declaration and C3 lexical destructuring non-residue rows.
+- [x] **D5** Standing CI gate: assert no `isDynamicResidue=false` decline ever fires on the corpus ✅ (Codex): `BytecodeNonResidueDeclineRatchetTests` pins the non-residue corpus and known-open count. The ratchet now admits optional computed delete, the stale non-awaited resumable `with` dynamic-residue row, and top-level lexical script destructuring, leaving only the explicit B23/B36 nested declaration non-residue row.
 
 ## Phase E — Retire the fallback tiers (6 items)
 
@@ -227,14 +227,14 @@ these allowlists — mechanical extensions against existing sync VM handlers.
 | E — Retire tiers | 6 | 3 complete / 3 open; E2/E3 = P0.2/P0.3 |
 | **Total** | **145** | finite current burn-down list after Phase 0 decomposition; future source drift must update audited inventories |
 
-**Status (134 concrete A+B+C+D checklist items):** 113 complete / 21 open. **The remaining non-retirement work is now concentrated in activation/dynamic residue boundaries, A51 compiler leaves, class-expression static/computed/super-neighbor rows, and B23/B36 nested function/declaration contexts.**
+**Status (134 concrete A+B+C+D checklist items):** 114 complete / 20 open. **The remaining non-retirement work is now concentrated in activation/dynamic residue boundaries, A51 compiler leaves, class-expression static/computed/super-neighbor rows, and B23/B36 nested function/declaration contexts.**
 
-Final proof evidence (2026-06-06, A32/D5 slice): production eligibility 586,
-delete-focused production invocation 32, first-boundary stack-depth guard 20,
-`ExpressionProgramCoverageMapTests` 14, and `BytecodeNonResidueDeclineRatchetTests`
-20 all passed. `git diff --check` was clean, the runner AST-eval seam scan returned
-no matches, and `forloop --memory` reported 6.96 MB total allocated. No proof result
-reintroduced a non-residue discard-specific production decline.
+Latest proof evidence (2026-06-06, C3 lexical destructuring slice):
+top-level script production eligibility 8, lexical-destructuring invocation 3,
+full `UnifiedBytecodeProduction` pack 1238, `ExpressionProgramCoverageMapTests`
+14, and `BytecodeNonResidueDeclineRatchetTests` 20 all passed. The known-open
+non-residue ratchet count is now 1. The same proof pass kept the adjacent
+`with` var-initializer pre-resolution route green.
 
 ## Known soft spots
 1. **Named compiler-decline leaves** (A51a-A51m/B47a) are now source-inventoried in the expansion contract; future `TryCompile` reason drift must update that contract and the focused source gate.
@@ -242,4 +242,4 @@ reintroduced a non-residue discard-specific production decline.
 
 ---
 
-_Checklist status: 121 / 145 complete. The latest slice admits the remaining concrete optional-chain delete lanes and closes the D5 non-residue ratchet gate. Phase B stands at 52 / 57 complete. B23 remains partial for nested declarations inside literals; B36 remains partial for dynamic/eval helpers and complex class declarations. The resumable opcode gap inventory is 5, and the instruction gap inventory is 0._
+_Checklist status: 122 / 145 complete. The latest slice admits top-level lexical script destructuring and removes the C3 lexical-destructuring non-residue ratchet row. Phase B stands at 52 / 57 complete. B23 remains partial for nested declarations inside literals; B36 remains partial for dynamic/eval helpers and complex class declarations. The resumable opcode gap inventory is 5, and the instruction gap inventory is 0._

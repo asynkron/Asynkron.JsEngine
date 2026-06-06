@@ -975,7 +975,15 @@ internal static class UnifiedBytecodeCompiler
                             AwaitedProgram: null,
                             TargetSymbol: { } declarationTargetSymbol
                         } declaration:
-                        if (!TryResolveDeclarationSlot(declarationTargetSymbol, declaration.VarKind, slotLayout, activeScopes, out var storeSlot))
+                        var requiresDynamicDeclarationReference =
+                            declaration.VarKind == VariableKind.Var && activeWithDepths[instructionIndex] > 0;
+                        if (requiresDynamicDeclarationReference ||
+                            !TryResolveDeclarationSlot(
+                                declarationTargetSymbol,
+                                declaration.VarKind,
+                                slotLayout,
+                                activeScopes,
+                                out var storeSlot))
                         {
                             if (!TryAppendDynamicDeclaration(
                                     declaration,
@@ -2248,7 +2256,8 @@ internal static class UnifiedBytecodeCompiler
                                 new UnifiedBytecodeDriverDescriptor(
                                     elementStateSlot,
                                     TargetSlot: targetSlot,
-                                    TargetNameConstantIndex: elementDynamicNameIndex))));
+                                    TargetNameConstantIndex: elementDynamicNameIndex,
+                                    TargetVariableKind: arrayDestructuringElement.VarKind))));
                         if (TryAppendJumpToCompiledTarget(
                                 instructionIndex,
                                 arrayDestructuringElement.Next,
@@ -2297,7 +2306,8 @@ internal static class UnifiedBytecodeCompiler
                                 new UnifiedBytecodeDriverDescriptor(
                                     restStateSlot,
                                     TargetSlot: restTargetSlot,
-                                    TargetNameConstantIndex: restDynamicNameIndex))));
+                                    TargetNameConstantIndex: restDynamicNameIndex,
+                                    TargetVariableKind: arrayDestructuringRest.VarKind))));
                         if (TryAppendJumpToCompiledTarget(
                                 instructionIndex,
                                 arrayDestructuringRest.Next,
@@ -2432,7 +2442,8 @@ internal static class UnifiedBytecodeCompiler
                                     objectPropertyStateSlot,
                                     TargetSlot: objectPropertyTargetSlot,
                                     NameConstantIndex: objectPropertyNameIndex,
-                                    TargetNameConstantIndex: objectPropertyDynamicNameIndex))));
+                                    TargetNameConstantIndex: objectPropertyDynamicNameIndex,
+                                    TargetVariableKind: objectDestructuringProperty.VarKind))));
                         if (TryAppendJumpToCompiledTarget(
                                 instructionIndex,
                                 objectDestructuringProperty.Next,
@@ -2481,7 +2492,8 @@ internal static class UnifiedBytecodeCompiler
                                 new UnifiedBytecodeDriverDescriptor(
                                     objectRestStateSlot,
                                     TargetSlot: objectRestTargetSlot,
-                                    TargetNameConstantIndex: objectRestDynamicNameIndex))));
+                                    TargetNameConstantIndex: objectRestDynamicNameIndex,
+                                    TargetVariableKind: objectDestructuringRest.VarKind))));
                         if (TryAppendJumpToCompiledTarget(
                                 instructionIndex,
                                 objectDestructuringRest.Next,
@@ -17145,12 +17157,11 @@ internal static class UnifiedBytecodeCompiler
 
     /// <summary>
     /// Resolves a step-wise destructuring target. Returns a flat activation slot when one
-    /// exists. Otherwise, at script scope (<paramref name="allowsDynamicIdentifiers"/>), a
-    /// <see cref="VariableKind.Var"/> target is hoisted into the materialized script
-    /// environment before the VM runs, so it is stored dynamically by name: the returned
-    /// <paramref name="dynamicNameIndex"/> indexes a string constant the VM stores through
-    /// <c>SetIdentifierJsValue</c>. Returns false (with a decline reason) for non-var dynamic
-    /// targets, which require lexical declaration/TDZ handling not modeled here.
+    /// exists. Otherwise, at script scope (<paramref name="allowsDynamicIdentifiers"/>), the
+    /// target is stored dynamically by name. <see cref="VariableKind.Var"/> targets are already
+    /// var-hoisted into the materialized script environment; <see cref="VariableKind.Let"/> and
+    /// <see cref="VariableKind.Const"/> targets are top-level lexical bindings already placed in
+    /// TDZ by script declaration instantiation before the VM runs.
     /// </summary>
     private static bool TryResolveDestructuringTarget(
         Symbol targetSymbol,
@@ -17170,7 +17181,7 @@ internal static class UnifiedBytecodeCompiler
             return true;
         }
 
-        if (allowsDynamicIdentifiers && varKind == VariableKind.Var)
+        if (allowsDynamicIdentifiers && varKind is VariableKind.Var or VariableKind.Let or VariableKind.Const)
         {
             dynamicNameIndex = stringConstants.Count;
             stringConstants.Add(targetSymbol.Name);

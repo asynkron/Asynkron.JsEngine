@@ -191,7 +191,8 @@ internal readonly record struct UnifiedBytecodeDriverDescriptor(
     bool TdzHeadIsConst = false,
     int NameConstantIndex = -1,
     int MoveNextTarget = -1,
-    int TargetNameConstantIndex = -1);
+    int TargetNameConstantIndex = -1,
+    VariableKind TargetVariableKind = VariableKind.Var);
 
 internal enum UnifiedBytecodeResumeMode : byte
 {

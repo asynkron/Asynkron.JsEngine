@@ -299,11 +299,8 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
-    public void EvaluateScript_TopLevelConstDestructuring_DeclinesToAvoidLexicalTargetMishandling()
+    public void EvaluateScript_TopLevelConstDestructuring_AcceptsWithDynamicLexicalTargets()
     {
-        // const/let destructuring targets at script scope require lexical declaration and TDZ
-        // handling not modeled by the step-wise dynamic-store path; they must stay declined so
-        // the legacy script runner keeps spec-correct semantics.
         var plan = GetScriptPlan("""
             const o = { a: 1, b: 2 };
             const { a, b } = o;
@@ -312,9 +309,35 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
 
         var result = UnifiedBytecodeProductionEligibility.EvaluateScript(plan);
 
-        Assert.False(result.IsEligible);
-        Assert.Equal(UnifiedBytecodeProductionDeclineCode.UnsupportedPlanShape, result.Code);
-        Assert.Contains("destructuring target", result.Reason, StringComparison.Ordinal);
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.ObjectDestructuringProperty);
+        Assert.Contains(result.Program.DriverDescriptors, descriptor =>
+            descriptor.TargetSlot < 0 &&
+            descriptor.TargetNameConstantIndex >= 0 &&
+            descriptor.TargetVariableKind == VariableKind.Const);
+    }
+
+    [Fact]
+    public void EvaluateScript_TopLevelLetArrayDestructuring_AcceptsWithDynamicLexicalTargets()
+    {
+        var plan = GetScriptPlan("""
+            let values = [1, 2, 3];
+            let [head, ...tail] = values;
+            head + tail.length;
+            """);
+
+        var result = UnifiedBytecodeProductionEligibility.EvaluateScript(plan);
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.ArrayDestructuringRest);
+        Assert.Contains(result.Program.DriverDescriptors, descriptor =>
+            descriptor.TargetSlot < 0 &&
+            descriptor.TargetNameConstantIndex >= 0 &&
+            descriptor.TargetVariableKind == VariableKind.Let);
     }
 
     public static TheoryData<string, string, int[]> C3RepresentativeScriptRows => new()

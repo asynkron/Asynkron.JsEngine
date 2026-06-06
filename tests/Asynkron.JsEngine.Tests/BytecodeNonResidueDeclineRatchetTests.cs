@@ -9,12 +9,11 @@ namespace Asynkron.JsEngine.Tests;
 [Category(TestCategories.Debugging)]
 public sealed class BytecodeNonResidueDeclineRatchetTests
 {
-    private const int ExpectedKnownOpenNonResidueCount = 2;
+    private const int ExpectedKnownOpenNonResidueCount = 1;
 
     private static readonly string[] KnownOpenNonResidueDeclines =
     [
-        "B23_B36_NestedFunctionDeclarationInResumable_Declines",
-        "C3_TopLevelLexicalDestructuring_Declines"
+        "B23_B36_NestedFunctionDeclarationInResumable_Declines"
     ];
 
     private static readonly RatchetRow[] Rows =
@@ -59,7 +58,7 @@ public sealed class BytecodeNonResidueDeclineRatchetTests
             IsDynamicResidue: false,
             UnifiedBytecodeProductionDeclineCode.None),
         new(
-            "C3_TopLevelLexicalDestructuring_Declines",
+            "C3_TopLevelLexicalDestructuring_Admitted",
             """
             const source = { value: 1 };
             const { value } = source;
@@ -68,7 +67,7 @@ public sealed class BytecodeNonResidueDeclineRatchetTests
             SubjectKind.Script,
             string.Empty,
             IsDynamicResidue: false,
-            UnifiedBytecodeProductionDeclineCode.UnsupportedPlanShape),
+            UnifiedBytecodeProductionDeclineCode.None),
         new(
             "D5_Admitted_ResumableGenerator",
             """

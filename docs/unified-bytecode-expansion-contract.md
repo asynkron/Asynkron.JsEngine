@@ -522,7 +522,7 @@ semantic bridge or mis-parking dynamic residue as ordinary fallback work.
 | `A51a` | Entrypoint, invalid target, loop-shaped topology, and remaining loop-control diagnostics; switch-style breakable wrappers are sync-admitted | Existing execution-plan runner | both |
 | `A51b` | Activation-slot metadata, slot-layout, declaration / assignment / update storage targets | Existing execution-plan runner | both |
 | `A51c` | Catch binding, lexical dynamic declaration, active-with dynamic-name, TDZ-head binding storage | Existing environment-aware execution-plan runner | both |
-| `A51d` | Iterator, for-in, `yield*`, resume-target, and driver state slots | Existing iterator/generator/async IR drivers | both; `yield*`/resume-target are resumable-owned |
+| `A51d` | Defensive malformed-plan iterator, for-in, `yield*`, resume-target, and driver state-slot diagnostics; generated plans route through current synthetic slot layout | Existing iterator/generator/async IR drivers only for unsupported generated source payloads or malformed manual plan shapes | both; `yield*`/resume-target are resumable-owned |
 | `A51e` | Array/object destructuring state slots and simple script declaration targets are compiler-owned for the admitted lane; remaining nested/default/parameter/disposal destructuring stays under R6 / `DestructuringDependency` | Existing destructuring IR helpers for remaining R6 shapes | both |
 | `A51f` | Closed umbrella for general expression-loop unsupported op, binding-target expression, dynamic identifier, `arguments`, and private-neighbor gaps; decomposed into A51f1-A51f5 below | Expression-program / execution-plan runner | both |
 | `A51g` | Call-target preparation, direct-eval call boundary, member/super/private call-target, invocation-boundary shapes | Existing call/eval/super IR paths | both; dynamic residue remains D1/D4 |
@@ -892,8 +892,11 @@ predicates and proof tests.
 - Private-name operations outside admitted `#name in obj`, direct private
   reads/writes/updates, direct private compound/logical writes, and direct
   private named method calls.
-- Residual for-in/iterator driver state outside the admitted awaited for-in and
-  async-iterator lanes, plus remaining driver slot/topology leaves.
+- Defensive malformed/manual-plan for-in/iterator driver state, `yield*`, and
+  resume-target slot diagnostics; generated iterator, for-in, awaited-source,
+  async-iterator, and `yield*` plans route through the current synthetic slot
+  layout, while missing/mismatched manually constructed state or source payloads
+  still decline before VM execution.
 - Awaited destructuring binding values, unsupported destructuring driver shapes,
   and destructuring targets outside direct-slot or descriptor-backed lanes.
 - Missing slot metadata, unsupported instruction families, unsupported compiler
@@ -1918,8 +1921,9 @@ support today.
   and the resumable awaited-source `for (x of await p)` lane.
 - `ForInInitInstruction` and `ForInMoveNextInstruction` are eligible for the
   lowered synchronous for-in driver model and the resumable awaited-source
-  `for (k in await p)` lane described above. Unsupported for-in driver shapes
-  still decline with `ForInDriverStateDependency`.
+  `for (k in await p)` lane described above. Unsupported source payload shapes
+  still decline with `ForInDriverStateDependency`, while malformed state-slot
+  payloads stay source-guarded compiler diagnostics under A51d.
 - `ArrayDestructuringInitInstruction`,
   `ArrayDestructuringElementInstruction`,
   `ArrayDestructuringRestInstruction`, and

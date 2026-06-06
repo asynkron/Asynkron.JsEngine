@@ -186,7 +186,9 @@ statement interpretation.
   dynamic identifier bases are also VM-owned. The production invocation bridge
   resolves those captured values before entering the VM and avoids sloppy-call
   `this` coercion for arrows.
-  Arrows that need a lexical-this environment or super binding still decline.
+  Arrows that need a lexical-this environment still decline; arrows created by
+  class field initializers can route with a stored super binding when their body
+  contains super-property operations.
 - Simple base class constructors with public or private instance fields and
   simple derived constructors with public or private instance fields can route through
   production unified bytecode. The production constructor bridge performs the
@@ -888,14 +890,13 @@ predicates and proof tests.
     even when field initializers capture resumable activation slots, and public
     non-computed static-field `extends` declarations also route when each
     initializer compiles as standalone unified bytecode, including
-    closure-producing static fields whose nested function does not itself
-    require `super`, plus static `super` field initializers.
+    closure-producing static fields and static `super` field initializers.
     Dynamic/eval helpers
     plus otherwise complex class declaration neighbors (escaping nested
     activation-capturing computed names with `extends`, closure-producing static
-    blocks, static-field closures whose nested function requires `super`, static elements outside
-    the static-block-only/static-field subsets, and computed/private/static
-    shapes outside the public B24h-compatible subset) are the remaining separate B36
+    blocks, static elements outside the static-block-only/static-field subsets,
+    and computed/private/static shapes outside the public B24h-compatible subset)
+    are the remaining separate B36
     declaration-instantiation work.
     `DeclareFunction` remains off the resumable opcode allowlist because
     descriptor-backed block/Annex B declarations still need persisted

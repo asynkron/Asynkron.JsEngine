@@ -452,15 +452,13 @@
           ]
         },
         {
-          "id": "B36-class-declaration-extends-static-field-super-closure-declines",
-          "claim": "open",
+          "id": "B36-class-declaration-extends-static-field-super-closure-routes",
+          "claim": "admitted",
           "kind": "runtime",
           "source": "class Base {\n  static value = 41;\n}\nfunction* g(seed) {\n  yield 'ready';\n  class Box extends Base {\n    static read = () => super.value + seed;\n  }\n  yield Box.read();\n}\nvar iterator = g(1);\nvar first = iterator.next();\nvar second = iterator.next();\nfirst.value + ':' + first.done + '|' + second.value + ':' + second.done;",
           "expectedResult": "ready:false|42:false",
           "requiredLogs": [
-            "unified-bytecode-resumable-generator-fast-path func=g"
-          ],
-          "forbiddenLogs": [
+            "unified-bytecode-resumable-generator-fast-path func=g",
             "unified-bytecode-production-fast-path func=<anonymous>"
           ]
         },

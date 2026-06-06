@@ -1107,6 +1107,34 @@ public sealed class UnifiedBytecodeResumableClassDeclarationTests(ITestOutputHel
     }
 
     [Fact(Timeout = 5000)]
+    public async Task GeneratorClassDeclarationExtendsStaticFieldSuperClosureInitializer_RoutesResumable()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            class Base {
+                static value = 41;
+            }
+
+            function* g(seed) {
+                yield "ready";
+                class Box extends Base {
+                    static read = () => super.value + seed;
+                }
+                yield Box.read();
+            }
+
+            var iterator = g(1);
+            var first = iterator.next();
+            var second = iterator.next();
+            first.value + ":" + first.done + "|" + second.value + ":" + second.done;
+            """);
+
+        Assert.Equal("ready:false|42:false", result);
+        AssertGeneratorFastPath("g", argc: 1);
+        AssertProductionFastPath("<anonymous>");
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task GeneratorClassDeclarationExplicitDerivedConstructor_RoutesResumableAndConstructorFastPath()
     {
         await using var engine = CreateEngine();

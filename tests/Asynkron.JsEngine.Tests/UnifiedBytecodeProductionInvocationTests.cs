@@ -2,6 +2,7 @@ using System.IO;
 using Asynkron.JsEngine;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
+using Asynkron.JsEngine.Tests.Helpers;
 using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
@@ -14,6 +15,8 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
         "simple-ir-parameter-number-binary-fast-path";
     private const string SimpleIrParameterNumberBinaryChainFastPathLog =
         "simple-ir-parameter-number-binary-chain-fast-path";
+    private const string SimpleIrActivationFastPathLog = "simple-ir-activation-fast-path";
+    private const string SimpleIrReturnFastPathLog = "simple-ir-return-fast-path";
 
     [Fact(Timeout = 5000)]
     public async Task TopLevelPropertyAccessLoop_UsesUnifiedBytecodeProductionFastPath()
@@ -3290,8 +3293,7 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
         Assert.Equal(42d, result);
         Assert.Contains(logRecords,
             static record => record.Message.Contains(UnifiedBytecodeProductionFastPathLog, StringComparison.Ordinal));
-        Assert.DoesNotContain(logRecords,
-            static record => record.Message.Contains(SimpleIrParameterNumberBinaryFastPathLog, StringComparison.Ordinal));
+        AssertNoSimpleIrFallbackLog(logRecords);
     }
 
     [Fact(Timeout = 5000)]
@@ -3310,8 +3312,7 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
         Assert.Equal(42d, result);
         Assert.Contains(logRecords,
             static record => record.Message.Contains(UnifiedBytecodeProductionFastPathLog, StringComparison.Ordinal));
-        Assert.DoesNotContain(logRecords,
-            static record => record.Message.Contains(SimpleIrParameterNumberBinaryChainFastPathLog, StringComparison.Ordinal));
+        AssertNoSimpleIrFallbackLog(logRecords);
     }
 
     [Fact(Timeout = 5000)]
@@ -9397,7 +9398,7 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     }
 
     [Fact]
-    public void SourceGate_OrdinarySyncRouteAttemptsProductionUnifiedBytecodeBeforeSimpleIr()
+    public void SourceGate_OrdinarySyncRouteAttemptsProductionUnifiedBytecodeBeforeSimpleIrAndRunnerFallback()
     {
         var repositoryRoot = FindRepositoryRootForSourceGate();
         var invokerPath = Path.Combine(
@@ -9435,6 +9436,7 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
             "simple-ir-activation-runner-declined",
             StringComparison.Ordinal);
         var genericRunnerIndex = routeSource.IndexOf("new ExecutionPlanRunner(", StringComparison.Ordinal);
+        var genericRunnerTypeIndex = routeSource.IndexOf("ExecutionPlanRunner", StringComparison.Ordinal);
         var runnerRunSyncIndex = routeSource.IndexOf(".RunSync(", StringComparison.Ordinal);
         var ordinarySyncResidueIndex = invokerSource.IndexOf(
             "InvokeOrdinarySyncRunnerResidue(",
@@ -9459,11 +9461,28 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
             genericRunnerIndex < 0,
             "TryInvokeIrFast must not construct ExecutionPlanRunner for the generic simple-IR activation fallback.");
         Assert.True(
+            genericRunnerTypeIndex < 0,
+            "TryInvokeIrFast must not reference ExecutionPlanRunner; accepted ordinary sync hot routes must stay on production unified bytecode, simple fast paths, SyncIrCallTrampoline, or outer slow fallback.");
+        Assert.True(
             runnerRunSyncIndex < 0,
             "TryInvokeIrFast must not call ExecutionPlanRunner.RunSync for the generic simple-IR activation fallback.");
         Assert.True(
             ordinarySyncResidueIndex < 0,
             "Deleted ordinary sync runner residue helper must stay tombstoned; add a classified source gate if it is intentionally restored.");
+    }
+
+    private static void AssertNoSimpleIrFallbackLog(IReadOnlyCollection<TestLogger.LogRecord> logRecords)
+    {
+        Assert.DoesNotContain(logRecords,
+            static record => record.Message.Contains(SimpleIrParameterNumberBinaryFastPathLog, StringComparison.Ordinal));
+        Assert.DoesNotContain(logRecords,
+            static record => record.Message.Contains(
+                SimpleIrParameterNumberBinaryChainFastPathLog,
+                StringComparison.Ordinal));
+        Assert.DoesNotContain(logRecords,
+            static record => record.Message.Contains(SimpleIrActivationFastPathLog, StringComparison.Ordinal));
+        Assert.DoesNotContain(logRecords,
+            static record => record.Message.Contains(SimpleIrReturnFastPathLog, StringComparison.Ordinal));
     }
 
     [Fact]

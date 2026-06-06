@@ -881,13 +881,14 @@ predicates and proof tests.
     classified static-block IR fallback. Public instance computed-member
     `extends` declarations now route by composing the standalone superclass
     compile check, the B36 constructor predicate, and the B24h computed public
-    member gate. Public instance super-member, public instance super-field, and
+    member gate, including immediate non-escaping computed-name IIFEs under the
+    B24h subset. Public instance super-member, public instance super-field, and
     public static super-member `extends` declarations now route when the member
     bodies / field initializers do not capture resumable activation slots, and
     public non-computed static-field `extends` declarations also route when each
     initializer compiles as standalone unified bytecode and creates no nested
     closure, including static `super` field initializers. Dynamic/eval helpers
-    plus otherwise complex class declaration neighbors (nested
+    plus otherwise complex class declaration neighbors (escaping nested
     activation-capturing computed names with `extends`, closure-producing static
     blocks, closure-producing static field initializers, public super member
     bodies / field initializers that capture activation, static elements outside

@@ -3825,6 +3825,7 @@ internal static class UnifiedBytecodeProductionEligibility
                     nameProgram,
                     activationSlots,
                     allowDirectActivationCall: false,
+                    allowImmediateFunctionLiteralCall: true,
                     out var capturedName,
                     out var dependencyReason))
             {
@@ -3852,6 +3853,7 @@ internal static class UnifiedBytecodeProductionEligibility
                     nameProgram,
                     activationSlots,
                     allowDirectActivationCall: false,
+                    allowImmediateFunctionLiteralCall: true,
                     out var capturedName,
                     out var dependencyReason))
             {
@@ -4012,6 +4014,7 @@ internal static class UnifiedBytecodeProductionEligibility
                     nameProgram,
                     activationSlots,
                     allowDirectActivationCall: true,
+                    allowImmediateFunctionLiteralCall: true,
                     out var capturedName,
                     out var dependencyReason))
             {
@@ -4039,6 +4042,7 @@ internal static class UnifiedBytecodeProductionEligibility
                     nameProgram,
                     activationSlots,
                     allowDirectActivationCall: true,
+                    allowImmediateFunctionLiteralCall: true,
                     out var capturedName,
                     out var dependencyReason))
             {
@@ -4076,6 +4080,7 @@ internal static class UnifiedBytecodeProductionEligibility
         ExpressionProgram program,
         ActivationSlotShape activationSlots,
         bool allowDirectActivationCall,
+        bool allowImmediateFunctionLiteralCall,
         out string capturedName,
         out string dependencyReason)
     {
@@ -4098,7 +4103,7 @@ internal static class UnifiedBytecodeProductionEligibility
                 var descriptor = operation.GetObject<FunctionLiteralDescriptor>(objectConstants);
                 if (FunctionCapturesActivationSlot(descriptor.Function, activationSlots, out capturedName))
                 {
-                    if (allowDirectActivationCall &&
+                    if (allowImmediateFunctionLiteralCall &&
                         TrySkipAdmittedClassComputedNameImmediateFunctionCall(
                             program,
                             operationIndex,

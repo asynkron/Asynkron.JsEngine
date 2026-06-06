@@ -207,13 +207,41 @@ public sealed class UnifiedBytecodeResumableClassDeclarationTests(ITestOutputHel
     }
 
     [Fact]
-    public void EvaluateResumable_ClassDeclarationExtendsComputedNameNestedActivationCapture_DeclinesBeforeVm()
+    public void EvaluateResumable_ClassDeclarationExtendsComputedNameNestedActivationCaptureIife_AdmitsDeclareClass()
     {
         var plan = GetFunctionPlan("""
             function* g(Base, key) {
                 yield "ready";
                 class Box extends Base {
                     [(() => key)()]() {
+                        return 1;
+                    }
+                }
+                yield typeof Box;
+            }
+            """,
+            "g");
+
+        var result = UnifiedBytecodeProductionEligibility.EvaluateResumable(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor(IsGenerator: true));
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(
+            result.Program.Instructions,
+            static instruction => instruction.OpCode == UnifiedBytecodeOpCode.DeclareClass);
+    }
+
+    [Fact]
+    public void EvaluateResumable_ClassDeclarationExtendsComputedNameNestedActivationCaptureEscapes_DeclinesBeforeVm()
+    {
+        var plan = GetFunctionPlan("""
+            function* g(Base, key) {
+                yield "ready";
+                var leaked;
+                class Box extends Base {
+                    [(() => { leaked = () => key; return "value"; })()]() {
                         return 1;
                     }
                 }
@@ -783,6 +811,35 @@ public sealed class UnifiedBytecodeResumableClassDeclarationTests(ITestOutputHel
             """);
 
         Assert.Equal("ready:false|value|42|true:false", result);
+        AssertGeneratorFastPath("g", argc: 1);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task GeneratorClassDeclarationExtendsComputedIifeName_RoutesResumableAndPreservesSuperclass()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            class Base {
+            }
+
+            function* g(key) {
+                yield "ready";
+                class Box extends Base {
+                    [(() => key)()]() {
+                        return 42;
+                    }
+                }
+                var box = new Box();
+                yield box.value() + "|" + (box instanceof Base);
+            }
+
+            var iterator = g("value");
+            var first = iterator.next();
+            var second = iterator.next();
+            first.value + ":" + first.done + "|" + second.value + ":" + second.done;
+            """);
+
+        Assert.Equal("ready:false|42|true:false", result);
         AssertGeneratorFastPath("g", argc: 1);
     }
 

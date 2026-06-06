@@ -341,6 +341,16 @@
           "reasonContains": "public static super member body captures activation binding 'seed'"
         },
         {
+          "id": "B36-class-declaration-extends-static-public-super-field-routes",
+          "claim": "admitted",
+          "kind": "runtime",
+          "source": "class Base {\n  static get value() { return 41; }\n}\nfunction* g() {\n  yield 'ready';\n  class Box extends Base {\n    static field = super.value + 1;\n  }\n  var box = new Box();\n  yield Box.field + '|' + (box instanceof Base);\n}\nvar iterator = g();\nvar first = iterator.next();\nvar second = iterator.next();\nfirst.value + ':' + first.done + '|' + second.value + ':' + second.done;",
+          "expectedResult": "ready:false|42|true:false",
+          "requiredLogs": [
+            "unified-bytecode-resumable-generator-fast-path func=g"
+          ]
+        },
+        {
           "id": "B36-class-declaration-extends-public-static-field-routes",
           "claim": "admitted",
           "kind": "runtime",

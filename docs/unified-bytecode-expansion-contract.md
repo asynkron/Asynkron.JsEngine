@@ -874,13 +874,13 @@ predicates and proof tests.
     bodies / field initializers do not capture resumable activation slots, and
     public non-computed static-field `extends` declarations also route when each
     initializer compiles as standalone unified bytecode and creates no nested
-    closure. Dynamic/eval helpers plus otherwise complex class declaration
-    neighbors (nested activation-capturing computed names with `extends`,
-    closure-producing static blocks, closure-producing static field
-    initializers, public super member bodies / field initializers that capture
-    activation, static super field initializers, static elements outside the
-    static-block-only/static-field subsets, and computed/private/static shapes
-    outside the public B24h-compatible subset) are the remaining separate B36
+    closure, including static `super` field initializers. Dynamic/eval helpers
+    plus otherwise complex class declaration neighbors (nested
+    activation-capturing computed names with `extends`, closure-producing static
+    blocks, closure-producing static field initializers, public super member
+    bodies / field initializers that capture activation, static elements outside
+    the static-block-only/static-field subsets, and computed/private/static
+    shapes outside the public B24h-compatible subset) are the remaining separate B36
     declaration-instantiation work.
     `DeclareFunction` remains off the resumable opcode allowlist because
     descriptor-backed block/Annex B declarations still need persisted

@@ -409,6 +409,35 @@ public sealed class UnifiedBytecodeResumableClassDeclarationTests(ITestOutputHel
     }
 
     [Fact]
+    public void EvaluateResumable_ClassDeclarationExtendsStaticPublicFieldWithSuper_AdmitsDeclareClass()
+    {
+        var plan = GetFunctionPlan("""
+            class Base {
+                static get value() { return 41; }
+            }
+
+            function* g() {
+                yield "ready";
+                class Box extends Base {
+                    static field = super.value + 1;
+                }
+                yield Box.field;
+            }
+            """,
+            "g");
+
+        var result = UnifiedBytecodeProductionEligibility.EvaluateResumable(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor(IsGenerator: true));
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(
+            result.Program.Instructions,
+            static instruction => instruction.OpCode == UnifiedBytecodeOpCode.DeclareClass);
+    }
+
+    [Fact]
     public void EvaluateResumable_ClassDeclarationExtendsPublicStaticField_AdmitsDeclareClass()
     {
         var plan = GetFunctionPlan("""
@@ -836,6 +865,34 @@ public sealed class UnifiedBytecodeResumableClassDeclarationTests(ITestOutputHel
                 }
                 var box = new Box();
                 yield Box.value() + "|" + (box instanceof Base);
+            }
+
+            var iterator = g();
+            var first = iterator.next();
+            var second = iterator.next();
+            first.value + ":" + first.done + "|" + second.value + ":" + second.done;
+            """);
+
+        Assert.Equal("ready:false|42|true:false", result);
+        AssertGeneratorFastPath("g", argc: 0);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task GeneratorClassDeclarationExtendsStaticPublicFieldWithSuper_RoutesResumableAndPreservesSuperclass()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            class Base {
+                static get value() { return 41; }
+            }
+
+            function* g() {
+                yield "ready";
+                class Box extends Base {
+                    static field = super.value + 1;
+                }
+                var box = new Box();
+                yield Box.field + "|" + (box instanceof Base);
             }
 
             var iterator = g();

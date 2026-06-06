@@ -229,10 +229,10 @@ these allowlists — mechanical extensions against existing sync VM handlers.
 | B — Resumable parity + suspension | 57 | 54 complete / 3 open; class-expression decomposition added B24a-B24i |
 | C — Script route | 3 | 3 complete / 0 open; closes mostly via A/B |
 | D — Dynamic quarantine | 5 | 5 complete / 0 open; D1-D5 now pin terminal dynamic-residue boundaries |
-| E — Retire tiers | 6 | 3 complete / 3 open; E2/E3 = P0.2/P0.3 |
+| E — Retire tiers | 6 | 3 counted complete / 3 not-retired; E1 is counted through P0.5, E2/E3 = P0.2/P0.3, E4/E5 remain active retirement gaps |
 | **Total** | **145** | finite current burn-down list after Phase 0 decomposition; future source drift must update audited inventories |
 
-**Status (134 concrete A+B+C+D checklist items):** 116 complete / 18 open. **The remaining non-retirement work is now concentrated in activation/dynamic residue boundaries (A1/A2), constructor/private-name activation boundaries (A7), remaining A51 compiler leaves, class-expression computed/super-neighbor work (B24h), and B36 nested declaration/class contexts.**
+**Status (134 concrete A+B+C+D checklist items):** 116 complete / 18 open. **The remaining non-retirement work is now concentrated in activation/dynamic residue boundaries (A1/A2), constructor/private-name activation boundaries (A7), remaining A51 compiler leaves, class-expression computed/super-neighbor work (B24h), and B36 nested declaration/class contexts.** The remaining retirement work is E4 (remove `ExpressionProgram` from the hot path) and E5 (remove `ExecutionPlanRunner` from the hot path after A/B/C parity); E1 is an alias for P0.5 rather than a second Phase E retirement closure.
 
 Latest proof evidence (2026-06-06, B24i class-expression `super` members):
 focused `UnifiedBytecodeResumableClassExpressionTests` 62 passed after the
@@ -248,4 +248,4 @@ no matches.
 
 ---
 
-_Checklist status: 124 / 145 complete. The latest retrospective recount leaves A7 open for constructor/private-name activation boundaries and B36 partial for dynamic/eval helpers and complex class declarations instead of closing those rows. Phase B stands at 54 / 57 complete. A+B+C+D stands at 116 / 134 complete; the D5 known-open non-residue ratchet count remains 0. The resumable opcode gap inventory is 5, and the instruction gap inventory is 0._
+_Checklist status: 124 / 145 complete. The latest retrospective recount keeps A1/A2, A7, the remaining A51 leaves, B24h, B36, E4, and E5 visible as the source-of-truth remaining gaps. It leaves A7 open for constructor/private-name activation boundaries, keeps B24h open for class-definition computed/super-neighbor ownership, and keeps B36 partial for dynamic/eval helpers and complex class declarations instead of closing those rows. Phase B stands at 54 / 57 complete. A+B+C+D stands at 116 / 134 complete; the D5 known-open non-residue ratchet count remains 0. The resumable opcode gap inventory is 5, and the instruction gap inventory is 0._

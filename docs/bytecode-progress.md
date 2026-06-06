@@ -178,8 +178,10 @@ The remaining non-retirement work is concentrated in:
   helpers, recursive/sibling helper graphs, block/Annex B declarations, simple
   class declarations, and activation-safe computed public class declarations
   are already accounted for as admitted partial progress.
-- E-retirement work: classify or remove the remaining tier-1 expression and
-  tier-2 statement IR fallback paths after A/B/C parity is actually proven.
+- E4/E5 retirement work: remove the remaining tier-1 `ExpressionProgram` hot
+  path and tier-2 `ExecutionPlanRunner` hot path after A/B/C parity is actually
+  proven. The current E5 reachability text is classification evidence, not a
+  retirement claim.
 
 ## Needs-Handling Progress
 

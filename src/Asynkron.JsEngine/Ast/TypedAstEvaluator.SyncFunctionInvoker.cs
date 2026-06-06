@@ -3849,6 +3849,8 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                    !_needsArgumentsBinding &&
                    _lexicalThisEnvironment is null &&
                    _homeObject is null &&
+                   PrivateNameScope is null &&
+                   _capturedPrivateNameScopes.IsDefaultOrEmpty &&
                    (_superConstructor is not null || _superPrototype is not null) &&
                    CanUseProductionUnifiedBytecodeDerivedClassConstructorPlanShape(plan);
         }
@@ -4056,6 +4058,8 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                    _allowIdentifierCache &&
                    _lexicalThisEnvironment is null &&
                    _homeObject is null &&
+                   PrivateNameScope is null &&
+                   _capturedPrivateNameScopes.IsDefaultOrEmpty &&
                    _superConstructor is null &&
                    _superPrototype is null &&
                    CanUseSimpleIrActivationPlanShape(plan);

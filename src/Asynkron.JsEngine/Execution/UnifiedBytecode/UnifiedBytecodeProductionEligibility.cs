@@ -1145,6 +1145,25 @@ internal static class UnifiedBytecodeProductionEligibility
             // Dynamic declarations remain declined by their instruction/opcode gates until their own semantics
             // are proven.
             const bool allowsDynamicIdentifiers = true;
+            if (instruction is PushEnvironmentInstruction pushEnvironment)
+            {
+                if (activation.AllowsMaterializedBodyEnvironmentFunctionLiterals)
+                {
+                    declineCode = UnifiedBytecodeProductionDeclineCode.UnsupportedPlanShape;
+                    declineReason =
+                        "Materialized block environments across suspension are not eligible for resumable unified bytecode routing.";
+                    return true;
+                }
+
+                if (!IsSupportedPushEnvironment(pushEnvironment, plan.FlatSlotMappings))
+                {
+                    declineCode = UnifiedBytecodeProductionDeclineCode.UnsupportedPlanShape;
+                    declineReason =
+                        "Only flat-slot lexical block environments are eligible for resumable unified bytecode routing.";
+                    return true;
+                }
+            }
+
             if (!IsSupportedResumableInstruction(instruction, activationSlots, activation, out declineReason))
             {
                 declineCode = UnifiedBytecodeProductionDeclineCode.UnsupportedPlanShape;
@@ -1331,6 +1350,7 @@ internal static class UnifiedBytecodeProductionEligibility
             case StoreResumeValueInstruction:
             case EnterTryInstruction:
             case EnterCatchInstruction { CatchBindingProgram: null or IdentifierBindingTargetProgram }:
+            case PushEnvironmentInstruction:
             case PopEnvironmentInstruction:
             case LeaveTryInstruction:
             case EndFinallyInstruction:
@@ -2111,6 +2131,13 @@ internal static class UnifiedBytecodeProductionEligibility
                 UnifiedBytecodeOpCode.Continue or
                 UnifiedBytecodeOpCode.EnterTry or
                 UnifiedBytecodeOpCode.EnterCatch or
+                // Flat-slot lexical block scopes in resumable bodies. The plan-level gate admits only
+                // scopes whose lexical slots are mapped into the resume state's flat slot array and whose
+                // body does not need a materialized body environment. ExecuteResumable therefore owns the
+                // TDZ reset, const-slot marking, and per-iteration copy-list behavior directly in the
+                // persisted slot array, without needing an environment stack across suspension. Materialized
+                // block environments remain declined before this opcode allowlist.
+                UnifiedBytecodeOpCode.PushEnvironment or
                 UnifiedBytecodeOpCode.PopEnvironment or
                 UnifiedBytecodeOpCode.LeaveTry or
                 UnifiedBytecodeOpCode.EndFinally or

@@ -1,6 +1,6 @@
 # Unified Bytecode Expansion Contract
 
-Date: 2026-06-05
+Date: 2026-06-06
 Scope: Shared contract for parallel unified-bytecode lane work.
 
 ## Source-Of-Truth Surfaces
@@ -57,7 +57,7 @@ statement interpretation.
   drift gate
   `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~ExpressionProgramCoverageMapTests&FullyQualifiedName~UnifiedBytecodeExpansionContract"`
   passed. The checked inventories remain current: 6 sync prototype opcode guard
-  gaps, 14 resumable opcode allowlist gaps, 3 resumable instruction allowlist
+  gaps, 8 resumable opcode allowlist gaps, 2 resumable instruction allowlist
   gaps, A35 split into 5 object-literal member leaves, B24 split into 9
   class-expression leaves, and no general expression lowering gaps.
 - Completing the decline-burndown plan did not make unified bytecode the only
@@ -395,7 +395,6 @@ the admitted subset stays 1:1 with `UnifiedBytecodeVirtualMachine.ExecuteResumab
 - `EnterWith`
 - `InitializeDynamicLexical`
 - `LeaveWith`
-- `PushEnvironment`
 - `RegisterDisposable`
 - `SuperConstructInvocationBoundary`
 
@@ -412,7 +411,6 @@ definition state still declines through the B36 class-declaration predicate.
 
 - `EnterWithInstruction`
 - `LeaveWithInstruction`
-- `PushEnvironmentInstruction`
 
 ### A35 Object Literal Member Leaves (current)
 
@@ -1119,15 +1117,18 @@ the final post-compile production subset check before VM entry.
   arguments.
 - `PushEnvironment` initializes ordinary admitted lexical flat slots to
   `JsValue.Uninitialized`; for copy-listed per-iteration slots it snapshots the
-  previous value before rebinding and writes that value into the fresh scope
-  environment instead of TDZ-wiping it. `PopEnvironment` is an owned VM cleanup
-  opcode for the admitted linear shape and disposes registered sync `using`
-  resources before restoring the enclosing environment. Neither opcode uses name fallback or
-  calls back into `ExpressionProgram`, `ExecutionPlanRunner`, or AST
-  evaluation.
+  previous value before rebinding and writes that value into the current flat
+  slot instead of TDZ-wiping it. In the sync VM, `PushEnvironment` also creates a
+  scope environment when materialized bindings are needed. In the resumable VM,
+  the newly admitted subset is deliberately flat-slot-only; materialized block
+  environments across suspension still decline before VM entry. `PopEnvironment`
+  is an owned VM cleanup opcode for the admitted linear shape and disposes
+  registered sync `using` resources before restoring the enclosing environment
+  on the sync route. Neither opcode uses name fallback or calls back into
+  `ExpressionProgram`, `ExecutionPlanRunner`, or AST evaluation.
 - Unsupported binding declaration shapes, unsupported object/array destructuring
   driver instructions, unsupported dynamic lookup, `await using`, resumable
-  `using`, resumable `PushEnvironmentInstruction`, and scope-entry shapes
+  `using`, resumable materialized block environments, and scope-entry shapes
   without flat mappings remain pre-VM declines.
 
 ## Production With-Backed Dynamic Name Boundary

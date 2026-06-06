@@ -5394,6 +5394,52 @@ internal static class UnifiedBytecodeVirtualMachine
                         break;
                     }
 
+                case UnifiedBytecodeOpCode.PushEnvironment:
+                    {
+                        var scopeDescriptor = program.ScopeDescriptors[instruction.Operand];
+                        var lexicalSlotIndices = scopeDescriptor.LexicalSlotIndices;
+                        var perIterationCopySlotIndices = scopeDescriptor.PerIterationCopySlotIndices;
+                        JsValue[]? perIterationCopyValues = null;
+                        if (!perIterationCopySlotIndices.IsDefaultOrEmpty)
+                        {
+                            perIterationCopyValues = new JsValue[perIterationCopySlotIndices.Length];
+                            for (var i = 0; i < perIterationCopySlotIndices.Length; i++)
+                            {
+                                perIterationCopyValues[i] = slots[perIterationCopySlotIndices[i]];
+                            }
+                        }
+
+                        for (var i = 0; i < lexicalSlotIndices.Length; i++)
+                        {
+                            var lexicalSlotIndex = lexicalSlotIndices[i];
+                            if (!ContainsSlotIndex(perIterationCopySlotIndices, lexicalSlotIndex))
+                            {
+                                slots[lexicalSlotIndex] = JsValue.Uninitialized;
+                                SyncSlotEnvironment(slotEnvironments, lexicalSlotIndex, JsValue.Uninitialized);
+                            }
+                        }
+
+                        var constSlotIndices = scopeDescriptor.ConstSlotIndices;
+                        for (var i = 0; i < constSlotIndices.Length; i++)
+                        {
+                            state.MarkConstSlot(constSlotIndices[i]);
+                        }
+
+                        if (perIterationCopyValues is not null)
+                        {
+                            for (var i = 0; i < perIterationCopySlotIndices.Length; i++)
+                            {
+                                var slotIndex = perIterationCopySlotIndices[i];
+                                var value = perIterationCopyValues[i];
+                                slots[slotIndex] = value;
+                                SyncSlotEnvironment(slotEnvironments, slotIndex, value);
+                            }
+                        }
+
+                        programCounter++;
+                        break;
+                    }
+
                 case UnifiedBytecodeOpCode.PopEnvironment:
                     if (resumableTryFrames is { Count: > 0 } &&
                         resumableTryFrames.Peek().ActiveCatchDescriptor is { } activeCatchDescriptor &&

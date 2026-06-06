@@ -39,9 +39,10 @@ per-iteration copy list program metadata consumed by `PushEnvironment`.
   environment.
 - Non-copy lexical slots keep ordinary TDZ initialization, including const
   marking.
-- The admission is ordinary sync production only. Resumable
-  `PushEnvironmentInstruction` remains a separate allowlist gap until the
-  resumable route owns scope environment lifetime across suspension.
+- The original admission was ordinary sync production only. The resumable route
+  now admits the flat-slot subset by owning TDZ reset, const-slot marking, and
+  copy-listed per-iteration slots directly on `UnifiedBytecodeResumeState`.
+  Materialized scope environment lifetime across suspension remains separate.
 - A43 Annex B block-function declarations remain separate. Their descriptor
   backed block function binding and strict/sloppy scoping constraints are not
   solved merely because A44 per-iteration loop bindings now have copy metadata.

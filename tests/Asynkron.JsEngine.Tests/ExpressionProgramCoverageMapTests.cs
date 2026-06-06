@@ -72,7 +72,6 @@ public sealed class ExpressionProgramCoverageMapTests
         "EnterWith",
         "InitializeDynamicLexical",
         "LeaveWith",
-        "PushEnvironment",
         "RegisterDisposable",
         "SuperConstructInvocationBoundary"
     ];
@@ -80,8 +79,7 @@ public sealed class ExpressionProgramCoverageMapTests
     private static readonly string[] UnifiedBytecodeResumableInstructionAllowListGapNames =
     [
         "EnterWithInstruction",
-        "LeaveWithInstruction",
-        "PushEnvironmentInstruction"
+        "LeaveWithInstruction"
     ];
 
     private static readonly string[] A35ObjectLiteralMemberLeafNames =

@@ -11438,7 +11438,7 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
         Assert.False(result.IsEligible);
         Assert.Equal(UnifiedBytecodeProductionDeclineCode.UnsupportedPlanShape, result.Code);
         Assert.Contains(
-            "Instruction 'PushEnvironmentInstruction' is not eligible for resumable unified bytecode routing.",
+            "Instruction 'BreakableEnterInstruction' is not eligible for resumable unified bytecode routing.",
             result.Reason,
             StringComparison.Ordinal);
     }

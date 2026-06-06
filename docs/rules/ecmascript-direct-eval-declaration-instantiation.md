@@ -68,6 +68,17 @@ and keep `arguments` handling path-specific.
    `docs/rules/ecmascript-template-object-cache.md` and must not reuse a
    cached `ProgramNode` without a separately proven eval-instantiation
    identity.
+10. When widening production unified-bytecode routing around direct eval,
+    keep declaration-bearing direct eval out of the VM route until declaration
+    instantiation is VM-owned. Literal eval sources containing top-level `var`,
+    `let`, `const`, function, or class declarations must decline before VM
+    execution, and runtime-source direct eval must remain on the IR path.
+    Preserve already-admitted declaration-free direct eval shapes separately:
+    do not turn the guard into a blanket direct-eval decline. Prove the
+    boundary with both eligibility no-route tests for declaration-bearing
+    literals and invocation tests that strict direct eval declarations stay
+    isolated from the caller while logging no
+    `unified-bytecode-production-fast-path` hit.
 
 ## Why
 
@@ -120,6 +131,15 @@ program. The durable lesson is the same caller-context boundary in a smaller
 form: analysis facts may follow the parsed program only when they are stable for
 the eval cache key and cannot mutate across calls; caller-context validation and
 declaration instantiation still run per invocation.
+
+Faktorial issue
+`planitem-planitem-planmanual1780730299657353000-unified-bytecode-remaining-burndo-0db19db6ec`
+/ PR #3311 hardened the production-route boundary without adding a VM-owned
+declaration-instantiation implementation. The useful lesson is that this is a
+pre-VM route-selection boundary, not a semantics shortcut: declaration-bearing
+direct eval has to decline before production VM execution, while existing
+declaration-free direct eval route hits remain valid and should not be
+regressed by an over-broad guard.
 
 Related ADRs:
 

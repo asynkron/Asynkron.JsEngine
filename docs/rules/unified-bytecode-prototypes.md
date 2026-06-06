@@ -227,6 +227,26 @@ all-or-nothing until a separate routing issue proves production readiness.
     / delivery PR #3330 closed A51l by proving the current catch/try/driver
     cleanup reason templates already map to concrete owners. Related ADR:
     `docs/adrs/0357-keep-a51l-catch-try-driver-cleanup-diagnostics-decomposed.md`.
+9h. Keep private receiver-prefix property-read admission value-read-only and
+    rollback-safe. Private named hops may participate in simple property-read
+    span measurement only when the whole expression is an admitted value read,
+    such as `receiver.#child.value` or `receiver.#child[key]`; private
+    receiver-prefix calls, mutations, updates, deletes, and optional-private
+    neighbors remain owned by their separate A51 lanes until explicitly proven.
+    Any compiler probe that emits instructions, literal constants, or string
+    constants before proving the whole private-prefix value-read shape must
+    snapshot and restore every touched builder before handing control to later
+    fallback helpers. Do not let a failed speculative read probe leak a partial
+    receiver-prefix into computed delete, mutation, or call-target emission.
+    Future widening must pair route-hit proof for the admitted read with nearby
+    no-route proof for the still-declined private-prefix neighbors. WHY:
+    Faktorial issue
+    `planitem-planmanual1780730299657353000-unified-bytecode-remaining-burndown-03-com-f16dbb9a61`
+    / PR #3342 admitted private receiver-prefix value reads, then repair commit
+    `c39a7b272` fixed a regression where the speculative private-prefix read
+    probe leaked a partial `box.child` prefix before a computed delete fallback
+    emitted the real delete path. Related ADR:
+    `docs/adrs/0358-keep-private-receiver-prefix-read-admission-speculative-and-rollback-safe.md`.
 10. When invoking production unified bytecode from sync calls, keep the bridge
     slot-layout owned and fast-path ordered. The production unified route runs
     before direct specialized simple-return binary/chain shortcuts and the

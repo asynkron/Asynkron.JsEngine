@@ -3178,8 +3178,9 @@ internal static class UnifiedBytecodeProductionEligibility
         var objectConstants = program.ObjectConstants.AsSpan();
         var hasActivationReference = false;
         var hasCallDependency = false;
-        foreach (var operation in program.EnumerateOperations())
+        for (var operationIndex = 0; operationIndex < program.OperationCount; operationIndex++)
         {
+            var operation = program.GetOperation(operationIndex);
             if (operation.Kind == ExpressionOpKind.LoadFunctionLiteral)
             {
                 var descriptor = operation.GetObject<FunctionLiteralDescriptor>(objectConstants);
@@ -3205,12 +3206,23 @@ internal static class UnifiedBytecodeProductionEligibility
             }
 
             capturedName = identifier.Name.Name;
+            if (operation.Kind == ExpressionOpKind.LoadIdentifierCallTarget)
+            {
+                if (TrySkipDirectClassComputedNameActivationCall(program, operationIndex, out var callOperationIndex))
+                {
+                    operationIndex = callOperationIndex;
+                    continue;
+                }
+
+                dependencyReason = "call-target preparation";
+                return true;
+            }
+
             hasActivationReference = true;
             if (!IsOwnedClassComputedNameActivationOperation(operation.Kind))
             {
                 dependencyReason = operation.Kind switch
                 {
-                    ExpressionOpKind.LoadIdentifierCallTarget => "call-target preparation",
                     ExpressionOpKind.DeleteIdentifier => "activation binding delete",
                     _ => $"unsupported {operation.Kind} operation"
                 };
@@ -3221,6 +3233,31 @@ internal static class UnifiedBytecodeProductionEligibility
         if (hasActivationReference && hasCallDependency)
         {
             dependencyReason = "activation-dependent call or construct";
+            return true;
+        }
+
+        return false;
+    }
+
+    private static bool TrySkipDirectClassComputedNameActivationCall(
+        ExpressionProgram program,
+        int callTargetOperationIndex,
+        out int callOperationIndex)
+    {
+        callOperationIndex = callTargetOperationIndex;
+        if (callTargetOperationIndex + 1 >= program.OperationCount)
+        {
+            return false;
+        }
+
+        var callOperation = program.GetOperation(callTargetOperationIndex + 1);
+        if (callOperation is
+            {
+                Kind: ExpressionOpKind.Call,
+                ArgumentCount: 0
+            })
+        {
+            callOperationIndex = callTargetOperationIndex + 1;
             return true;
         }
 

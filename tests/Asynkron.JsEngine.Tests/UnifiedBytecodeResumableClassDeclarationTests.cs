@@ -8,7 +8,8 @@ namespace Asynkron.JsEngine.Tests;
 /// <summary>
 ///     Proof pack for the narrow B36 direct root class-declaration slice in resumable bodies.
 ///     Simple class declarations can route through <see cref="UnifiedBytecodeOpCode.DeclareClass" />;
-///     complex class-definition state such as computed names stays declined before VM execution.
+///     activation-safe computed public class declarations can route through the same instruction,
+///     while unsafe neighboring class-definition state stays declined before VM execution.
 /// </summary>
 [Category(TestCategories.RuntimeSemantics)]
 public sealed class UnifiedBytecodeResumableClassDeclarationTests(ITestOutputHelper output)
@@ -48,15 +49,68 @@ public sealed class UnifiedBytecodeResumableClassDeclarationTests(ITestOutputHel
     }
 
     [Fact]
-    public void EvaluateResumable_ClassDeclarationComputedName_DeclinesBeforeVm()
+    public void EvaluateResumable_ClassDeclarationComputedPublicElements_AdmitsDeclareClass()
     {
         var plan = GetFunctionPlan("""
             function* g(key) {
                 yield "ready";
                 class Box {
-                    [key]() {
+                    [key = "value"]() {
+                        return 42;
+                    }
+
+                    static ["seed"] = 7;
+                }
+                var box = new Box();
+                yield box.value() + Box.seed;
+            }
+            """,
+            "g");
+
+        var result = UnifiedBytecodeProductionEligibility.EvaluateResumable(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor(IsGenerator: true));
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(
+            result.Program.Instructions,
+            static instruction => instruction.OpCode == UnifiedBytecodeOpCode.DeclareClass);
+    }
+
+    [Fact]
+    public void EvaluateResumable_ClassDeclarationComputedNameActivationCall_DeclinesBeforeVm()
+    {
+        var plan = GetFunctionPlan("""
+            function* g(read) {
+                yield "ready";
+                class Box {
+                    [read()]() {
                         return 1;
                     }
+                }
+                yield typeof Box;
+            }
+            """,
+            "g");
+
+        var result = UnifiedBytecodeProductionEligibility.EvaluateResumable(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor(IsGenerator: true));
+
+        Assert.False(result.IsEligible);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.UnsupportedPlanShape, result.Code);
+        Assert.Contains("not supported by B24h", result.Reason, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void EvaluateResumable_ClassDeclarationExtends_DeclinesBeforeVm()
+    {
+        var plan = GetFunctionPlan("""
+            class Base {}
+            function* g() {
+                yield "ready";
+                class Box extends Base {
                 }
                 yield typeof Box;
             }
@@ -99,6 +153,34 @@ public sealed class UnifiedBytecodeResumableClassDeclarationTests(ITestOutputHel
 
         Assert.Equal("ready:false|7:false|undefined", result);
         AssertGeneratorFastPath("g", argc: 0);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task GeneratorComputedPublicClassDeclaration_RoutesResumableAndSyncsName()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function* g(key) {
+                yield "ready";
+                class Box {
+                    [key = "value"]() {
+                        return 42;
+                    }
+
+                    static ["seed"] = 7;
+                }
+                var box = new Box();
+                yield key + "|" + box.value() + "|" + Box.seed;
+            }
+
+            var iterator = g("initial");
+            var first = iterator.next();
+            var second = iterator.next();
+            first.value + ":" + first.done + "|" + second.value + ":" + second.done;
+            """);
+
+        Assert.Equal("ready:false|value|42|7:false", result);
+        AssertGeneratorFastPath("g", argc: 1);
     }
 
     [Fact(Timeout = 5000)]

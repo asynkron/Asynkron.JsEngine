@@ -1323,7 +1323,10 @@ internal static class UnifiedBytecodeProductionEligibility
         switch (instruction)
         {
             case ClassDeclarationInstruction classDeclaration:
-                return IsResumableClassDeclaration(classDeclaration.Descriptor, out declineReason);
+                return IsResumableClassDeclaration(
+                    classDeclaration.Descriptor,
+                    activationSlots,
+                    out declineReason);
             // B36 narrow slice: function-scoped declarations lower as no-op IR records because the
             // resumable invoker has already populated their flat slots during activation setup. The
             // activation flag is set only after the invoker proves every direct root declaration is
@@ -1498,7 +1501,8 @@ internal static class UnifiedBytecodeProductionEligibility
         for (var i = 0; i < plan.Instructions.Length; i++)
         {
             if (plan.Instructions[i] is ClassDeclarationInstruction { Descriptor: { } descriptor } &&
-                IsResumableClassDeclaration(descriptor, out _))
+                plan.ActivationSlots is { } activationSlots &&
+                IsResumableClassDeclaration(descriptor, activationSlots, out _))
             {
                 return true;
             }
@@ -2952,6 +2956,7 @@ internal static class UnifiedBytecodeProductionEligibility
 
     private static bool IsResumableClassDeclaration(
         ClassDeclarationDescriptor descriptor,
+        ActivationSlotShape activationSlots,
         out string declineReason)
     {
         if (!descriptor.ProgramCache.Succeeded)
@@ -2961,18 +2966,165 @@ internal static class UnifiedBytecodeProductionEligibility
             return false;
         }
 
+        var definition = descriptor.ProgramCache.Definition;
         if (descriptor.ProgramCache.ExtendsProgram is not null ||
-            HasClassExpressionProgram(descriptor.ProgramCache.MemberNamePrograms) ||
-            HasClassExpressionProgram(descriptor.ProgramCache.FieldNamePrograms) ||
-            descriptor.ProgramCache.Definition.StaticElements is { IsDefaultOrEmpty: false } ||
-            descriptor.ProgramCache.Definition.StaticBlockPlans is { IsDefaultOrEmpty: false })
+            definition.StaticBlockPlans is { IsDefaultOrEmpty: false })
         {
             declineReason =
-                "Class declaration is outside B36: extends, computed names, static elements, and static blocks remain owned by later class-definition slices.";
+                "Class declaration is outside B36: extends and static blocks remain owned by later class-definition slices.";
+            return false;
+        }
+
+        if (HasClassExpressionProgram(descriptor.ProgramCache.MemberNamePrograms) ||
+            HasClassExpressionProgram(descriptor.ProgramCache.FieldNamePrograms) ||
+            definition.StaticElements is { IsDefaultOrEmpty: false })
+        {
+            if (TryAdmitB36ComputedPublicClassDeclaration(
+                    descriptor.ProgramCache,
+                    activationSlots,
+                    out var b24hCandidate,
+                    out declineReason))
+            {
+                return true;
+            }
+
+            if (b24hCandidate)
+            {
+                return false;
+            }
+
+            declineReason =
+                "Class declaration is outside B36: computed names or static elements outside the B24h public computed subset remain owned by later class-definition slices.";
             return false;
         }
 
         declineReason = string.Empty;
+        return true;
+    }
+
+    private static bool TryAdmitB36ComputedPublicClassDeclaration(
+        ClassDefinitionProgramCache cache,
+        ActivationSlotShape activationSlots,
+        out bool candidate,
+        out string declineReason)
+    {
+        candidate = false;
+        declineReason = string.Empty;
+
+        var definition = cache.Definition;
+        var hasComputedElement = false;
+        foreach (var field in definition.Fields)
+        {
+            if (field.IsPrivate)
+            {
+                return false;
+            }
+
+            if (field.IsComputed)
+            {
+                hasComputedElement = true;
+            }
+        }
+
+        foreach (var member in definition.Members)
+        {
+            if (member.IsPrivate)
+            {
+                return false;
+            }
+
+            if (member.IsComputed)
+            {
+                hasComputedElement = true;
+            }
+        }
+
+        if (!hasComputedElement)
+        {
+            return false;
+        }
+
+        candidate = true;
+        if (FunctionCapturesActivationSlot(definition.Constructor.Function, activationSlots, out var constructorCapturedName))
+        {
+            declineReason =
+                $"Class declaration is outside B24h: constructor body captures activation binding '{constructorCapturedName}' and needs the materialized body environment route.";
+            return false;
+        }
+
+        for (var i = 0; i < cache.MemberNamePrograms.Length; i++)
+        {
+            if (!definition.Members[i].IsComputed)
+            {
+                continue;
+            }
+
+            if (cache.MemberNamePrograms[i] is not { } nameProgram)
+            {
+                declineReason =
+                    "Class declaration is outside B24h: computed member name is missing its lowered expression program.";
+                return false;
+            }
+
+            if (ExpressionProgramHasUnsupportedClassComputedNameActivationDependency(
+                    nameProgram,
+                    activationSlots,
+                    out var capturedName,
+                    out var dependencyReason))
+            {
+                declineReason =
+                    $"Class declaration computed member name captures activation binding '{capturedName}' through {dependencyReason} and is not supported by B24h resumable production routing until the class-definition environment route owns that dependency.";
+                return false;
+            }
+        }
+
+        for (var i = 0; i < cache.FieldNamePrograms.Length; i++)
+        {
+            if (!definition.Fields[i].IsComputed)
+            {
+                continue;
+            }
+
+            if (cache.FieldNamePrograms[i] is not { } nameProgram)
+            {
+                declineReason =
+                    "Class declaration is outside B24h: computed field name is missing its lowered expression program.";
+                return false;
+            }
+
+            if (ExpressionProgramHasUnsupportedClassComputedNameActivationDependency(
+                    nameProgram,
+                    activationSlots,
+                    out var capturedName,
+                    out var dependencyReason))
+            {
+                declineReason =
+                    $"Class declaration computed field name captures activation binding '{capturedName}' through {dependencyReason} and is not supported by B24h resumable production routing until the class-definition environment route owns that dependency.";
+                return false;
+            }
+        }
+
+        for (var i = 0; i < cache.FieldInitializerPrograms.Length; i++)
+        {
+            if (cache.FieldInitializerPrograms[i] is { } initializerProgram &&
+                ExpressionProgramReferencesActivationSlot(initializerProgram, activationSlots, out var capturedName))
+            {
+                declineReason =
+                    $"Class declaration computed field initializer captures activation binding '{capturedName}' and is not supported by B24h resumable production routing until the resume state owns a materialized body environment.";
+                return false;
+            }
+        }
+
+        foreach (var member in definition.Members)
+        {
+            if (FunctionCapturesActivationSlot(member.Callable.Function, activationSlots, out var capturedName))
+            {
+                declineReason =
+                    $"Class declaration computed member body captures activation binding '{capturedName}' and needs the materialized body environment route.";
+                return false;
+            }
+        }
+
         return true;
     }
 

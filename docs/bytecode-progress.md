@@ -198,19 +198,19 @@ The remaining non-retirement work is concentrated in:
 - B36 resumable declarations: dynamic/eval helpers plus complex class
   declarations (nested activation-capturing computed names with `extends`,
   closure-producing static blocks, closure-producing static field initializers,
-  public super member bodies that capture activation, and computed/private/static
-  neighbors outside the public B24h-compatible, public super-member, and public
-  static-field subsets)
+  public super member/field bodies that capture activation, and
+  computed/private/static neighbors outside the public B24h-compatible, public
+  super-member/super-field, and public static-field subsets)
   remain on the IR route while direct root helpers,
   recursive/sibling helper graphs, block/Annex B declarations, simple class
   declarations, plain `extends` declarations whose superclass expression
   compiles as standalone unified bytecode, activation-safe explicit public
   derived constructors, eligible static-block-only class declarations,
   activation-safe computed public class declarations, and public instance
-  computed-member `extends` declarations, public instance super-member `extends`
-  declarations, plus public non-computed static-field `extends` declarations
-  with bytecode-compilable non-closure initializers, are already accounted for as
-  admitted partial progress.
+  computed-member `extends` declarations, public instance super-member and
+  super-field `extends` declarations, plus public non-computed static-field
+  `extends` declarations with bytecode-compilable non-closure initializers, are
+  already accounted for as admitted partial progress.
 - E4/E5 retirement work: remove the remaining tier-1 `ExpressionProgram` hot
   path and tier-2 `ExecutionPlanRunner` hot path after A/B/C parity is actually
   proven. The current E5 reachability text is classification evidence, not a
@@ -241,6 +241,7 @@ is removed, or a proof gate becomes stricter.
 
 | Date | Gate surface | Concrete movement | Proof signal |
 |---|---|---|---|
+| 2026-06-06 | B36 partial: public instance super fields with `extends` | Resumable generator bodies now admit direct root `extends` class declarations whose class body contains public non-computed instance fields initialized from `super`, such as `class Box extends Base { field = super.value + 1; }`, when those field initializers do not capture resumable activation slots. The selector checks the lowered initializer expression program for `super` ownership and preserves the same activation-capture boundary as B24i class expressions. Checklist totals stay `127 / 145` and A+B+C+D stays `119 / 134` because this is a partial B36 contraction. | `EvaluateResumable_ClassDeclarationExtendsPublicFieldWithSuper_AdmitsDeclareClass`, `EvaluateResumable_ClassDeclarationExtendsPublicFieldWithSuperCapturesActivation_DeclinesBeforeVm`, `GeneratorClassDeclarationExtendsPublicFieldWithSuper_RoutesResumableAndPreservesReceiver`, `BytecodeProofManifestTests` rows `B36-class-declaration-extends-public-super-field-routes` and `B36-class-declaration-extends-public-super-field-captures-activation-declines`. |
 | 2026-06-06 | B36 partial: public instance super members with `extends` | Resumable generator bodies now admit direct root `extends` class declarations whose class body contains public non-computed instance methods/accessors that use `super`, such as `class Box extends Base { value() { return super.value() + 1; } }`, when those member bodies do not capture resumable activation slots. The runtime proof requires both the outer `DeclareClass` generator route and the invoked method body's production unified-bytecode route. Static, computed, private, and activation-capturing member bodies remain declined. Checklist totals stay `127 / 145` and A+B+C+D stays `119 / 134` because this is a partial B36 contraction. | `EvaluateResumable_ClassDeclarationExtendsPublicMethodWithSuper_AdmitsDeclareClass`, `EvaluateResumable_ClassDeclarationExtendsPublicMethodWithSuperCapturesActivation_DeclinesBeforeVm`, `GeneratorClassDeclarationExtendsPublicMethodWithSuper_RoutesResumableAndPreservesReceiver`, `BytecodeProofManifestTests` rows `B36-class-declaration-extends-public-super-method-routes` and `B36-class-declaration-extends-public-super-method-captures-activation-declines`. |
 | 2026-06-06 | B36 partial: public static fields with `extends` | Resumable generator bodies now admit direct root `extends` class declarations whose class body contains public non-computed static fields, such as `class Box extends Base { static value = seed + 1; }`, when every static field initializer compiles as standalone unified bytecode and does not create a nested closure. The B36 path composes the existing superclass-expression compile check, constructor predicate, and class-declaration environment sync; closure-producing static field initializers stay declined because they need the broader materialized class-definition environment route. Checklist totals stay `127 / 145` and A+B+C+D stays `119 / 134` because this is a partial B36 contraction. | `EvaluateResumable_ClassDeclarationExtendsPublicStaticField_AdmitsDeclareClass`, `EvaluateResumable_ClassDeclarationExtendsStaticFieldClosureInitializer_DeclinesBeforeVm`, `GeneratorClassDeclarationExtendsPublicStaticField_RoutesResumableAndReadsActivation`, `BytecodeProofManifestTests` rows `B36-class-declaration-extends-public-static-field-routes` and `B36-class-declaration-extends-static-field-closure-declines`. |
 | 2026-06-06 | B36 partial: computed public instance members with `extends` | Resumable generator bodies now admit direct root `extends` class declarations whose class body contains activation-safe public instance computed methods/accessors, such as `class Box extends Base { [key = "value"]() { return 42; } }`. The new B36 path composes the already-proven superclass-expression compile check, the B36 constructor route predicate, and the B24h computed public member gate; static members, fields/static elements, private members, and nested activation-capturing computed names remain declined. Checklist totals stay `127 / 145` and A+B+C+D stays `119 / 134` because this is a partial B36 contraction. | `EvaluateResumable_ClassDeclarationExtendsComputedPublicMember_AdmitsDeclareClass`, `EvaluateResumable_ClassDeclarationExtendsComputedNameNestedActivationCapture_DeclinesBeforeVm`, `GeneratorClassDeclarationExtendsComputedPublicMember_RoutesResumableAndSyncsName`, `BytecodeProofManifestTests` rows `B36-class-declaration-extends-computed-public-member-routes` and `B36-class-declaration-extends-computed-name-nested-activation-capture-declines`. |

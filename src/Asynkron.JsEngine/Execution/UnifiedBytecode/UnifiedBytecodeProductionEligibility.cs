@@ -3116,6 +3116,20 @@ internal static class UnifiedBytecodeProductionEligibility
             return false;
         }
 
+        if (TryAdmitB36PublicInstanceSuperFieldExtendsClassDeclaration(
+                cache,
+                activationSlots,
+                out candidate,
+                out declineReason))
+        {
+            return true;
+        }
+
+        if (candidate)
+        {
+            return false;
+        }
+
         if (TryAdmitB36PublicStaticFieldExtendsClassDeclaration(
                 cache,
                 activationSlots,
@@ -3319,6 +3333,68 @@ internal static class UnifiedBytecodeProductionEligibility
             {
                 declineReason =
                     $"Class declaration public super member body captures activation binding '{capturedName}' and needs the materialized body environment route.";
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static bool TryAdmitB36PublicInstanceSuperFieldExtendsClassDeclaration(
+        ClassDefinitionProgramCache cache,
+        ActivationSlotShape activationSlots,
+        out bool candidate,
+        out string declineReason)
+    {
+        var definition = cache.Definition;
+        candidate = false;
+        declineReason = string.Empty;
+
+        if (!definition.Members.IsDefaultOrEmpty ||
+            !definition.StaticBlockPlans.IsDefaultOrEmpty ||
+            !definition.StaticElements.IsDefaultOrEmpty ||
+            definition.Fields.IsDefaultOrEmpty ||
+            cache.FieldInitializerPrograms.IsDefaultOrEmpty ||
+            cache.FieldInitializerPrograms.Length != definition.Fields.Length)
+        {
+            return false;
+        }
+
+        for (var i = 0; i < definition.Fields.Length; i++)
+        {
+            var field = definition.Fields[i];
+            if (field.IsStatic ||
+                field.IsPrivate ||
+                field.IsComputed ||
+                cache.FieldInitializerPrograms[i] is not { } initializerProgram ||
+                !ExpressionProgramContainsSuper(initializerProgram))
+            {
+                return false;
+            }
+        }
+
+        candidate = true;
+        if (!IsB36AdmittedPlainExtendsConstructor(
+                definition.Constructor,
+                activationSlots,
+                out declineReason))
+        {
+            return false;
+        }
+
+        for (var i = 0; i < cache.FieldInitializerPrograms.Length; i++)
+        {
+            if (cache.FieldInitializerPrograms[i] is not { } initializerProgram)
+            {
+                declineReason =
+                    "Class declaration is outside B36: public super field initializer is missing its lowered expression program.";
+                return false;
+            }
+
+            if (ExpressionProgramReferencesActivationSlot(initializerProgram, activationSlots, out var capturedName))
+            {
+                declineReason =
+                    $"Class declaration public super field initializer captures activation binding '{capturedName}' and needs the materialized body environment route.";
                 return false;
             }
         }
@@ -3545,6 +3621,29 @@ internal static class UnifiedBytecodeProductionEligibility
             if (operation.Kind is ExpressionOpKind.LoadFunctionLiteral or ExpressionOpKind.LoadClassLiteral)
             {
                 return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool ExpressionProgramContainsSuper(ExpressionProgram program)
+    {
+        foreach (var operation in program.EnumerateOperations())
+        {
+            switch (operation.Kind)
+            {
+                case ExpressionOpKind.LoadNamedSuperCallTarget:
+                case ExpressionOpKind.LoadComputedSuperCallTarget:
+                case ExpressionOpKind.EnsureSuperReference:
+                case ExpressionOpKind.GetNamedSuperProperty:
+                case ExpressionOpKind.GetComputedSuperProperty:
+                case ExpressionOpKind.SetNamedSuperProperty:
+                case ExpressionOpKind.SetComputedSuperProperty:
+                case ExpressionOpKind.UpdateNamedSuperProperty:
+                case ExpressionOpKind.UpdateComputedSuperProperty:
+                case ExpressionOpKind.SuperConstruct:
+                    return true;
             }
         }
 

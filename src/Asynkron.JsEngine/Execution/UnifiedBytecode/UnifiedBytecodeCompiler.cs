@@ -8162,11 +8162,57 @@ internal static class UnifiedBytecodeCompiler
             return false;
         }
 
-        var left = expressionProgram.GetOperation(startIndex);
-        var right = expressionProgram.GetOperation(startIndex + 1);
-        var binary = expressionProgram.GetOperation(startIndex + 2);
+        var unifiedCount = unified.Count;
+        var literalCount = literalConstants.Count;
+        var stringCount = stringConstants.Count;
+        if (!TryAppendSimpleNestedOperandSpan(
+                expressionProgram,
+                startIndex,
+                activationSlots,
+                allowsDynamicIdentifiers,
+                unified,
+                literalConstants,
+                stringConstants,
+                out var leftSpanLength,
+                out reason) ||
+            startIndex + leftSpanLength >= endExclusive)
+        {
+            RollBackUnifiedBuilder(unified, unifiedCount);
+            RollBackUnifiedBuilder(literalConstants, literalCount);
+            RollBackUnifiedBuilder(stringConstants, stringCount);
+            spanLength = 0;
+            reason = string.Empty;
+            return false;
+        }
+
+        var rightStartIndex = startIndex + leftSpanLength;
+        if (!TryAppendSimpleNestedOperandSpan(
+                expressionProgram,
+                rightStartIndex,
+                activationSlots,
+                allowsDynamicIdentifiers,
+                unified,
+                literalConstants,
+                stringConstants,
+                out var rightSpanLength,
+                out reason) ||
+            rightStartIndex + rightSpanLength >= endExclusive)
+        {
+            RollBackUnifiedBuilder(unified, unifiedCount);
+            RollBackUnifiedBuilder(literalConstants, literalCount);
+            RollBackUnifiedBuilder(stringConstants, stringCount);
+            spanLength = 0;
+            reason = "Simple binary spans require admitted simple operand spans.";
+            return false;
+        }
+
+        var binaryIndex = rightStartIndex + rightSpanLength;
+        var binary = expressionProgram.GetOperation(binaryIndex);
         if (binary.Kind != ExpressionOpKind.Binary)
         {
+            RollBackUnifiedBuilder(unified, unifiedCount);
+            RollBackUnifiedBuilder(literalConstants, literalCount);
+            RollBackUnifiedBuilder(stringConstants, stringCount);
             spanLength = 0;
             reason = string.Empty;
             return false;
@@ -8174,16 +8220,47 @@ internal static class UnifiedBytecodeCompiler
 
         if (!IsSupportedBinaryOperator(binary.Operator))
         {
+            RollBackUnifiedBuilder(unified, unifiedCount);
+            RollBackUnifiedBuilder(literalConstants, literalCount);
+            RollBackUnifiedBuilder(stringConstants, stringCount);
             spanLength = 0;
             reason = "Only supported simple binary operators are admitted in this boundary.";
             return false;
         }
 
-        if (!CanAppendSimpleOperandLoadWithDynamic(left, expressionProgram, activationSlots, allowsDynamicIdentifiers) ||
-            !CanAppendSimpleOperandLoadWithDynamic(right, expressionProgram, activationSlots, allowsDynamicIdentifiers))
+        unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.Binary, (int)binary.Operator));
+        spanLength = binaryIndex + 1 - startIndex;
+        reason = string.Empty;
+        return true;
+    }
+
+    private static bool TryAppendFlatSimpleBinaryOperandSpan(
+        ExpressionProgram expressionProgram,
+        int startIndex,
+        int endExclusive,
+        ActivationSlotShape activationSlots,
+        bool allowsDynamicIdentifiers,
+        ImmutableArray<UnifiedBytecodeInstruction>.Builder unified,
+        ImmutableArray<JsValue>.Builder literalConstants,
+        ImmutableArray<string>.Builder stringConstants,
+        out int spanLength,
+        out string reason)
+    {
+        if (startIndex + 2 >= endExclusive)
         {
             spanLength = 0;
-            reason = "Simple binary spans require simple activation-resolved or admitted dynamic operands.";
+            reason = string.Empty;
+            return false;
+        }
+
+        var left = expressionProgram.GetOperation(startIndex);
+        var right = expressionProgram.GetOperation(startIndex + 1);
+        var binary = expressionProgram.GetOperation(startIndex + 2);
+        if (binary.Kind != ExpressionOpKind.Binary ||
+            !IsSupportedBinaryOperator(binary.Operator))
+        {
+            spanLength = 0;
+            reason = string.Empty;
             return false;
         }
 
@@ -8212,6 +8289,133 @@ internal static class UnifiedBytecodeCompiler
 
         unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.Binary, (int)binary.Operator));
         spanLength = 3;
+        reason = string.Empty;
+        return true;
+    }
+
+    private static bool TryAppendSimpleNestedOperandSpan(
+        ExpressionProgram expressionProgram,
+        int startIndex,
+        ActivationSlotShape activationSlots,
+        bool allowsDynamicIdentifiers,
+        ImmutableArray<UnifiedBytecodeInstruction>.Builder unified,
+        ImmutableArray<JsValue>.Builder literalConstants,
+        ImmutableArray<string>.Builder stringConstants,
+        out int spanLength,
+        out string reason)
+    {
+        if (TryAppendFlatSimpleBinaryOperandSpan(
+                expressionProgram,
+                startIndex,
+                expressionProgram.OperationCount,
+                activationSlots,
+                allowsDynamicIdentifiers,
+                unified,
+                literalConstants,
+                stringConstants,
+                out spanLength,
+                out reason) ||
+            TryAppendFlatSimpleUnaryOperandSpan(
+                expressionProgram,
+                startIndex,
+                expressionProgram.OperationCount,
+                activationSlots,
+                allowsDynamicIdentifiers,
+                unified,
+                literalConstants,
+                stringConstants,
+                out spanLength,
+                out reason) ||
+            TryAppendSimplePropertyReadOperandSpan(
+                expressionProgram,
+                startIndex,
+                expressionProgram.OperationCount,
+                activationSlots,
+                allowsDynamicIdentifiers,
+                unified,
+                literalConstants,
+                stringConstants,
+                out spanLength,
+                out reason) ||
+            TryAppendSimpleControlExpressionOperandSpan(
+                expressionProgram,
+                startIndex,
+                activationSlots,
+                allowsDynamicIdentifiers,
+                unified,
+                literalConstants,
+                stringConstants,
+                callTargetConstants: null,
+                slotLayout: null,
+                out spanLength,
+                out reason))
+        {
+            return true;
+        }
+
+        var operation = expressionProgram.GetOperation(startIndex);
+        if (TryAppendSimpleOperandLoadWithDynamic(
+                operation,
+                expressionProgram,
+                activationSlots,
+                allowsDynamicIdentifiers,
+                unified,
+                literalConstants,
+                stringConstants,
+                out reason))
+        {
+            spanLength = 1;
+            return true;
+        }
+
+        spanLength = 0;
+        return false;
+    }
+
+    private static bool TryAppendFlatSimpleUnaryOperandSpan(
+        ExpressionProgram expressionProgram,
+        int startIndex,
+        int endExclusive,
+        ActivationSlotShape activationSlots,
+        bool allowsDynamicIdentifiers,
+        ImmutableArray<UnifiedBytecodeInstruction>.Builder unified,
+        ImmutableArray<JsValue>.Builder literalConstants,
+        ImmutableArray<string>.Builder stringConstants,
+        out int spanLength,
+        out string reason)
+    {
+        if (startIndex + 1 >= endExclusive)
+        {
+            spanLength = 0;
+            reason = string.Empty;
+            return false;
+        }
+
+        var operand = expressionProgram.GetOperation(startIndex);
+        var unary = expressionProgram.GetOperation(startIndex + 1);
+        if (!TryGetSimpleUnaryOpCode(unary.Kind, out var opCode))
+        {
+            spanLength = 0;
+            reason = string.Empty;
+            return false;
+        }
+
+        if (!TryAppendSimpleOperandLoadWithDynamic(
+                operand,
+                expressionProgram,
+                activationSlots,
+                allowsDynamicIdentifiers,
+                unified,
+                literalConstants,
+                stringConstants,
+                out reason))
+        {
+            spanLength = 0;
+            return false;
+        }
+
+        unified.Add(new UnifiedBytecodeInstruction(opCode));
+        spanLength = 2;
         reason = string.Empty;
         return true;
     }
@@ -8696,7 +8900,10 @@ internal static class UnifiedBytecodeCompiler
         UnifiedBytecodeSlotLayout? slotLayout,
         out int spanLength,
         out string reason,
-        bool allowControlExpressions)
+        bool allowControlExpressions,
+        bool allowTypeOfExpressions = true,
+        bool allowUnaryExpressions = true,
+        bool allowBinaryExpressions = true)
     {
         if (slotLayout is not null &&
             callTargetConstants is not null &&
@@ -8787,7 +8994,8 @@ internal static class UnifiedBytecodeCompiler
             return false;
         }
 
-        if (TryAppendSimpleTypeOfOperandSpan(
+        if (allowTypeOfExpressions &&
+            TryAppendSimpleTypeOfOperandSpan(
                 expressionProgram,
                 startIndex,
                 expressionProgram.OperationCount,
@@ -8804,7 +9012,8 @@ internal static class UnifiedBytecodeCompiler
             return true;
         }
 
-        if (TryAppendSimpleBinaryOperandSpan(
+        if (allowBinaryExpressions &&
+            TryAppendSimpleBinaryOperandSpan(
                 expressionProgram,
                 startIndex,
                 expressionProgram.OperationCount,
@@ -8819,7 +9028,8 @@ internal static class UnifiedBytecodeCompiler
             return true;
         }
 
-        if (TryAppendSimpleUnaryOperandSpan(
+        if (allowUnaryExpressions &&
+            TryAppendSimpleUnaryOperandSpan(
                 expressionProgram,
                 startIndex,
                 expressionProgram.OperationCount,
@@ -8953,7 +9163,9 @@ internal static class UnifiedBytecodeCompiler
                 slotLayout,
                 out var leftSpanLength,
                 out reason,
-                allowControlExpressions: false))
+                allowControlExpressions: false,
+                allowUnaryExpressions: false,
+                allowBinaryExpressions: false))
         {
             RollBackSimpleControlExpressionProbe(
                 unified,
@@ -9022,7 +9234,9 @@ internal static class UnifiedBytecodeCompiler
                 slotLayout,
                 out var rhsSpanLength,
                 out reason,
-                allowControlExpressions: true))
+                allowControlExpressions: true,
+                allowUnaryExpressions: false,
+                allowBinaryExpressions: false))
         {
             RollBackSimpleControlExpressionProbe(
                 unified,
@@ -9091,7 +9305,9 @@ internal static class UnifiedBytecodeCompiler
                 slotLayout,
                 out var conditionSpanLength,
                 out reason,
-                allowControlExpressions: false))
+                allowControlExpressions: false,
+                allowUnaryExpressions: false,
+                allowBinaryExpressions: false))
         {
             RollBackSimpleControlExpressionProbe(
                 unified,
@@ -9142,7 +9358,9 @@ internal static class UnifiedBytecodeCompiler
                 slotLayout,
                 out var consequentSpanLength,
                 out reason,
-                allowControlExpressions: true))
+                allowControlExpressions: true,
+                allowUnaryExpressions: false,
+                allowBinaryExpressions: false))
         {
             RollBackSimpleControlExpressionProbe(
                 unified,
@@ -9197,7 +9415,9 @@ internal static class UnifiedBytecodeCompiler
                 slotLayout,
                 out var alternateSpanLength,
                 out reason,
-                allowControlExpressions: true))
+                allowControlExpressions: true,
+                allowUnaryExpressions: false,
+                allowBinaryExpressions: false))
         {
             RollBackSimpleControlExpressionProbe(
                 unified,
@@ -9518,7 +9738,7 @@ internal static class UnifiedBytecodeCompiler
             return false;
         }
 
-        if (TryAppendSimpleBinaryOperandSpan(
+        if (TryAppendFlatSimpleBinaryOperandSpan(
                 expressionProgram,
                 startIndex,
                 endExclusive,
@@ -10481,38 +10701,42 @@ internal static class UnifiedBytecodeCompiler
             return false;
         }
 
-        var operand = expressionProgram.GetOperation(startIndex);
-        var unary = expressionProgram.GetOperation(startIndex + 1);
-        if (!TryGetSimpleUnaryOpCode(unary.Kind, out var opCode))
-        {
-            spanLength = 0;
-            reason = string.Empty;
-            return false;
-        }
-
-        if (!CanAppendSimpleOperandLoadWithDynamic(operand, expressionProgram, activationSlots, allowsDynamicIdentifiers))
-        {
-            spanLength = 0;
-            reason = "Simple unary spans require a simple activation-resolved or admitted dynamic operand.";
-            return false;
-        }
-
-        if (!TryAppendSimpleOperandLoadWithDynamic(
-                operand,
+        var unifiedCount = unified.Count;
+        var literalCount = literalConstants.Count;
+        var stringCount = stringConstants.Count;
+        if (!TryAppendSimpleNestedOperandSpan(
                 expressionProgram,
+                startIndex,
                 activationSlots,
                 allowsDynamicIdentifiers,
                 unified,
                 literalConstants,
                 stringConstants,
-                out reason))
+                out var operandSpanLength,
+                out reason) ||
+            startIndex + operandSpanLength >= endExclusive)
         {
+            RollBackUnifiedBuilder(unified, unifiedCount);
+            RollBackUnifiedBuilder(literalConstants, literalCount);
+            RollBackUnifiedBuilder(stringConstants, stringCount);
             spanLength = 0;
+            reason = string.Empty;
+            return false;
+        }
+
+        var unary = expressionProgram.GetOperation(startIndex + operandSpanLength);
+        if (!TryGetSimpleUnaryOpCode(unary.Kind, out var opCode))
+        {
+            RollBackUnifiedBuilder(unified, unifiedCount);
+            RollBackUnifiedBuilder(literalConstants, literalCount);
+            RollBackUnifiedBuilder(stringConstants, stringCount);
+            spanLength = 0;
+            reason = string.Empty;
             return false;
         }
 
         unified.Add(new UnifiedBytecodeInstruction(opCode));
-        spanLength = 2;
+        spanLength = operandSpanLength + 1;
         reason = string.Empty;
         return true;
     }

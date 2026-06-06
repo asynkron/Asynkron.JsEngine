@@ -529,7 +529,7 @@ semantic bridge or mis-parking dynamic residue as ordinary fallback work.
 | `A51h` | Array/object/template literal, spread source, computed object key, and simple literal-span shapes | Existing expression-program literal/spread evaluation | both |
 | `A51i` | Computed/optional/private property-read and receiver-boundary shapes | Existing expression-program property evaluation | both |
 | `A51j` | Property write, compound/logical write, update, delete, name-inference, key-span, and RHS-span shapes | Existing expression-program mutation evaluation | both |
-| `A51k` | Simple binary/unary/control/conditional operand spans | Existing expression-program evaluation | both |
+| `A51k` | Simple binary/unary/control/conditional operand spans; nested admitted literal-value operand spans now route through the production VM, while call/private/dynamic-neighbor operands remain outside this lane | Existing expression-program evaluation | both |
 | `A51l` | Catch/try/driver cleanup topology diagnostics not otherwise captured by concrete driver rows | Existing execution-plan runner | both |
 | `A51m` | Measured property-read span rollback diagnostics | Existing property-read expression evaluation | both |
 | `B47a` | Resumable-only `yield*` state-slot and synthetic resume-target layout | Existing generator/async execution-plan route | resumable only |

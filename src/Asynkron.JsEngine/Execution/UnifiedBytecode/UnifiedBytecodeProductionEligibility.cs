@@ -9142,11 +9142,10 @@ internal static class UnifiedBytecodeProductionEligibility
                 return true;
 
             case ExpressionOpKind.LoadNamedCallTarget:
-                // receiver stays as `this`, callee pushed: net +1. Reject optional/private.
+                // receiver stays as `this`, callee pushed: net +1. Reject optional.
                 if (depthBefore < 1 ||
                     op.IsOptional ||
-                    op.ShortCircuitOnNullishTarget ||
-                    op.GetString(stringConstants).IsPrivateName())
+                    op.ShortCircuitOnNullishTarget)
                 {
                     return false;
                 }

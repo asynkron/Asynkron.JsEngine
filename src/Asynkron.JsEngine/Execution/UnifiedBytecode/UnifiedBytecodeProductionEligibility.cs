@@ -3587,14 +3587,11 @@ internal static class UnifiedBytecodeProductionEligibility
             return false;
         }
 
-        if (FunctionCapturesActivationSlot(function, activationSlots, out var capturedName))
-        {
-            declineReason =
-                $"Class declaration is outside B36: explicit derived constructor body captures activation binding '{capturedName}' and needs the materialized body environment route.";
-            return false;
-        }
-
-        var result = Evaluate(plan, new UnifiedBytecodeProductionActivationDescriptor());
+        var descriptor = FunctionCapturesActivationSlot(function, activationSlots, out _)
+            ? new UnifiedBytecodeProductionActivationDescriptor(
+                AllowsOrdinaryDynamicIdentifierEnvironmentOperations: true)
+            : new UnifiedBytecodeProductionActivationDescriptor();
+        var result = Evaluate(plan, descriptor);
         if (result.IsEligible)
         {
             return true;

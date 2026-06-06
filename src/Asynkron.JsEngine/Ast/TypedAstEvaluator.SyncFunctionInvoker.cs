@@ -3370,6 +3370,10 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                 CanUseProductionUnifiedBytecodeDerivedClassConstructorActivation(plan, newTarget);
             var canUseBaseClassConstructorPath =
                 CanUseProductionUnifiedBytecodeBaseClassConstructorActivation(plan, newTarget);
+            var canUseClassConstructorCapturedClosurePath =
+                (canUseDerivedClassConstructorPath || canUseBaseClassConstructorPath) &&
+                _hasCapturedActivationInClosure &&
+                !_hasClosureWithObject;
             var canUseImplicitArgumentsObjectDependencyPath =
                 CanUseProductionUnifiedBytecodeImplicitArgumentsObjectDependencyPath(plan);
             var canUseFinalRestParameterPath =
@@ -3414,6 +3418,7 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                        canUseOrdinaryDynamicNamePath ||
                        canUseArrowFunctionPath ||
                        canUseCapturedClosurePath ||
+                       canUseClassConstructorCapturedClosurePath ||
                        canUseImplicitArgumentsObjectDependencyPath) ||
                    (canUseDerivedClassConstructorPath || canUseBaseClassConstructorPath) &&
                    plan.ActivationSlots is not null;
@@ -3440,6 +3445,10 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
         {
             var canUseClassConstructorActivationPath =
                 canUseDerivedClassConstructorPath || canUseBaseClassConstructorPath;
+            var canUseClassConstructorCapturedClosurePath =
+                canUseClassConstructorActivationPath &&
+                _hasCapturedActivationInClosure &&
+                !_hasClosureWithObject;
             var hasUnprovenDynamicActivation = !_allowIdentifierCache &&
                                                !canUseDynamicNamePath &&
                                                !canUseOrdinaryDynamicNamePath &&
@@ -3469,7 +3478,8 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                     canUseOrdinaryDynamicNamePath ||
                     canUseImplicitArgumentsObjectDependencyPath ||
                     canUseArrowFunctionPath ||
-                    canUseCapturedClosurePath,
+                    canUseCapturedClosurePath ||
+                    canUseClassConstructorCapturedClosurePath,
                 AllowsImplicitArgumentsObjectPropertyReadOperands:
                     allowImplicitArgumentsObjectPropertyReadOperands,
                 IsStrict: _isStrict);

@@ -463,15 +463,15 @@
           ]
         },
         {
-          "id": "B36-class-declaration-explicit-derived-constructor-captures-activation-declines",
-          "claim": "open",
-          "kind": "eligibility",
-          "subject": "resumable-generator",
-          "functionName": "g",
-          "source": "function* g(Base, outer) {\n  yield 'ready';\n  class Box extends Base {\n    constructor(value) {\n      super(outer);\n      this.value = value;\n    }\n  }\n  yield typeof Box;\n}",
-          "expectedEligible": false,
-          "declineCode": "UnsupportedPlanShape",
-          "reasonContains": "explicit derived constructor body captures activation binding 'outer'"
+          "id": "B36-class-declaration-explicit-derived-constructor-captures-activation-routes",
+          "claim": "admitted",
+          "kind": "runtime",
+          "source": "class Base {\n  constructor(seed) { this.seed = seed; }\n  read() { return this.seed; }\n}\nfunction* g(Base, outer) {\n  yield 'ready';\n  class Box extends Base {\n    constructor(value) {\n      super(outer);\n      this.value = value;\n    }\n  }\n  var box = new Box(7);\n  yield box.read() + '|' + box.value + '|' + (box instanceof Base);\n}\nvar iterator = g(Base, 35);\nvar first = iterator.next();\nvar second = iterator.next();\nfirst.value + ':' + first.done + '|' + second.value + ':' + second.done;",
+          "expectedResult": "ready:false|35|7|true:false",
+          "requiredLogs": [
+            "unified-bytecode-resumable-generator-fast-path func=g",
+            "unified-bytecode-production-fast-path func=Box"
+          ]
         },
         {
           "id": "B36-class-declaration-extends-static-block-routes",

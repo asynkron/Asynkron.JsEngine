@@ -544,7 +544,7 @@ public sealed class UnifiedBytecodeResumableClassDeclarationTests(ITestOutputHel
     }
 
     [Fact]
-    public void EvaluateResumable_ClassDeclarationExplicitDerivedConstructorCapturesActivation_DeclinesBeforeVm()
+    public void EvaluateResumable_ClassDeclarationExplicitDerivedConstructorCapturesActivation_AdmitsDeclareClass()
     {
         var plan = GetFunctionPlan("""
             function* g(Base, outer) {
@@ -564,12 +564,11 @@ public sealed class UnifiedBytecodeResumableClassDeclarationTests(ITestOutputHel
             plan,
             new UnifiedBytecodeProductionActivationDescriptor(IsGenerator: true));
 
-        Assert.False(result.IsEligible);
-        Assert.Equal(UnifiedBytecodeProductionDeclineCode.UnsupportedPlanShape, result.Code);
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
         Assert.Contains(
-            "explicit derived constructor body captures activation binding 'outer'",
-            result.Reason,
-            StringComparison.Ordinal);
+            result.Program.Instructions,
+            static instruction => instruction.OpCode == UnifiedBytecodeOpCode.DeclareClass);
     }
 
     [Fact]
@@ -1134,6 +1133,44 @@ public sealed class UnifiedBytecodeResumableClassDeclarationTests(ITestOutputHel
                         message.Contains("SyncFunctionInvoker", StringComparison.Ordinal) ||
                         message.Contains("simple-ir", StringComparison.Ordinal) ||
                         message.Contains("unified-bytecode-production", StringComparison.Ordinal))));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task GeneratorClassDeclarationExplicitDerivedConstructorCapturesActivation_RoutesResumable()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            class Base {
+                constructor(seed) {
+                    this.seed = seed;
+                }
+
+                read() {
+                    return this.seed;
+                }
+            }
+
+            function* g(Base, outer) {
+                yield "ready";
+                class Box extends Base {
+                    constructor(value) {
+                        super(outer);
+                        this.value = value;
+                    }
+                }
+                var box = new Box(7);
+                yield box.read() + "|" + box.value + "|" + (box instanceof Base);
+            }
+
+            var iterator = g(Base, 35);
+            var first = iterator.next();
+            var second = iterator.next();
+            first.value + ":" + first.done + "|" + second.value + ":" + second.done;
+            """);
+
+        Assert.Equal("ready:false|35|7|true:false", result);
+        AssertGeneratorFastPath("g", argc: 2);
+        AssertProductionFastPath("Box");
     }
 
     [Fact(Timeout = 5000)]

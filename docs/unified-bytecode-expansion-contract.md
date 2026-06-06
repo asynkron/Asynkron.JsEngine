@@ -777,34 +777,38 @@ predicates and proof tests.
   - NESTED FUNCTION LITERALS (`var h = function(){...}`) inside generator/async
     bodies are now split by capture analysis. Non-capturing literals route through
     `ExecuteResumable` via `LoadFunctionLiteral` and `EnsureHasName`; object
-    method/accessor literals use the same path. Generator nested function literals
-    that capture a root body local also route after invocation setup materializes
-    a body environment whose activation slots are mirrored from the resume-state
-    flat slots and kept synchronized on slot writes. This admits
-    `function* g(){ var n=1; var f=()=>n; yield f(); n=2; yield f(); }`, so the
-    closure observes `1` then `2` on the resumable generator route. Async and
-    async-generator captured-local literals, lexical-this/private-name dependent
-    literals, and function declarations nested inside an otherwise non-capturing
-    function literal still decline until their closure contexts or declaration
-    instantiation semantics are represented by the resumable route. B23 remains
-    partial.
+    method/accessor literals use the same path. Generator and async-function
+    nested function literals that capture a root body local also route after
+    invocation setup materializes a body environment whose activation slots are
+    mirrored from the resume-state flat slots and kept synchronized on slot
+    writes. This admits `function* g(){ var n=1; var f=()=>n; yield f(); n=2;
+    yield f(); }`, so the closure observes `1` then `2` on the resumable
+    generator route, and admits async-function closures that cross `await` and
+    observe post-resume slot writes. Async-generator captured-local literals,
+    lexical-this/private-name dependent literals, function declarations nested
+    inside an otherwise non-capturing function literal, and captured helper calls
+    inside the async body that still cross the call-target boundary decline until
+    their closure contexts, declaration-instantiation semantics, or call-context
+    semantics are represented by the resumable route. B23 remains partial.
   - HOISTED NESTED FUNCTION DECLARATIONS (`function helper(){...}`;
     `FunctionDeclarationInstruction` / `DeclareFunction`) inside a generator/async
     body are now partially admitted (B36): direct root function-scoped
     declarations route when the resumable invoker pre-populates the helper's
     compiled VM flat slot before `ExecuteResumable` starts. Non-capturing
     helpers route in generators, async functions, and async generators. The
-    sync-generator route also admits helpers that capture root body locals after
-    invocation setup materializes the resumable body environment and creates the
-    helper against that environment, so the helper observes flat-slot mutations
-    across `yield`/resume. A43 now admits descriptor-backed block/Annex B
-    declarations through materialized block environments. Async/async-generator
-    captured helpers still remain declined because those invokers do not yet
-    prove the same materialized body environment lifetime. Recursive/sibling
-    helper graphs, dynamic/eval helpers, and class declarations are separate B36
-    declaration-instantiation work. `DeclareFunction` remains OFF the resumable
-    opcode allowlist and `FunctionDeclarationInstruction` remains conditionally
-    guarded by the invoker-proof activation flag; the boundary is pinned by
+    sync-generator and async-function routes also admit helpers that capture root
+    body locals after invocation setup materializes the resumable body environment
+    and creates the helper against that environment, so the helper observes
+    flat-slot mutations across `yield`/resume or `await`/resume. A43 now admits
+    descriptor-backed block/Annex B declarations through materialized block
+    environments. Async-generator captured helpers remain declined because that
+    invoker does not yet prove the same materialized body environment lifetime.
+    Recursive/sibling helper graphs, dynamic/eval helpers, captured helper calls
+    inside async bodies that still cross the call-target boundary, and class
+    declarations are separate B36 declaration-instantiation work.
+    `DeclareFunction` remains OFF the resumable opcode allowlist and
+    `FunctionDeclarationInstruction` remains conditionally guarded by the
+    invoker-proof activation flag; the boundary is pinned by
     `UnifiedBytecodeResumableNestedFunctionTests`.
 - Captured function scopes outside the simple-return captured-closure route,
   unresolved non-with dynamic activation, arrow lexical `this` / `new.target`,

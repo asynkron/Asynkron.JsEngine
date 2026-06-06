@@ -100,18 +100,22 @@ public static partial class TypedAstEvaluator
             if (!TryCollectResumableRootHoistedFunctionDeclarations(
                     function,
                     plan,
-                    allowCapturedActivationSlots: false,
+                    allowCapturedActivationSlots: true,
                     out var hoistedFunctionDeclarations))
             {
                 return false;
             }
 
+            var needsMaterializedBodyEnvironment =
+                UnifiedBytecodeProductionEligibility.PlanNeedsMaterializedResumableBodyEnvironment(plan) ||
+                HoistedFunctionDeclarationsNeedMaterializedBodyEnvironment(hoistedFunctionDeclarations);
             var activation = new UnifiedBytecodeProductionActivationDescriptor(
                 IsAsyncLike: true,
                 IsGenerator: false,
                 HasCapturedOrDynamicActivation: !AllowsIdentifierCaching(function) || closure.HasWithObjectInChain(),
                 HasArgumentsObjectDependency: !function.IsArrow && NeedsArgumentsBinding(function),
-                AllowsRootFunctionDeclarationInstructions: !hoistedFunctionDeclarations.IsEmpty);
+                AllowsRootFunctionDeclarationInstructions: !hoistedFunctionDeclarations.IsEmpty,
+                AllowsMaterializedBodyEnvironmentFunctionLiterals: needsMaterializedBodyEnvironment);
             var eligibility = UnifiedBytecodeProductionEligibility.EvaluateResumable(plan, activation);
             if (!eligibility.IsEligible)
             {
@@ -148,10 +152,31 @@ public static partial class TypedAstEvaluator
                 : JsValue.Undefined;
             var callingEnvironment = resumableEnvironment;
             SuperBinding? resumableSuperBinding = null;
-            if (RequiresResumableSuperEnvironment(program) &&
+            var requiresResumableSuperBinding = RequiresResumableSuperEnvironment(program);
+            if (needsMaterializedBodyEnvironment && requiresResumableSuperBinding)
+            {
+                return false;
+            }
+
+            if (requiresResumableSuperBinding &&
                 !TryCreateResumableSuperBinding(closure, boundThis, homeObject, out resumableSuperBinding))
             {
                 return false;
+            }
+
+            if (needsMaterializedBodyEnvironment)
+            {
+                if (!TryCreateMaterializedResumableBodyEnvironment(
+                        plan,
+                        program,
+                        slots,
+                        resumableEnvironment,
+                        isStrict,
+                        function.Source,
+                        out callingEnvironment))
+                {
+                    return false;
+                }
             }
 
             if (!TryPopulateResumableRootHoistedFunctionDeclarations(
@@ -168,6 +193,7 @@ public static partial class TypedAstEvaluator
             _unifiedState = new UnifiedBytecodeResumeState(program, slots, boundThis, callingEnvironment, isStrict, newTarget)
             {
                 IsAsyncLike = true,
+                HasMaterializedBodyEnvironment = needsMaterializedBodyEnvironment,
                 ResumableSuperBinding = resumableSuperBinding,
                 // Thread the private-name scopes lexically active where this async body was defined so the
                 // resumable VM can re-enter them on each per-step continuation and resolve `#name in obj`.

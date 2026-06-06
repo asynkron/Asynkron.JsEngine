@@ -9994,7 +9994,7 @@ internal static class UnifiedBytecodeCompiler
             return true;
         }
 
-        if (TryAppendSimpleUnaryOperandSpan(
+        if (TryAppendFlatSimpleUnaryOperandSpan(
                 expressionProgram,
                 startIndex,
                 endExclusive,

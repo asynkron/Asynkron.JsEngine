@@ -11607,6 +11607,30 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
+    public void Evaluate_TypeOfUnaryConditionalOperand_AcceptsOwnedOpcodes()
+    {
+        var plan = GetFunctionPlan("""
+            function nested(a, b, pick) {
+                return typeof -(pick ? a : b);
+            }
+            """,
+            "nested");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.JumpIfFalse);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.UnaryMinus);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.TypeOf);
+    }
+
+    [Fact]
     public void Evaluate_LogicalAndAssignment_SlotBased_Accepts()
     {
         var plan = GetFunctionPlan("""

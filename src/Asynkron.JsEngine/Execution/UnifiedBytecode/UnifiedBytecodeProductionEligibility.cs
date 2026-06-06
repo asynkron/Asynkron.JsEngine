@@ -10611,7 +10611,7 @@ internal static class UnifiedBytecodeProductionEligibility
             return true;
         }
 
-        if (TryMeasureSimpleUnaryOperandSpan(
+        if (TryMeasureFlatSimpleUnaryOperandSpan(
                 program,
                 startIndex,
                 identifierConstants,

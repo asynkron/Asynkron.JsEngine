@@ -220,12 +220,23 @@
           ]
         },
         {
-          "id": "B24h-computed-name-nested-activation-capture-escape-declines",
+          "id": "B24h-computed-name-nested-activation-capture-escape-routes",
+          "claim": "admitted",
+          "kind": "runtime",
+          "source": "function* g(key) {\n  yield 'ready';\n  var leaked;\n  var current = key;\n  var C = class {\n    [(() => { leaked = function read() { return current; }; return 'value'; })()]() { return 1; }\n  };\n  current = key + '!';\n  yield leaked;\n}\nvar iterator = g('seed');\nvar first = iterator.next();\nvar second = iterator.next();\nfirst.value + ':' + first.done + '|' + second.value() + ':' + second.done;",
+          "expectedResult": "ready:false|seed!:false",
+          "requiredLogs": [
+            "unified-bytecode-resumable-generator-fast-path func=g",
+            "unified-bytecode-production-fast-path func=read"
+          ]
+        },
+        {
+          "id": "B24h-computed-field-activation-initializer-declines",
           "claim": "open",
           "kind": "eligibility",
           "subject": "resumable-generator",
           "functionName": "g",
-          "source": "function* g(key) {\n  yield 1;\n  var leaked;\n  var C = class {\n    [(() => { leaked = () => key; return 'value'; })()]() { return 1; }\n  };\n  return C;\n}",
+          "source": "function* g(seed) {\n  yield 1;\n  var C = class {\n    ['field'] = seed;\n  };\n  return C;\n}",
           "expectedEligible": false,
           "declineCode": "UnsupportedPlanShape",
           "reasonContains": "B24"
@@ -346,12 +357,23 @@
           ]
         },
         {
-          "id": "B36-class-declaration-extends-computed-name-nested-activation-capture-escape-declines",
+          "id": "B36-class-declaration-extends-computed-name-nested-activation-capture-escape-routes",
+          "claim": "admitted",
+          "kind": "runtime",
+          "source": "class Base {}\nfunction* g(key) {\n  yield 'ready';\n  var leaked;\n  var current = key;\n  class Box extends Base {\n    [(() => { leaked = function read() { return current; }; return 'value'; })()]() {\n      return 1;\n    }\n  }\n  current = key + '!';\n  yield leaked;\n}\nvar iterator = g('seed');\nvar first = iterator.next();\nvar second = iterator.next();\nfirst.value + ':' + first.done + '|' + second.value() + ':' + second.done;",
+          "expectedResult": "ready:false|seed!:false",
+          "requiredLogs": [
+            "unified-bytecode-resumable-generator-fast-path func=g",
+            "unified-bytecode-production-fast-path func=read"
+          ]
+        },
+        {
+          "id": "B36-class-declaration-computed-name-activation-call-declines",
           "claim": "open",
           "kind": "eligibility",
           "subject": "resumable-generator",
           "functionName": "g",
-          "source": "class Base {}\nfunction* g(key) {\n  yield 'ready';\n  var leaked;\n  class Box extends Base {\n    [(() => { leaked = () => key; return 'value'; })()]() {\n      return 1;\n    }\n  }\n  yield typeof Box;\n}",
+          "source": "function* g(read) {\n  yield 'ready';\n  class Box {\n    [read()]() {\n      return 1;\n    }\n  }\n  yield typeof Box;\n}",
           "expectedEligible": false,
           "declineCode": "UnsupportedPlanShape",
           "reasonContains": "not supported by B24h"

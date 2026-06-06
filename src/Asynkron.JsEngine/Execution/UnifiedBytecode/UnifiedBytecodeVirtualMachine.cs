@@ -3955,7 +3955,8 @@ internal static class UnifiedBytecodeVirtualMachine
                     {
                         var classExpression = program.ClassLiteralConstants[instruction.Operand];
                         var callingEnvironment = RequireDynamicEnvironment(currentEnvironment);
-                        var classEnvironment = RequiresResumableClassLiteralSlotEnvironment(classExpression)
+                        var classEnvironment = slotEnvironments is null &&
+                                               RequiresResumableClassLiteralSlotEnvironment(classExpression)
                             ? CreateResumableClassLiteralEnvironment(
                                 program,
                                 slots,
@@ -3974,9 +3975,9 @@ internal static class UnifiedBytecodeVirtualMachine
                             context.SetThrow(signal.ThrownValue);
                         }
 
-                        if (!ReferenceEquals(classEnvironment, callingEnvironment))
+                        if (slotEnvironments is not null || !ReferenceEquals(classEnvironment, callingEnvironment))
                         {
-                            SyncEnvironmentToUnifiedSlots(program, slots, slotEnvironments: null, classEnvironment);
+                            SyncEnvironmentToUnifiedSlots(program, slots, slotEnvironments, classEnvironment);
                         }
 
                         if (context.ShouldStopEvaluation)

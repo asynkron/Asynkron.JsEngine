@@ -18,6 +18,7 @@ public sealed class UnifiedBytecodeResumableClassExpressionTests(ITestOutputHelp
     : InternalTestBase(output)
 {
     private const string ResumableGeneratorFastPathLog = "unified-bytecode-resumable-generator-fast-path";
+    private const string ProductionFastPathLog = "unified-bytecode-production-fast-path";
     private const string ResumableAsyncFastPathLog = "unified-bytecode-resumable-async-fast-path";
 
     [Fact]
@@ -1398,17 +1399,60 @@ public sealed class UnifiedBytecodeResumableClassExpressionTests(ITestOutputHelp
     }
 
     [Fact]
-    public void EvaluateResumable_ClassExpressionComputedNameNestedActivationCaptureEscapes_DeclinesBeforeVm() =>
-        AssertClassExpressionDeclines("""
-        function* g(key) {
-            yield 1;
-            var leaked;
-            var C = class {
-                [(() => { leaked = () => key; return "value"; })()]() { return 1; }
-            };
-            return C;
-        }
-        """);
+    public void EvaluateResumable_ClassExpressionComputedNameNestedActivationCaptureEscapes_AdmitLoadClassLiteral()
+    {
+        var plan = GetFunctionPlan("""
+            function* g(key) {
+                yield 1;
+                var leaked;
+                var current = key;
+                var C = class {
+                    [(() => { leaked = function read() { return current; }; return "value"; })()]() { return 1; }
+                };
+                current = key + "!";
+                return leaked;
+            }
+            """,
+            "g");
+
+        var result = UnifiedBytecodeProductionEligibility.EvaluateResumable(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor(IsGenerator: true));
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(
+            result.Program.Instructions,
+            static instruction => instruction.OpCode == UnifiedBytecodeOpCode.LoadClassLiteral);
+        Assert.True(UnifiedBytecodeProductionEligibility.PlanNeedsMaterializedResumableBodyEnvironment(plan));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task GeneratorClassExpressionComputedNameNestedActivationCaptureEscapes_RoutesResumableAndReadsLaterMutation()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function* g(key) {
+                yield "ready";
+                var leaked;
+                var current = key;
+                var C = class {
+                    [(() => { leaked = function read() { return current; }; return "value"; })()]() { return 1; }
+                };
+                current = key + "!";
+                yield leaked;
+            }
+
+            var iterator = g("seed");
+            var first = iterator.next();
+            var second = iterator.next();
+            first.value + ":" + first.done + "|" + second.value() + ":" + second.done;
+            """);
+
+        Assert.Equal("ready:false|seed!:false", result);
+        AssertGeneratorFastPath("g", argc: 1);
+        AssertProductionFastPath("read");
+    }
 
     [Fact]
     public void EvaluateResumable_ClassExpressionComputedStaticFieldWithActivationInitializer_DeclinesBeforeVm() =>
@@ -1931,6 +1975,20 @@ public sealed class UnifiedBytecodeResumableClassExpressionTests(ITestOutputHelp
             record => record.Message.Contains(
                 $"{ResumableGeneratorFastPathLog} func={functionName} argc={argc}",
                 StringComparison.Ordinal));
+
+    private void AssertProductionFastPath(string functionName) =>
+        Assert.True(
+            CurrentLogger!.Collector.Snapshot().Any(
+                record => record.Message.Contains(
+                    $"{ProductionFastPathLog} func={functionName}",
+                    StringComparison.Ordinal)),
+            string.Join(
+                Environment.NewLine,
+                CurrentLogger!.Collector.Snapshot()
+                    .Select(static record => record.Message)
+                    .Where(static message => message.Contains(
+                        ProductionFastPathLog,
+                        StringComparison.Ordinal))));
 
     [Fact(Timeout = 5000)]
     public async Task GeneratorStaticFieldClosureInitializer_FallsBackAndObservesLaterActivationMutation()

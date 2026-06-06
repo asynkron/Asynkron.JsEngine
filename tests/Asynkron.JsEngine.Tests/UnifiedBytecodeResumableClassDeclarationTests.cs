@@ -235,18 +235,20 @@ public sealed class UnifiedBytecodeResumableClassDeclarationTests(ITestOutputHel
     }
 
     [Fact]
-    public void EvaluateResumable_ClassDeclarationExtendsComputedNameNestedActivationCaptureEscapes_DeclinesBeforeVm()
+    public void EvaluateResumable_ClassDeclarationExtendsComputedNameNestedActivationCaptureEscapes_AdmitsDeclareClass()
     {
         var plan = GetFunctionPlan("""
             function* g(Base, key) {
                 yield "ready";
                 var leaked;
+                var current = key;
                 class Box extends Base {
-                    [(() => { leaked = () => key; return "value"; })()]() {
+                    [(() => { leaked = function read() { return current; }; return "value"; })()]() {
                         return 1;
                     }
                 }
-                yield typeof Box;
+                current = key + "!";
+                yield leaked;
             }
             """,
             "g");
@@ -255,9 +257,43 @@ public sealed class UnifiedBytecodeResumableClassDeclarationTests(ITestOutputHel
             plan,
             new UnifiedBytecodeProductionActivationDescriptor(IsGenerator: true));
 
-        Assert.False(result.IsEligible);
-        Assert.Equal(UnifiedBytecodeProductionDeclineCode.UnsupportedPlanShape, result.Code);
-        Assert.Contains("not supported by B24h", result.Reason, StringComparison.Ordinal);
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(
+            result.Program.Instructions,
+            static instruction => instruction.OpCode == UnifiedBytecodeOpCode.DeclareClass);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task GeneratorClassDeclarationExtendsComputedNameNestedActivationCaptureEscapes_RoutesResumableAndReadsLaterMutation()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            class Base {
+            }
+
+            function* g(key) {
+                yield "ready";
+                var leaked;
+                var current = key;
+                class Box extends Base {
+                    [(() => { leaked = function read() { return current; }; return "value"; })()]() {
+                        return 1;
+                    }
+                }
+                current = key + "!";
+                yield leaked;
+            }
+
+            var iterator = g("seed");
+            var first = iterator.next();
+            var second = iterator.next();
+            first.value + ":" + first.done + "|" + second.value() + ":" + second.done;
+            """);
+
+        Assert.Equal("ready:false|seed!:false", result);
+        AssertGeneratorFastPath("g", argc: 1);
+        AssertProductionFastPath("read");
     }
 
     [Fact]

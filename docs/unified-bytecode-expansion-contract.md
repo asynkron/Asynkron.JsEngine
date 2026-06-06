@@ -99,7 +99,8 @@ statement interpretation.
   computed names either avoid resumable activation slots or use owned activation
   read/write/update/reference-store/delete operations (with unqualified
   identifier delete preserved as the class-body strict-error path) or immediate
-  zero-argument computed-name IIFEs that do not create another nested closure,
+  zero-argument computed-name IIFEs, including IIFEs that create escaping
+  activation-capturing closures under the materialized body-environment route,
   and whose field initializers, constructor bodies, and member bodies do not
   capture activation slots, including mixes with non-computed public
   fields/methods/accessors under the same activation-safety rules, and mixed
@@ -108,10 +109,10 @@ statement interpretation.
   bodies do not capture activation slots, are resumable-admitted. The VM handler still delegates
   class-definition evaluation to lower-level class machinery that can run
   expression programs and static-block IR plans, and the remaining B24h/B24i
-  shapes keep computed-super, computed-name
-  unadmitted call-target dependencies, escaping nested computed-name activation
-  captures, materialized-environment, member-super, and activation-slot
-  `extends` shapes declined.
+  shapes keep computed-super, computed-name unadmitted call-target dependencies,
+  activation-capturing field initializers, constructor/member bodies,
+  materialized-environment, member-super, and activation-slot `extends` shapes
+  declined.
 - `UnifiedBytecodeCompiler` now has generated audit coverage for every declared
   IR instruction record. Function-scoped `FunctionDeclarationInstruction`
   entries compile as no-ops after fast activation hoisting installs the callable
@@ -458,9 +459,10 @@ read/write/update/reference-store/delete operations, including the strict-error
 unqualified identifier delete path and bounded non-spread
 activation-target calls whose argument region is already admitted by the
 production complex-call-argument walker, plus immediate zero-argument
-computed-name IIFEs that capture an activation slot but do not create another
-nested closure, and whose field initializer programs plus constructor/member
-bodies do not capture activation slots, including mixes with non-computed public
+computed-name IIFEs, including IIFEs that create escaping activation-capturing
+closures under the materialized body-environment route, and whose field
+initializer programs plus constructor/member bodies do not capture activation
+slots, including mixes with non-computed public
 fields/methods/accessors under the same activation-safety rules, plus public
 non-computed static methods/accessors whose bodies do not capture activation
 slots and public non-computed static-field class literals with `extends` whose
@@ -475,9 +477,9 @@ initializers through expression programs and static blocks through
 activation slots also remain declined until class-definition evaluation owns
 that environment bridge. The remaining B24h and B24i shapes remain declined by
 the resumable shape gate: computed names that use direct-eval/spread/construct/super
-or otherwise unadmitted call-target shapes, or create escaping nested activation
-captures still stay outside B24h, and
-private/capturing public accessor neighbors and static-block-neighbor mixed
+or otherwise unadmitted call-target shapes still stay outside B24h, and
+activation-capturing field initializers, constructor/member bodies,
+private/capturing public accessor neighbors, and static-block-neighbor mixed
 static shapes remain outside the admitted B24 subsets.
 
 - `B24a:ClassExpressionConstructor`
@@ -882,8 +884,9 @@ predicates and proof tests.
     classified static-block IR fallback. Public instance computed-member
     `extends` declarations now route by composing the standalone superclass
     compile check, the B36 constructor predicate, and the B24h computed public
-    member gate, including immediate non-escaping computed-name IIFEs under the
-    B24h subset. Public instance super-member and public static super-member
+    member gate, including immediate computed-name IIFEs that create escaping
+    activation-capturing closures under the B24h materialized body-environment
+    subset. Public instance super-member and public static super-member
     `extends` declarations now route even when their member bodies capture
     resumable activation slots, public instance super-field declarations route
     even when field initializers capture resumable activation slots, and public

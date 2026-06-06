@@ -1547,12 +1547,20 @@ internal static class UnifiedBytecodeProductionEligibility
                 return true;
             }
 
+            if (ExpressionProgramHasActivationCapturingClassLiteralComputedName(
+                    program,
+                    activationSlots,
+                    out var classLiteralCapturedName) &&
+                IsMaterializedResumableBodyEnvironmentCapture(classLiteralCapturedName))
+            {
+                return true;
+            }
+
             if (ExpressionProgramHasActivationCapturingFunctionLiteral(
                     program,
                     activationSlots,
                     out var capturedName) &&
-                capturedName != NestedFunctionDeclarationBoundary &&
-                (capturedName.Length == 0 || capturedName[0] != '<'))
+                IsMaterializedResumableBodyEnvironmentCapture(capturedName))
             {
                 return true;
             }
@@ -1584,7 +1592,7 @@ internal static class UnifiedBytecodeProductionEligibility
                 }
 
                 if (capturedName != NestedFunctionDeclarationBoundary &&
-                    (capturedName.Length == 0 || capturedName[0] != '<'))
+                    IsMaterializedResumableBodyEnvironmentCapture(capturedName))
                 {
                     return true;
                 }
@@ -1593,6 +1601,71 @@ internal static class UnifiedBytecodeProductionEligibility
 
         return false;
     }
+
+    private static bool ExpressionProgramHasActivationCapturingClassLiteralComputedName(
+        ExpressionProgram program,
+        ActivationSlotShape activationSlots,
+        out string capturedName)
+    {
+        capturedName = string.Empty;
+        if (program.IsEmpty)
+        {
+            return false;
+        }
+
+        var objectConstants = program.ObjectConstants.AsSpan();
+        foreach (var operation in program.EnumerateOperations())
+        {
+            if (operation.Kind != ExpressionOpKind.LoadClassLiteral)
+            {
+                continue;
+            }
+
+            var classExpression = operation.GetObject<ClassExpression>(objectConstants);
+            var cache = ((IAstCacheable<ClassDefinitionProgramCache>)classExpression.Definition).GetOrCreateCache();
+            if (!cache.Succeeded)
+            {
+                capturedName = "<unknown>";
+                return true;
+            }
+
+            if (ClassComputedNameProgramsHaveActivationCapturingFunctionLiteral(
+                    cache.MemberNamePrograms,
+                    activationSlots,
+                    out capturedName) ||
+                ClassComputedNameProgramsHaveActivationCapturingFunctionLiteral(
+                    cache.FieldNamePrograms,
+                    activationSlots,
+                    out capturedName))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool ClassComputedNameProgramsHaveActivationCapturingFunctionLiteral(
+        ImmutableArray<ExpressionProgram?> programs,
+        ActivationSlotShape activationSlots,
+        out string capturedName)
+    {
+        capturedName = string.Empty;
+        for (var i = 0; i < programs.Length; i++)
+        {
+            if (programs[i] is { } program &&
+                ExpressionProgramHasActivationCapturingFunctionLiteral(program, activationSlots, out capturedName))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool IsMaterializedResumableBodyEnvironmentCapture(string capturedName) =>
+        capturedName != NestedFunctionDeclarationBoundary &&
+        (capturedName.Length == 0 || capturedName[0] != '<');
 
     internal static bool PlanNeedsResumableFunctionEnvironmentForDisposal(ExecutionPlan plan)
     {
@@ -4202,8 +4275,7 @@ internal static class UnifiedBytecodeProductionEligibility
         callOperationIndex = functionLiteralOperationIndex;
         if (descriptor.Function.IsAsync ||
             descriptor.Function.IsGenerator ||
-            descriptor.PlanSeed.Plan is not { } plan ||
-            StaticBlockPlanCreatesClosure(plan))
+            descriptor.PlanSeed.Plan is null)
         {
             return false;
         }

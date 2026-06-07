@@ -10035,6 +10035,42 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     }
 
     [Fact]
+    public void SourceGate_ClassStaticBlockIrFallback_IsClassifiedOutsideAcceptedPath()
+    {
+        var repositoryRoot = FindRepositoryRootForSourceGate();
+        var sourcePath = Path.Combine(
+            repositoryRoot.FullName,
+            "src",
+            "Asynkron.JsEngine",
+            "Ast",
+            "ClassDefinitionExtensions.cs");
+
+        Assert.True(File.Exists(sourcePath), $"Expected class definition source at '{sourcePath}'.");
+        var source = File.ReadAllText(sourcePath);
+        var fallbackSection = ExtractRequiredSourceSection(
+            source,
+            "private static void ExecuteStaticBlock(",
+            "private static bool TryExecuteStaticBlockViaUnifiedBytecode(",
+            "classified class static-block IR fallback");
+        var acceptedPathSection = ExtractRequiredSourceSection(
+            source,
+            "private static bool TryExecuteStaticBlockViaUnifiedBytecode(",
+            "private static void InitializeStaticBlockLexicalSlots(",
+            "class static-block accepted path");
+
+        Assert.Contains("TryExecuteStaticBlockViaUnifiedBytecode(", fallbackSection, StringComparison.Ordinal);
+        Assert.Contains("ExecutionPlanRunner.RunScript(", fallbackSection, StringComparison.Ordinal);
+        Assert.Contains(
+            "classified-static-block-ir-fallback reason=production-unified-bytecode-declined",
+            acceptedPathSection,
+            StringComparison.Ordinal);
+        Assert.Contains("eligibility.Code", acceptedPathSection, StringComparison.Ordinal);
+        Assert.Contains("eligibility.Reason", acceptedPathSection, StringComparison.Ordinal);
+        Assert.Contains("UnifiedBytecodeVirtualMachine.Execute", acceptedPathSection, StringComparison.Ordinal);
+        AssertUnifiedBytecodeAcceptedSectionDoesNotDelegate(acceptedPathSection, "class static-block accepted path");
+    }
+
+    [Fact]
     public void SourceGate_ProductionUnifiedBytecodeScriptAndResumableAcceptedPaths_DoNotDelegateToAstOrExecutionPlanRunner()
     {
         var repositoryRoot = FindRepositoryRootForSourceGate();

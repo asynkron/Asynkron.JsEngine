@@ -1153,6 +1153,13 @@
           "pattern": "ExecutionPlanRunner.RunScript("
         },
         {
+          "id": "E5-static-block-ir-fallback-still-runs-execution-plan-runner",
+          "claim": "open",
+          "kind": "source-presence",
+          "path": "src/Asynkron.JsEngine/Ast/ClassDefinitionExtensions.cs",
+          "pattern": "ExecutionPlanRunner.RunScript("
+        },
+        {
           "id": "E5-function-runner-fallback-still-constructs-runner",
           "claim": "open",
           "kind": "source-presence",

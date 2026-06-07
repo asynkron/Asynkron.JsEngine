@@ -208,7 +208,7 @@
     },
     {
       "id": "B24h",
-      "title": "Computed class-member names are partial; activation-capturing static-block nested class declarations still decline",
+      "title": "Computed class-member names are partial; activation-dependent construct/super residue remains",
       "status": "open",
       "proofs": [
         {
@@ -495,15 +495,30 @@
           ]
         },
         {
-          "id": "B24h-computed-static-block-nested-class-captures-activation-declines",
+          "id": "B24h-computed-static-block-nested-class-captures-activation-routes",
+          "claim": "admitted",
+          "kind": "runtime",
+          "source": "function* g(seed) {\n  yield 'ready';\n  var current = seed;\n  var C = class {\n    ['read']() { return 42; }\n    static {\n      class Nested {\n        static value() { return current; }\n      }\n      this.Nested = Nested;\n    }\n  };\n  current = seed + 1;\n  yield C;\n}\nvar iterator = g(41);\nvar first = iterator.next();\nvar second = iterator.next();\nvar C = second.value;\nfirst.value + ':' + first.done + '|' + C.Nested.value() + ':' + second.done;",
+          "expectedResult": "ready:false|42:false",
+          "requiredLogs": [
+            "unified-bytecode-resumable-generator-fast-path func=g",
+            "unified-bytecode-production-fast-path static-block",
+            "unified-bytecode-production-fast-path func=<anonymous>"
+          ],
+          "forbiddenLogs": [
+            "classified-static-block-ir-fallback"
+          ]
+        },
+        {
+          "id": "B24h-computed-name-activation-construct-declines",
           "claim": "open",
           "kind": "eligibility",
           "subject": "resumable-generator",
           "functionName": "g",
-          "source": "function* g(seed) {\n  yield 1;\n  var C = class {\n    ['read']() { return 42; }\n    static {\n      class Nested {\n        static value() { return seed; }\n      }\n      this.Nested = Nested;\n    }\n  };\n  return C;\n}",
+          "source": "function* g(MakeName) {\n  yield 1;\n  var C = class {\n    [new MakeName()]() { return 42; }\n  };\n  return C;\n}",
           "expectedEligible": false,
           "declineCode": "UnsupportedPlanShape",
-          "reasonContains": "nested class declaration capturing activation binding"
+          "reasonContains": "activation-dependent call or construct"
         }
       ]
     },
@@ -686,15 +701,19 @@
           ]
         },
         {
-          "id": "B36-class-declaration-mixed-static-field-and-block-nested-class-captures-activation-declines",
-          "claim": "open",
-          "kind": "eligibility",
-          "subject": "resumable-generator",
-          "functionName": "g",
-          "source": "function* g(seed) {\n  yield 'ready';\n  class Box {\n    static value = seed;\n    static {\n      class Nested {\n        static value() { return seed; }\n      }\n      Box.Nested = Nested;\n    }\n  }\n  yield typeof Box;\n}",
-          "expectedEligible": false,
-          "declineCode": "UnsupportedPlanShape",
-          "reasonContains": "nested class declaration capturing activation binding"
+          "id": "B36-class-declaration-mixed-static-field-and-block-nested-class-captures-activation-routes",
+          "claim": "admitted",
+          "kind": "runtime",
+          "source": "function* g(seed) {\n  yield 'ready';\n  var current = seed;\n  class Box {\n    static value = current;\n    static {\n      class Nested {\n        static value() { return current + Box.value; }\n      }\n      Box.Nested = Nested;\n    }\n  }\n  current = seed + 1;\n  yield Box;\n}\nvar iterator = g(41);\nvar first = iterator.next();\nvar second = iterator.next();\nvar Box = second.value;\nfirst.value + ':' + first.done + '|' + Box.Nested.value() + ':' + Box.value + ':' + second.done;",
+          "expectedResult": "ready:false|83:41:false",
+          "requiredLogs": [
+            "unified-bytecode-resumable-generator-fast-path func=g",
+            "unified-bytecode-production-fast-path static-block",
+            "unified-bytecode-production-fast-path func=<anonymous>"
+          ],
+          "forbiddenLogs": [
+            "classified-static-block-ir-fallback"
+          ]
         },
         {
           "id": "B36-class-declaration-extends-public-super-method-routes",
@@ -852,6 +871,17 @@
           "forbiddenLogs": [
             "classified-static-block-ir-fallback"
           ]
+        },
+        {
+          "id": "B36-class-declaration-static-block-direct-eval-declines",
+          "claim": "open",
+          "kind": "eligibility",
+          "subject": "resumable-generator",
+          "functionName": "g",
+          "source": "function* g(source) {\n  yield 'ready';\n  class Box {\n    static {\n      eval(source);\n    }\n  }\n  yield typeof Box;\n}",
+          "expectedEligible": false,
+          "declineCode": "UnsupportedPlanShape",
+          "reasonContains": "Direct eval invocation semantics"
         }
       ]
     },

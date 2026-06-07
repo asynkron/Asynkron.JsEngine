@@ -1,6 +1,6 @@
 # Unified Bytecode Expansion Contract
 
-Date: 2026-06-06
+Date: 2026-06-07
 Scope: Shared contract for parallel unified-bytecode lane work.
 
 ## Source-Of-Truth Surfaces
@@ -121,17 +121,18 @@ statement interpretation.
   under the same activation-safety rules, and
   eligible static blocks whose bodies route through production unified bytecode,
   including static blocks that create activation-capturing function literal
-  closures through the materialized body-environment route, and
+  closures or nested class declarations through the materialized
+  body-environment route, and
   mixed public non-computed static fields plus static methods/accessors when
   field initializers compile as standalone unified bytecode and
   member/constructor bodies do not capture activation slots, are
   resumable-admitted. The VM handler still delegates
   class-definition evaluation to lower-level class machinery that can run
   expression programs and static-block IR plans, and the remaining B24h/B24i
-  shapes keep computed-name unadmitted call-target dependencies, member-super
-  outside the admitted public-computed/public-non-computed subsets, private
-  computed member state, activation-capturing static-block nested class-declaration/noneligible-plan state,
-  and activation-slot `extends` shapes declined.
+  shapes keep activation-dependent construct/super or otherwise unadmitted
+  computed-name call-target dependencies, member-super outside the admitted
+  public-computed/public-non-computed subsets, noneligible static-block plan
+  state, and activation-slot `extends` shapes declined.
 - `UnifiedBytecodeCompiler` now has generated audit coverage for every declared
   IR instruction record. Function-scoped `FunctionDeclarationInstruction`
   entries compile as no-ops after fast activation hoisting installs the callable
@@ -514,14 +515,13 @@ initializers through expression programs and static blocks through
 `ExecutionPlanRunner.RunScript`; `extends` expressions that read resumable
 activation slots also remain declined until class-definition evaluation owns
 that environment bridge. The remaining B24h and B24i shapes remain declined by
-the resumable shape gate: computed names that use direct-eval/construct/super
-or otherwise unadmitted call-target shapes still stay outside B24h, and private
-computed members plus activation-capturing static-block nested class declarations
-or non-production-eligible static-block plans remain outside the admitted B24
-subsets. Static-block function declarations whose bodies capture resumable
-activation slots are inside the materialized-body-environment route when the
-static-block body is otherwise production eligible, and noncapturing nested
-class declarations may execute through the static-block production VM route.
+the resumable shape gate: computed names that use activation-dependent
+construct/super or otherwise unadmitted call-target shapes still stay outside
+B24h, and non-production-eligible static-block plans remain outside the admitted
+B24 subsets. Static-block function declarations and nested class declarations
+whose bodies capture resumable activation slots are inside the
+materialized-body-environment route when the static-block body is otherwise
+production eligible.
 
 - `B24a:ClassExpressionConstructor`
 - `B24b:ClassExpressionInstanceFields`
@@ -937,10 +937,9 @@ predicates and proof tests.
     closure-producing static fields and static `super` field initializers. Direct
     root class declarations that mix public non-computed static fields with
     eligible static blocks now route as well, preserving static element order,
-    descriptor-backed static-block function declarations can close over the
-    materialized resumable body environment, and noncapturing nested static-block
-    class declarations execute through the static-block VM.
-    Dynamic/eval helpers, activation-capturing static-block nested class declarations or non-production
+    descriptor-backed static-block function declarations and nested static-block
+    class declarations can close over the materialized resumable body environment.
+    Dynamic/eval helpers, non-production
     static-block plans, plus otherwise complex class declaration neighbors
     (computed/private/static shapes outside the public B24h-compatible subset)
     are the remaining separate B36 declaration-instantiation work.

@@ -753,20 +753,22 @@ public sealed class UnifiedBytecodeResumableClassDeclarationTests(ITestOutputHel
     }
 
     [Fact]
-    public void EvaluateResumable_ClassDeclarationMixedStaticFieldAndBlockClassDeclaration_DeclinesBeforeVm()
+    public void EvaluateResumable_ClassDeclarationMixedStaticFieldAndBlockClassDeclaration_AdmitsDeclareClass()
     {
         var plan = GetFunctionPlan("""
             function* g(seed) {
                 yield "ready";
+                var current = seed;
                 class Box {
-                    static value = seed;
+                    static value = current;
                     static {
                         class Nested {
-                            static value() { return seed; }
+                            static value() { return current + Box.value; }
                         }
                         Box.Nested = Nested;
                     }
                 }
+                current = seed + 1;
                 yield typeof Box;
             }
             """,
@@ -776,9 +778,12 @@ public sealed class UnifiedBytecodeResumableClassDeclarationTests(ITestOutputHel
             plan,
             new UnifiedBytecodeProductionActivationDescriptor(IsGenerator: true));
 
-        Assert.False(result.IsEligible);
-        Assert.Equal(UnifiedBytecodeProductionDeclineCode.UnsupportedPlanShape, result.Code);
-        Assert.Contains("nested class declaration capturing activation binding", result.Reason, StringComparison.Ordinal);
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(
+            result.Program.Instructions,
+            static instruction => instruction.OpCode == UnifiedBytecodeOpCode.DeclareClass);
+        Assert.True(UnifiedBytecodeProductionEligibility.PlanNeedsMaterializedResumableBodyEnvironment(plan));
     }
 
     [Fact]
@@ -1605,6 +1610,54 @@ public sealed class UnifiedBytecodeResumableClassDeclarationTests(ITestOutputHel
             """);
 
         Assert.Equal("ready:false|41:7:false", result);
+        AssertGeneratorFastPath("g", argc: 1);
+        var logs = CurrentLogger!.Collector.Snapshot();
+        Assert.Contains(
+            logs,
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path static-block",
+                StringComparison.Ordinal));
+        Assert.Contains(
+            logs,
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=<anonymous>",
+                StringComparison.Ordinal));
+        Assert.DoesNotContain(
+            logs,
+            static record => record.Message.Contains(
+                "classified-static-block-ir-fallback",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task GeneratorClassDeclarationMixedStaticFieldAndBlockNestedClassDeclarationCapturingActivation_RoutesResumable()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function* g(seed) {
+                yield "ready";
+                var current = seed;
+                class Box {
+                    static value = current;
+                    static {
+                        class Nested {
+                            static value() { return current + Box.value; }
+                        }
+                        Box.Nested = Nested;
+                    }
+                }
+                current = seed + 1;
+                yield Box;
+            }
+
+            var iterator = g(41);
+            var first = iterator.next();
+            var second = iterator.next();
+            var Box = second.value;
+            first.value + ":" + first.done + "|" + Box.Nested.value() + ":" + Box.value + ":" + second.done;
+            """);
+
+        Assert.Equal("ready:false|83:41:false", result);
         AssertGeneratorFastPath("g", argc: 1);
         var logs = CurrentLogger!.Collector.Snapshot();
         Assert.Contains(

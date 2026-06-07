@@ -1610,6 +1610,15 @@ internal static class UnifiedBytecodeProductionEligibility
         {
             foreach (var instruction in staticBlockPlan.Instructions)
             {
+                if (instruction is ClassDeclarationInstruction { Descriptor: { } classDeclaration } &&
+                    ClassDeclarationNeedsMaterializedBodyEnvironment(
+                        classDeclaration.ProgramCache,
+                        activationSlots,
+                        out _))
+                {
+                    return true;
+                }
+
                 if (instruction is FunctionDeclarationInstruction { Descriptor: { } descriptor } &&
                     FunctionCapturesActivationSlot(descriptor.Function, activationSlots, out var functionDeclarationCapturedName) &&
                     IsMaterializedResumableBodyEnvironmentCapture(functionDeclarationCapturedName))
@@ -3601,16 +3610,6 @@ internal static class UnifiedBytecodeProductionEligibility
 
         foreach (var staticBlockPlan in definition.StaticBlockPlans)
         {
-            if (StaticBlockPlanContainsActivationCapturingNestedClassDeclaration(
-                    staticBlockPlan,
-                    activationSlots,
-                    out var capturedName))
-            {
-                declineReason =
-                    $"Class declaration is outside B36: static block contains nested class declaration capturing activation binding '{capturedName}' and needs the broader materialized class-definition environment route.";
-                return false;
-            }
-
             var result = Evaluate(
                 staticBlockPlan,
                 new UnifiedBytecodeProductionActivationDescriptor(
@@ -4049,27 +4048,6 @@ internal static class UnifiedBytecodeProductionEligibility
         return hasSuperConstruct;
     }
 
-    private static bool StaticBlockPlanContainsActivationCapturingNestedClassDeclaration(
-        ExecutionPlan plan,
-        ActivationSlotShape activationSlots,
-        out string capturedName)
-    {
-        capturedName = string.Empty;
-        foreach (var instruction in plan.Instructions)
-        {
-            if (instruction is ClassDeclarationInstruction { Descriptor: { } descriptor } &&
-                ClassDeclarationNeedsMaterializedBodyEnvironment(
-                    descriptor.ProgramCache,
-                    activationSlots,
-                    out capturedName))
-            {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
     private static bool ClassDeclarationNeedsMaterializedBodyEnvironment(
         ClassDefinitionProgramCache cache,
         ActivationSlotShape activationSlots,
@@ -4107,17 +4085,6 @@ internal static class UnifiedBytecodeProductionEligibility
         {
             capturedName = "<static-block>";
             return true;
-        }
-
-        foreach (var staticBlockPlan in definition.StaticBlockPlans)
-        {
-            if (StaticBlockPlanContainsActivationCapturingNestedClassDeclaration(
-                    staticBlockPlan,
-                    activationSlots,
-                    out capturedName))
-            {
-                return true;
-            }
         }
 
         return false;
@@ -4579,16 +4546,6 @@ internal static class UnifiedBytecodeProductionEligibility
         declineReason = string.Empty;
         foreach (var staticBlockPlan in staticBlockPlans)
         {
-            if (StaticBlockPlanContainsActivationCapturingNestedClassDeclaration(
-                    staticBlockPlan,
-                    activationSlots,
-                    out var capturedName))
-            {
-                declineReason =
-                    $"Class literal is outside {bucket}: static block contains nested class declaration capturing activation binding '{capturedName}' and needs the broader materialized class-definition environment route.";
-                return false;
-            }
-
             var result = Evaluate(
                 staticBlockPlan,
                 new UnifiedBytecodeProductionActivationDescriptor(

@@ -263,7 +263,7 @@ public sealed class ActivationSemanticsProofPackTests(ITestOutputHelper output) 
     }
 
     [Fact(Timeout = 5000)]
-    public async Task ClassMethodCreatedInsideFunctionWithCapturedName_DoesNotUseNonCapturingHomeObjectPath()
+    public async Task ClassMethodCreatedInsideFunctionWithCapturedName_UsesCapturedClosureProductionPath()
     {
         await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
@@ -278,10 +278,15 @@ public sealed class ActivationSemanticsProofPackTests(ITestOutputHelper output) 
             make(41).value();
             """);
 
+        var records = CurrentLogger!.Collector.Snapshot();
         Assert.Equal(42d, result);
-        Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(),
+        Assert.Contains(records,
             static record => record.Message.Contains(
-                "unified-bytecode-production-fast-path func=<anonymous>",
+                "unified-bytecode-production-fast-path func=<anonymous> argc=0",
+                StringComparison.Ordinal));
+        Assert.DoesNotContain(records,
+            static record => record.Message.Contains(
+                "ExecutionPlanRunner",
                 StringComparison.Ordinal));
     }
 

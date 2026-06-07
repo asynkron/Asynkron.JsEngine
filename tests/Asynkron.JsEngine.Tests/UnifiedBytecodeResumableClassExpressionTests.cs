@@ -2470,23 +2470,73 @@ public sealed class UnifiedBytecodeResumableClassExpressionTests(ITestOutputHelp
     }
 
     [Fact]
-    public void EvaluateResumable_ClassExpressionComputedMemberWithStaticBlockClassDeclaration_DeclinesBeforeVm() =>
-        AssertClassExpressionDeclines("""
+    public void EvaluateResumable_ClassExpressionComputedMemberWithStaticBlockClassDeclaration_AdmitsLoadClassLiteral()
+    {
+        var plan = GetFunctionPlan("""
             function* g(seed) {
                 yield 1;
+                var current = seed;
                 var C = class {
                     ["read"]() { return 42; }
                     static {
                         class Nested {
-                            static value() { return seed; }
+                            static value() { return current; }
                         }
                         this.Nested = Nested;
                     }
                 };
+                current = seed + 1;
                 return C;
             }
             """,
-            "nested class declaration capturing activation binding");
+            "g");
+
+        var result = UnifiedBytecodeProductionEligibility.EvaluateResumable(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor(IsGenerator: true));
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(
+            result.Program.Instructions,
+            static instruction => instruction.OpCode == UnifiedBytecodeOpCode.LoadClassLiteral);
+        Assert.True(UnifiedBytecodeProductionEligibility.PlanNeedsMaterializedResumableBodyEnvironment(plan));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task GeneratorClassExpressionComputedMemberWithStaticBlockNestedClassDeclarationCapturingActivation_RoutesResumable()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function* g(seed) {
+                yield "ready";
+                var current = seed;
+                var C = class {
+                    ["read"]() { return 42; }
+                    static {
+                        class Nested {
+                            static value() { return current; }
+                        }
+                        this.Nested = Nested;
+                    }
+                };
+                current = seed + 1;
+                yield C;
+            }
+
+            var iterator = g(41);
+            var first = iterator.next();
+            var second = iterator.next();
+            var C = second.value;
+            first.value + ":" + first.done + "|" + C.Nested.value() + ":" + second.done;
+            """);
+
+        Assert.Equal("ready:false|42:false", result);
+        AssertGeneratorFastPath("g", argc: 1);
+        AssertProductionFastPath("<anonymous>");
+        AssertStaticBlockFastPath();
+        AssertNoStaticBlockFallback();
+    }
 
     [Fact(Timeout = 5000)]
     public async Task GeneratorClassExpressionComputedMemberWithStaticBlockNestedClassDeclaration_RoutesResumable()

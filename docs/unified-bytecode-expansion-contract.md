@@ -157,15 +157,14 @@ statement interpretation.
   defaults, computed binding names, assignment targets, awaited declarations,
   block-scoped resumable `using`, and `await using` declarations still decline
   before VM execution.
-- Expression lowering is still the largest surface. `ExpressionOpKind` contains
-  more shapes than the general unified lowering loop accepts. Several operations
-  are admitted only through narrow shape helpers, while remaining optional-call
-  chain shapes and some call/reference helpers remain outside general unified
-  bytecode lowering. Private delete syntax is rejected before bytecode
-  eligibility.
-- The remaining direct general-expression lowering gaps are drift-checked under
-  `### General Expression Lowering Gaps (current)`. Property set/update
-  operations plus the `SwapTopTwo`, `DuplicateTopTwo`, and
+- Expression lowering is still a large semantic surface, but the current direct
+  general expression-loop gap inventory is empty and drift-checked under
+  `### General Expression Lowering Gaps (current)`. Remaining expression-family
+  work lives in the named A51f leaves and helper-specific semantic boundaries,
+  such as optional-call chain neighbors, call/reference helpers, and
+  private-adjacent routes that are not yet VM-owned. Private delete syntax is
+  rejected before bytecode eligibility.
+- Property set/update operations plus the `SwapTopTwo`, `DuplicateTopTwo`, and
   `RotateTopThreeRight` stack operations are no longer helper-only compiler
   shapes; they lower through the general expression loop, subject to the same
   private-name and name-inference semantic guards as the owned property-write

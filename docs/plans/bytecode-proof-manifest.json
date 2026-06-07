@@ -216,9 +216,58 @@
     },
     {
       "id": "A51b",
-      "title": "Iterator/for-in TDZ-head flat-slot mapping residue stays in slot-layout storage",
+      "title": "Activation-slot metadata, flat-storage target gaps, and iterator/for-in TDZ-head flat-slot mapping residue remain open",
       "status": "open",
       "proofs": [
+        {
+          "id": "A51b-compiler-activation-slot-metadata-guard-stays-open",
+          "claim": "open",
+          "kind": "source-presence",
+          "path": "src/Asynkron.JsEngine/Execution/UnifiedBytecode/UnifiedBytecodeCompiler.cs",
+          "pattern": "Activation slot metadata is required."
+        },
+        {
+          "id": "A51b-compiler-await-declaration-target-guard-stays-open",
+          "claim": "open",
+          "kind": "source-presence",
+          "path": "src/Asynkron.JsEngine/Execution/UnifiedBytecode/UnifiedBytecodeCompiler.cs",
+          "pattern": "Awaited declaration target '{awaitedDeclarationTargetSymbol.Name}' is not eligible for unified bytecode storage."
+        },
+        {
+          "id": "A51b-compiler-declaration-target-guard-stays-open",
+          "claim": "open",
+          "kind": "source-presence",
+          "path": "src/Asynkron.JsEngine/Execution/UnifiedBytecode/UnifiedBytecodeCompiler.cs",
+          "pattern": "Unsupported declaration target '{targetSymbol.Name}'."
+        },
+        {
+          "id": "A51b-compiler-assignment-target-guard-stays-open",
+          "claim": "open",
+          "kind": "source-presence",
+          "path": "src/Asynkron.JsEngine/Execution/UnifiedBytecode/UnifiedBytecodeCompiler.cs",
+          "pattern": "Unsupported assignment target '{assignmentTargetSymbol.Name}'."
+        },
+        {
+          "id": "A51b-compiler-compound-assignment-target-guard-stays-open",
+          "claim": "open",
+          "kind": "source-presence",
+          "path": "src/Asynkron.JsEngine/Execution/UnifiedBytecode/UnifiedBytecodeCompiler.cs",
+          "pattern": "Unsupported compound assignment target '{compoundTargetSymbol.Name}'."
+        },
+        {
+          "id": "A51b-compiler-update-target-guard-stays-open",
+          "claim": "open",
+          "kind": "source-presence",
+          "path": "src/Asynkron.JsEngine/Execution/UnifiedBytecode/UnifiedBytecodeCompiler.cs",
+          "pattern": "Unsupported update target '{incrementTargetSymbol.Name}'."
+        },
+        {
+          "id": "A51b-eligibility-activation-slot-metadata-guard-stays-open",
+          "claim": "open",
+          "kind": "source-presence",
+          "path": "src/Asynkron.JsEngine/Execution/UnifiedBytecode/UnifiedBytecodeProductionEligibility.cs",
+          "pattern": "Activation slot metadata is required."
+        },
         {
           "id": "A51b-iterator-for-in-tdz-head-flat-slot-mapping-stays-open",
           "claim": "open",

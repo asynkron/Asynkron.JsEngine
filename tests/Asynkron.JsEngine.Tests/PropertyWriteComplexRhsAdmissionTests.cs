@@ -174,13 +174,8 @@ public sealed class PropertyWriteComplexRhsAdmissionTests(ITestOutputHelper outp
         AssertNotRouted("unified-bytecode-production-fast-path func=f");
     }
 
-    // PRIVATE-field write (A37 private part): class C{ #x=1; m(a){ this.#x = this.#x + a; ...} }.
-    // The RHS reads a PRIVATE field (this.#x), which the complex-RHS value walker rejects (private
-    // reads are owned by the private-field dependency path, not this boundary). The store target is
-    // also a private name. So the write DECLINES the production property-set fast path but computes
-    // correctly via the interpreter fallback (no over-admission).
     [Fact]
-    public async Task PrivateFieldWrite_ComplexRhs_DeclinesButComputes()
+    public async Task PrivateFieldWrite_ComplexRhsPrivateRead_RoutesAndComputes()
     {
         await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
@@ -188,7 +183,7 @@ public sealed class PropertyWriteComplexRhsAdmissionTests(ITestOutputHelper outp
             new C().m(4);
             """);
         Assert.Equal(5d, Convert.ToDouble(result));
-        AssertNotRouted("unified-bytecode-production-fast-path func=m");
+        AssertRouted("unified-bytecode-production-fast-path func=<anonymous> argc=1");
     }
 
     private void AssertRouted(string expectedLog)

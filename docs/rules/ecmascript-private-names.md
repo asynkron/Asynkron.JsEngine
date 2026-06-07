@@ -111,6 +111,7 @@ constructor body contains a private expression op.
 The production constructor bridge now proves private-name lexical-state setup:
 it initializes private brands/fields and enters own/captured private-name scopes
 before VM execution. Direct private writes in base/derived constructors and
-private-brand-only constructors may route through production bytecode. Private
-reads used as nested RHS operands still decline under the A51f5 private-neighbor
-expression gap.
+private-brand-only constructors may route through production bytecode. Plain
+private reads used as nested binary/RHS value operands now route through the
+A51f5 partial private-neighbor admission; optional/private receiver-neighbor,
+delete, call-neighbor, and super-neighbor diagnostics remain tracked by A51f5.

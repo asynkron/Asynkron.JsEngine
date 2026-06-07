@@ -7,8 +7,10 @@ Superseded on 2026-06-07 by the A7 private-name constructor admission slice.
 The original quarantine below remains useful history. Current behavior admits
 base and derived private-name class constructors when the constructor body uses
 admitted private mutation shapes or only needs private brand/field
-initialization. Private reads used as nested RHS operands still decline under
-A51f5, not A7.
+initialization. Plain private reads used as nested binary/RHS value operands now
+route through the later A51f5 partial admission; remaining optional/private,
+delete, call-neighbor, and super-neighbor private diagnostics stay under A51f5,
+not A7.
 
 ## Context
 

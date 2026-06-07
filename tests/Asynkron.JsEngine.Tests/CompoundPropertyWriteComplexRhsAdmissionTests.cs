@@ -160,12 +160,8 @@ public sealed class CompoundPropertyWriteComplexRhsAdmissionTests(ITestOutputHel
         AssertRouted("unified-bytecode-production-fast-path func=<anonymous> argc=2");
     }
 
-    // PRIVATE compound RHS that READS the same private field: this.#x += this.#x. The RHS reads a
-    // PRIVATE field, which the complex-RHS value walker rejects (private reads are owned by the
-    // private-field dependency path, not this boundary). So this DECLINES the fast path but computes
-    // correctly (no over-admission).
     [Fact]
-    public async Task PrivateCompound_PrivateReadRhs_DeclinesButComputes()
+    public async Task PrivateCompound_PrivateReadRhs_RoutesAndComputes()
     {
         await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
@@ -173,9 +169,7 @@ public sealed class CompoundPropertyWriteComplexRhsAdmissionTests(ITestOutputHel
             new C().m();
             """);
         Assert.Equal(6d, Convert.ToDouble(result));
-        // m takes zero params; the production fast path must not fire for an argc=0 method here
-        // (the only other argc=0 production candidate is the constructor C, logged as func=C).
-        AssertNotRouted("unified-bytecode-production-fast-path func=<anonymous> argc=0");
+        AssertRouted("unified-bytecode-production-fast-path func=<anonymous> argc=0");
     }
 
     // NEGATIVE (no over-admission): a compound RHS containing a still-declined sub-shape (an inner

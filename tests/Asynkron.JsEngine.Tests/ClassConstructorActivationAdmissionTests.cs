@@ -179,19 +179,18 @@ public sealed class ClassConstructorActivationAdmissionTests(ITestOutputHelper o
     }
 
     [Fact(Timeout = 5000)]
-    public async Task BaseCtor_WithPrivateReadAsNestedOperand_DeclinesUnderA51f5ButIsCorrect()
+    public async Task BaseCtor_WithPrivateReadAsNestedOperand_RoutesAndIsCorrect()
     {
         await using var engine = CreateEngine();
-        // This is no longer an A7 constructor-activation boundary. It remains an A51f5 expression gap:
-        // private reads used as nested value operands are still outside the admitted private-neighbor
-        // expression subset, so the constructor correctly falls back while preserving semantics.
+        // A51f5: plain private reads used as nested value operands now lower through the same
+        // private-name-aware GetNamedProperty VM path as direct private reads.
         var result = await engine.Evaluate("""
             class C { #p; constructor(v) { this.#p = v; this.q = this.#p + 1; } }
             new C(10).q;
             """);
 
         Assert.Equal(11d, result);
-        Assert.False(Routed("C"), "private read as a nested RHS operand still belongs to A51f5");
+        Assert.True(Routed("C"), "private read as a nested RHS operand should route through production bytecode");
     }
 
     [Fact(Timeout = 5000)]

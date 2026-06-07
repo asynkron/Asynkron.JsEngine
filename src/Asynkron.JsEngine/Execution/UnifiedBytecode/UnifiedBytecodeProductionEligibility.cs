@@ -9019,7 +9019,8 @@ internal static class UnifiedBytecodeProductionEligibility
                     identifierConstants,
                     activationSlots,
                     out var spanLength,
-                    allowsDynamicIdentifiers) &&
+                    allowsDynamicIdentifiers,
+                    allowPrivateNamedPrefix: true) &&
                 operationIndex < startIndex + spanLength)
             {
                 return true;
@@ -11781,7 +11782,8 @@ internal static class UnifiedBytecodeProductionEligibility
                 identifierConstants,
                 activationSlots,
                 out spanLength,
-                allowsDynamicIdentifiers))
+                allowsDynamicIdentifiers,
+                allowPrivateNamedPrefix: true))
         {
             return true;
         }
@@ -12752,7 +12754,8 @@ internal static class UnifiedBytecodeProductionEligibility
                 identifierConstants,
                 activationSlots,
                 out spanLength,
-                allowsDynamicIdentifiers) ||
+                allowsDynamicIdentifiers,
+                allowPrivateNamedPrefix: true) ||
             TryMeasureSimpleControlExpressionOperandSpan(
                 program,
                 startIndex,

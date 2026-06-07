@@ -4737,6 +4737,23 @@ internal static class UnifiedBytecodeCompiler
             return false;
         }
 
+        if (TryAppendSimplePropertyReadBinaryExpression(
+                expressionProgram,
+                activationSlots,
+                allowsDynamicIdentifiers,
+                unified,
+                literalConstants,
+                stringConstants,
+                out reason))
+        {
+            return true;
+        }
+
+        if (!string.IsNullOrEmpty(reason))
+        {
+            return false;
+        }
+
         if (TryAppendFirstBoundaryOptionalNamedPropertyRead(
                 expressionProgram,
                 activationSlots,
@@ -8489,7 +8506,8 @@ internal static class UnifiedBytecodeCompiler
                 literalConstants,
                 stringConstants,
                 out spanLength,
-                out reason) ||
+                out reason,
+                allowPrivateNamedPrefix: true) ||
             TryAppendBoundedSimpleControlExpressionOperandSpan(
                 expressionProgram,
                 startIndex,
@@ -9411,7 +9429,8 @@ internal static class UnifiedBytecodeCompiler
                 literalConstants,
                 stringConstants,
                 out spanLength,
-                out reason))
+                out reason,
+                allowPrivateNamedPrefix: true))
         {
             return true;
         }
@@ -16754,8 +16773,7 @@ internal static class UnifiedBytecodeCompiler
                 case ExpressionOpKind.GetNamedProperty:
                     if (stackDepth < 1 ||
                         operation.IsOptional ||
-                        operation.ShortCircuitOnNullishTarget ||
-                        operation.GetString(expressionStringConstants).IsPrivateName())
+                        operation.ShortCircuitOnNullishTarget)
                     {
                         RollBack();
                         reason = string.Empty;

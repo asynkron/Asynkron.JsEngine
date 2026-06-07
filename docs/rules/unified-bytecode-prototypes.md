@@ -299,6 +299,25 @@ all-or-nothing until a separate routing issue proves production readiness.
     runtime-source direct eval remains declined and auditable through the
     classified fallback. Related ADR:
     `docs/adrs/0364-keep-class-static-block-ir-fallback-classified-by-production-decline.md`.
+9k. Treat E4/E5 owner inventories as classification evidence, not closure
+    claims. When docs, issue summaries, ADRs, or PR text describe remaining
+    `ExpressionProgram` or `ExecutionPlanRunner` reachability, keep the
+    ordinary retirement work separate from terminal dynamic residue. E4/E5
+    closure requires the source-retirement proof named in
+    `docs/plans/bytecode-proof-manifest.json`, not just an updated inventory or
+    cleaner classification label. Terminal residue includes multi-argument,
+    spread, runtime-source, or declaration-injecting direct eval; awaited
+    `with` object evaluation; retained live `with` scopes outside the VM
+    current-environment lane; eval-injected runtime bindings; and
+    `Function(...)`-produced bodies. Do not park already-admitted
+    declaration-free literal eval lanes or non-awaited sync/resumable `with`
+    through the VM current-environment lane as terminal residue, and do not
+    mark B24h, B36, E4, or E5 complete while their proof-manifest rows still
+    name source-presence anchors or executable blockers. WHY: Faktorial issue
+    `planitem-planitem-planmanual1780730299657353000-unified-bytecode-remaining-burndo-d6dedf4db2`
+    / PR #3381 corrected the retrospective documentation after classification
+    wording risked reading as E5 retirement progress and blurred true terminal
+    dynamic residue with ordinary class-definition and runner-retirement work.
 10. When invoking production unified bytecode from sync calls, keep the bridge
     slot-layout owned and fast-path ordered. The production unified route runs
     before direct specialized simple-return binary/chain shortcuts and the

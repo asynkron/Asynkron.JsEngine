@@ -760,6 +760,16 @@
           ]
         },
         {
+          "id": "B36-class-declaration-extends-public-accessor-routes",
+          "claim": "admitted",
+          "kind": "runtime",
+          "source": "class Base {\n}\nfunction* g(seed) {\n  yield 'ready';\n  class Box extends Base {\n    get value() { return seed + 1; }\n    set value(next) { this.storage = next + seed; }\n  }\n  var box = new Box();\n  box.value = 1;\n  yield box.value + '|' + box.storage + '|' + (box instanceof Base);\n}\nvar iterator = g(41);\nvar first = iterator.next();\nvar second = iterator.next();\nfirst.value + ':' + first.done + '|' + second.value + ':' + second.done;",
+          "expectedResult": "ready:false|42|42|true:false",
+          "requiredLogs": [
+            "unified-bytecode-resumable-generator-fast-path func=g"
+          ]
+        },
+        {
           "id": "B36-class-declaration-extends-public-super-method-routes",
           "claim": "admitted",
           "kind": "runtime",

@@ -3495,7 +3495,7 @@ internal static class UnifiedBytecodeProductionEligibility
             return false;
         }
 
-        if (TryAdmitB36PublicInstanceMethodExtendsClassDeclaration(
+        if (TryAdmitB36PublicInstanceMemberExtendsClassDeclaration(
                 cache,
                 activationSlots,
                 out candidate,
@@ -3569,7 +3569,7 @@ internal static class UnifiedBytecodeProductionEligibility
         return false;
     }
 
-    private static bool TryAdmitB36PublicInstanceMethodExtendsClassDeclaration(
+    private static bool TryAdmitB36PublicInstanceMemberExtendsClassDeclaration(
         ClassDefinitionProgramCache cache,
         ActivationSlotShape activationSlots,
         out bool candidate,
@@ -3592,7 +3592,10 @@ internal static class UnifiedBytecodeProductionEligibility
             if (member.IsStatic ||
                 member.IsPrivate ||
                 member.IsComputed ||
-                member.Kind != ClassMemberKind.Method ||
+                member.Kind is not (
+                    ClassMemberKind.Method or
+                    ClassMemberKind.Getter or
+                    ClassMemberKind.Setter) ||
                 FunctionContainsSuper(member.Callable.Function))
             {
                 return false;

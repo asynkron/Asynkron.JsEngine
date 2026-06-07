@@ -1574,6 +1574,13 @@ internal static class UnifiedBytecodeProductionEligibility
                 return true;
             }
 
+            if (ExpressionProgramNeedsMaterializedBodyEnvironmentForClassLiteralStaticBlock(
+                    program,
+                    activationSlots))
+            {
+                return true;
+            }
+
             if (ExpressionProgramHasActivationCapturingFunctionLiteral(
                     program,
                     activationSlots,
@@ -1614,6 +1621,39 @@ internal static class UnifiedBytecodeProductionEligibility
                 {
                     return true;
                 }
+            }
+        }
+
+        return false;
+    }
+
+    private static bool ExpressionProgramNeedsMaterializedBodyEnvironmentForClassLiteralStaticBlock(
+        ExpressionProgram program,
+        ActivationSlotShape activationSlots)
+    {
+        if (program.IsEmpty)
+        {
+            return false;
+        }
+
+        var objectConstants = program.ObjectConstants.AsSpan();
+        foreach (var operation in program.EnumerateOperations())
+        {
+            if (operation.Kind != ExpressionOpKind.LoadClassLiteral)
+            {
+                continue;
+            }
+
+            var classExpression = operation.GetObject<ClassExpression>(objectConstants);
+            var cache = ((IAstCacheable<ClassDefinitionProgramCache>)classExpression.Definition).GetOrCreateCache();
+            if (!cache.Succeeded)
+            {
+                return true;
+            }
+
+            if (StaticBlockPlansNeedMaterializedResumableBodyEnvironment(cache, activationSlots))
+            {
+                return true;
             }
         }
 
@@ -3913,31 +3953,6 @@ internal static class UnifiedBytecodeProductionEligibility
         return false;
     }
 
-    private static bool StaticBlockPlanCreatesClosure(ExecutionPlan plan)
-    {
-        foreach (var instruction in plan.Instructions)
-        {
-            switch (instruction)
-            {
-                case FunctionDeclarationInstruction:
-                case ClassDeclarationInstruction:
-                    return true;
-            }
-
-            if (!TryGetExpressionProgram(instruction, out var program))
-            {
-                continue;
-            }
-
-            if (ExpressionProgramCreatesClosure(program))
-            {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
     private static bool ExpressionProgramCreatesClosure(ExpressionProgram program)
     {
         foreach (var operation in program.EnumerateOperations())
@@ -4359,12 +4374,21 @@ internal static class UnifiedBytecodeProductionEligibility
             return false;
         }
 
-        foreach (var staticBlockPlan in definition.StaticBlockPlans)
+        return TryValidateClassLiteralStaticBlockPlans(definition.StaticBlockPlans, "B24h", out declineReason);
+    }
+
+    private static bool TryValidateClassLiteralStaticBlockPlans(
+        ImmutableArray<ExecutionPlan> staticBlockPlans,
+        string bucket,
+        out string declineReason)
+    {
+        declineReason = string.Empty;
+        foreach (var staticBlockPlan in staticBlockPlans)
         {
-            if (StaticBlockPlanCreatesClosure(staticBlockPlan))
+            if (StaticBlockPlanContainsNestedDeclaration(staticBlockPlan))
             {
                 declineReason =
-                    "Class literal is outside B24h: static block creates a closure that needs the materialized body environment route.";
+                    $"Class literal is outside {bucket}: static block contains nested declarations that need the broader materialized class-definition environment route.";
                 return false;
             }
 
@@ -4379,7 +4403,7 @@ internal static class UnifiedBytecodeProductionEligibility
             }
 
             declineReason =
-                $"Class literal static block is outside B24h production routing: {result.Reason}";
+                $"Class literal static block is outside {bucket} production routing: {result.Reason}";
             return false;
         }
 
@@ -4618,17 +4642,7 @@ internal static class UnifiedBytecodeProductionEligibility
             return false;
         }
 
-        foreach (var block in definition.StaticBlocks)
-        {
-            if (ClassStaticBlockClosureDetector.ContainsClosureProducingExpression(block.Body))
-            {
-                declineReason =
-                    "Class literal is outside B24d: static block creates a closure that needs the materialized body environment route.";
-                return false;
-            }
-        }
-
-        return true;
+        return TryValidateClassLiteralStaticBlockPlans(cache.Definition.StaticBlockPlans, "B24d", out declineReason);
     }
 
     private static bool IsB24cPublicStaticFieldClassLiteral(ClassDefinition definition)
@@ -5019,73 +5033,6 @@ internal static class UnifiedBytecodeProductionEligibility
                 if (!ShouldStop && member.Function is not null)
                 {
                     VisitFunctionExpression(member.Function);
-                }
-            }
-        }
-    }
-
-    private sealed class ClassStaticBlockClosureDetector : AstVisitor
-    {
-        [ThreadStatic] private static ClassStaticBlockClosureDetector? _instance;
-
-        private bool _found;
-
-        public static bool ContainsClosureProducingExpression(BlockStatement block)
-        {
-            var detector = _instance ??= new ClassStaticBlockClosureDetector();
-            detector._found = false;
-            detector.ShouldStop = false;
-            detector.VisitBlockStatement(block);
-            return detector._found;
-        }
-
-        protected override void VisitFunctionDeclaration(FunctionDeclaration node)
-        {
-            _found = true;
-            ShouldStop = true;
-        }
-
-        protected override void VisitFunctionExpression(FunctionExpression node)
-        {
-            _found = true;
-            ShouldStop = true;
-        }
-
-        protected override void VisitClassDeclaration(ClassDeclaration node)
-        {
-            _found = true;
-            ShouldStop = true;
-        }
-
-        protected override void VisitClassExpression(ClassExpression node)
-        {
-            _found = true;
-            ShouldStop = true;
-        }
-
-        protected override void VisitObjectExpression(ObjectExpression node)
-        {
-            foreach (var member in node.Members)
-            {
-                if (ShouldStop)
-                {
-                    break;
-                }
-
-                if (member.Key is ExpressionNode keyExpression)
-                {
-                    VisitExpression(keyExpression);
-                }
-
-                if (!ShouldStop && member.Value is not null)
-                {
-                    VisitExpression(member.Value);
-                }
-
-                if (!ShouldStop && member.Function is not null)
-                {
-                    _found = true;
-                    ShouldStop = true;
                 }
             }
         }

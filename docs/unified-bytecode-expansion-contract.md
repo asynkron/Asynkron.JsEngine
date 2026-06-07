@@ -93,8 +93,9 @@ statement interpretation.
   subset whose instance initializers do not capture activation slots, and the
   B24g public non-computed instance-accessor subset whose accessor bodies do not
   capture activation slots, including accessor bodies that use `super`, the B24d
-  static-block-only class-expression subset whose static blocks do not create
-  nested closures, and the B24h public static/instance
+  static-block-only class-expression subset whose static blocks either avoid
+  closure creation or create activation-capturing function literal closures
+  through the materialized body-environment route, and the B24h public static/instance
   computed-field/method/accessor subset whose
   computed names either avoid resumable activation slots or use owned activation
   read/write/update/reference-store/delete operations (with unqualified
@@ -118,8 +119,9 @@ statement interpretation.
   private instance fields, and activation-safe private static fields, including
   direct activation-reading/updating and `super` private static initializers,
   under the same activation-safety rules, and
-  eligible closure-free static blocks whose bodies route through production
-  unified bytecode, and
+  eligible static blocks whose bodies route through production unified bytecode,
+  including static blocks that create activation-capturing function literal
+  closures through the materialized body-environment route, and
   mixed public non-computed static fields plus static methods/accessors when
   field initializers compile as standalone unified bytecode and
   member/constructor bodies do not capture activation slots, are
@@ -128,8 +130,8 @@ statement interpretation.
   expression programs and static-block IR plans, and the remaining B24h/B24i
   shapes keep computed-name unadmitted call-target dependencies, member-super
   outside the admitted public-computed/public-non-computed subsets, private
-  computed member state, closure-producing static-block environment state, and
-  activation-slot `extends` shapes declined.
+  computed member state, static-block nested-declaration/noneligible-plan state,
+  and activation-slot `extends` shapes declined.
 - `UnifiedBytecodeCompiler` now has generated audit coverage for every declared
   IR instruction record. Function-scoped `FunctionDeclarationInstruction`
   entries compile as no-ops after fast activation hoisting installs the callable
@@ -469,8 +471,10 @@ capture activation slots, narrow B24e private instance-field class literals, and
 the narrow B24f private method/accessor class-literal shape, plus the B24g
 public non-computed instance-accessor subset whose accessor bodies do not
 capture activation slots, including accessor bodies that use `super`, the B24d
-static-block-only subset whose static blocks do not create nested closures, and
-the B24h public static/instance computed-field/method/accessor subset whose computed
+static-block-only subset whose static blocks either avoid closure creation or
+create activation-capturing function literal closures through the
+materialized body-environment route, and the B24h public static/instance
+computed-field/method/accessor subset whose computed
 name programs either avoid resumable activation slots or use owned activation
 read/write/update/reference-store/delete operations, including the strict-error
 unqualified identifier delete path and bounded non-spread
@@ -494,8 +498,9 @@ activation-capturing private instance methods/accessors through the materialized
 body-environment route, non-static/non-computed private instance fields, and
 activation-safe private static fields, including direct activation-reading/updating
 and `super` private static initializers, under the same activation-safety rules,
-plus eligible closure-free static blocks whose bodies route through production
-unified bytecode,
+plus eligible static blocks whose bodies route through production unified
+bytecode, including static blocks that create activation-capturing function
+literal closures through the materialized body-environment route,
 plus public
 non-computed static methods/accessors whose bodies do not capture activation
 slots and public non-computed static-field class literals with `extends` whose
@@ -511,8 +516,8 @@ activation slots also remain declined until class-definition evaluation owns
 that environment bridge. The remaining B24h and B24i shapes remain declined by
 the resumable shape gate: computed names that use direct-eval/spread/construct/super
 or otherwise unadmitted call-target shapes still stay outside B24h, and private
-computed members and closure-producing static-block neighbors remain outside the
-admitted B24 subsets.
+computed members plus static-block nested declarations or non-production-eligible
+static-block plans remain outside the admitted B24 subsets.
 
 - `B24a:ClassExpressionConstructor`
 - `B24b:ClassExpressionInstanceFields`

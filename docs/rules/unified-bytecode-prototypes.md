@@ -584,6 +584,16 @@ all-or-nothing until a separate routing issue proves production readiness.
      `DeclareClass` route that still belongs behind the existing B24h decline.
      Related ADR:
      `docs/adrs/0362-keep-computed-class-declaration-direct-activation-calls-declined.md`.
+     The follow-on B24d/B24h static-block widening admitted static blocks that
+     create activation-capturing function literal closures when the
+     static-block plan itself is production-unified-bytecode eligible and has no
+     nested declarations. Future static-block work must keep closure-producing
+     expression literals separate from nested `function`/`class` declarations:
+     literal closures can use the materialized body environment, but declaration
+     hoisting/binding inside static blocks still belongs behind the broader
+     class-definition environment route. Pair each positive route with
+     `unified-bytecode-production-fast-path static-block` and no
+     `classified-static-block-ir-fallback` proof.
 10g. When admitting iterator init driver shapes, keep source-payload shape and
      iterator driver kind as separate concepts. An iterator driver must carry
      exactly one source payload (`IterableProgram` or `AwaitedProgram`), and a

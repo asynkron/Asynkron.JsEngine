@@ -1421,6 +1421,18 @@ public sealed class UnifiedBytecodeResumableClassExpressionTests(ITestOutputHelp
     }
 
     [Fact]
+    public void EvaluateResumable_ClassExpressionComputedNameSpreadCall_DeclinesBeforeVm() =>
+        AssertClassExpressionDeclines("""
+            function* g(read, args) {
+                yield 1;
+                var C = class {
+                    [read(...args)]() { return 42; }
+                };
+                return C;
+            }
+            """);
+
+    [Fact]
     public void EvaluateResumable_ClassExpressionComputedNameActivationDelete_AdmitLoadClassLiteral()
     {
         var plan = GetFunctionPlan("""
@@ -2294,10 +2306,11 @@ public sealed class UnifiedBytecodeResumableClassExpressionTests(ITestOutputHelp
     }
 
     [Fact]
-    public void EvaluateResumable_ClassExpressionComputedMemberWithStaticBlockClosureNeighbor_DeclinesBeforeVm() =>
-        AssertClassExpressionDeclines("""
+    public void EvaluateResumable_ClassExpressionComputedMemberWithStaticBlockClosureNeighbor_AdmitsLoadClassLiteral()
+    {
+        var plan = GetFunctionPlan("""
             function* g(seed) {
-                yield 1;
+                yield "ready";
                 var current = seed;
                 var C = class {
                     ["read"]() { return 42; }
@@ -2305,9 +2318,53 @@ public sealed class UnifiedBytecodeResumableClassExpressionTests(ITestOutputHelp
                         this.readLater = () => current;
                     }
                 };
-                return C;
+                current = seed + 1;
+                yield C.readLater;
             }
+            """,
+            "g");
+
+        var result = UnifiedBytecodeProductionEligibility.EvaluateResumable(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor(IsGenerator: true));
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(
+            result.Program.Instructions,
+            static instruction => instruction.OpCode == UnifiedBytecodeOpCode.LoadClassLiteral);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task GeneratorClassExpressionComputedMemberWithStaticBlockClosureNeighbor_RoutesResumableAndObservesLaterActivationMutation()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function* g(seed) {
+                yield "ready";
+                var current = seed;
+                var C = class {
+                    ["read"]() { return 42; }
+                    static {
+                        this.readLater = () => current;
+                    }
+                };
+                current = seed + 1;
+                yield C.readLater;
+            }
+
+            var iterator = g(41);
+            var first = iterator.next();
+            var second = iterator.next();
+            first.value + ":" + first.done + "|" + second.value() + ":" + second.done;
             """);
+
+        Assert.Equal("ready:false|42:false", result);
+        AssertGeneratorFastPath("g", argc: 1);
+        AssertProductionFastPath("<anonymous>");
+        AssertStaticBlockFastPath();
+        AssertNoStaticBlockFallback();
+    }
 
     [Fact]
     public void EvaluateResumable_ClassExpressionStaticPublicAccessor_AdmitsLoadClassLiteral()
@@ -2985,7 +3042,7 @@ public sealed class UnifiedBytecodeResumableClassExpressionTests(ITestOutputHelp
     }
 
     [Fact(Timeout = 5000)]
-    public async Task GeneratorStaticBlockClosure_FallsBackAndObservesLaterActivationMutation()
+    public async Task GeneratorStaticBlockClosure_RoutesResumableAndObservesLaterActivationMutation()
     {
         await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
@@ -3008,10 +3065,10 @@ public sealed class UnifiedBytecodeResumableClassExpressionTests(ITestOutputHelp
             """);
 
         Assert.Equal("ready:false|42:true", result);
-        Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(),
-            static record => record.Message.Contains(
-                $"{ResumableGeneratorFastPathLog} func=g argc=1",
-                StringComparison.Ordinal));
+        AssertGeneratorFastPath("g", argc: 1);
+        AssertProductionFastPath("<anonymous>");
+        AssertStaticBlockFastPath();
+        AssertNoStaticBlockFallback();
     }
 
     private static ExecutionPlan GetFunctionPlan(string source, string functionName)

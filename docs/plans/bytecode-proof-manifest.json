@@ -854,6 +854,38 @@
           ]
         },
         {
+          "id": "B36-class-declaration-public-static-field-routes",
+          "claim": "admitted",
+          "kind": "runtime",
+          "source": "function* g(seed) {\n  yield 'ready';\n  class Box {\n    static value = seed + 1;\n  }\n  yield Box.value;\n}\nvar iterator = g(41);\nvar first = iterator.next();\nvar second = iterator.next();\nfirst.value + ':' + first.done + '|' + second.value + ':' + second.done;",
+          "expectedResult": "ready:false|42:false",
+          "requiredLogs": [
+            "unified-bytecode-resumable-generator-fast-path func=g"
+          ]
+        },
+        {
+          "id": "B36-class-declaration-mixed-static-public-field-and-method-routes",
+          "claim": "admitted",
+          "kind": "runtime",
+          "source": "function* g() {\n  yield 'ready';\n  class Box {\n    static seed = 40;\n    static value() { return this.seed + 1; }\n    static field = this.value() + 1;\n  }\n  yield Box.field + '|' + Box.value();\n}\nvar iterator = g();\nvar first = iterator.next();\nvar second = iterator.next();\nfirst.value + ':' + first.done + '|' + second.value + ':' + second.done;",
+          "expectedResult": "ready:false|42|41:false",
+          "requiredLogs": [
+            "unified-bytecode-resumable-generator-fast-path func=g",
+            "unified-bytecode-production-fast-path func=<anonymous>"
+          ]
+        },
+        {
+          "id": "B36-class-declaration-mixed-static-public-field-and-accessor-routes",
+          "claim": "admitted",
+          "kind": "runtime",
+          "source": "function* g() {\n  yield 'ready';\n  class Box {\n    static seed = 40;\n    static get value() { return this.seed + 1; }\n    static set value(next) { this.seed = next + 1; }\n    static field = this.value + 1;\n  }\n  Box.value = 40;\n  yield Box.field + '|' + Box.value + '|' + Box.seed;\n}\nvar iterator = g();\nvar first = iterator.next();\nvar second = iterator.next();\nfirst.value + ':' + first.done + '|' + second.value + ':' + second.done;",
+          "expectedResult": "ready:false|42|42|41:false",
+          "requiredLogs": [
+            "unified-bytecode-resumable-generator-fast-path func=g",
+            "unified-bytecode-production-fast-path func=<anonymous>"
+          ]
+        },
+        {
           "id": "B36-class-declaration-extends-static-field-closure-routes",
           "claim": "admitted",
           "kind": "runtime",

@@ -639,6 +639,115 @@ public sealed class UnifiedBytecodeResumableClassDeclarationTests(ITestOutputHel
     }
 
     [Fact]
+    public void EvaluateResumable_ClassDeclarationPublicStaticField_AdmitsDeclareClass()
+    {
+        var plan = GetFunctionPlan("""
+            function* g(seed) {
+                yield "ready";
+                class Box {
+                    static value = seed + 1;
+                }
+                yield Box.value;
+            }
+            """,
+            "g");
+
+        var result = UnifiedBytecodeProductionEligibility.EvaluateResumable(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor(IsGenerator: true));
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(
+            result.Program.Instructions,
+            static instruction => instruction.OpCode == UnifiedBytecodeOpCode.DeclareClass);
+    }
+
+    [Fact]
+    public void EvaluateResumable_ClassDeclarationMixedPublicStaticFieldAndMethod_AdmitsDeclareClass()
+    {
+        var plan = GetFunctionPlan("""
+            function* g() {
+                yield "ready";
+                class Box {
+                    static seed = 40;
+                    static value() { return this.seed + 1; }
+                    static field = this.value() + 1;
+                }
+                yield Box.field + Box.value();
+            }
+            """,
+            "g");
+
+        var result = UnifiedBytecodeProductionEligibility.EvaluateResumable(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor(IsGenerator: true));
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(
+            result.Program.Instructions,
+            static instruction => instruction.OpCode == UnifiedBytecodeOpCode.DeclareClass);
+        Assert.False(UnifiedBytecodeProductionEligibility.PlanNeedsMaterializedResumableBodyEnvironment(plan));
+    }
+
+    [Fact]
+    public void EvaluateResumable_ClassDeclarationMixedPublicStaticFieldAndAccessor_AdmitsDeclareClass()
+    {
+        var plan = GetFunctionPlan("""
+            function* g() {
+                yield "ready";
+                class Box {
+                    static seed = 40;
+                    static get value() { return this.seed + 1; }
+                    static set value(next) { this.seed = next + 1; }
+                    static field = this.value + 1;
+                }
+                yield Box.field + Box.value;
+            }
+            """,
+            "g");
+
+        var result = UnifiedBytecodeProductionEligibility.EvaluateResumable(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor(IsGenerator: true));
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(
+            result.Program.Instructions,
+            static instruction => instruction.OpCode == UnifiedBytecodeOpCode.DeclareClass);
+        Assert.False(UnifiedBytecodeProductionEligibility.PlanNeedsMaterializedResumableBodyEnvironment(plan));
+    }
+
+    [Fact]
+    public void EvaluateResumable_ClassDeclarationMixedPublicStaticMemberCapturesActivation_StillDeclines()
+    {
+        var plan = GetFunctionPlan("""
+            function* g(seed) {
+                yield "ready";
+                class Box {
+                    static field = 1;
+                    static get value() { return seed; }
+                }
+                yield Box.value;
+            }
+            """,
+            "g");
+
+        var result = UnifiedBytecodeProductionEligibility.EvaluateResumable(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor(IsGenerator: true));
+
+        Assert.False(result.IsEligible);
+        Assert.NotEqual(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(
+            "static member body captures activation binding 'seed'",
+            result.Reason,
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void EvaluateResumable_ClassDeclarationExtendsStaticFieldClosureInitializer_AdmitsDeclareClass()
     {
         var plan = GetFunctionPlan("""
@@ -1463,6 +1572,83 @@ public sealed class UnifiedBytecodeResumableClassDeclarationTests(ITestOutputHel
 
         Assert.Equal("ready:false|42|true:false", result);
         AssertGeneratorFastPath("g", argc: 1);
+        AssertProductionFastPath("<anonymous>");
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task GeneratorClassDeclarationPublicStaticField_RoutesResumableAndReadsActivation()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function* g(seed) {
+                yield "ready";
+                class Box {
+                    static value = seed + 1;
+                }
+                yield Box.value;
+            }
+
+            var iterator = g(41);
+            var first = iterator.next();
+            var second = iterator.next();
+            first.value + ":" + first.done + "|" + second.value + ":" + second.done;
+            """);
+
+        Assert.Equal("ready:false|42:false", result);
+        AssertGeneratorFastPath("g", argc: 1);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task GeneratorClassDeclarationMixedPublicStaticFieldAndMethod_RoutesResumableAndInitializesInOrder()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function* g() {
+                yield "ready";
+                class Box {
+                    static seed = 40;
+                    static value() { return this.seed + 1; }
+                    static field = this.value() + 1;
+                }
+                yield Box.field + "|" + Box.value();
+            }
+
+            var iterator = g();
+            var first = iterator.next();
+            var second = iterator.next();
+            first.value + ":" + first.done + "|" + second.value + ":" + second.done;
+            """);
+
+        Assert.Equal("ready:false|42|41:false", result);
+        AssertGeneratorFastPath("g", argc: 0);
+        AssertProductionFastPath("<anonymous>");
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task GeneratorClassDeclarationMixedPublicStaticFieldAndAccessor_RoutesResumableAndPreservesReceiver()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function* g() {
+                yield "ready";
+                class Box {
+                    static seed = 40;
+                    static get value() { return this.seed + 1; }
+                    static set value(next) { this.seed = next + 1; }
+                    static field = this.value + 1;
+                }
+                Box.value = 40;
+                yield Box.field + "|" + Box.value + "|" + Box.seed;
+            }
+
+            var iterator = g();
+            var first = iterator.next();
+            var second = iterator.next();
+            first.value + ":" + first.done + "|" + second.value + ":" + second.done;
+            """);
+
+        Assert.Equal("ready:false|42|42|41:false", result);
+        AssertGeneratorFastPath("g", argc: 0);
         AssertProductionFastPath("<anonymous>");
     }
 

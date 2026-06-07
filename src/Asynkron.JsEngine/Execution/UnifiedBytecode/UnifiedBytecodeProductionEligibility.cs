@@ -3415,6 +3415,20 @@ internal static class UnifiedBytecodeProductionEligibility
             return false;
         }
 
+        if (TryAdmitB36PublicStaticFieldClassDeclaration(
+                cache,
+                activationSlots,
+                out var staticFieldCandidate,
+                out declineReason))
+        {
+            return true;
+        }
+
+        if (staticFieldCandidate)
+        {
+            return false;
+        }
+
         if (HasClassExpressionProgram(descriptor.ProgramCache.MemberNamePrograms) ||
             HasClassExpressionProgram(descriptor.ProgramCache.FieldNamePrograms) ||
             definition.StaticElements is { IsDefaultOrEmpty: false })
@@ -3631,6 +3645,115 @@ internal static class UnifiedBytecodeProductionEligibility
 
         candidate = true;
         return TryValidateB36StaticBlockClassDeclaration(cache, activationSlots, out declineReason);
+    }
+
+    private static bool TryAdmitB36PublicStaticFieldClassDeclaration(
+        ClassDefinitionProgramCache cache,
+        ActivationSlotShape activationSlots,
+        out bool candidate,
+        out string declineReason)
+    {
+        var definition = cache.Definition;
+        candidate = false;
+        declineReason = string.Empty;
+
+        if (definition.Fields.IsDefaultOrEmpty ||
+            !definition.StaticBlockPlans.IsDefaultOrEmpty)
+        {
+            return false;
+        }
+
+        if (definition.StaticElements.IsDefaultOrEmpty ||
+            definition.StaticElements.Length != definition.Fields.Length)
+        {
+            return false;
+        }
+
+        foreach (var field in definition.Fields)
+        {
+            if (!field.IsStatic || field.IsPrivate || field.IsComputed)
+            {
+                return false;
+            }
+        }
+
+        foreach (var member in definition.Members)
+        {
+            if (!member.IsStatic || member.IsPrivate || member.IsComputed)
+            {
+                return false;
+            }
+        }
+
+        foreach (var element in definition.StaticElements)
+        {
+            if (element.Kind != ClassStaticElementKind.Field)
+            {
+                return false;
+            }
+        }
+
+        candidate = true;
+        if (FunctionCapturesActivationSlot(
+                definition.Constructor.Function,
+                activationSlots,
+                out var constructorCapturedName))
+        {
+            declineReason =
+                $"Class declaration static-field constructor body captures activation binding '{constructorCapturedName}' and is outside B36 until the materialized body environment route owns that dependency.";
+            return false;
+        }
+
+        foreach (var member in definition.Members)
+        {
+            if (FunctionCapturesActivationSlot(
+                    member.Callable.Function,
+                    activationSlots,
+                    out var capturedName))
+            {
+                declineReason =
+                    $"Class declaration static member body captures activation binding '{capturedName}' and is outside B36 until the materialized body environment route owns that dependency.";
+                return false;
+            }
+        }
+
+        if (cache.FieldInitializerPrograms.IsDefaultOrEmpty ||
+            cache.FieldInitializerPrograms.Length != definition.Fields.Length)
+        {
+            declineReason =
+                "Class declaration static field initializer programs are missing their field metadata.";
+            return false;
+        }
+
+        foreach (var initializerProgram in cache.FieldInitializerPrograms)
+        {
+            if (initializerProgram is null)
+            {
+                continue;
+            }
+
+            if (ExpressionProgramCreatesClosure(initializerProgram.Value))
+            {
+                declineReason =
+                    "Class declaration static field initializer creates a closure that needs the materialized class-definition environment route.";
+                return false;
+            }
+
+            if (UnifiedBytecodeCompiler.TryCompileStandaloneExpressionProgram(
+                    initializerProgram.Value,
+                    allowsDynamicIdentifiers: true,
+                    out _,
+                    out var initializerReason))
+            {
+                continue;
+            }
+
+            declineReason =
+                $"Class declaration static field initializer is outside B36 production routing: {initializerReason}";
+            return false;
+        }
+
+        return true;
     }
 
     private static bool TryValidateB36StaticBlockClassDeclaration(

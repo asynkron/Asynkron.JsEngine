@@ -952,12 +952,16 @@ predicates and proof tests.
     non-computed static-field `extends` declarations also route when each
     initializer compiles as standalone unified bytecode, including
     closure-producing static fields and static `super` field initializers. Direct
-    root class declarations that mix public non-computed static fields with
-    eligible static blocks now route as well, preserving static element order,
-    descriptor-backed static-block function declarations and nested static-block
-    class declarations can close over the materialized resumable body environment,
-    and declaration-free single-literal direct eval statements inside static
-    blocks route through the same production static-block path. Dynamic/eval
+    root public non-computed static-field class declarations without `extends`
+    now route when field initializers compile as standalone unified bytecode and
+    do not create closures, including mixes with public non-computed static
+    methods/accessors whose bodies do not capture activation. Direct root class
+    declarations that mix public non-computed static fields with eligible static
+    blocks now route as well, preserving static element order, descriptor-backed
+    static-block function declarations and nested static-block class declarations
+    can close over the materialized resumable body environment, and
+    declaration-free single-literal direct eval statements inside static blocks
+    route through the same production static-block path. Dynamic/eval
     helpers, runtime-source direct eval or otherwise non-production static-block
     plans, plus otherwise complex class declaration neighbors
     (private/static/computed shapes outside the admitted public subsets)

@@ -278,6 +278,83 @@
       ]
     },
     {
+      "id": "A51a1",
+      "title": "Malformed entrypoint and invalid-target compiler guards stay defensive",
+      "status": "done",
+      "proofs": [
+        {
+          "id": "A51a1-malformed-entrypoint-and-invalid-target-guards-stay-defensive",
+          "claim": "malformed-plan-protection",
+          "kind": "source-presence",
+          "path": "src/Asynkron.JsEngine/Execution/UnifiedBytecode/UnifiedBytecodeCompiler.cs",
+          "pattern": "Unsupported entrypoint."
+        },
+        {
+          "id": "A51a1-invalid-target-guard-stays-defensive",
+          "claim": "malformed-plan-protection",
+          "kind": "source-presence",
+          "path": "src/Asynkron.JsEngine/Execution/UnifiedBytecode/UnifiedBytecodeCompiler.cs",
+          "pattern": "Instruction flow reached an invalid target index."
+        }
+      ]
+    },
+    {
+      "id": "A51a2",
+      "title": "Generated loop-control topology diagnostics stay open",
+      "status": "open",
+      "proofs": [
+        {
+          "id": "A51a2-loop-control-topology-gate-stays-open",
+          "claim": "open",
+          "kind": "source-presence",
+          "path": "src/Asynkron.JsEngine/Execution/UnifiedBytecode/UnifiedBytecodeCompiler.cs",
+          "pattern": "Unsupported loop control flow at instruction"
+        }
+      ]
+    },
+    {
+      "id": "A51c",
+      "title": "Catch binding and environment-sensitive storage diagnostics stay open",
+      "status": "open",
+      "proofs": [
+        {
+          "id": "A51c-catch-binding-topology-gate-stays-open",
+          "claim": "open",
+          "kind": "source-presence",
+          "path": "src/Asynkron.JsEngine/Execution/UnifiedBytecode/UnifiedBytecodeCompiler.cs",
+          "pattern": "Only optional and simple identifier catch bindings are eligible for unified bytecode compilation."
+        }
+      ]
+    },
+    {
+      "id": "A51d",
+      "title": "Generated driver state-slot routes are closed; malformed driver state-slot guards remain defensive",
+      "status": "done",
+      "proofs": [
+        {
+          "id": "A51d-malformed-driver-state-slot-guard-stays-defensive",
+          "claim": "malformed-plan-protection",
+          "kind": "source-presence",
+          "path": "src/Asynkron.JsEngine/Execution/UnifiedBytecode/UnifiedBytecodeCompiler.cs",
+          "pattern": "Unsupported driver state slot"
+        }
+      ]
+    },
+    {
+      "id": "A51j",
+      "title": "Logical property-write cleanup-start diagnostics stay open",
+      "status": "open",
+      "proofs": [
+        {
+          "id": "A51j-logical-property-write-cleanup-start-gate-stays-open",
+          "claim": "open",
+          "kind": "source-presence",
+          "path": "src/Asynkron.JsEngine/Execution/UnifiedBytecode/UnifiedBytecodeCompiler.cs",
+          "pattern": "Logical named property writes require jump target at cleanup start."
+        }
+      ]
+    },
+    {
       "id": "A51f1",
       "title": "General expression loop covers every declared ExpressionOpKind",
       "status": "done",

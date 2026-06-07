@@ -299,7 +299,7 @@ public sealed class UnifiedBytecodeAsyncGeneratorRouteTests(ITestOutputHelper ou
     }
 
     [Fact(Timeout = 5000)]
-    public async Task AsyncGeneratorDefaultParameter_DeclinesUnifiedRouteThenFallsBack()
+    public async Task AsyncGeneratorDefaultParameter_DeclinesUnifiedRouteThenFailsExplicitly()
     {
         await using var engine = CreateEngine();
         var result = await engine.EvaluateAndAwait("""
@@ -321,14 +321,14 @@ public sealed class UnifiedBytecodeAsyncGeneratorRouteTests(ITestOutputHelper ou
             output;
             """);
 
-        Assert.Equal("resolved:7:false", result?.ToString());
-        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
-            record => record.Message.Contains("async-generator-runner-fallback func=values", StringComparison.Ordinal) &&
-                      record.Message.Contains("Non-simple async-generator parameter lists", StringComparison.Ordinal));
+        Assert.StartsWith("rejected:", result?.ToString(), StringComparison.Ordinal);
+        Assert.Contains("Non-simple async-generator parameter lists", result?.ToString(), StringComparison.Ordinal);
+        Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(),
+            record => record.Message.Contains("async-generator-runner-fallback", StringComparison.Ordinal));
     }
 
     [Fact(Timeout = 5000)]
-    public async Task AsyncGeneratorNonSimpleParameter_DeclinesUnifiedRouteThenFallsBack()
+    public async Task AsyncGeneratorNonSimpleParameter_DeclinesUnifiedRouteThenFailsExplicitly()
     {
         await using var engine = CreateEngine();
         var result = await engine.EvaluateAndAwait("""
@@ -352,14 +352,14 @@ public sealed class UnifiedBytecodeAsyncGeneratorRouteTests(ITestOutputHelper ou
             output;
             """);
 
-        Assert.Equal("resolved:7:false|default,body:7", result?.ToString());
-        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
-            record => record.Message.Contains("async-generator-runner-fallback func=values", StringComparison.Ordinal) &&
-                      record.Message.Contains("Non-simple async-generator parameter lists", StringComparison.Ordinal));
+        Assert.StartsWith("rejected:|", result?.ToString(), StringComparison.Ordinal);
+        Assert.Contains("Non-simple async-generator parameter lists", result?.ToString(), StringComparison.Ordinal);
+        Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(),
+            record => record.Message.Contains("async-generator-runner-fallback", StringComparison.Ordinal));
     }
 
     [Fact(Timeout = 5000)]
-    public async Task AsyncGeneratorDestructuringParameter_DeclinesUnifiedRouteThenFallsBack()
+    public async Task AsyncGeneratorDestructuringParameter_DeclinesUnifiedRouteThenFailsExplicitly()
     {
         await using var engine = CreateEngine();
         var result = await engine.EvaluateAndAwait("""
@@ -381,10 +381,10 @@ public sealed class UnifiedBytecodeAsyncGeneratorRouteTests(ITestOutputHelper ou
             output;
             """);
 
-        Assert.Equal("resolved:1:false", result?.ToString());
-        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
-            record => record.Message.Contains("async-generator-runner-fallback func=values", StringComparison.Ordinal) &&
-                      record.Message.Contains("Non-simple async-generator parameter lists", StringComparison.Ordinal));
+        Assert.StartsWith("rejected:", result?.ToString(), StringComparison.Ordinal);
+        Assert.Contains("Non-simple async-generator parameter lists", result?.ToString(), StringComparison.Ordinal);
+        Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(),
+            record => record.Message.Contains("async-generator-runner-fallback", StringComparison.Ordinal));
     }
 
     [Fact(Timeout = 5000)]
@@ -471,6 +471,34 @@ public sealed class UnifiedBytecodeAsyncGeneratorRouteTests(ITestOutputHelper ou
             virtualMachineSource,
             forbiddenVirtualMachineTokens,
             "The unified bytecode VM must not delegate back into runner or expression-evaluation bridges.");
+    }
+
+    [Fact]
+    public void SourceGate_AsyncGeneratorInvoker_DoesNotKeepDeclinedBodyRunnerFallback()
+    {
+        var repositoryRoot = FindRepositoryRoot();
+        var asyncGeneratorInvokerPath = Path.Combine(
+            repositoryRoot.FullName,
+            "src",
+            "Asynkron.JsEngine",
+            "Ast",
+            "TypedAstEvaluator.AsyncGeneratorInvoker.cs");
+
+        var source = File.ReadAllText(asyncGeneratorInvokerPath);
+        var forbiddenFallbackTokens = new[]
+        {
+            "_fallbackRunner",
+            "ExecuteFallbackRunnerStep",
+            "ExecuteAsyncStep(",
+            "async-generator-runner-fallback",
+            "ExecutionPlanRunner.ResumeMode",
+            "CreateClassifiedAsyncGeneratorDeclinedBodyRunner"
+        };
+
+        AssertNoForbiddenTokens(
+            source,
+            forbiddenFallbackTokens,
+            "E6 requires AsyncGeneratorInvoker declined bodies to fail explicitly instead of constructing a renamed runner fallback.");
     }
 
     private static ExecutionPlan GetFunctionPlan(string source, string functionName)

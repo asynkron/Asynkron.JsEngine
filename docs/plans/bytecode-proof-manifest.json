@@ -1269,6 +1269,41 @@
           "kind": "source-absence",
           "path": "src/Asynkron.JsEngine/Ast/TypedAstEvaluator.AsyncGeneratorInvoker.cs",
           "pattern": "CreateClassifiedAsyncGeneratorDeclinedBodyRunner"
+        },
+        {
+          "id": "E6-async-generator-fallback-field-absent",
+          "claim": "retired-fallback",
+          "kind": "source-absence",
+          "path": "src/Asynkron.JsEngine/Ast/TypedAstEvaluator.AsyncGeneratorInvoker.cs",
+          "pattern": "_fallbackRunner"
+        },
+        {
+          "id": "E6-async-generator-fallback-step-helper-absent",
+          "claim": "retired-fallback",
+          "kind": "source-absence",
+          "path": "src/Asynkron.JsEngine/Ast/TypedAstEvaluator.AsyncGeneratorInvoker.cs",
+          "pattern": "ExecuteFallbackRunnerStep"
+        },
+        {
+          "id": "E6-async-generator-fallback-runner-step-absent",
+          "claim": "retired-fallback",
+          "kind": "source-absence",
+          "path": "src/Asynkron.JsEngine/Ast/TypedAstEvaluator.AsyncGeneratorInvoker.cs",
+          "pattern": "ExecuteAsyncStep("
+        },
+        {
+          "id": "E6-async-generator-fallback-log-absent",
+          "claim": "retired-fallback",
+          "kind": "source-absence",
+          "path": "src/Asynkron.JsEngine/Ast/TypedAstEvaluator.AsyncGeneratorInvoker.cs",
+          "pattern": "async-generator-runner-fallback"
+        },
+        {
+          "id": "E6-async-generator-fallback-resume-mode-absent",
+          "claim": "retired-fallback",
+          "kind": "source-absence",
+          "path": "src/Asynkron.JsEngine/Ast/TypedAstEvaluator.AsyncGeneratorInvoker.cs",
+          "pattern": "ExecutionPlanRunner.ResumeMode"
         }
       ]
     }

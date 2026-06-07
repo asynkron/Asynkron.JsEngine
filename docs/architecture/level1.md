@@ -63,12 +63,16 @@ flowchart TB
   subgraph Perf["Performance tooling"]
     Benchmarks["Asynkron.JsEngine.Benchmarks<br/>BenchmarkDotNet comparisons"]:::tools
     ProfileRunner["ProfileRunner<br/>profile scripts + comparison probes"]:::tools
-    Diagnostics["MemoryDiagnostic / AtomicsDebug<br/>PropertyEscapeProfile"]:::tools
+    Memory["MemoryDiagnostic"]:::tools
+    Atomics["AtomicsDebug"]:::tools
+    PropertyEscape["PropertyEscapeProfile"]:::tools
   end
 
   Benchmarks --> Engine
   ProfileRunner --> Engine
-  Diagnostics --> Engine
+  Memory --> Engine
+  Atomics --> Engine
+  PropertyEscape --> Engine
 
   subgraph External["External comparison/test packages"]
     Jint["Jint"]:::external
@@ -81,4 +85,28 @@ flowchart TB
   ProfileRunner --> Jint
   ProfileRunner --> Harness
   Test262 --> Harness
+
+  click Generator "level3-asynkron-jsengine-generators.md" "Open Asynkron.JsEngine.Generators architecture"
+  click Engine "level3-asynkron-jsengine.md" "Open Asynkron.JsEngine architecture"
+  click Parser "level2-core-runtime-pipeline.md" "Open core runtime pipeline architecture"
+  click AST "level2-core-runtime-pipeline.md" "Open core runtime pipeline architecture"
+  click Lowering "level2-core-runtime-pipeline.md" "Open core runtime pipeline architecture"
+  click IR "level2-core-runtime-pipeline.md" "Open core runtime pipeline architecture"
+  click Expr "level2-core-runtime-pipeline.md" "Open core runtime pipeline architecture"
+  click Runner "level2-core-runtime-pipeline.md" "Open core runtime pipeline architecture"
+  click Bytecode "level2-core-runtime-pipeline.md" "Open core runtime pipeline architecture"
+  click Env "level2-runtime-support.md" "Open runtime support architecture"
+  click Values "level2-runtime-support.md" "Open runtime support architecture"
+  click StdLib "level2-runtime-support.md" "Open runtime support architecture"
+  click UnitTests "level3-asynkron-jsengine-tests.md" "Open Asynkron.JsEngine.Tests architecture"
+  click Helpers "level3-asynkron-jsengine-tests-helpers.md" "Open test helpers architecture"
+  click Test262 "level3-asynkron-jsengine-tests-test262.md" "Open Test262 test architecture"
+  click Benchmarks "level3-asynkron-jsengine-benchmarks.md" "Open benchmark project architecture"
+  click ProfileRunner "level3-profile-runner.md" "Open ProfileRunner architecture"
+  click Memory "level3-memory-diagnostic.md" "Open MemoryDiagnostic architecture"
+  click Atomics "level3-atomics-debug.md" "Open AtomicsDebug architecture"
+  click PropertyEscape "level3-property-escape-profile.md" "Open PropertyEscapeProfile architecture"
+  click Jint "level2-external-comparison-test-packages.md" "Open external package architecture"
+  click BDN "level2-external-comparison-test-packages.md" "Open external package architecture"
+  click Harness "level2-external-comparison-test-packages.md" "Open external package architecture"
 ```

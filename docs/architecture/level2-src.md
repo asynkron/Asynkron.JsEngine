@@ -16,6 +16,9 @@ flowchart LR
   Data --> Generator
   Generator --> Generated
   Generated -. "compiled into" .-> Engine
+
+  click Generator "level3-asynkron-jsengine-generators.md" "Open Asynkron.JsEngine.Generators architecture"
+  click Engine "level3-asynkron-jsengine.md" "Open Asynkron.JsEngine architecture"
 ```
 
 ## Design

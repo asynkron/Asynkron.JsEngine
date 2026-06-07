@@ -21,6 +21,15 @@ flowchart TB
   Builder --> IR --> Runner
   Builder --> Expr --> Runner
   Expr -. "eligible payloads" .-> Bytecode --> Runner
+
+  click Parser "level3-asynkron-jsengine.md" "Open Asynkron.JsEngine project architecture"
+  click AST "level3-asynkron-jsengine.md" "Open Asynkron.JsEngine project architecture"
+  click Analysis "level3-asynkron-jsengine.md" "Open Asynkron.JsEngine project architecture"
+  click Builder "level3-asynkron-jsengine.md" "Open Asynkron.JsEngine project architecture"
+  click IR "level3-asynkron-jsengine.md" "Open Asynkron.JsEngine project architecture"
+  click Expr "level3-asynkron-jsengine.md" "Open Asynkron.JsEngine project architecture"
+  click Runner "level3-asynkron-jsengine.md" "Open Asynkron.JsEngine project architecture"
+  click Bytecode "level3-asynkron-jsengine.md" "Open Asynkron.JsEngine project architecture"
 ```
 
 ## Design

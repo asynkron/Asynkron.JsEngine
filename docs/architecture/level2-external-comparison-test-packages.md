@@ -21,6 +21,10 @@ flowchart LR
   Profile --> Jint
   Profile --> Harness
   Test262Project --> Harness
+
+  click Bench "level3-asynkron-jsengine-benchmarks.md" "Open benchmark project architecture"
+  click Profile "level3-profile-runner.md" "Open ProfileRunner architecture"
+  click Test262Project "level3-asynkron-jsengine-tests-test262.md" "Open Test262 test project architecture"
 ```
 
 ## Design

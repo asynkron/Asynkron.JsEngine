@@ -21,6 +21,13 @@ flowchart LR
   StdLib --> Ops
   Env <--> Values
   Env --> Pools
+
+  click Runner "level3-asynkron-jsengine.md" "Open Asynkron.JsEngine project architecture"
+  click Env "level3-asynkron-jsengine.md" "Open Asynkron.JsEngine project architecture"
+  click Values "level3-asynkron-jsengine.md" "Open Asynkron.JsEngine project architecture"
+  click StdLib "level3-asynkron-jsengine.md" "Open Asynkron.JsEngine project architecture"
+  click Ops "level3-asynkron-jsengine.md" "Open Asynkron.JsEngine project architecture"
+  click Pools "level3-asynkron-jsengine.md" "Open Asynkron.JsEngine project architecture"
 ```
 
 ## Design

@@ -20,6 +20,12 @@ flowchart TB
   Test262 --> Engine
   Test262 --> Helpers
   Test262 --> Harness
+
+  click Engine "level3-asynkron-jsengine.md" "Open Asynkron.JsEngine architecture"
+  click Helpers "level3-asynkron-jsengine-tests-helpers.md" "Open test helpers architecture"
+  click Unit "level3-asynkron-jsengine-tests.md" "Open focused test project architecture"
+  click Test262 "level3-asynkron-jsengine-tests-test262.md" "Open Test262 test project architecture"
+  click Harness "level2-external-comparison-test-packages.md" "Open external package architecture"
 ```
 
 ## Design

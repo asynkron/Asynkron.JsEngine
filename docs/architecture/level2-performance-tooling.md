@@ -12,7 +12,9 @@ flowchart TB
   Bench["Asynkron.JsEngine.Benchmarks<br/>BenchmarkDotNet suites"]:::tools
   Profile["ProfileRunner<br/>script/profile harness"]:::tools
   Scripts["tools/profile-scripts<br/>JS workload corpus"]:::tools
-  Diagnostics["MemoryDiagnostic / AtomicsDebug<br/>PropertyEscapeProfile"]:::tools
+  Memory["MemoryDiagnostic"]:::tools
+  Atomics["AtomicsDebug"]:::tools
+  PropertyEscape["PropertyEscapeProfile"]:::tools
   BDN["BenchmarkDotNet"]:::external
   Jint["Jint"]:::external
   Harness["Test262Harness"]:::external
@@ -24,7 +26,19 @@ flowchart TB
   Profile --> Scripts
   Profile --> Jint
   Profile --> Harness
-  Diagnostics --> Engine
+  Memory --> Engine
+  Atomics --> Engine
+  PropertyEscape --> Engine
+
+  click Engine "level3-asynkron-jsengine.md" "Open Asynkron.JsEngine architecture"
+  click Bench "level3-asynkron-jsengine-benchmarks.md" "Open benchmark project architecture"
+  click Profile "level3-profile-runner.md" "Open ProfileRunner architecture"
+  click Memory "level3-memory-diagnostic.md" "Open MemoryDiagnostic architecture"
+  click Atomics "level3-atomics-debug.md" "Open AtomicsDebug architecture"
+  click PropertyEscape "level3-property-escape-profile.md" "Open PropertyEscapeProfile architecture"
+  click BDN "level2-external-comparison-test-packages.md" "Open external package architecture"
+  click Jint "level2-external-comparison-test-packages.md" "Open external package architecture"
+  click Harness "level2-external-comparison-test-packages.md" "Open external package architecture"
 ```
 
 ## Design

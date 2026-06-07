@@ -14945,16 +14945,36 @@ internal static class UnifiedBytecodeProductionEligibility
             return false;
         }
 
+        var hasPrivateReceiverPrefix = false;
         for (var operationIndex = 1; operationIndex < program.OperationCount - 1; operationIndex++)
         {
             var receiverRead = program.GetOperation(operationIndex);
-            if (receiverRead.Kind != ExpressionOpKind.GetNamedProperty ||
-                receiverRead.GetString(stringConstants).IsPrivateName() ||
-                receiverRead.IsOptional ||
+            if (receiverRead.Kind != ExpressionOpKind.GetNamedProperty)
+            {
+                return false;
+            }
+
+            var receiverName = receiverRead.GetString(stringConstants);
+            if (receiverName.IsPrivateName())
+            {
+                if (hasPrivateReceiverPrefix || operationIndex != 1)
+                {
+                    return false;
+                }
+
+                hasPrivateReceiverPrefix = true;
+            }
+
+            if (receiverRead.IsOptional ||
                 receiverRead.ShortCircuitOnNullishTarget)
             {
                 return false;
             }
+        }
+
+        if (hasPrivateReceiverPrefix && program.OperationCount != 3)
+        {
+            return false;
         }
 
         return true;
@@ -14987,6 +15007,7 @@ internal static class UnifiedBytecodeProductionEligibility
         // Walk the named receiver-prefix chain (at least one plain named hop).
         var stringConstants = program.StringConstants.AsSpan();
         var keyStart = 1;
+        var hasPrivateReceiverPrefix = false;
         while (keyStart < program.OperationCount - 1)
         {
             var receiverRead = program.GetOperation(keyStart);
@@ -14995,14 +15016,29 @@ internal static class UnifiedBytecodeProductionEligibility
                 break;
             }
 
-            if (receiverRead.GetString(stringConstants).IsPrivateName() ||
-                receiverRead.IsOptional ||
+            var receiverName = receiverRead.GetString(stringConstants);
+            if (receiverName.IsPrivateName())
+            {
+                if (hasPrivateReceiverPrefix || keyStart != 1)
+                {
+                    return false;
+                }
+
+                hasPrivateReceiverPrefix = true;
+            }
+
+            if (receiverRead.IsOptional ||
                 receiverRead.ShortCircuitOnNullishTarget)
             {
                 return false;
             }
 
             keyStart++;
+        }
+
+        if (hasPrivateReceiverPrefix && keyStart != 2)
+        {
+            return false;
         }
 
         // Require at least one named prefix hop; the prefix-free shape is the simple

@@ -9600,6 +9600,107 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     }
 
     [Fact(Timeout = 5000)]
+    public async Task PrivateReceiverPrefixNamedPropertyUpdate_TargetsReceiverChildAndUsesUnifiedBytecodeProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            class Holder {
+                #child = { value: 1 };
+
+                update(receiver) {
+                    return receiver.#child.value++;
+                }
+
+                read(receiver) {
+                    return receiver.#child.value;
+                }
+            }
+
+            var left = new Holder();
+            var right = new Holder();
+            left.update(right) + ":" + left.read(left) + ":" + left.read(right);
+            """);
+
+        Assert.Equal("1:1:2", result?.ToString());
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=<anonymous> argc=1",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task PrivateReceiverPrefixComputedPropertyUpdate_EvaluatesKeyOnceOnProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            class Holder {
+                #child = { value: 41 };
+
+                update(receiver, key) {
+                    return ++receiver.#child[key];
+                }
+
+                read(receiver, key) {
+                    return receiver.#child[key];
+                }
+            }
+
+            var hits = 0;
+            var key = {
+                toString() {
+                    hits = hits + 1;
+                    return "value";
+                }
+            };
+            var left = new Holder();
+            var right = new Holder();
+            left.update(right, key) + ":" + hits + ":" + left.read(left, "value") + ":" + left.read(right, "value");
+            """);
+
+        Assert.Equal("42:1:41:42", result?.ToString());
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=<anonymous> argc=2",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task PrivateReceiverPrefixComputedPropertyUpdate_BrandFailureSkipsKey()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            var keyHits = 0;
+            var key = {
+                toString() {
+                    keyHits = keyHits + 1;
+                    return "value";
+                }
+            };
+
+            class Holder {
+                #child = { value: 1 };
+
+                update(receiver, key) {
+                    return receiver.#child[key]++;
+                }
+            }
+
+            var caught = false;
+            var typeError = false;
+            try {
+                new Holder().update({}, key);
+            } catch (error) {
+                caught = true;
+                typeError = error instanceof TypeError;
+            }
+
+            String(keyHits) + ":" + String(caught) + ":" + String(typeError);
+            """);
+
+        Assert.Equal("0:true:true", result?.ToString());
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task PrivateNamedPropertyWrite_UsesUnifiedBytecodeProductionFastPath()
     {
         await using var engine = CreateEngine();

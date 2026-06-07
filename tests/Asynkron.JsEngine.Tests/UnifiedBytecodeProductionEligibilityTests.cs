@@ -6239,7 +6239,7 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
-    public void Evaluate_PrivateReceiverPrefixNamedUpdate_StillDeclines()
+    public void Evaluate_PrivateReceiverPrefixNamedUpdate_AcceptsOwnedPropertyOpcodes()
     {
         var plan = GetClassMethodPlan("""
             class Holder {
@@ -6256,8 +6256,16 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
             plan,
             new UnifiedBytecodeProductionActivationDescriptor());
 
-        Assert.False(result.IsEligible);
-        Assert.NotEqual(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(
+            result.Program.Instructions,
+            instruction => instruction.OpCode == UnifiedBytecodeOpCode.GetNamedProperty);
+        Assert.Contains(
+            result.Program.Instructions,
+            instruction => instruction.OpCode == UnifiedBytecodeOpCode.UpdateNamedProperty);
+        Assert.Contains("#child", result.Program.StringConstants);
+        Assert.Contains("value", result.Program.StringConstants);
     }
 
     [Fact]
@@ -6313,13 +6321,42 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
-    public void Evaluate_PrivateReceiverPrefixComputedUpdate_StillDeclines()
+    public void Evaluate_PrivateReceiverPrefixComputedUpdate_AcceptsOwnedPropertyOpcodes()
     {
         var plan = GetClassMethodPlan("""
             class Holder {
                 #child = { value: 1 };
                 update(receiver, key) {
                     return receiver.#child[key]++;
+                }
+            }
+            """,
+            "Holder",
+            "update");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(
+            result.Program.Instructions,
+            instruction => instruction.OpCode == UnifiedBytecodeOpCode.GetNamedProperty);
+        Assert.Contains(
+            result.Program.Instructions,
+            instruction => instruction.OpCode == UnifiedBytecodeOpCode.UpdateComputedProperty);
+        Assert.Contains("#child", result.Program.StringConstants);
+    }
+
+    [Fact]
+    public void Evaluate_PrivateReceiverPrefixDeepNamedUpdate_StillDeclines()
+    {
+        var plan = GetClassMethodPlan("""
+            class Holder {
+                #child = { inner: { value: 1 } };
+                update(receiver) {
+                    return receiver.#child.inner.value++;
                 }
             }
             """,

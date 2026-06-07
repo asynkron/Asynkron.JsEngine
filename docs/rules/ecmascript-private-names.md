@@ -116,5 +116,9 @@ private reads used as nested binary/RHS value operands and single-hop optional
 private reads (`receiver?.#field`) now route through the A51f5 partial
 private-neighbor admission. Private receiver-prefix named calls such as
 `receiver.#child.value()` now route too, preserving the method receiver after the
-private prefix read. Chained optional-private receiver-neighbor, delete-defense,
-mutation-neighbor, and super-neighbor diagnostics remain tracked by A51f5.
+private prefix read. Private receiver-prefix public named/computed writes and
+one-hop public named/computed updates now route by composing the private prefix
+read with the public terminal operation. Chained optional-private
+receiver-neighbor, delete-defense, deeper private-prefix update chains,
+compound/logical/private-terminal mutation-neighbor, and super-neighbor
+diagnostics remain tracked by A51f5.

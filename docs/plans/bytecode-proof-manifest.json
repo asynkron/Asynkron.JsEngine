@@ -323,6 +323,27 @@
           "kind": "source-presence",
           "path": "src/Asynkron.JsEngine/Execution/UnifiedBytecode/UnifiedBytecodeCompiler.cs",
           "pattern": "Only optional and simple identifier catch bindings are eligible for unified bytecode compilation."
+        },
+        {
+          "id": "A51c-catch-binding-slot-mapping-stays-open",
+          "claim": "open",
+          "kind": "source-presence",
+          "path": "src/Asynkron.JsEngine/Execution/UnifiedBytecode/UnifiedBytecodeCompiler.cs",
+          "pattern": "Unsupported catch binding slot '{identifier.Name.Name}'."
+        },
+        {
+          "id": "A51c-lexical-dynamic-declaration-storage-stays-open",
+          "claim": "open",
+          "kind": "source-presence",
+          "path": "src/Asynkron.JsEngine/Execution/UnifiedBytecode/UnifiedBytecodeCompiler.cs",
+          "pattern": "Lexical declaration target '{targetSymbol.Name}' requires dynamic identifier operations."
+        },
+        {
+          "id": "A51c-active-with-dynamic-name-check-stays-open",
+          "claim": "open",
+          "kind": "source-presence",
+          "path": "src/Asynkron.JsEngine/Execution/UnifiedBytecode/UnifiedBytecodeCompiler.cs",
+          "pattern": "Identifier '{identifier.Name.Name}' requires dynamic lookup and is not eligible outside an active with environment."
         }
       ]
     },

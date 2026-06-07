@@ -201,26 +201,33 @@ all-or-nothing until a separate routing issue proves production readiness.
     `eval("var injected = 1"); injected;` must keep computing through the
     classified IR fallback, must not log the script production fast path, and
     must preserve the `CallDependency` decline detail with eval context.
-9f. Classify entrypoint rejects by builder provenance before treating them as
-    active production residue. `Unsupported entrypoint.` is a malformed-plan
-    integrity backstop when the plan comes from `ExecutionPlanBuilder`, because
-    valid compiler-produced function, script, and resumable plans record an
-    in-range `EntryPoint`. Keep the defensive checks in the compiler,
+9f. Classify entrypoint and target rejects by builder provenance before
+    treating them as active production residue. `Unsupported entrypoint.` and
+    invalid-target integrity guards are A51a1 malformed-plan backstops when the
+    plan comes from `ExecutionPlanBuilder`, because valid compiler-produced
+    function, script, and resumable plans record in-range control-flow
+    entrypoints and mapped targets. Keep the defensive checks in the compiler,
     production eligibility, and with-depth analysis for manually constructed or
-    corrupted plans, but do not count that arm as an admissible JavaScript shape
-    gap unless a focused test first proves a valid compiled plan can produce an
-    out-of-range entrypoint. Future closure work should pair direct plan
-    invariants with public route/admission proof for function, script, and
-    resumable plans so defensive integrity checks are not mistaken for
-    route-widening work. WHY: Faktorial issue
+    corrupted plans, but do not count those arms as admissible JavaScript shape
+    gaps unless a focused test first proves a valid compiled plan can produce
+    the malformed topology. Generated loop-control and statement-topology
+    diagnostics stay in A51a2 and must remain open until the compiler proves
+    the generated topology and the VM cleanup route. Future closure work should
+    pair direct plan invariants with public route/admission proof for function,
+    script, and resumable plans so defensive integrity checks are not mistaken
+    for route-widening work. WHY: Faktorial issue
     `planitem-planmanual1780730299657353000-unified-bytecode-remaining-burndown-03-com-d1dd2ffe1b`
     / PR #3336 closed the A51a `Unsupported entrypoint.` subfamily by proving
     valid compiler-produced plans have supported entrypoints while keeping the
-    malformed-plan guardrails intact.
+    malformed-plan guardrails intact. Faktorial issue
+    `planitem-planitem-gh3377-rebaseline-the-finite-bytecode-retirement-inventory-conv-e0b226352f`
+    / PR #3395 split the old A51a row into A51a1 defensive malformed/manual
+    guards and A51a2 generated loop-control topology work.
 9g. Keep A51l closed as a decomposed diagnostics bucket, not as a reusable
     catch/try/driver cleanup umbrella. Catch-binding and dynamic environment
-    storage diagnostics belong to A51c; invalid targets, active try-completion
-    targets, and remaining loop-control topology belong to A51a; iterator,
+    storage diagnostics belong to A51c; invalid targets and malformed
+    entrypoint/target guards belong to A51a1; active try-completion targets and
+    remaining loop-control topology belong to A51a2; iterator,
     for-in, `yield*`, resume-target, driver state-slot, and iterator-close
     state-slot diagnostics belong to A51d; logical property-write cleanup-start
     diagnostics belong to A51j; and resumable finally-cleanup guards remain
@@ -232,7 +239,11 @@ all-or-nothing until a separate routing issue proves production readiness.
     Faktorial issue
     `planitem-planmanual1780730299657353000-unified-bytecode-remaining-burndown-03-com-c499586fbd`
     / delivery PR #3330 closed A51l by proving the current catch/try/driver
-    cleanup reason templates already map to concrete owners. Related ADR:
+    cleanup reason templates already map to concrete owners. Faktorial issue
+    `planitem-planitem-gh3377-rebaseline-the-finite-bytecode-retirement-inventory-conv-e0b226352f`
+    / PR #3395 replayed that decomposition on the finite inventory by mapping
+    A51l's former cleanup diagnostics to A51a2/A51c/A51d/A51j plus explicit
+    eligibility guards. Related ADR:
     `docs/adrs/0357-keep-a51l-catch-try-driver-cleanup-diagnostics-decomposed.md`.
 9h. Keep private receiver-prefix property-read admission value-read-only and
     rollback-safe. Private named hops may participate in simple property-read
@@ -794,7 +805,7 @@ all-or-nothing until a separate routing issue proves production readiness.
      burn-down owner evidence, not automatic enum members. Preserve dynamic
      residue separately from compiler-owned non-dynamic route gaps. WHY: issue
      #3134 / PR #3138 decomposed the stale A51/B47/E2 compiler umbrella into
-     A51a-A51m plus B47a and added a source gate over compiler reason
+     A51a1/A51a2, A51b-A51k, A51m, and B47a, and added a source gate over compiler reason
      templates. Review also found stale checklist counters after the first
      update, so future edits must update the contract, owner leaves, and counts
      together. Related ADR:

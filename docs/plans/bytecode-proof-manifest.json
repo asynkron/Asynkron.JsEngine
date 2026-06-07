@@ -189,7 +189,7 @@
     },
     {
       "id": "B24h",
-      "title": "Computed class-member names are partial; activation-capturing field initializers still decline",
+      "title": "Computed class-member names are partial; static field initializers and constructor/member bodies still decline",
       "status": "open",
       "proofs": [
         {
@@ -231,12 +231,33 @@
           ]
         },
         {
-          "id": "B24h-computed-field-activation-initializer-declines",
+          "id": "B24h-computed-field-activation-initializer-routes",
+          "claim": "admitted",
+          "kind": "runtime",
+          "source": "function* g(seed) {\n  yield 'ready';\n  var current = seed;\n  var C = class {\n    ['field'] = current;\n  };\n  current = seed + 1;\n  yield C;\n}\nvar iterator = g(41);\nvar first = iterator.next();\nvar second = iterator.next();\nvar C = second.value;\nvar c = new C();\nfirst.value + ':' + first.done + '|' + c.field + ':' + second.done;",
+          "expectedResult": "ready:false|42:false",
+          "requiredLogs": [
+            "unified-bytecode-resumable-generator-fast-path func=g"
+          ]
+        },
+        {
+          "id": "B24h-computed-field-activation-closure-initializer-routes",
+          "claim": "admitted",
+          "kind": "runtime",
+          "source": "function* g(seed) {\n  yield 'ready';\n  var current = seed;\n  var C = class {\n    ['field'] = function read() { return current; };\n  };\n  current = seed + 1;\n  yield C;\n}\nvar iterator = g(41);\nvar first = iterator.next();\nvar second = iterator.next();\nvar C = second.value;\nvar c = new C();\nfirst.value + ':' + first.done + '|' + c.field() + ':' + second.done;",
+          "expectedResult": "ready:false|42:false",
+          "requiredLogs": [
+            "unified-bytecode-resumable-generator-fast-path func=g",
+            "unified-bytecode-production-fast-path func=read"
+          ]
+        },
+        {
+          "id": "B24h-computed-static-field-activation-initializer-declines",
           "claim": "open",
           "kind": "eligibility",
           "subject": "resumable-generator",
           "functionName": "g",
-          "source": "function* g(seed) {\n  yield 1;\n  var C = class {\n    ['field'] = seed;\n  };\n  return C;\n}",
+          "source": "function* g(seed) {\n  yield 1;\n  var C = class {\n    static ['field'] = seed;\n  };\n  return C;\n}",
           "expectedEligible": false,
           "declineCode": "UnsupportedPlanShape",
           "reasonContains": "B24"

@@ -9,9 +9,10 @@ namespace Asynkron.JsEngine.Tests;
 ///     Proof pack for the narrow B24 class-expression field slices in the resumable VM.
 ///     Public non-computed instance fields without activation-capturing initializers and public
 ///     non-computed static fields may route, including the mixed public static+instance field subset,
-///     activation-safe computed public instance class elements, and activation-safe public static
-///     member / static-super-field subsets, while nearby class-element families remain pre-VM
-///     declines.
+///     activation-safe computed public instance class elements, computed instance field initializers
+///     that read or capture resumable activation slots through the materialized body environment, and
+///     activation-safe public static member / static-super-field subsets, while nearby class-element
+///     families remain pre-VM declines.
 /// </summary>
 [Category(TestCategories.RuntimeSemantics)]
 public sealed class UnifiedBytecodeResumableClassExpressionTests(ITestOutputHelper output)
@@ -1287,16 +1288,87 @@ public sealed class UnifiedBytecodeResumableClassExpressionTests(ITestOutputHelp
     }
 
     [Fact]
-    public void EvaluateResumable_ClassExpressionComputedFieldWithActivationInitializer_DeclinesBeforeVm() =>
-        AssertClassExpressionDeclines("""
-        function* g(seed) {
-            yield 1;
-            var C = class {
-                ["field"] = seed;
-            };
-            return C;
-        }
-        """);
+    public void EvaluateResumable_ClassExpressionComputedFieldWithActivationInitializer_AdmitsLoadClassLiteral()
+    {
+        var plan = GetFunctionPlan("""
+            function* g(seed) {
+                yield 1;
+                var current = seed;
+                var C = class {
+                    ["field"] = current;
+                };
+                current = seed + 1;
+                return C;
+            }
+            """,
+            "g");
+
+        var result = UnifiedBytecodeProductionEligibility.EvaluateResumable(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor(IsGenerator: true));
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(
+            result.Program.Instructions,
+            static instruction => instruction.OpCode == UnifiedBytecodeOpCode.LoadClassLiteral);
+        Assert.True(UnifiedBytecodeProductionEligibility.PlanNeedsMaterializedResumableBodyEnvironment(plan));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task GeneratorClassExpressionComputedFieldWithActivationInitializer_RoutesResumableAndEscapedClassReadsLaterMutation()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function* g(seed) {
+                yield "ready";
+                var current = seed;
+                var C = class {
+                    ["field"] = current;
+                };
+                current = seed + 1;
+                yield C;
+            }
+
+            var iterator = g(41);
+            var first = iterator.next();
+            var second = iterator.next();
+            var C = second.value;
+            var c = new C();
+            first.value + ":" + first.done + "|" + c.field + ":" + second.done;
+            """);
+
+        Assert.Equal("ready:false|42:false", result);
+        AssertGeneratorFastPath("g", argc: 1);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task GeneratorClassExpressionComputedFieldWithActivationClosureInitializer_RoutesResumableAndReadsLaterMutation()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function* g(seed) {
+                yield "ready";
+                var current = seed;
+                var C = class {
+                    ["field"] = function read() { return current; };
+                };
+                current = seed + 1;
+                yield C;
+            }
+
+            var iterator = g(41);
+            var first = iterator.next();
+            var second = iterator.next();
+            var C = second.value;
+            var c = new C();
+            first.value + ":" + first.done + "|" + c.field() + ":" + second.done;
+            """);
+
+        Assert.Equal("ready:false|42:false", result);
+        AssertGeneratorFastPath("g", argc: 1);
+        AssertProductionFastPath("read");
+    }
 
     [Fact]
     public void EvaluateResumable_ClassExpressionComputedNameDirectActivationCall_AdmitLoadClassLiteral()

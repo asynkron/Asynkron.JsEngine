@@ -1556,6 +1556,15 @@ internal static class UnifiedBytecodeProductionEligibility
                 return true;
             }
 
+            if (ExpressionProgramHasActivationReferencingClassLiteralInstanceFieldInitializer(
+                    program,
+                    activationSlots,
+                    out var classLiteralFieldInitializerCapturedName) &&
+                IsMaterializedResumableBodyEnvironmentCapture(classLiteralFieldInitializerCapturedName))
+            {
+                return true;
+            }
+
             if (ExpressionProgramHasActivationCapturingFunctionLiteral(
                     program,
                     activationSlots,
@@ -1638,6 +1647,53 @@ internal static class UnifiedBytecodeProductionEligibility
                     activationSlots,
                     out capturedName))
             {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool ExpressionProgramHasActivationReferencingClassLiteralInstanceFieldInitializer(
+        ExpressionProgram program,
+        ActivationSlotShape activationSlots,
+        out string capturedName)
+    {
+        capturedName = string.Empty;
+        if (program.IsEmpty)
+        {
+            return false;
+        }
+
+        var objectConstants = program.ObjectConstants.AsSpan();
+        foreach (var operation in program.EnumerateOperations())
+        {
+            if (operation.Kind != ExpressionOpKind.LoadClassLiteral)
+            {
+                continue;
+            }
+
+            var classExpression = operation.GetObject<ClassExpression>(objectConstants);
+            var definition = classExpression.Definition;
+            var cache = ((IAstCacheable<ClassDefinitionProgramCache>)definition).GetOrCreateCache();
+            if (!cache.Succeeded)
+            {
+                capturedName = "<unknown>";
+                return true;
+            }
+
+            for (var i = 0; i < cache.FieldInitializerPrograms.Length; i++)
+            {
+                if (definition.Fields[i].IsStatic ||
+                    cache.FieldInitializerPrograms[i] is not { } initializerProgram ||
+                    !ExpressionProgramReferencesActivationSlot(
+                        initializerProgram,
+                        activationSlots,
+                        out capturedName))
+                {
+                    continue;
+                }
+
                 return true;
             }
         }
@@ -4148,6 +4204,7 @@ internal static class UnifiedBytecodeProductionEligibility
         for (var i = 0; i < cache.FieldInitializerPrograms.Length; i++)
         {
             if (cache.FieldInitializerPrograms[i] is { } initializerProgram &&
+                definition.Fields[i].IsStatic &&
                 ExpressionProgramReferencesActivationSlot(initializerProgram, activationSlots, out var capturedName))
             {
                 declineReason =

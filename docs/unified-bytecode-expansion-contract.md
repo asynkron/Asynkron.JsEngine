@@ -101,16 +101,19 @@ statement interpretation.
   identifier delete preserved as the class-body strict-error path) or immediate
   zero-argument computed-name IIFEs, including IIFEs that create escaping
   activation-capturing closures under the materialized body-environment route,
-  and whose field initializers, constructor bodies, and member bodies do not
-  capture activation slots, including mixes with non-computed public
-  fields/methods/accessors under the same activation-safety rules, and mixed
-  public non-computed static fields plus static methods/accessors when field
-  initializers compile as standalone unified bytecode and member/constructor
-  bodies do not capture activation slots, are resumable-admitted. The VM handler still delegates
+  and whose public computed instance field initializers may read activation
+  slots or create activation-capturing function literals under that same
+  materialized body-environment route, while static field initializer programs,
+  constructor bodies, and member bodies do not capture activation slots,
+  including mixes with non-computed public fields/methods/accessors under the
+  same activation-safety rules, and mixed public non-computed static fields plus
+  static methods/accessors when field initializers compile as standalone unified
+  bytecode and member/constructor bodies do not capture activation slots, are
+  resumable-admitted. The VM handler still delegates
   class-definition evaluation to lower-level class machinery that can run
   expression programs and static-block IR plans, and the remaining B24h/B24i
   shapes keep computed-super, computed-name unadmitted call-target dependencies,
-  activation-capturing field initializers, constructor/member bodies,
+  static field initializer activation dependencies, constructor/member bodies,
   materialized-environment, member-super, and activation-slot `extends` shapes
   declined.
 - `UnifiedBytecodeCompiler` now has generated audit coverage for every declared
@@ -460,10 +463,13 @@ unqualified identifier delete path and bounded non-spread
 activation-target calls whose argument region is already admitted by the
 production complex-call-argument walker, plus immediate zero-argument
 computed-name IIFEs, including IIFEs that create escaping activation-capturing
-closures under the materialized body-environment route, and whose field
-initializer programs plus constructor/member bodies do not capture activation
-slots, including mixes with non-computed public
-fields/methods/accessors under the same activation-safety rules, plus public
+closures under the materialized body-environment route, and whose public
+computed instance field initializer programs may read activation slots or create
+activation-capturing function literals under that same materialized
+body-environment route, while static field initializer programs plus
+constructor/member bodies do not capture activation slots, including mixes with
+non-computed public fields/methods/accessors under the same activation-safety
+rules, plus public
 non-computed static methods/accessors whose bodies do not capture activation
 slots and public non-computed static-field class literals with `extends` whose
 initializers compile as standalone unified bytecode and create no nested
@@ -477,8 +483,8 @@ initializers through expression programs and static blocks through
 activation slots also remain declined until class-definition evaluation owns
 that environment bridge. The remaining B24h and B24i shapes remain declined by
 the resumable shape gate: computed names that use direct-eval/spread/construct/super
-or otherwise unadmitted call-target shapes still stay outside B24h, and
-activation-capturing field initializers, constructor/member bodies,
+or otherwise unadmitted call-target shapes still stay outside B24h, and static
+field initializer activation dependencies, constructor/member bodies,
 private/capturing public accessor neighbors, and static-block-neighbor mixed
 static shapes remain outside the admitted B24 subsets.
 

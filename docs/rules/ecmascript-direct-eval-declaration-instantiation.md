@@ -76,14 +76,16 @@ and keep `arguments` handling path-specific.
     Preserve already-admitted declaration-free direct eval shapes separately:
     do not turn the guard into a blanket direct-eval decline. In resumable
     unified-bytecode activation, keep the declaration-free optimization
-    route-family scoped: sync generators and async functions may admit the
-    literal declaration-free/no-`arguments` subset, while async generators must
-    stay on their conservative direct-eval decline until their settlement path
-    has dedicated proof. Prove the boundary with both eligibility no-route tests
-    for declaration-bearing literals and invocation tests that strict direct
-    eval declarations stay isolated from the caller while logging no
-    `unified-bytecode-production-fast-path` hit, plus a declined-neighbor
-    async-generator settlement test when this surface is touched.
+    route-family scoped: sync generators, async functions, and async generators
+    may admit the literal declaration-free/no-`arguments` subset only when each
+    route family has explicit proof. Arguments-dependent or dynamic-activation
+    direct eval remains open residue until the owning route-family proof exists.
+    Prove the boundary with both eligibility no-route tests for
+    declaration-bearing literals and invocation tests that strict direct eval
+    declarations stay isolated from the caller while logging no
+    `unified-bytecode-production-fast-path` hit, plus route-family proof rows
+    for generator, async, and async-generator declaration-free settlement when
+    this surface is touched.
 11. When rebaselining bytecode inventory or proof-manifest rows around direct
     eval, keep admitted and residue sublanes explicit under the same open
     umbrella row when both still exist. Use admitted proof rows for
@@ -92,6 +94,14 @@ and keep `arguments` handling path-specific.
     for terminal multi-arg/spread residue. Do not relabel D1/D2 terminal
     residue as ordinary A2 work, and do not count the admitted declaration-free
     lane as open residue.
+12. When rebaselining A2 direct-eval manifest/checklist taxonomy, require
+    route-family-specific rows for every admitted resumable declaration-free
+    direct-eval family being claimed. Sync admission, sync-generator admission,
+    async-function admission, and async-generator settlement are separate proof
+    lanes. Keep arguments-dependent direct eval and dynamic-activation-chain
+    direct eval as open A2 residue unless the slice proves those exact families,
+    and keep declaration-bearing, runtime-source, multi-arg, and spread eval on
+    their existing declined/quarantined rows.
 
 ## Why
 
@@ -172,6 +182,16 @@ caller-activation or implicit-`arguments` reads from declaration-bearing eval,
 runtime-source eval, and terminal multi-arg/spread D1/D2 residue. Future
 inventory passes should preserve that split instead of flattening the whole
 row into either "admitted" or "residue".
+
+Faktorial issue
+`planitem-planitem-planitem-gh3377-rebaseline-the-finite-bytecode-retirement-inven-bc7bfcd22e`
+/ PR #3388 completed the next A2 taxonomy correction by anchoring the existing
+declaration-free resumable direct-eval admission for sync generators, async
+functions, and async generators in the proof manifest and checklist. The useful
+lesson is that route-family proof rows must move with the checklist wording:
+async-generator settlement can be admitted for the declaration-free subset, but
+arguments-dependent and dynamic-activation-chain direct eval remain open A2
+residue until separately proven.
 
 Related ADRs:
 

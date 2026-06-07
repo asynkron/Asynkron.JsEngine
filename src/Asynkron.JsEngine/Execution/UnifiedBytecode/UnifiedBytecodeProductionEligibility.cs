@@ -14696,6 +14696,7 @@ internal static class UnifiedBytecodeProductionEligibility
 
         // Walk the named receiver-prefix chain (at least one plain named hop).
         var keyStart = 1;
+        var hasPrivateReceiverPrefix = false;
         while (keyStart < program.OperationCount - 1)
         {
             var receiverRead = program.GetOperation(keyStart);
@@ -14704,14 +14705,29 @@ internal static class UnifiedBytecodeProductionEligibility
                 break;
             }
 
-            if (receiverRead.GetString(stringConstants).IsPrivateName() ||
-                receiverRead.IsOptional ||
+            var receiverName = receiverRead.GetString(stringConstants);
+            if (receiverName.IsPrivateName())
+            {
+                if (hasPrivateReceiverPrefix || keyStart != 1)
+                {
+                    return false;
+                }
+
+                hasPrivateReceiverPrefix = true;
+            }
+
+            if (receiverRead.IsOptional ||
                 receiverRead.ShortCircuitOnNullishTarget)
             {
                 return false;
             }
 
             keyStart++;
+        }
+
+        if (hasPrivateReceiverPrefix && keyStart != 2)
+        {
+            return false;
         }
 
         // Require at least one named prefix hop; the prefix-free shape is the simple

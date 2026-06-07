@@ -9523,6 +9523,83 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     }
 
     [Fact(Timeout = 5000)]
+    public async Task PrivateReceiverPrefixComputedPropertyWrite_TargetsReceiverChildAndUsesUnifiedBytecodeProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            class Holder {
+                #child = { value: 1 };
+
+                write(receiver, key, value) {
+                    return receiver.#child[key] = value;
+                }
+
+                read(receiver, key) {
+                    return receiver.#child[key];
+                }
+            }
+
+            var hits = 0;
+            var key = {
+                toString() {
+                    hits = hits + 1;
+                    return "value";
+                }
+            };
+            var left = new Holder();
+            var right = new Holder();
+            left.write(right, key, 42) + ":" + hits + ":" + left.read(left, "value") + ":" + left.read(right, "value");
+            """);
+
+        Assert.Equal("42:1:1:42", result?.ToString());
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=<anonymous> argc=3",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task PrivateReceiverPrefixComputedPropertyWrite_BrandFailureSkipsKeyAndRhs()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            var keyHits = 0;
+            var rhsHits = 0;
+            var key = {
+                toString() {
+                    keyHits = keyHits + 1;
+                    return "value";
+                }
+            };
+            function rhs() {
+                rhsHits = rhsHits + 1;
+                return 42;
+            }
+
+            class Holder {
+                #child = { value: 1 };
+
+                write(receiver, key) {
+                    return receiver.#child[key] = rhs();
+                }
+            }
+
+            var caught = false;
+            var typeError = false;
+            try {
+                new Holder().write({}, key);
+            } catch (error) {
+                caught = true;
+                typeError = error instanceof TypeError;
+            }
+
+            String(keyHits) + ":" + String(rhsHits) + ":" + String(caught) + ":" + String(typeError);
+            """);
+
+        Assert.Equal("0:0:true:true", result?.ToString());
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task PrivateNamedPropertyWrite_UsesUnifiedBytecodeProductionFastPath()
     {
         await using var engine = CreateEngine();

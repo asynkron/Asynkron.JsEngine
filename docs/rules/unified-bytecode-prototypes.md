@@ -239,9 +239,10 @@ all-or-nothing until a separate routing issue proves production readiness.
     span measurement only when the whole expression is an admitted value read,
     such as `receiver.#child.value` or `receiver.#child[key]`, or when the
     prefix feeds an admitted ordinary named call target such as
-    `receiver.#child.value()`, or when the prefix feeds the single admitted
-    public named write `receiver.#child.value = value`; private receiver-prefix
-    compound/logical/update/computed/private-terminal writes, deletes, and
+    `receiver.#child.value()`, or when the prefix feeds admitted public
+    named/computed writes (`receiver.#child.value = value`,
+    `receiver.#child[key] = value`); private receiver-prefix
+    compound/logical/update/private-terminal writes, deletes, and
     optional-private neighbors remain owned by their separate A51 lanes until
     explicitly proven.
     Any compiler probe that emits instructions, literal constants, or string

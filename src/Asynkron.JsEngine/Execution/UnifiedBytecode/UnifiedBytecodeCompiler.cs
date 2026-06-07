@@ -14348,6 +14348,7 @@ internal static class UnifiedBytecodeCompiler
         }
 
         var keyStart = 1;
+        var hasPrivateReceiverPrefix = false;
         while (keyStart < expressionProgram.OperationCount - 1)
         {
             var receiverRead = expressionProgram.GetOperation(keyStart);
@@ -14356,19 +14357,31 @@ internal static class UnifiedBytecodeCompiler
                 break;
             }
 
-            if (receiverRead.GetString(stringTable).IsPrivateName())
+            var receiverName = receiverRead.GetString(stringTable);
+            if (receiverName.IsPrivateName())
+            {
+                if (hasPrivateReceiverPrefix || keyStart != 1)
+                {
+                    reason = "Private nested named property receiver reads are not supported.";
+                    return false;
+                }
+
+                hasPrivateReceiverPrefix = true;
+            }
+
+            if (receiverRead.IsOptional || receiverRead.ShortCircuitOnNullishTarget)
             {
                 reason = "Private nested named property receiver reads are not supported.";
                 return false;
             }
 
-            if (receiverRead.IsOptional || receiverRead.ShortCircuitOnNullishTarget)
-            {
-                reason = string.Empty;
-                return false;
-            }
-
             keyStart++;
+        }
+
+        if (hasPrivateReceiverPrefix && keyStart != 2)
+        {
+            reason = "Private nested named property receiver reads are not supported.";
+            return false;
         }
 
         if (keyStart < 2)

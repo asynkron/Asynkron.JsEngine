@@ -6261,7 +6261,7 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
-    public void Evaluate_PrivateReceiverPrefixComputedWrite_StillDeclines()
+    public void Evaluate_PrivateReceiverPrefixComputedWrite_AcceptsOwnedPropertyOpcodes()
     {
         var plan = GetClassMethodPlan("""
             class Holder {
@@ -6278,8 +6278,15 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
             plan,
             new UnifiedBytecodeProductionActivationDescriptor());
 
-        Assert.False(result.IsEligible);
-        Assert.NotEqual(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(
+            result.Program.Instructions,
+            instruction => instruction.OpCode == UnifiedBytecodeOpCode.GetNamedProperty);
+        Assert.Contains(
+            result.Program.Instructions,
+            instruction => instruction.OpCode == UnifiedBytecodeOpCode.SetComputedProperty);
+        Assert.Contains("#child", result.Program.StringConstants);
     }
 
     [Fact]

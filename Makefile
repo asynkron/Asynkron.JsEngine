@@ -3,7 +3,7 @@
 CONFIGURATION ?= Debug
 DOTNET_BUILD_ARGS ?= /p:RunAnalyzers=false
 DOTNET_BUILD_STABILITY_ARGS ?= /m:1 /nr:false
-DOTNET_TEST_ARGS ?=
+DOTNET_TEST_ARGS ?= --logger "console;verbosity=minimal"
 XUNIT_ARGS ?= xUnit.MaxParallelThreads=1 -timeout 20000
 DOTNET ?= dotnet
 GIT ?= git
@@ -23,7 +23,7 @@ help:
 		"  GIT=git                              Git executable override" \
 		"  DOTNET_BUILD_ARGS='<args>'           Extra args passed to dotnet build commands" \
 		"  DOTNET_BUILD_STABILITY_ARGS='<args>' Extra build stability args (default: /m:1 /nr:false)" \
-		"  DOTNET_TEST_ARGS='<args>'            Extra args passed to dotnet test commands" \
+		"  DOTNET_TEST_ARGS='<args>'            Args passed to dotnet test commands (default: --logger \"console;verbosity=minimal\")" \
 		"  XUNIT_ARGS='<args>'                  xUnit args after '--' (default: xUnit.MaxParallelThreads=1 -timeout 20000)"
 
 quality:

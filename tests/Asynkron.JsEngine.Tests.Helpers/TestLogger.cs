@@ -14,7 +14,8 @@ public sealed class TestLogger(
     ITestOutputHelper? xUnitOutput = null,
     string name = "RealmLogger",
     int maxLogCount = 0,
-    LogLevel minLogLevel = LogLevel.Information)
+    LogLevel minLogLevel = LogLevel.Information,
+    bool writeToConsole = false)
     : ILogger
 {
     private readonly Lock _lock = new();
@@ -51,7 +52,11 @@ public sealed class TestLogger(
 
             var formattedMessage = $"[{name}] {logLevel}: {message}";
 
-            Console.WriteLine(formattedMessage);
+            if (writeToConsole)
+            {
+                Console.WriteLine(formattedMessage);
+            }
+
             switch (_logCount)
             {
                 case < 100:

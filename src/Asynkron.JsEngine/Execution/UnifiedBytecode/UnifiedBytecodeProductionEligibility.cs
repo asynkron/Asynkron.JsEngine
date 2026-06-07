@@ -4205,10 +4205,10 @@ internal static class UnifiedBytecodeProductionEligibility
         {
             if (cache.FieldInitializerPrograms[i] is { } initializerProgram &&
                 definition.Fields[i].IsStatic &&
-                ExpressionProgramReferencesActivationSlot(initializerProgram, activationSlots, out var capturedName))
+                ExpressionProgramCreatesClosure(initializerProgram))
             {
                 declineReason =
-                    $"Class literal computed field initializer captures activation binding '{capturedName}' and is not supported by B24h resumable production routing until the resume state owns a materialized body environment.";
+                    "Class literal computed static field initializer creates a closure that needs the materialized body environment route.";
                 return false;
             }
         }

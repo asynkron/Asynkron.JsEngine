@@ -103,17 +103,20 @@ statement interpretation.
   activation-capturing closures under the materialized body-environment route,
   and whose public computed instance field initializers may read activation
   slots or create activation-capturing function literals under that same
-  materialized body-environment route, while static field initializer programs,
-  constructor bodies, and member bodies do not capture activation slots,
-  including mixes with non-computed public fields/methods/accessors under the
-  same activation-safety rules, and mixed public non-computed static fields plus
-  static methods/accessors when field initializers compile as standalone unified
-  bytecode and member/constructor bodies do not capture activation slots, are
+  materialized body-environment route, and whose public computed static field
+  initializers may directly read/write/update activation slots through the
+  class-literal slot environment and post-creation slot sync, while static field
+  initializer programs that create closures plus constructor bodies and member
+  bodies do not capture activation slots, including mixes with non-computed
+  public fields/methods/accessors under the same activation-safety rules, and
+  mixed public non-computed static fields plus static methods/accessors when
+  field initializers compile as standalone unified bytecode and
+  member/constructor bodies do not capture activation slots, are
   resumable-admitted. The VM handler still delegates
   class-definition evaluation to lower-level class machinery that can run
   expression programs and static-block IR plans, and the remaining B24h/B24i
   shapes keep computed-super, computed-name unadmitted call-target dependencies,
-  static field initializer activation dependencies, constructor/member bodies,
+  closure-producing static field initializers, constructor/member bodies,
   materialized-environment, member-super, and activation-slot `extends` shapes
   declined.
 - `UnifiedBytecodeCompiler` now has generated audit coverage for every declared
@@ -466,10 +469,12 @@ computed-name IIFEs, including IIFEs that create escaping activation-capturing
 closures under the materialized body-environment route, and whose public
 computed instance field initializer programs may read activation slots or create
 activation-capturing function literals under that same materialized
-body-environment route, while static field initializer programs plus
-constructor/member bodies do not capture activation slots, including mixes with
-non-computed public fields/methods/accessors under the same activation-safety
-rules, plus public
+body-environment route, and whose public computed static field initializer
+programs may directly read/write/update activation slots through the
+class-literal slot environment and post-creation slot sync, while static field
+initializer programs that create closures plus constructor/member bodies do not
+capture activation slots, including mixes with non-computed public
+fields/methods/accessors under the same activation-safety rules, plus public
 non-computed static methods/accessors whose bodies do not capture activation
 slots and public non-computed static-field class literals with `extends` whose
 initializers compile as standalone unified bytecode and create no nested
@@ -484,7 +489,7 @@ activation slots also remain declined until class-definition evaluation owns
 that environment bridge. The remaining B24h and B24i shapes remain declined by
 the resumable shape gate: computed names that use direct-eval/spread/construct/super
 or otherwise unadmitted call-target shapes still stay outside B24h, and static
-field initializer activation dependencies, constructor/member bodies,
+field initializer closures, constructor/member bodies,
 private/capturing public accessor neighbors, and static-block-neighbor mixed
 static shapes remain outside the admitted B24 subsets.
 

@@ -316,10 +316,10 @@ public sealed class IteratorCloseDestructuringTests(ITestOutputHelper output) : 
     /// The async generator method destructures its argument, which closes the iterator when done.
     /// </summary>
     [Fact(Timeout = 5000)]
-    public async Task AsyncGeneratorMethod_ParameterDestructuringFallsBackAfterUnifiedDecline()
+    public async Task AsyncGeneratorMethod_ParameterDestructuringFailsExplicitlyAfterUnifiedDecline()
     {
         await using var engine = CreateEngine();
-        var result = await engine.EvaluateAndAwait(
+        var exception = await Assert.ThrowsAsync<NotSupportedException>(() => engine.EvaluateAndAwait(
             """
             var doneCallCount = 0;
             var iter = {};
@@ -351,11 +351,9 @@ public sealed class IteratorCloseDestructuringTests(ITestOutputHelper output) : 
               finalResult = e.message;
             }
             finalResult;
-            """);
+            """));
 
-        var summary = Assert.IsType<JsObject>(result);
-        Assert.Equal(1d, summary["callCount"]);
-        Assert.Equal(1d, summary["doneCallCount"]);
+        Assert.Contains("Non-simple async-generator parameter lists", exception.Message, StringComparison.Ordinal);
     }
 
     /// <summary>

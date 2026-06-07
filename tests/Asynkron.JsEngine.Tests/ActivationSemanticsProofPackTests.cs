@@ -978,7 +978,7 @@ public sealed class ActivationSemanticsProofPackTests(ITestOutputHelper output) 
     }
 
     [Fact(Timeout = 5000)]
-    public async Task AsyncGeneratorActivation_CapturedParameterFallsBackAfterUnifiedDecline()
+    public async Task AsyncGeneratorActivation_CapturedParameterFailsExplicitlyAfterUnifiedDecline()
     {
         await using var engine = CreateEngine();
 
@@ -1008,6 +1008,8 @@ public sealed class ActivationSemanticsProofPackTests(ITestOutputHelper output) 
             output;
             """);
 
-        Assert.Equal("start:41|yield:42", result?.ToString());
+        var message = result?.ToString();
+        Assert.NotNull(message);
+        Assert.StartsWith("error:Async-generator body 'probe' is not eligible for unified bytecode execution:", message, StringComparison.Ordinal);
     }
 }

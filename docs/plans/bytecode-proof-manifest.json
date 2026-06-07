@@ -314,7 +314,7 @@
     },
     {
       "id": "A51c",
-      "title": "Catch binding and environment-sensitive storage diagnostics stay open",
+      "title": "Catch binding, lexical dynamic declaration, active-with dynamic-name, and non-flat scope/environment storage diagnostics stay open",
       "status": "open",
       "proofs": [
         {
@@ -332,18 +332,39 @@
           "pattern": "Unsupported catch binding slot '{identifier.Name.Name}'."
         },
         {
-          "id": "A51c-lexical-dynamic-declaration-storage-stays-open",
+          "id": "A51c-lexical-dynamic-declaration-gate-stays-open",
           "claim": "open",
           "kind": "source-presence",
           "path": "src/Asynkron.JsEngine/Execution/UnifiedBytecode/UnifiedBytecodeCompiler.cs",
           "pattern": "Lexical declaration target '{targetSymbol.Name}' requires dynamic identifier operations."
         },
         {
-          "id": "A51c-active-with-dynamic-name-check-stays-open",
+          "id": "A51c-dynamic-lexical-tdz-storage-opcode-stays-owned",
           "claim": "open",
           "kind": "source-presence",
           "path": "src/Asynkron.JsEngine/Execution/UnifiedBytecode/UnifiedBytecodeCompiler.cs",
-          "pattern": "Identifier '{identifier.Name.Name}' requires dynamic lookup and is not eligible outside an active with environment."
+          "pattern": "UnifiedBytecodeOpCode.DeclareDynamicLexical"
+        },
+        {
+          "id": "A51c-active-with-dynamic-name-gate-stays-open",
+          "claim": "open",
+          "kind": "source-presence",
+          "path": "src/Asynkron.JsEngine/Execution/UnifiedBytecode/UnifiedBytecodeProductionEligibility.cs",
+          "pattern": "var allowsDynamicIdentifiers = activeWithDepths[instructionIndex] > 0 ||"
+        },
+        {
+          "id": "A51c-materialized-activation-dynamic-residue-stays-open",
+          "claim": "open",
+          "kind": "source-presence",
+          "path": "src/Asynkron.JsEngine/Execution/UnifiedBytecode/UnifiedBytecodeProductionEligibility.cs",
+          "pattern": "Unowned captured or dynamic activation residue is not eligible for production unified bytecode routing."
+        },
+        {
+          "id": "A51c-ordinary-dynamic-name-activation-slot-boundary-stays-open",
+          "claim": "open",
+          "kind": "source-presence",
+          "path": "src/Asynkron.JsEngine/Execution/UnifiedBytecode/UnifiedBytecodeProductionEligibility.cs",
+          "pattern": "Identifier assignment target '{storeIdentifier.Name.Name}' resolves to an activation slot and is outside the ordinary dynamic-name production slice."
         }
       ]
     },

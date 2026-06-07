@@ -208,7 +208,7 @@
     },
     {
       "id": "B24h",
-      "title": "Computed class-member names are partial; activation-dependent construct/super residue remains",
+      "title": "Computed class-member names are partial; activation-dependent construct-argument/super residue remains",
       "status": "open",
       "proofs": [
         {
@@ -510,12 +510,22 @@
           ]
         },
         {
-          "id": "B24h-computed-name-activation-construct-declines",
+          "id": "B24h-computed-name-activation-construct-routes",
+          "claim": "admitted",
+          "kind": "runtime",
+          "source": "function MakeName() {\n}\nMakeName.prototype.toString = function() {\n  return 'value';\n};\nfunction* g(MakeName) {\n  yield 'ready';\n  var C = class {\n    [new MakeName()]() { return 42; }\n  };\n  return C;\n}\nvar iterator = g(MakeName);\nvar first = iterator.next();\nvar second = iterator.next();\nvar C = second.value;\nfirst.value + ':' + first.done + '|' + new C().value() + ':' + second.done;",
+          "expectedResult": "ready:false|42:true",
+          "requiredLogs": [
+            "unified-bytecode-resumable-generator-fast-path func=g"
+          ]
+        },
+        {
+          "id": "B24h-computed-name-activation-construct-argument-declines",
           "claim": "open",
           "kind": "eligibility",
           "subject": "resumable-generator",
           "functionName": "g",
-          "source": "function* g(MakeName) {\n  yield 1;\n  var C = class {\n    [new MakeName()]() { return 42; }\n  };\n  return C;\n}",
+          "source": "function* g(MakeName, seed) {\n  yield 1;\n  var C = class {\n    [new MakeName(seed)]() { return 42; }\n  };\n  return C;\n}",
           "expectedEligible": false,
           "declineCode": "UnsupportedPlanShape",
           "reasonContains": "activation-dependent call or construct"

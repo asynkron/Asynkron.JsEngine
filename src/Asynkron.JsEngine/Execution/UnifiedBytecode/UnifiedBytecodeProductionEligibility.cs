@@ -4623,6 +4623,18 @@ internal static class UnifiedBytecodeProductionEligibility
             }
 
             capturedName = identifier.Name.Name;
+            if (operation.Kind == ExpressionOpKind.LoadIdentifier &&
+                TrySkipAdmittedClassComputedNameActivationConstruct(
+                    program,
+                    operationIndex,
+                    identifierConstants,
+                    activationSlots,
+                    out var constructOperationIndex))
+            {
+                operationIndex = constructOperationIndex;
+                continue;
+            }
+
             if (operation.Kind == ExpressionOpKind.LoadIdentifierCallTarget)
             {
                 if (allowDirectActivationCall &&
@@ -4660,6 +4672,44 @@ internal static class UnifiedBytecodeProductionEligibility
         }
 
         return false;
+    }
+
+    private static bool TrySkipAdmittedClassComputedNameActivationConstruct(
+        ExpressionProgram program,
+        int constructorOperationIndex,
+        ReadOnlySpan<IdentifierOperand> identifierConstants,
+        ActivationSlotShape activationSlots,
+        out int constructOperationIndex)
+    {
+        constructOperationIndex = constructorOperationIndex;
+        var constructorOperation = program.GetOperation(constructorOperationIndex);
+        if (constructorOperation.Kind != ExpressionOpKind.LoadIdentifier)
+        {
+            return false;
+        }
+
+        var constructorIdentifier = constructorOperation.GetIdentifier(identifierConstants);
+        if (!TryResolveActivationSlot(constructorIdentifier, activationSlots))
+        {
+            return false;
+        }
+
+        var candidateIndex = constructorOperationIndex + 1;
+        if (candidateIndex >= program.OperationCount)
+        {
+            return false;
+        }
+
+        var constructOperation = program.GetOperation(candidateIndex);
+        if (constructOperation.Kind != ExpressionOpKind.Construct ||
+            constructOperation.ArgumentCount != 0 ||
+            constructOperation.SpreadMaskConstantIndex >= 0)
+        {
+            return false;
+        }
+
+        constructOperationIndex = candidateIndex;
+        return true;
     }
 
     private static bool TrySkipAdmittedClassComputedNameImmediateFunctionCall(

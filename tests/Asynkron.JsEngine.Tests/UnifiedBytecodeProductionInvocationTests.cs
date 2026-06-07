@@ -5676,11 +5676,11 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     }
 
     [Fact(Timeout = 5000)]
-    public async Task ForOfLetHead_CapturedPerIterationBinding_DoesNotUseProductionFastPath()
+    public async Task ForOfLetHead_CapturedPerIterationBinding_UsesProductionFastPath()
     {
         // A closure capturing the per-iteration binding makes per-iteration freshness observable.
-        // The production path declines captured activations wholesale, so this must run on the legacy
-        // path (no fast-path log) while still producing the correct per-iteration values [1,2,3].
+        // The captured-closure production path now admits this shape while still producing fresh
+        // per-iteration values [1,2,3].
         await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
             function captured(values) {
@@ -5701,7 +5701,7 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
             """);
 
         Assert.Equal(6d, result);
-        Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(),
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
             static record => record.Message.Contains(
                 "unified-bytecode-production-fast-path func=captured",
                 StringComparison.Ordinal));

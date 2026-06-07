@@ -5123,7 +5123,8 @@ internal static class UnifiedBytecodeProductionEligibility
                 field.IsPrivate ||
                 field.IsComputed ||
                 field.ComputedName is not null ||
-                StaticFieldInitializerCanCaptureActivation(field.Initializer))
+                StaticFieldInitializerCanCaptureActivation(field.Initializer) &&
+                field.Initializer is not FunctionExpression)
             {
                 return false;
             }

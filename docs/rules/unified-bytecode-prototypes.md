@@ -557,12 +557,13 @@ all-or-nothing until a separate routing issue proves production readiness.
      `planitem-planmanual1780639098493226000-full-unified-bytecode-execution-burndown-b-61145a55dd`
      / PR #3197 admitted the B24c public static-field subset by creating a
      resumable class-definition environment from flat slots when static field
-     initializer value expressions need activation bindings, while keeping
-     closure-valued static initializers and neighboring static element families
-     declined. The durable lesson is that static field value evaluation and
-     closure creation are different ownership problems: the former can be
-     bridged for class creation, while the latter still needs a materialized
-     body environment that outlives class creation. Related ADR:
+     initializer value expressions need activation bindings. Later B24c work
+     also admits top-level function-literal static initializers through the
+     materialized body-environment route, while nested object/class initializer
+     closures and neighboring static element families remain declined. The
+     durable lesson is that static field value evaluation, top-level closure
+     creation, and nested initializer-owned closures are separate ownership
+     problems. Related ADR:
      `docs/adrs/0329-admit-resumable-class-literal-static-fields-with-owned-environments.md`.
      Faktorial issue
      `planitem-planmanual1780730299657353000-unified-bytecode-remaining-burndown-04-cla-c4d613c27d`

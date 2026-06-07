@@ -89,7 +89,8 @@ statement interpretation.
   execution because only the constructor/default-constructor class-literal
   subset, the B24b public non-computed instance-field subset without
   activation-capturing field initializers, the B24c public non-computed
-  static-field subset, the mixed public non-computed static+instance-field
+  static-field subset including top-level function-literal static-field
+  initializer closures, the mixed public non-computed static+instance-field
   subset whose instance initializers do not capture activation slots, and the
   B24g public non-computed instance-accessor subset whose accessor bodies do not
   capture activation slots, including accessor bodies that use `super`, the B24d
@@ -468,7 +469,8 @@ The former B24 class-expression coarse row is split by class-element semantics.
 expressions with static blocks, and resumable routing now admits B24a
 constructor/default-constructor class literals, the B24b public non-computed
 instance-field subset whose field initializers do not capture activation slots,
-B24c public non-computed static field class literals, the mixed public
+B24c public non-computed static field class literals including top-level
+function-literal static-field initializer closures, the mixed public
 non-computed static+instance-field subset whose instance initializers do not
 capture activation slots, narrow B24e private instance-field class literals, and
 the narrow B24f private method/accessor class-literal shape, plus the B24g

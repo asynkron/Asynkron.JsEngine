@@ -104,6 +104,34 @@ public sealed class UnifiedBytecodeResumableClassExpressionTests(ITestOutputHelp
     }
 
     [Fact]
+    public void EvaluateResumable_ClassExpressionStaticFieldClosureInitializer_AdmitsLoadClassLiteral()
+    {
+        var plan = GetFunctionPlan("""
+            function* g(seed) {
+                yield "ready";
+                var current = seed;
+                var C = class {
+                    static read = () => current;
+                };
+                current = seed + 1;
+                return C.read();
+            }
+            """,
+            "g");
+
+        var result = UnifiedBytecodeProductionEligibility.EvaluateResumable(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor(IsGenerator: true));
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(
+            result.Program.Instructions,
+            static instruction => instruction.OpCode == UnifiedBytecodeOpCode.LoadClassLiteral);
+        Assert.True(UnifiedBytecodeProductionEligibility.PlanNeedsMaterializedResumableBodyEnvironment(plan));
+    }
+
+    [Fact]
     public void EvaluateResumable_GeneratorStaticBlockClassExpression_AdmitsLoadClassLiteral()
     {
         var plan = GetFunctionPlan("""
@@ -3381,15 +3409,6 @@ public sealed class UnifiedBytecodeResumableClassExpressionTests(ITestOutputHelp
         function* g(seed) {
             yield 1;
             var C = class {
-                static value = () => seed;
-            };
-            return C.value();
-        }
-        """)]
-    [InlineData("""
-        function* g(seed) {
-            yield 1;
-            var C = class {
                 static value = { read() { return seed; } };
             };
             return C.value.read();
@@ -3461,7 +3480,7 @@ public sealed class UnifiedBytecodeResumableClassExpressionTests(ITestOutputHelp
                 StringComparison.Ordinal));
 
     [Fact(Timeout = 5000)]
-    public async Task GeneratorStaticFieldClosureInitializer_FallsBackAndObservesLaterActivationMutation()
+    public async Task GeneratorStaticFieldClosureInitializer_RoutesResumableAndObservesLaterActivationMutation()
     {
         await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
@@ -3482,10 +3501,8 @@ public sealed class UnifiedBytecodeResumableClassExpressionTests(ITestOutputHelp
             """);
 
         Assert.Equal("ready:false|42:true", result);
-        Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(),
-            static record => record.Message.Contains(
-                $"{ResumableGeneratorFastPathLog} func=g argc=1",
-                StringComparison.Ordinal));
+        AssertGeneratorFastPath("g", argc: 1);
+        AssertProductionFastPath("<anonymous>");
     }
 
     [Fact(Timeout = 5000)]

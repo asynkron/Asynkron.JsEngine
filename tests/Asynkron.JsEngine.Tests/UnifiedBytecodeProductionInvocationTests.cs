@@ -2821,6 +2821,32 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     }
 
     [Fact(Timeout = 5000)]
+    public async Task TryCatch_CatchOnlyFreeStore_UsesUnifiedBytecodeProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            var externalValue = 0;
+
+            function probe() {
+                try {
+                    throw 41;
+                } catch (e) {
+                    externalValue = e + 1;
+                    return externalValue;
+                }
+            }
+
+            probe() + ":" + externalValue;
+            """);
+
+        Assert.Equal("42:42", result?.ToString());
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=probe argc=0",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task TryFinally_ReturnFromFinallyReplacesPriorReturnOnProductionFastPath()
     {
         await using var engine = CreateEngine();

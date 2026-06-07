@@ -184,10 +184,9 @@ internal static class UnifiedBytecodeProductionEligibility
         }
 
         // Zero-depth catch/finally bodies are not part of the main plan-shape scan. They can still contain
-        // read-only free names, typeof free names, or a finally-return free callee whose dynamic-name
-        // dependency enables the ordinary dynamic-name path. Keep this extra pass read/typeof/call-target
-        // only so catch-only stores, updates, deletes, and assignment references do not over-admit the
-        // whole body.
+        // read-only free names, typeof free names, plain free stores, or a finally-return free callee whose
+        // dynamic-name dependency enables the ordinary dynamic-name path. Keep this extra pass off consumed
+        // assignment references, updates, and deletes so catch-only mutations do not over-admit the whole body.
         if (!UnifiedBytecodeWithDepthAnalysis.TryBuildActiveWithDepths(
                 plan.Instructions,
                 plan.EntryPoint,
@@ -201,8 +200,18 @@ internal static class UnifiedBytecodeProductionEligibility
         for (var instructionIndex = 0; instructionIndex < plan.Instructions.Length; instructionIndex++)
         {
             if (activeWithDepths[instructionIndex] >= 0 ||
-                exceptionRegionDepths[instructionIndex] != 0 ||
-                !TryGetExpressionProgram(plan.Instructions[instructionIndex], out var program))
+                exceptionRegionDepths[instructionIndex] != 0)
+            {
+                continue;
+            }
+
+            var instruction = plan.Instructions[instructionIndex];
+            if (HasOrdinaryDynamicPlainAssignmentInstructionDependency(instruction, activationSlots))
+            {
+                return true;
+            }
+
+            if (!TryGetExpressionProgram(instruction, out var program))
             {
                 continue;
             }
@@ -217,6 +226,18 @@ internal static class UnifiedBytecodeProductionEligibility
 
         return false;
     }
+
+    private static bool HasOrdinaryDynamicPlainAssignmentInstructionDependency(
+        ExecutionInstruction instruction,
+        ActivationSlotShape activationSlots) =>
+        instruction is AssignmentSlotInstruction
+            {
+                TargetSymbol: { } targetSymbol,
+                FlatSlotId: var flatSlotId,
+                ValueProgram: { },
+                AwaitedProgram: null
+            } &&
+            !TryResolveActivationSymbolSlot(targetSymbol, flatSlotId, activationSlots);
 
     // A10 (burn-down): a FREE identifier used purely as a CALL TARGET (`helper(x)` where helper is a
     // global/free name) is an ordinary dynamic-identifier dependency for the production SYNC route — it

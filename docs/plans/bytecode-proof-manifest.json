@@ -99,6 +99,30 @@
       ]
     },
     {
+      "id": "A51f3",
+      "title": "Dynamic identifier expression-loop gaps remain partial",
+      "status": "open",
+      "proofs": [
+        {
+          "id": "A51f3-zero-depth-catch-free-store-routes",
+          "claim": "admitted",
+          "kind": "runtime",
+          "source": "var externalValue = 0;\nfunction probe() {\n  try {\n    throw 41;\n  } catch (e) {\n    externalValue = e + 1;\n    return externalValue;\n  }\n}\nprobe() + ':' + externalValue;",
+          "expectedResult": "42:42",
+          "requiredLogs": [
+            "unified-bytecode-production-fast-path func=probe argc=0"
+          ]
+        },
+        {
+          "id": "A51f3-dynamic-assignment-reference-gate-stays-open",
+          "claim": "open",
+          "kind": "source-presence",
+          "path": "src/Asynkron.JsEngine/Execution/UnifiedBytecode/UnifiedBytecodeProductionEligibility.cs",
+          "pattern": "Dynamic identifier assignment references are not eligible for production unified bytecode routing."
+        }
+      ]
+    },
+    {
       "id": "A51f4",
       "title": "Implicit arguments expression-loop assignments and call targets route",
       "status": "done",

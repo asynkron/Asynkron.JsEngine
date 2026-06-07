@@ -6999,7 +6999,7 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
-    public void ContainsOrdinaryDynamicIdentifierDependency_ZeroDepthCatchFreeStore_DoesNotEnableOrdinaryDynamicNamePath()
+    public void ContainsOrdinaryDynamicIdentifierDependency_ZeroDepthCatchFreeStore_EnablesOrdinaryDynamicNamePath()
     {
         var plan = GetFunctionPlan("""
             function writeFromCatch() {
@@ -7013,6 +7013,35 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
             """,
             "writeFromCatch");
 
+        Assert.True(UnifiedBytecodeProductionEligibility.ContainsOrdinaryDynamicIdentifierDependency(plan));
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor(
+                AllowsOrdinaryDynamicIdentifierEnvironmentOperations: true));
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.ResolveDynamicIdentifierReference);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.StoreDynamicIdentifierReference);
+    }
+
+    [Fact]
+    public void ContainsOrdinaryDynamicIdentifierDependency_ZeroDepthCatchConsumedFreeStore_DoesNotEnableOrdinaryDynamicNamePath()
+    {
+        var plan = GetFunctionPlan("""
+            function writeFromCatch() {
+                try {
+                    throw 1;
+                } catch (e) {
+                    return externalValue = e;
+                }
+            }
+            """,
+            "writeFromCatch");
+
         Assert.False(UnifiedBytecodeProductionEligibility.ContainsOrdinaryDynamicIdentifierDependency(plan));
 
         var result = UnifiedBytecodeProductionEligibility.Evaluate(
@@ -7020,8 +7049,32 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
             new UnifiedBytecodeProductionActivationDescriptor());
 
         Assert.False(result.IsEligible);
-        Assert.Equal(UnifiedBytecodeProductionDeclineCode.UnsupportedPlanShape, result.Code);
-        Assert.Contains("externalValue", result.Reason, StringComparison.Ordinal);
+        Assert.NotEqual(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+    }
+
+    [Fact]
+    public void ContainsOrdinaryDynamicIdentifierDependency_ZeroDepthCatchFreeUpdate_DoesNotEnableOrdinaryDynamicNamePath()
+    {
+        var plan = GetFunctionPlan("""
+            function updateFromCatch() {
+                try {
+                    throw 1;
+                } catch (e) {
+                    externalValue++;
+                    return e;
+                }
+            }
+            """,
+            "updateFromCatch");
+
+        Assert.False(UnifiedBytecodeProductionEligibility.ContainsOrdinaryDynamicIdentifierDependency(plan));
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.False(result.IsEligible);
+        Assert.NotEqual(UnifiedBytecodeProductionDeclineCode.None, result.Code);
     }
 
     [Fact]

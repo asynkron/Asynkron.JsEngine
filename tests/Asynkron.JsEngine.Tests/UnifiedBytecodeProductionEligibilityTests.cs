@@ -6165,13 +6165,132 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
-    public void Evaluate_PrivateReceiverPrefixMutation_StillDeclines()
+    public void Evaluate_PrivateReceiverPrefixNamedPropertyWrite_AcceptsOwnedPropertyOpcodes()
     {
         var plan = GetClassMethodPlan("""
             class Holder {
                 #child = { value: 1 };
                 write(receiver, value) {
                     return receiver.#child.value = value;
+                }
+            }
+            """,
+            "Holder",
+            "write");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(
+            result.Program.Instructions,
+            instruction => instruction.OpCode == UnifiedBytecodeOpCode.GetNamedProperty);
+        Assert.Contains(
+            result.Program.Instructions,
+            instruction => instruction.OpCode == UnifiedBytecodeOpCode.SetNamedProperty);
+        Assert.Contains("#child", result.Program.StringConstants);
+        Assert.Contains("value", result.Program.StringConstants);
+    }
+
+    [Fact]
+    public void Evaluate_PrivateReceiverPrefixCompoundWrite_StillDeclines()
+    {
+        var plan = GetClassMethodPlan("""
+            class Holder {
+                #child = { value: 1 };
+                write(receiver, value) {
+                    return receiver.#child.value += value;
+                }
+            }
+            """,
+            "Holder",
+            "write");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.False(result.IsEligible);
+        Assert.NotEqual(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+    }
+
+    [Fact]
+    public void Evaluate_PrivateReceiverPrefixLogicalWrite_StillDeclines()
+    {
+        var plan = GetClassMethodPlan("""
+            class Holder {
+                #child = { value: 0 };
+                write(receiver, value) {
+                    return receiver.#child.value ||= value;
+                }
+            }
+            """,
+            "Holder",
+            "write");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.False(result.IsEligible);
+        Assert.NotEqual(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+    }
+
+    [Fact]
+    public void Evaluate_PrivateReceiverPrefixNamedUpdate_StillDeclines()
+    {
+        var plan = GetClassMethodPlan("""
+            class Holder {
+                #child = { value: 1 };
+                update(receiver) {
+                    return receiver.#child.value++;
+                }
+            }
+            """,
+            "Holder",
+            "update");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.False(result.IsEligible);
+        Assert.NotEqual(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+    }
+
+    [Fact]
+    public void Evaluate_PrivateReceiverPrefixComputedWrite_StillDeclines()
+    {
+        var plan = GetClassMethodPlan("""
+            class Holder {
+                #child = { value: 1 };
+                write(receiver, key, value) {
+                    return receiver.#child[key] = value;
+                }
+            }
+            """,
+            "Holder",
+            "write");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.False(result.IsEligible);
+        Assert.NotEqual(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+    }
+
+    [Fact]
+    public void Evaluate_PrivateReceiverPrefixPrivateTerminalWrite_StillDeclines()
+    {
+        var plan = GetClassMethodPlan("""
+            class Holder {
+                #child = this;
+                #value = 1;
+                write(receiver, value) {
+                    return receiver.#child.#value = value;
                 }
             }
             """,

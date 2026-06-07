@@ -9435,6 +9435,94 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     }
 
     [Fact(Timeout = 5000)]
+    public async Task PrivateReceiverPrefixNamedPropertyWrite_TargetsReceiverChildAndUsesUnifiedBytecodeProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            class Holder {
+                #child = { value: 1 };
+
+                write(receiver, value) {
+                    return receiver.#child.value = value;
+                }
+
+                read(receiver) {
+                    return receiver.#child.value;
+                }
+            }
+
+            var left = new Holder();
+            var right = new Holder();
+            left.write(right, 42) + ":" + left.read(left) + ":" + left.read(right);
+            """);
+
+        Assert.Equal("42:1:42", result?.ToString());
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=<anonymous> argc=2",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task PrivateReceiverPrefixNamedPropertyWrite_PreservesBrandCheckOnProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var signal = await Assert.ThrowsAsync<ThrowSignal>(async () => await engine.Evaluate("""
+            class Holder {
+                #child = { value: 1 };
+
+                write(receiver, value) {
+                    return receiver.#child.value = value;
+                }
+            }
+
+            new Holder().write({}, 42);
+            """));
+
+        AssertIsTypeError(signal);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=<anonymous> argc=2",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task PrivateReceiverPrefixNamedPropertyWrite_BrandFailureSkipsRhs()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            var hits = 0;
+            var marker = {
+                toString() {
+                    hits = hits + 1;
+                    return "42";
+                }
+            };
+
+            class Holder {
+                #child = { value: 1 };
+
+                write(receiver, value) {
+                    return receiver.#child.value = `${value}`;
+                }
+            }
+
+            var caught = false;
+            var typeError = false;
+            try {
+                new Holder().write({}, marker);
+            } catch (error) {
+                caught = true;
+                typeError = error instanceof TypeError;
+            }
+
+            String(hits) + ":" + String(caught) + ":" + String(typeError);
+            """);
+
+        Assert.Equal("0:true:true", result?.ToString());
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task PrivateNamedPropertyWrite_UsesUnifiedBytecodeProductionFastPath()
     {
         await using var engine = CreateEngine();

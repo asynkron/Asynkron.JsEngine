@@ -14620,6 +14620,7 @@ internal static class UnifiedBytecodeProductionEligibility
         }
 
         var rhsStart = 1;
+        var hasPrivateReceiverPrefix = false;
         while (rhsStart < program.OperationCount - 1)
         {
             var receiverRead = program.GetOperation(rhsStart);
@@ -14628,14 +14629,29 @@ internal static class UnifiedBytecodeProductionEligibility
                 break;
             }
 
-            if (receiverRead.GetString(stringConstants).IsPrivateName() ||
-                receiverRead.IsOptional ||
+            var receiverName = receiverRead.GetString(stringConstants);
+            if (receiverName.IsPrivateName())
+            {
+                if (hasPrivateReceiverPrefix || rhsStart != 1)
+                {
+                    return false;
+                }
+
+                hasPrivateReceiverPrefix = true;
+            }
+
+            if (receiverRead.IsOptional ||
                 receiverRead.ShortCircuitOnNullishTarget)
             {
                 return false;
             }
 
             rhsStart++;
+        }
+
+        if (hasPrivateReceiverPrefix && rhsStart != 2)
+        {
+            return false;
         }
 
         if (rhsStart < 2)

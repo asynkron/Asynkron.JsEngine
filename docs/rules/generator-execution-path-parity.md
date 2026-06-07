@@ -35,6 +35,18 @@ The JsEngine has two separate generator execution paths:
    Before introducing a new `JsObject`-based path for iterator results in any
    generator execution path, verify that `IteratorResultObject` does not already
    apply. Related ADR: `docs/adrs/0299-reduce-iterator-result-allocation-resumable-generator.md`.
+4. When a sync generator falls back from the resumable unified-bytecode route,
+   distinguish explicit `EvaluateResumable(...)` declines from earlier pre-gate
+   declines. Log classified fallback details only when
+   `EvaluateResumable(...)` produced a `UnifiedBytecodeProductionDeclineCode`;
+   do not manufacture decline codes for non-simple parameters, missing plans, or
+   other pre-gates that did not reach the production-resumable classifier.
+   WHY: issue
+   `planitem-planitem-planmanual1780730299657353000-unified-bytecode-remaining-burndo-f6a1994d6c`
+   added the `classified-sync-generator-ir-fallback` log for
+   `OptionalChainDependency` on `o?.[k]()` while keeping non-simple parameter
+   fallback unclassified. That preserves the distinction between a classified
+   production-resumable boundary and an invocation-shape pre-gate.
 
 ## Why
 
@@ -46,3 +58,12 @@ was earlier optimized. Because the unified-bytecode generator path
 is warm (first 64 yields), and the final completion step always uses the singleton,
 the improvement is not directly visible in the standard `generator` benchmark
 profile. Future generator resumption optimization work must account for both paths.
+
+Issue
+`planitem-planitem-planmanual1780730299657353000-unified-bytecode-remaining-burndo-f6a1994d6c`
+added classified logging for sync-generator fallbacks that reach
+`UnifiedBytecodeProductionEligibility.EvaluateResumable(...)` and decline there.
+The durable decision is to expose the real production-resumable decline code for
+diagnostics, while leaving earlier invocation pre-gates unclassified so future
+burndown work does not confuse missing classifier evidence with an
+`EvaluateResumable` result.

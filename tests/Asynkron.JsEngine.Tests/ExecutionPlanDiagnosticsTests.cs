@@ -332,6 +332,57 @@ public sealed class ExecutionPlanDiagnosticsTests(ITestOutputHelper output) : In
     }
 
     [Fact]
+    public void SourceGate_StandaloneExpressionExecutor_StaysInsideApprovedBoundarySurface()
+    {
+        var repositoryRoot = FindRepositoryRoot();
+        var sourceRoot = Path.Combine(repositoryRoot.FullName, "src", "Asynkron.JsEngine");
+        var toolRoot = Path.Combine(repositoryRoot.FullName, "tools", "ProfileRunner");
+        var allowedCallSites = new HashSet<string>(StringComparer.Ordinal)
+        {
+            "src/Asynkron.JsEngine/Execution/UnifiedBytecode/UnifiedBytecodeExpressionProgramExecutor.cs",
+            "src/Asynkron.JsEngine/Ast/ClassDefinitionExtensions.cs",
+            "src/Asynkron.JsEngine/Ast/ClassFieldInitializer.cs",
+            "src/Asynkron.JsEngine/Ast/ClassPropertyNameResolver.cs",
+            "src/Asynkron.JsEngine/Ast/TypedAstEvaluator.ExecutionPlanRunner.BindingPrograms.cs",
+            "src/Asynkron.JsEngine/Ast/TypedAstEvaluator.SyncFunctionInvoker.cs"
+        };
+
+        var scannedFiles = EnumerateCSharpFiles(sourceRoot, toolRoot).ToArray();
+        Assert.Contains(
+            scannedFiles,
+            file => NormalizeRelativePath(repositoryRoot, file) == "src/Asynkron.JsEngine/Execution/UnifiedBytecode/UnifiedBytecodeExpressionProgramExecutor.cs");
+        Assert.Contains(
+            scannedFiles,
+            file => NormalizeRelativePath(repositoryRoot, file) == "tools/ProfileRunner/Program.cs");
+
+        var matches = scannedFiles
+            .SelectMany(file =>
+            {
+                var relativePath = NormalizeRelativePath(repositoryRoot, file);
+                return File.ReadAllLines(file)
+                    .Select((line, index) => new { line, index })
+                    .Where(entry =>
+                        entry.line.Contains(
+                            "UnifiedBytecodeExpressionProgramExecutor.ExecuteStandalone(",
+                            StringComparison.Ordinal))
+                    .Select(entry => (relativePath, entry.index + 1, entry.line.Trim()));
+            })
+            .ToArray();
+
+        Assert.NotEmpty(matches);
+
+        var disallowed = matches
+            .Where(match => !allowedCallSites.Contains(match.relativePath))
+            .Select(match => $"{match.relativePath}:{match.Item2}:{match.Item3}")
+            .ToArray();
+
+        Assert.True(
+            disallowed.Length == 0,
+            "UnifiedBytecodeExpressionProgramExecutor.ExecuteStandalone call-site drift detected:\n" +
+            string.Join('\n', disallowed));
+    }
+
+    [Fact]
     public void SourceGate_E4_StandaloneExpressionProgramRunner_IsCompletelyRemoved()
     {
         var repositoryRoot = FindRepositoryRoot();
@@ -358,16 +409,25 @@ public sealed class ExecutionPlanDiagnosticsTests(ITestOutputHelper output) : In
     {
         var repositoryRoot = FindRepositoryRoot();
         var sourceRoot = Path.Combine(repositoryRoot.FullName, "src", "Asynkron.JsEngine");
+        var toolRoot = Path.Combine(repositoryRoot.FullName, "tools", "ProfileRunner");
         var deletedMethods = new[]
         {
             "ProfileEvaluateLoweredExpressionProgramLoop(",
             "ProfileEvaluateExpressionProgramLoop("
         };
-        var matches = Directory
-            .EnumerateFiles(sourceRoot, "*.cs", SearchOption.AllDirectories)
+
+        var scannedFiles = EnumerateCSharpFiles(sourceRoot, toolRoot).ToArray();
+        Assert.Contains(
+            scannedFiles,
+            file => NormalizeRelativePath(repositoryRoot, file) == "src/Asynkron.JsEngine/Ast/TypedAstEvaluator.ExecutionPlanRunner.Core.cs");
+        Assert.Contains(
+            scannedFiles,
+            file => NormalizeRelativePath(repositoryRoot, file) == "tools/ProfileRunner/Program.cs");
+
+        var matches = scannedFiles
             .SelectMany(file =>
             {
-                var relativePath = Path.GetRelativePath(repositoryRoot.FullName, file).Replace('\\', '/');
+                var relativePath = NormalizeRelativePath(repositoryRoot, file);
                 return File.ReadAllLines(file)
                     .Select((line, index) => new { line, index })
                     .Where(entry => deletedMethods.Any(method => entry.line.Contains(method, StringComparison.Ordinal)))
@@ -378,6 +438,22 @@ public sealed class ExecutionPlanDiagnosticsTests(ITestOutputHelper output) : In
 
         Assert.Empty(matches);
     }
+
+    private static IEnumerable<string> EnumerateCSharpFiles(params string[] roots)
+    {
+        foreach (var root in roots)
+        {
+            Assert.True(Directory.Exists(root), $"Source gate invariant failed: expected directory '{root}'.");
+
+            foreach (var file in Directory.EnumerateFiles(root, "*.cs", SearchOption.AllDirectories))
+            {
+                yield return file;
+            }
+        }
+    }
+
+    private static string NormalizeRelativePath(DirectoryInfo repositoryRoot, string path) =>
+        Path.GetRelativePath(repositoryRoot.FullName, path).Replace('\\', '/');
 
     [Fact]
     public void SourceGate_E4_LoweredExpressionProgramBridge_IsCompletelyRemoved()

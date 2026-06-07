@@ -34,11 +34,82 @@
     },
     {
       "id": "A2",
-      "title": "Direct eval and runtime-injected dynamic activation residue",
+      "title": "Direct eval admitted subset and dynamic activation residue",
       "status": "open",
       "proofs": [
         {
-          "id": "A2-direct-eval-script-fallback",
+          "id": "A2-declaration-free-direct-eval-routes",
+          "claim": "admitted",
+          "kind": "runtime",
+          "source": "function invokeEval() {\n  var local = 42;\n  return eval('local');\n}\ninvokeEval();",
+          "expectedResult": "42",
+          "requiredLogs": [
+            "unified-bytecode-production-fast-path func=invokeEval argc=0"
+          ]
+        },
+        {
+          "id": "A2-bounded-arguments-direct-eval-routes",
+          "claim": "admitted",
+          "kind": "runtime",
+          "source": "function invokeEval(first, second) {\n  var local = 42;\n  return eval('arguments[0] + \":\" + arguments.length + \":\" + local + \":\" + second');\n}\ninvokeEval(7, 9);",
+          "expectedResult": "7:2:42:9",
+          "requiredLogs": [
+            "unified-bytecode-production-fast-path func=invokeEval argc=2"
+          ]
+        },
+        {
+          "id": "A2-declaration-bearing-direct-eval-declines",
+          "claim": "open",
+          "kind": "eligibility",
+          "subject": "function",
+          "functionName": "invokeEval",
+          "source": "function invokeEval() {\n  return eval('var value = 41;');\n}",
+          "expectedEligible": false,
+          "declineCode": "CallDependency",
+          "reasonContains": "Direct eval invocation semantics"
+        },
+        {
+          "id": "A2-runtime-source-direct-eval-declines",
+          "claim": "open",
+          "kind": "eligibility",
+          "subject": "function",
+          "functionName": "invokeEval",
+          "source": "function invokeEval(source) {\n  return eval(source);\n}",
+          "expectedEligible": false,
+          "declineCode": "CallDependency",
+          "reasonContains": "Direct eval invocation semantics"
+        },
+        {
+          "id": "A2-multi-arg-direct-eval-declines",
+          "claim": "hard-quarantined",
+          "kind": "eligibility",
+          "subject": "function",
+          "functionName": "invokeEval",
+          "source": "function invokeEval(extra) {\n  return eval('local + 1', extra);\n}",
+          "expectedEligible": false,
+          "declineCode": "CallDependency",
+          "reasonContains": "Direct eval invocation semantics"
+        },
+        {
+          "id": "A2-spread-direct-eval-declines",
+          "claim": "hard-quarantined",
+          "kind": "eligibility",
+          "subject": "function",
+          "functionName": "invokeEval",
+          "source": "function invokeEval(args) {\n  return eval(...args);\n}",
+          "expectedEligible": false,
+          "declineCode": "CallDependency",
+          "reasonContains": "Direct eval invocation semantics"
+        },
+        {
+          "id": "A2-resumable-arguments-direct-eval-boundary-stays-open",
+          "claim": "open",
+          "kind": "source-presence",
+          "path": "src/Asynkron.JsEngine/Ast/TypedAstEvaluator.UnifiedBytecodeResumableActivation.cs",
+          "pattern": "ResumableDirectEvalActivationDetector.ContainsArgumentsObjectDependency(function.Body)"
+        },
+        {
+          "id": "A2-script-eval-injected-binding-declines",
           "claim": "open",
           "kind": "runtime",
           "source": "eval('var injected = 1');\nString(injected);",

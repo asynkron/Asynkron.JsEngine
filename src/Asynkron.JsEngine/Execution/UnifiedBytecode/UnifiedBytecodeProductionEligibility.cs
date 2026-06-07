@@ -4159,9 +4159,12 @@ internal static class UnifiedBytecodeProductionEligibility
         {
             if (field.IsPrivate)
             {
-                // B24h currently composes public computed elements with private methods only.
-                // Private fields still use the separate B24e route and need their own mixed-member proof.
-                return false;
+                if (field.IsStatic || field.IsComputed)
+                {
+                    return false;
+                }
+
+                continue;
             }
 
             if (field.IsComputed)
@@ -4212,6 +4215,30 @@ internal static class UnifiedBytecodeProductionEligibility
             declineReason =
                 $"Class literal computed-name programs could not lower for B24h resumable production routing: {cache.FailureReason ?? "unknown failure"}.";
             return false;
+        }
+
+        for (var i = 0; i < definition.Fields.Length; i++)
+        {
+            var field = definition.Fields[i];
+            if (!field.IsPrivate)
+            {
+                continue;
+            }
+
+            if (field.Initializer is not null && ExpressionContainsSuper(field.Initializer))
+            {
+                declineReason =
+                    "Class literal is outside B24h: private field initializer uses super and needs the class-definition environment route.";
+                return false;
+            }
+
+            if (cache.FieldInitializerPrograms[i] is { } initializerProgram &&
+                ExpressionProgramReferencesActivationSlot(initializerProgram, activationSlots, out var capturedName))
+            {
+                declineReason =
+                    $"Class literal is outside B24h: private field initializer captures activation binding '{capturedName}' and needs the materialized body environment route.";
+                return false;
+            }
         }
 
         if (FunctionCapturesActivationSlot(definition.Constructor, activationSlots, out var constructorCapturedName) &&

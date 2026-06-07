@@ -1580,13 +1580,13 @@ public sealed class UnifiedBytecodeResumableClassExpressionTests(ITestOutputHelp
     }
 
     [Fact]
-    public void EvaluateResumable_ClassExpressionComputedStaticFieldClosureInitializer_DeclinesBeforeVm()
+    public void EvaluateResumable_ClassExpressionComputedStaticFieldClosureInitializer_AdmitsLoadClassLiteral()
     {
         var plan = GetFunctionPlan("""
         function* g(seed) {
             yield 1;
             var C = class {
-                static ["field"] = () => seed;
+                static ["read"] = () => seed;
             };
             return C;
         }
@@ -1597,9 +1597,38 @@ public sealed class UnifiedBytecodeResumableClassExpressionTests(ITestOutputHelp
             plan,
             new UnifiedBytecodeProductionActivationDescriptor(IsGenerator: true));
 
-        Assert.False(result.IsEligible);
-        Assert.Equal(UnifiedBytecodeProductionDeclineCode.UnsupportedPlanShape, result.Code);
-        Assert.Contains("computed static field initializer creates a closure", result.Reason, StringComparison.Ordinal);
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(
+            result.Program.Instructions,
+            static instruction => instruction.OpCode == UnifiedBytecodeOpCode.LoadClassLiteral);
+        Assert.True(UnifiedBytecodeProductionEligibility.PlanNeedsMaterializedResumableBodyEnvironment(plan));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task GeneratorClassExpressionComputedStaticFieldClosureInitializer_RoutesResumableAndReadsLaterMutation()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function* g(seed) {
+                yield "ready";
+                var current = seed;
+                var C = class {
+                    static ["read"] = () => current;
+                };
+                current = seed + 1;
+                yield C.read();
+            }
+
+            var iterator = g(41);
+            var first = iterator.next();
+            var second = iterator.next();
+            first.value + ":" + first.done + "|" + second.value + ":" + second.done;
+            """);
+
+        Assert.Equal("ready:false|42:false", result);
+        AssertGeneratorFastPath("g", argc: 1);
+        AssertProductionFastPath("<anonymous>");
     }
 
     [Fact]

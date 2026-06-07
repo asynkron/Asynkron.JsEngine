@@ -105,10 +105,11 @@ statement interpretation.
   slots or create activation-capturing function literals under that same
   materialized body-environment route, and whose public computed static field
   initializers may directly read/write/update activation slots through the
-  class-literal slot environment and post-creation slot sync, while static field
-  initializer programs that create closures plus constructor bodies and member
-  bodies do not capture activation slots, including mixes with non-computed
-  public fields/methods/accessors under the same activation-safety rules, and
+  class-literal slot environment and post-creation slot sync or create
+  activation-capturing closures through the materialized body-environment route,
+  while constructor bodies and member bodies do not capture activation slots,
+  including mixes with non-computed public fields/methods/accessors under the
+  same activation-safety rules, and
   mixed public non-computed static fields plus static methods/accessors when
   field initializers compile as standalone unified bytecode and
   member/constructor bodies do not capture activation slots, are
@@ -116,9 +117,8 @@ statement interpretation.
   class-definition evaluation to lower-level class machinery that can run
   expression programs and static-block IR plans, and the remaining B24h/B24i
   shapes keep computed-super, computed-name unadmitted call-target dependencies,
-  closure-producing static field initializers, constructor/member bodies,
-  materialized-environment, member-super, and activation-slot `extends` shapes
-  declined.
+  constructor/member bodies, materialized-environment, member-super, and
+  activation-slot `extends` shapes declined.
 - `UnifiedBytecodeCompiler` now has generated audit coverage for every declared
   IR instruction record. Function-scoped `FunctionDeclarationInstruction`
   entries compile as no-ops after fast activation hoisting installs the callable
@@ -471,10 +471,11 @@ computed instance field initializer programs may read activation slots or create
 activation-capturing function literals under that same materialized
 body-environment route, and whose public computed static field initializer
 programs may directly read/write/update activation slots through the
-class-literal slot environment and post-creation slot sync, while static field
-initializer programs that create closures plus constructor/member bodies do not
-capture activation slots, including mixes with non-computed public
-fields/methods/accessors under the same activation-safety rules, plus public
+class-literal slot environment and post-creation slot sync or create
+activation-capturing closures through the materialized body-environment route,
+while constructor/member bodies do not capture activation slots, including mixes
+with non-computed public fields/methods/accessors under the same
+activation-safety rules, plus public
 non-computed static methods/accessors whose bodies do not capture activation
 slots and public non-computed static-field class literals with `extends` whose
 initializers compile as standalone unified bytecode and create no nested

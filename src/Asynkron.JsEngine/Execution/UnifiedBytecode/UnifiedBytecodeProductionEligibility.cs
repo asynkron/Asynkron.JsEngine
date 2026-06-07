@@ -1556,7 +1556,7 @@ internal static class UnifiedBytecodeProductionEligibility
                 return true;
             }
 
-            if (ExpressionProgramHasActivationReferencingClassLiteralInstanceFieldInitializer(
+            if (ExpressionProgramNeedsMaterializedBodyEnvironmentForClassLiteralFieldInitializer(
                     program,
                     activationSlots,
                     out var classLiteralFieldInitializerCapturedName) &&
@@ -1654,7 +1654,7 @@ internal static class UnifiedBytecodeProductionEligibility
         return false;
     }
 
-    private static bool ExpressionProgramHasActivationReferencingClassLiteralInstanceFieldInitializer(
+    private static bool ExpressionProgramNeedsMaterializedBodyEnvironmentForClassLiteralFieldInitializer(
         ExpressionProgram program,
         ActivationSlotShape activationSlots,
         out string capturedName)
@@ -1684,17 +1684,29 @@ internal static class UnifiedBytecodeProductionEligibility
 
             for (var i = 0; i < cache.FieldInitializerPrograms.Length; i++)
             {
-                if (definition.Fields[i].IsStatic ||
-                    cache.FieldInitializerPrograms[i] is not { } initializerProgram ||
-                    !ExpressionProgramReferencesActivationSlot(
-                        initializerProgram,
-                        activationSlots,
-                        out capturedName))
+                if (cache.FieldInitializerPrograms[i] is not { } initializerProgram)
                 {
                     continue;
                 }
 
-                return true;
+                if (definition.Fields[i].IsStatic)
+                {
+                    if (!ExpressionProgramCreatesClosure(initializerProgram))
+                    {
+                        continue;
+                    }
+
+                    capturedName = string.Empty;
+                    return true;
+                }
+
+                if (ExpressionProgramReferencesActivationSlot(
+                        initializerProgram,
+                        activationSlots,
+                        out capturedName))
+                {
+                    return true;
+                }
             }
         }
 
@@ -4197,18 +4209,6 @@ internal static class UnifiedBytecodeProductionEligibility
             {
                 declineReason =
                     $"Class literal computed field name captures activation binding '{capturedName}' through {dependencyReason} and is not supported by B24h resumable production routing until the class-definition environment route owns that dependency.";
-                return false;
-            }
-        }
-
-        for (var i = 0; i < cache.FieldInitializerPrograms.Length; i++)
-        {
-            if (cache.FieldInitializerPrograms[i] is { } initializerProgram &&
-                definition.Fields[i].IsStatic &&
-                ExpressionProgramCreatesClosure(initializerProgram))
-            {
-                declineReason =
-                    "Class literal computed static field initializer creates a closure that needs the materialized body environment route.";
                 return false;
             }
         }

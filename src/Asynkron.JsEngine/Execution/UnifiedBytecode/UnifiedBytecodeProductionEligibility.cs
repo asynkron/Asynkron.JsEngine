@@ -3496,7 +3496,7 @@ internal static class UnifiedBytecodeProductionEligibility
             return false;
         }
 
-        if (!definition.Members.IsDefaultOrEmpty || !definition.Fields.IsDefaultOrEmpty)
+        if (!definition.Members.IsDefaultOrEmpty)
         {
             return false;
         }
@@ -3523,23 +3523,63 @@ internal static class UnifiedBytecodeProductionEligibility
             return false;
         }
 
-        if (definition.StaticBlockPlans.IsDefaultOrEmpty ||
-            definition.StaticElements.Length != definition.StaticBlockPlans.Length)
+        if (definition.StaticBlockPlans.IsDefaultOrEmpty)
         {
             declineReason =
                 "Class declaration is outside B36: static elements outside the static-block-only subset remain owned by later class-definition slices.";
             return false;
         }
 
+        if (definition.StaticElements.Length != definition.StaticBlockPlans.Length + definition.Fields.Length)
+        {
+            declineReason =
+                "Class declaration is outside B36: static element order metadata does not match the lowered static fields and static blocks.";
+            return false;
+        }
+
+        if (!TryValidateB36PublicStaticFieldPrograms(cache, out declineReason))
+        {
+            return false;
+        }
+
+        var staticBlockCount = 0;
+        var staticFieldCount = 0;
         foreach (var element in definition.StaticElements)
         {
-            if (element.Kind == ClassStaticElementKind.Block)
+            switch (element.Kind)
             {
-                continue;
-            }
+                case ClassStaticElementKind.Field:
+                    if (element.Index < 0 || element.Index >= definition.Fields.Length)
+                    {
+                        declineReason =
+                            "Class declaration is outside B36: static field order metadata points outside the lowered field list.";
+                        return false;
+                    }
 
+                    staticFieldCount++;
+                    break;
+                case ClassStaticElementKind.Block:
+                    if (element.Index < 0 || element.Index >= definition.StaticBlockPlans.Length)
+                    {
+                        declineReason =
+                            "Class declaration is outside B36: static block order metadata points outside the lowered static block list.";
+                        return false;
+                    }
+
+                    staticBlockCount++;
+                    break;
+                default:
+                    declineReason =
+                        "Class declaration is outside B36: unsupported static element metadata.";
+                    return false;
+            }
+        }
+
+        if (staticBlockCount != definition.StaticBlockPlans.Length ||
+            staticFieldCount != definition.Fields.Length)
+        {
             declineReason =
-                "Class declaration is outside B36: static elements outside the static-block-only subset remain owned by later class-definition slices.";
+                "Class declaration is outside B36: static element order metadata does not match the lowered static fields and static blocks.";
             return false;
         }
 
@@ -3564,6 +3604,57 @@ internal static class UnifiedBytecodeProductionEligibility
 
             declineReason =
                 $"Class declaration static block is outside B36 production routing: {result.Reason}";
+            return false;
+        }
+
+        return true;
+    }
+
+    private static bool TryValidateB36PublicStaticFieldPrograms(
+        ClassDefinitionProgramCache cache,
+        out string declineReason)
+    {
+        var definition = cache.Definition;
+        declineReason = string.Empty;
+        if (definition.Fields.IsDefaultOrEmpty)
+        {
+            return true;
+        }
+
+        if (cache.FieldInitializerPrograms.IsDefaultOrEmpty ||
+            cache.FieldInitializerPrograms.Length != definition.Fields.Length)
+        {
+            declineReason =
+                "Class declaration is outside B36: static field initializer programs are missing their field metadata.";
+            return false;
+        }
+
+        for (var i = 0; i < definition.Fields.Length; i++)
+        {
+            var field = definition.Fields[i];
+            if (!field.IsStatic || field.IsPrivate || field.IsComputed)
+            {
+                declineReason =
+                    "Class declaration is outside B36: only public non-computed static fields may mix with static blocks in the current slice.";
+                return false;
+            }
+
+            if (cache.FieldInitializerPrograms[i] is not { } initializerProgram)
+            {
+                continue;
+            }
+
+            if (UnifiedBytecodeCompiler.TryCompileStandaloneExpressionProgram(
+                    initializerProgram,
+                    allowsDynamicIdentifiers: true,
+                    out _,
+                    out var initializerReason))
+            {
+                continue;
+            }
+
+            declineReason =
+                $"Class declaration static field initializer is outside B36 production routing: {initializerReason}";
             return false;
         }
 

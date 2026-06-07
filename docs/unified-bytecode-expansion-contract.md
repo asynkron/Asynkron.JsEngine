@@ -930,13 +930,13 @@ predicates and proof tests.
     even when field initializers capture resumable activation slots, and public
     non-computed static-field `extends` declarations also route when each
     initializer compiles as standalone unified bytecode, including
-    closure-producing static fields and static `super` field initializers.
-    Dynamic/eval helpers
-    plus otherwise complex class declaration neighbors (mixed static-block/static
-    element shapes outside the static-block-only/static-field subsets, and
-    computed/private/static shapes outside the public B24h-compatible subset)
-    are the remaining separate B36
-    declaration-instantiation work.
+    closure-producing static fields and static `super` field initializers. Direct
+    root class declarations that mix public non-computed static fields with
+    eligible static blocks now route as well, preserving static element order.
+    Dynamic/eval helpers, static-block nested declarations or non-production
+    static-block plans, plus otherwise complex class declaration neighbors
+    (computed/private/static shapes outside the public B24h-compatible subset)
+    are the remaining separate B36 declaration-instantiation work.
     `DeclareFunction` remains off the resumable opcode allowlist because
     descriptor-backed block/Annex B declarations still need persisted
     materialized block environments across suspension; direct root

@@ -612,15 +612,29 @@
           ]
         },
         {
-          "id": "B36-class-declaration-mixed-static-field-and-block-declines",
+          "id": "B36-class-declaration-mixed-static-field-and-block-routes",
+          "claim": "admitted",
+          "kind": "runtime",
+          "source": "function* g(seed) {\n  yield 'ready';\n  class Box {\n    static value = seed;\n    static {\n      Box.other = Box.value + 1;\n    }\n  }\n  yield Box.value + '|' + Box.other;\n}\nvar iterator = g(41);\nvar first = iterator.next();\nvar second = iterator.next();\nfirst.value + ':' + first.done + '|' + second.value + ':' + second.done;",
+          "expectedResult": "ready:false|41|42:false",
+          "requiredLogs": [
+            "unified-bytecode-resumable-generator-fast-path func=g",
+            "unified-bytecode-production-fast-path static-block"
+          ],
+          "forbiddenLogs": [
+            "classified-static-block-ir-fallback"
+          ]
+        },
+        {
+          "id": "B36-class-declaration-mixed-static-field-and-block-function-declaration-declines",
           "claim": "open",
           "kind": "eligibility",
           "subject": "resumable-generator",
           "functionName": "g",
-          "source": "function* g(seed) {\n  yield 'ready';\n  class Box {\n    static value = seed;\n    static {\n      Box.other = 1;\n    }\n  }\n  yield typeof Box;\n}",
+          "source": "function* g(seed) {\n  yield 'ready';\n  class Box {\n    static value = seed;\n    static {\n      function readLater() { return Box.value; }\n      Box.readLater = readLater;\n    }\n  }\n  yield typeof Box;\n}",
           "expectedEligible": false,
           "declineCode": "UnsupportedPlanShape",
-          "reasonContains": "outside B36"
+          "reasonContains": "static block contains nested declarations"
         },
         {
           "id": "B36-class-declaration-extends-public-super-method-routes",

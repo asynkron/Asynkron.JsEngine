@@ -692,6 +692,61 @@ public sealed class UnifiedBytecodeResumableClassDeclarationTests(ITestOutputHel
             static instruction => instruction.OpCode == UnifiedBytecodeOpCode.DeclareClass);
     }
 
+    [Fact]
+    public void EvaluateResumable_ClassDeclarationMixedStaticFieldAndBlock_AdmitsDeclareClass()
+    {
+        var plan = GetFunctionPlan("""
+            function* g(seed) {
+                yield "ready";
+                class Box {
+                    static value = seed;
+                    static {
+                        Box.other = Box.value + 1;
+                    }
+                }
+                yield Box.value + "|" + Box.other;
+            }
+            """,
+            "g");
+
+        var result = UnifiedBytecodeProductionEligibility.EvaluateResumable(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor(IsGenerator: true));
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(
+            result.Program.Instructions,
+            static instruction => instruction.OpCode == UnifiedBytecodeOpCode.DeclareClass);
+    }
+
+    [Fact]
+    public void EvaluateResumable_ClassDeclarationMixedStaticFieldAndBlockFunctionDeclaration_DeclinesBeforeVm()
+    {
+        var plan = GetFunctionPlan("""
+            function* g(seed) {
+                yield "ready";
+                class Box {
+                    static value = seed;
+                    static {
+                        function readLater() { return Box.value; }
+                        Box.readLater = readLater;
+                    }
+                }
+                yield typeof Box;
+            }
+            """,
+            "g");
+
+        var result = UnifiedBytecodeProductionEligibility.EvaluateResumable(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor(IsGenerator: true));
+
+        Assert.False(result.IsEligible);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.UnsupportedPlanShape, result.Code);
+        Assert.Contains("static block contains nested declarations", result.Reason, StringComparison.Ordinal);
+    }
+
     [Fact(Timeout = 5000)]
     public async Task GeneratorClassDeclaration_RoutesResumableAndKeepsBodyScope()
     {
@@ -1362,6 +1417,43 @@ public sealed class UnifiedBytecodeResumableClassDeclarationTests(ITestOutputHel
         Assert.Equal("ready:false|42:false", result);
         AssertGeneratorFastPath("g", argc: 1);
         AssertProductionFastPath("<anonymous>");
+        var logs = CurrentLogger!.Collector.Snapshot();
+        Assert.Contains(
+            logs,
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path static-block",
+                StringComparison.Ordinal));
+        Assert.DoesNotContain(
+            logs,
+            static record => record.Message.Contains(
+                "classified-static-block-ir-fallback",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task GeneratorClassDeclarationMixedStaticFieldAndBlock_RoutesResumableAndPreservesOrder()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function* g(seed) {
+                yield "ready";
+                class Box {
+                    static value = seed;
+                    static {
+                        Box.other = Box.value + 1;
+                    }
+                }
+                yield Box.value + "|" + Box.other;
+            }
+
+            var iterator = g(41);
+            var first = iterator.next();
+            var second = iterator.next();
+            first.value + ":" + first.done + "|" + second.value + ":" + second.done;
+            """);
+
+        Assert.Equal("ready:false|41|42:false", result);
+        AssertGeneratorFastPath("g", argc: 1);
         var logs = CurrentLogger!.Collector.Snapshot();
         Assert.Contains(
             logs,

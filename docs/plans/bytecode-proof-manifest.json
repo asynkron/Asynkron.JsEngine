@@ -189,7 +189,7 @@
     },
     {
       "id": "B24h",
-      "title": "Computed class-member names are partial; constructor bodies still decline",
+      "title": "Computed class-member names are partial; computed-super still declines",
       "status": "open",
       "proofs": [
         {
@@ -284,15 +284,26 @@
           ]
         },
         {
-          "id": "B24h-computed-member-constructor-captures-activation-declines",
+          "id": "B24h-computed-member-constructor-captures-activation-routes",
+          "claim": "admitted",
+          "kind": "runtime",
+          "source": "function* g(seed) {\n  yield 'ready';\n  var current = seed;\n  var C = class Box {\n    ['read']() { return this.value; }\n    constructor() { this.value = current; }\n  };\n  current = seed + 1;\n  var c = new C();\n  yield c.read();\n}\nvar iterator = g(41);\nvar first = iterator.next();\nvar second = iterator.next();\nfirst.value + ':' + first.done + '|' + second.value + ':' + second.done;",
+          "expectedResult": "ready:false|42:false",
+          "requiredLogs": [
+            "unified-bytecode-resumable-generator-fast-path func=g",
+            "unified-bytecode-production-fast-path func=Box"
+          ]
+        },
+        {
+          "id": "B24h-computed-member-super-declines",
           "claim": "open",
           "kind": "eligibility",
           "subject": "resumable-generator",
           "functionName": "g",
-          "source": "function* g(seed) {\n  yield 1;\n  var C = class {\n    ['read']() { return this.value; }\n    constructor() { this.value = seed; }\n  };\n  return C;\n}",
+          "source": "class Base {\n  value() { return 40; }\n}\nfunction* g() {\n  yield 1;\n  var C = class extends Base {\n    ['value']() { return super.value() + 1; }\n  };\n  return C;\n}",
           "expectedEligible": false,
           "declineCode": "UnsupportedPlanShape",
-          "reasonContains": "constructor body captures activation"
+          "reasonContains": "B24"
         }
       ]
     },

@@ -1565,11 +1565,11 @@ internal static class UnifiedBytecodeProductionEligibility
                 return true;
             }
 
-            if (ExpressionProgramHasActivationCapturingClassLiteralMemberBody(
+            if (ExpressionProgramHasActivationCapturingClassLiteralCallable(
                     program,
                     activationSlots,
-                    out var classLiteralMemberBodyCapturedName) &&
-                IsMaterializedResumableBodyEnvironmentCapture(classLiteralMemberBodyCapturedName))
+                    out var classLiteralCallableCapturedName) &&
+                IsMaterializedResumableBodyEnvironmentCapture(classLiteralCallableCapturedName))
             {
                 return true;
             }
@@ -1722,7 +1722,7 @@ internal static class UnifiedBytecodeProductionEligibility
         return false;
     }
 
-    private static bool ExpressionProgramHasActivationCapturingClassLiteralMemberBody(
+    private static bool ExpressionProgramHasActivationCapturingClassLiteralCallable(
         ExpressionProgram program,
         ActivationSlotShape activationSlots,
         out string capturedName)
@@ -1746,6 +1746,14 @@ internal static class UnifiedBytecodeProductionEligibility
             if (!cache.Succeeded)
             {
                 capturedName = "<unknown>";
+                return true;
+            }
+
+            if (FunctionCapturesActivationSlot(
+                    classExpression.Definition.Constructor,
+                    activationSlots,
+                    out capturedName))
+            {
                 return true;
             }
 
@@ -4198,7 +4206,8 @@ internal static class UnifiedBytecodeProductionEligibility
             return false;
         }
 
-        if (FunctionCapturesActivationSlot(definition.Constructor, activationSlots, out var constructorCapturedName))
+        if (FunctionCapturesActivationSlot(definition.Constructor, activationSlots, out var constructorCapturedName) &&
+            !IsMaterializedResumableBodyEnvironmentCapture(constructorCapturedName))
         {
             declineReason =
                 $"Class literal is outside B24h: constructor body captures activation binding '{constructorCapturedName}' and needs the materialized body environment route.";

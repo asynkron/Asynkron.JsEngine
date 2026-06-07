@@ -1685,13 +1685,70 @@ public sealed class UnifiedBytecodeResumableClassExpressionTests(ITestOutputHelp
     }
 
     [Fact]
-    public void EvaluateResumable_ClassExpressionComputedMemberConstructorCapturesActivation_DeclinesBeforeVm() =>
+    public void EvaluateResumable_ClassExpressionComputedMemberConstructorCapturesActivation_AdmitsLoadClassLiteral()
+    {
+        var plan = GetFunctionPlan("""
+        function* g(seed) {
+            yield 1;
+            var C = class Box {
+                ["read"]() { return this.value; }
+                constructor() { this.value = seed; }
+            };
+            return C;
+        }
+        """,
+            "g");
+
+        var result = UnifiedBytecodeProductionEligibility.EvaluateResumable(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor(IsGenerator: true));
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(
+            result.Program.Instructions,
+            static instruction => instruction.OpCode == UnifiedBytecodeOpCode.LoadClassLiteral);
+        Assert.True(UnifiedBytecodeProductionEligibility.PlanNeedsMaterializedResumableBodyEnvironment(plan));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task GeneratorClassExpressionComputedMemberConstructorCapturesActivation_RoutesResumableAndReadsLaterMutation()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function* g(seed) {
+                yield "ready";
+                var current = seed;
+                var C = class Box {
+                    ["read"]() { return this.value; }
+                    constructor() { this.value = current; }
+                };
+                current = seed + 1;
+                var c = new C();
+                yield c.read();
+            }
+
+            var iterator = g(41);
+            var first = iterator.next();
+            var second = iterator.next();
+            first.value + ":" + first.done + "|" + second.value + ":" + second.done;
+            """);
+
+        Assert.Equal("ready:false|42:false", result);
+        AssertGeneratorFastPath("g", argc: 1);
+        AssertProductionFastPath("Box");
+    }
+
+    [Fact]
+    public void EvaluateResumable_ClassExpressionComputedMemberWithSuper_DeclinesBeforeVm() =>
         AssertClassExpressionDeclines("""
         function* g(seed) {
             yield 1;
-            var C = class {
-                ["read"]() { return this.value; }
-                constructor() { this.value = seed; }
+            var Base = class {
+                get value() { return seed; }
+            };
+            var C = class extends Base {
+                ["read"]() { return super.value; }
             };
             return C;
         }

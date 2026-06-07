@@ -107,9 +107,8 @@ statement interpretation.
   initializers may directly read/write/update activation slots through the
   class-literal slot environment and post-creation slot sync or create
   activation-capturing closures through the materialized body-environment route,
-  and whose public computed member bodies may capture activation slots through
-  that same materialized body-environment route, while constructor bodies do not
-  capture activation slots,
+  and whose public computed member bodies and constructor bodies may capture
+  activation slots through that same materialized body-environment route,
   including mixes with non-computed public fields/methods/accessors under the
   same activation-safety rules, and
   mixed public non-computed static fields plus static methods/accessors when
@@ -119,8 +118,8 @@ statement interpretation.
   class-definition evaluation to lower-level class machinery that can run
   expression programs and static-block IR plans, and the remaining B24h/B24i
   shapes keep computed-super, computed-name unadmitted call-target dependencies,
-  constructor bodies, materialized-environment, member-super, and
-  activation-slot `extends` shapes declined.
+  member-super, private/static-block environment state, and activation-slot
+  `extends` shapes declined.
 - `UnifiedBytecodeCompiler` now has generated audit coverage for every declared
   IR instruction record. Function-scoped `FunctionDeclarationInstruction`
   entries compile as no-ops after fast activation hoisting installs the callable
@@ -475,9 +474,9 @@ body-environment route, and whose public computed static field initializer
 programs may directly read/write/update activation slots through the
 class-literal slot environment and post-creation slot sync or create
 activation-capturing closures through the materialized body-environment route,
-and whose public computed member bodies may capture activation slots through
-that same materialized body-environment route, while constructor bodies do not
-capture activation slots, including mixes
+and whose public computed member bodies and constructor bodies may capture
+activation slots through that same materialized body-environment route,
+including mixes
 with non-computed public fields/methods/accessors under the same
 activation-safety rules, plus public
 non-computed static methods/accessors whose bodies do not capture activation
@@ -493,10 +492,9 @@ initializers through expression programs and static blocks through
 activation slots also remain declined until class-definition evaluation owns
 that environment bridge. The remaining B24h and B24i shapes remain declined by
 the resumable shape gate: computed names that use direct-eval/spread/construct/super
-or otherwise unadmitted call-target shapes still stay outside B24h, and static
-constructor bodies, private/capturing public accessor neighbors, and
-static-block-neighbor mixed static shapes remain outside the admitted B24
-subsets.
+or otherwise unadmitted call-target shapes still stay outside B24h, and
+private/capturing public accessor neighbors plus static-block-neighbor mixed
+static shapes remain outside the admitted B24 subsets.
 
 - `B24a:ClassExpressionConstructor`
 - `B24b:ClassExpressionInstanceFields`

@@ -2234,19 +2234,80 @@ public sealed class UnifiedBytecodeResumableClassExpressionTests(ITestOutputHelp
     }
 
     [Fact]
-    public void EvaluateResumable_ClassExpressionComputedMemberWithStaticBlockNeighbor_DeclinesBeforeVm() =>
+    public void EvaluateResumable_ClassExpressionComputedMemberWithStaticBlockNeighbor_AdmitsLoadClassLiteral()
+    {
+        var plan = GetFunctionPlan("""
+            function* g(seed) {
+                var current = seed;
+                yield "ready";
+                var C = class {
+                    ["read"]() { return 42; }
+                    static {
+                        this.value = current + 1;
+                        current = this.value + 1;
+                    }
+                };
+                yield C.value + current;
+            }
+            """,
+            "g");
+
+        var result = UnifiedBytecodeProductionEligibility.EvaluateResumable(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor(IsGenerator: true));
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(
+            result.Program.Instructions,
+            static instruction => instruction.OpCode == UnifiedBytecodeOpCode.LoadClassLiteral);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task GeneratorClassExpressionComputedMemberWithStaticBlockNeighbor_RoutesResumableAndRunsStaticBlockBytecode()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function* g(seed) {
+                var current = seed;
+                yield "ready";
+                var C = class {
+                    ["read"]() { return 42; }
+                    static {
+                        this.value = current + 1;
+                        current = this.value + 1;
+                    }
+                };
+                yield C.value + current;
+            }
+
+            var iterator = g(40);
+            var first = iterator.next();
+            var second = iterator.next();
+            first.value + ":" + first.done + "|" + second.value + ":" + second.done;
+            """);
+
+        Assert.Equal("ready:false|83:false", result);
+        AssertGeneratorFastPath("g", argc: 1);
+        AssertStaticBlockFastPath();
+        AssertNoStaticBlockFallback();
+    }
+
+    [Fact]
+    public void EvaluateResumable_ClassExpressionComputedMemberWithStaticBlockClosureNeighbor_DeclinesBeforeVm() =>
         AssertClassExpressionDeclines("""
-        function* g() {
-            yield 1;
-            var C = class {
-                ["read"]() { return 42; }
-                static {
-                    this.value = 1;
-                }
-            };
-            return C;
-        }
-        """);
+            function* g(seed) {
+                yield 1;
+                var current = seed;
+                var C = class {
+                    ["read"]() { return 42; }
+                    static {
+                        this.readLater = () => current;
+                    }
+                };
+                return C;
+            }
+            """);
 
     [Fact]
     public void EvaluateResumable_ClassExpressionStaticPublicAccessor_AdmitsLoadClassLiteral()
@@ -2854,6 +2915,18 @@ public sealed class UnifiedBytecodeResumableClassExpressionTests(ITestOutputHelp
                     .Where(static message => message.Contains(
                         ProductionFastPathLog,
                         StringComparison.Ordinal))));
+
+    private void AssertStaticBlockFastPath() =>
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path static-block",
+                StringComparison.Ordinal));
+
+    private void AssertNoStaticBlockFallback() =>
+        Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "classified-static-block-ir-fallback",
+                StringComparison.Ordinal));
 
     [Fact(Timeout = 5000)]
     public async Task GeneratorStaticFieldClosureInitializer_FallsBackAndObservesLaterActivationMutation()

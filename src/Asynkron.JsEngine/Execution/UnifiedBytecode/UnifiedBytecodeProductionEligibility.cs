@@ -4149,10 +4149,6 @@ internal static class UnifiedBytecodeProductionEligibility
     {
         candidate = false;
         declineReason = string.Empty;
-        if (!definition.StaticBlocks.IsDefaultOrEmpty)
-        {
-            return false;
-        }
 
         var hasComputedElement = false;
         foreach (var field in definition.Fields)
@@ -4217,6 +4213,11 @@ internal static class UnifiedBytecodeProductionEligibility
         {
             declineReason =
                 $"Class literal computed-name programs could not lower for B24h resumable production routing: {cache.FailureReason ?? "unknown failure"}.";
+            return false;
+        }
+
+        if (!TryValidateB24hStaticBlockNeighbors(cache, out declineReason))
+        {
             return false;
         }
 
@@ -4297,6 +4298,89 @@ internal static class UnifiedBytecodeProductionEligibility
                     $"Class literal is outside B24h: computed member body captures activation binding '{capturedName}' and needs the materialized body environment route.";
                 return false;
             }
+        }
+
+        return true;
+    }
+
+    private static bool TryValidateB24hStaticBlockNeighbors(
+        ClassDefinitionProgramCache cache,
+        out string declineReason)
+    {
+        declineReason = string.Empty;
+        var definition = cache.Definition;
+        if (definition.StaticBlockPlans.IsDefaultOrEmpty)
+        {
+            return true;
+        }
+
+        if (definition.StaticElements.IsDefaultOrEmpty)
+        {
+            declineReason =
+                "Class literal is outside B24h: static block plans are missing their static element order metadata.";
+            return false;
+        }
+
+        var staticBlockCount = 0;
+        foreach (var element in definition.StaticElements)
+        {
+            switch (element.Kind)
+            {
+                case ClassStaticElementKind.Field:
+                    if (element.Index < 0 || element.Index >= definition.Fields.Length)
+                    {
+                        declineReason =
+                            "Class literal is outside B24h: static field order metadata points outside the lowered field list.";
+                        return false;
+                    }
+
+                    break;
+                case ClassStaticElementKind.Block:
+                    if (element.Index < 0 || element.Index >= definition.StaticBlockPlans.Length)
+                    {
+                        declineReason =
+                            "Class literal is outside B24h: static block order metadata points outside the lowered static block list.";
+                        return false;
+                    }
+
+                    staticBlockCount++;
+                    break;
+                default:
+                    declineReason =
+                        "Class literal is outside B24h: unsupported static element metadata.";
+                    return false;
+            }
+        }
+
+        if (staticBlockCount != definition.StaticBlockPlans.Length)
+        {
+            declineReason =
+                "Class literal is outside B24h: static block order metadata does not match the lowered static block plans.";
+            return false;
+        }
+
+        foreach (var staticBlockPlan in definition.StaticBlockPlans)
+        {
+            if (StaticBlockPlanCreatesClosure(staticBlockPlan))
+            {
+                declineReason =
+                    "Class literal is outside B24h: static block creates a closure that needs the materialized body environment route.";
+                return false;
+            }
+
+            var result = Evaluate(
+                staticBlockPlan,
+                new UnifiedBytecodeProductionActivationDescriptor(
+                    AllowsOrdinaryDynamicIdentifierEnvironmentOperations: true,
+                    IsStrict: true));
+            if (result.IsEligible)
+            {
+                continue;
+            }
+
+            declineReason =
+                $"Class literal static block is outside B24h production routing: {result.Reason}";
+            return false;
         }
 
         return true;

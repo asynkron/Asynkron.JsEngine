@@ -189,7 +189,7 @@
     },
     {
       "id": "B24h",
-      "title": "Computed class-member names are partial; mixed static blocks still decline",
+      "title": "Computed class-member names are partial; closure-producing static blocks still decline",
       "status": "open",
       "proofs": [
         {
@@ -406,12 +406,26 @@
           ]
         },
         {
-          "id": "B24h-computed-static-block-neighbor-declines",
+          "id": "B24h-computed-static-block-neighbor-routes",
+          "claim": "admitted",
+          "kind": "runtime",
+          "source": "function* g(seed) {\n  var current = seed;\n  yield 'ready';\n  var C = class {\n    ['read']() { return 42; }\n    static {\n      this.value = current + 1;\n      current = this.value + 1;\n    }\n  };\n  yield C.value + current;\n}\nvar iterator = g(40);\nvar first = iterator.next();\nvar second = iterator.next();\nfirst.value + ':' + first.done + '|' + second.value + ':' + second.done;",
+          "expectedResult": "ready:false|83:false",
+          "requiredLogs": [
+            "unified-bytecode-resumable-generator-fast-path func=g",
+            "unified-bytecode-production-fast-path static-block"
+          ],
+          "forbiddenLogs": [
+            "classified-static-block-ir-fallback"
+          ]
+        },
+        {
+          "id": "B24h-computed-static-block-closure-neighbor-declines",
           "claim": "open",
           "kind": "eligibility",
           "subject": "resumable-generator",
           "functionName": "g",
-          "source": "function* g() {\n  yield 1;\n  var C = class {\n    ['read']() { return 42; }\n    static {\n      this.value = 1;\n    }\n  };\n  return C;\n}",
+          "source": "function* g(seed) {\n  yield 1;\n  var current = seed;\n  var C = class {\n    ['read']() { return 42; }\n    static {\n      this.readLater = () => current;\n    }\n  };\n  return C;\n}",
           "expectedEligible": false,
           "declineCode": "UnsupportedPlanShape",
           "reasonContains": "B24"

@@ -1632,6 +1632,72 @@ public sealed class UnifiedBytecodeResumableClassExpressionTests(ITestOutputHelp
     }
 
     [Fact]
+    public void EvaluateResumable_ClassExpressionComputedMemberBodyCapturesActivation_AdmitsLoadClassLiteral()
+    {
+        var plan = GetFunctionPlan("""
+        function* g(seed) {
+            yield 1;
+            var C = class {
+                ["read"]() { return seed; }
+            };
+            return C;
+        }
+        """,
+            "g");
+
+        var result = UnifiedBytecodeProductionEligibility.EvaluateResumable(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor(IsGenerator: true));
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(
+            result.Program.Instructions,
+            static instruction => instruction.OpCode == UnifiedBytecodeOpCode.LoadClassLiteral);
+        Assert.True(UnifiedBytecodeProductionEligibility.PlanNeedsMaterializedResumableBodyEnvironment(plan));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task GeneratorClassExpressionComputedMemberBodyCapturesActivation_RoutesResumableAndReadsLaterMutation()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function* g(seed) {
+                yield "ready";
+                var current = seed;
+                var C = class {
+                    ["read"]() { return current; }
+                };
+                current = seed + 1;
+                var c = new C();
+                yield c.read();
+            }
+
+            var iterator = g(41);
+            var first = iterator.next();
+            var second = iterator.next();
+            first.value + ":" + first.done + "|" + second.value + ":" + second.done;
+            """);
+
+        Assert.Equal("ready:false|42:false", result);
+        AssertGeneratorFastPath("g", argc: 1);
+        AssertProductionFastPath("<anonymous>");
+    }
+
+    [Fact]
+    public void EvaluateResumable_ClassExpressionComputedMemberConstructorCapturesActivation_DeclinesBeforeVm() =>
+        AssertClassExpressionDeclines("""
+        function* g(seed) {
+            yield 1;
+            var C = class {
+                ["read"]() { return this.value; }
+                constructor() { this.value = seed; }
+            };
+            return C;
+        }
+        """);
+
+    [Fact]
     public void EvaluateResumable_ClassExpressionStaticPublicAccessor_AdmitsLoadClassLiteral()
     {
         var plan = GetFunctionPlan("""

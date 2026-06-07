@@ -1565,6 +1565,15 @@ internal static class UnifiedBytecodeProductionEligibility
                 return true;
             }
 
+            if (ExpressionProgramHasActivationCapturingClassLiteralMemberBody(
+                    program,
+                    activationSlots,
+                    out var classLiteralMemberBodyCapturedName) &&
+                IsMaterializedResumableBodyEnvironmentCapture(classLiteralMemberBodyCapturedName))
+            {
+                return true;
+            }
+
             if (ExpressionProgramHasActivationCapturingFunctionLiteral(
                     program,
                     activationSlots,
@@ -1704,6 +1713,45 @@ internal static class UnifiedBytecodeProductionEligibility
                         initializerProgram,
                         activationSlots,
                         out capturedName))
+                {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    private static bool ExpressionProgramHasActivationCapturingClassLiteralMemberBody(
+        ExpressionProgram program,
+        ActivationSlotShape activationSlots,
+        out string capturedName)
+    {
+        capturedName = string.Empty;
+        if (program.IsEmpty)
+        {
+            return false;
+        }
+
+        var objectConstants = program.ObjectConstants.AsSpan();
+        foreach (var operation in program.EnumerateOperations())
+        {
+            if (operation.Kind != ExpressionOpKind.LoadClassLiteral)
+            {
+                continue;
+            }
+
+            var classExpression = operation.GetObject<ClassExpression>(objectConstants);
+            var cache = ((IAstCacheable<ClassDefinitionProgramCache>)classExpression.Definition).GetOrCreateCache();
+            if (!cache.Succeeded)
+            {
+                capturedName = "<unknown>";
+                return true;
+            }
+
+            foreach (var member in classExpression.Definition.Members)
+            {
+                if (FunctionCapturesActivationSlot(member.Function, activationSlots, out capturedName))
                 {
                     return true;
                 }
@@ -4215,7 +4263,8 @@ internal static class UnifiedBytecodeProductionEligibility
 
         foreach (var member in definition.Members)
         {
-            if (FunctionCapturesActivationSlot(member.Function, activationSlots, out var capturedName))
+            if (FunctionCapturesActivationSlot(member.Function, activationSlots, out var capturedName) &&
+                !IsMaterializedResumableBodyEnvironmentCapture(capturedName))
             {
                 declineReason =
                     $"Class literal computed member body captures activation binding '{capturedName}' and needs the materialized body environment route.";

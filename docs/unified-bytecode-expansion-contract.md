@@ -113,8 +113,8 @@ statement interpretation.
   use `super` when the superclass expression does not read resumable activation
   slots,
   including mixes with non-computed public fields/methods/accessors,
-  noncapturing private instance methods, and activation-safe private instance
-  fields under the same activation-safety rules, and
+  noncapturing private instance methods/accessors, and activation-safe private
+  instance fields under the same activation-safety rules, and
   mixed public non-computed static fields plus static methods/accessors when
   field initializers compile as standalone unified bytecode and
   member/constructor bodies do not capture activation slots, are
@@ -485,8 +485,8 @@ and whose public computed member bodies and field initializer programs may use
 `super` when the superclass expression does not read resumable activation slots,
 including mixes
 with non-computed public fields/methods/accessors, noncapturing private
-instance methods, and activation-safe private instance fields under the same
-activation-safety rules, plus public
+instance methods/accessors, and activation-safe private instance fields under
+the same activation-safety rules, plus public
 non-computed static methods/accessors whose bodies do not capture activation
 slots and public non-computed static-field class literals with `extends` whose
 initializers compile as standalone unified bytecode and create no nested
@@ -501,9 +501,9 @@ activation slots also remain declined until class-definition evaluation owns
 that environment bridge. The remaining B24h and B24i shapes remain declined by
 the resumable shape gate: computed names that use direct-eval/spread/construct/super
 or otherwise unadmitted call-target shapes still stay outside B24h, and
-private accessor neighbors, activation-capturing private members or private
-field initializers, and static-block-neighbor mixed static shapes remain outside
-the admitted B24 subsets.
+activation-capturing private members or private field initializers, and
+static-block-neighbor mixed static shapes remain outside the admitted B24
+subsets.
 
 - `B24a:ClassExpressionConstructor`
 - `B24b:ClassExpressionInstanceFields`

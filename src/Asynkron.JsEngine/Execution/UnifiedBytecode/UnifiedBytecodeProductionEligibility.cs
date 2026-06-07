@@ -4184,7 +4184,10 @@ internal static class UnifiedBytecodeProductionEligibility
             {
                 if (member.IsStatic ||
                     member.IsComputed ||
-                    member.Kind != ClassMemberKind.Method)
+                    member.Kind is not (
+                        ClassMemberKind.Method or
+                        ClassMemberKind.Getter or
+                        ClassMemberKind.Setter))
                 {
                     return false;
                 }
@@ -4315,7 +4318,7 @@ internal static class UnifiedBytecodeProductionEligibility
             if (member.IsPrivate || !IsMaterializedResumableBodyEnvironmentCapture(capturedName))
             {
                 declineReason =
-                    $"Class literal computed member body captures activation binding '{capturedName}' and needs the materialized body environment route.";
+                    $"Class literal is outside B24h: computed member body captures activation binding '{capturedName}' and needs the materialized body environment route.";
                 return false;
             }
         }

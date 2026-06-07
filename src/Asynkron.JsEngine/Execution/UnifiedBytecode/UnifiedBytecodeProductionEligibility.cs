@@ -4149,8 +4149,7 @@ internal static class UnifiedBytecodeProductionEligibility
     {
         candidate = false;
         declineReason = string.Empty;
-        if (definition.Extends is not null ||
-            !definition.StaticBlocks.IsDefaultOrEmpty)
+        if (!definition.StaticBlocks.IsDefaultOrEmpty)
         {
             return false;
         }

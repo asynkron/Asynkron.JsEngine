@@ -109,6 +109,9 @@ statement interpretation.
   activation-capturing closures through the materialized body-environment route,
   and whose public computed member bodies and constructor bodies may capture
   activation slots through that same materialized body-environment route,
+  and whose public computed member bodies and field initializer programs may
+  use `super` when the superclass expression does not read resumable activation
+  slots,
   including mixes with non-computed public fields/methods/accessors under the
   same activation-safety rules, and
   mixed public non-computed static fields plus static methods/accessors when
@@ -117,9 +120,10 @@ statement interpretation.
   resumable-admitted. The VM handler still delegates
   class-definition evaluation to lower-level class machinery that can run
   expression programs and static-block IR plans, and the remaining B24h/B24i
-  shapes keep computed-super, computed-name unadmitted call-target dependencies,
-  member-super, private/static-block environment state, and activation-slot
-  `extends` shapes declined.
+  shapes keep computed-name unadmitted call-target dependencies, member-super
+  outside the admitted public-computed/public-non-computed subsets,
+  private/static-block environment state, and activation-slot `extends` shapes
+  declined.
 - `UnifiedBytecodeCompiler` now has generated audit coverage for every declared
   IR instruction record. Function-scoped `FunctionDeclarationInstruction`
   entries compile as no-ops after fast activation hoisting installs the callable
@@ -476,6 +480,8 @@ class-literal slot environment and post-creation slot sync or create
 activation-capturing closures through the materialized body-environment route,
 and whose public computed member bodies and constructor bodies may capture
 activation slots through that same materialized body-environment route,
+and whose public computed member bodies and field initializer programs may use
+`super` when the superclass expression does not read resumable activation slots,
 including mixes
 with non-computed public fields/methods/accessors under the same
 activation-safety rules, plus public

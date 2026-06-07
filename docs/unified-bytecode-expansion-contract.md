@@ -130,7 +130,7 @@ statement interpretation.
   expression programs and static-block IR plans, and the remaining B24h/B24i
   shapes keep computed-name unadmitted call-target dependencies, member-super
   outside the admitted public-computed/public-non-computed subsets, private
-  computed member state, static-block nested class-declaration/noneligible-plan state,
+  computed member state, activation-capturing static-block nested class-declaration/noneligible-plan state,
   and activation-slot `extends` shapes declined.
 - `UnifiedBytecodeCompiler` now has generated audit coverage for every declared
   IR instruction record. Function-scoped `FunctionDeclarationInstruction`
@@ -516,11 +516,12 @@ activation slots also remain declined until class-definition evaluation owns
 that environment bridge. The remaining B24h and B24i shapes remain declined by
 the resumable shape gate: computed names that use direct-eval/construct/super
 or otherwise unadmitted call-target shapes still stay outside B24h, and private
-computed members plus static-block nested class declarations or non-production-eligible
-static-block plans remain outside the admitted B24 subsets. Static-block
-function declarations whose bodies capture resumable activation slots are inside
-the materialized-body-environment route when the static-block body is otherwise
-production eligible.
+computed members plus activation-capturing static-block nested class declarations
+or non-production-eligible static-block plans remain outside the admitted B24
+subsets. Static-block function declarations whose bodies capture resumable
+activation slots are inside the materialized-body-environment route when the
+static-block body is otherwise production eligible, and noncapturing nested
+class declarations may execute through the static-block production VM route.
 
 - `B24a:ClassExpressionConstructor`
 - `B24b:ClassExpressionInstanceFields`
@@ -936,9 +937,10 @@ predicates and proof tests.
     closure-producing static fields and static `super` field initializers. Direct
     root class declarations that mix public non-computed static fields with
     eligible static blocks now route as well, preserving static element order,
-    and descriptor-backed static-block function declarations can close over the
-    materialized resumable body environment.
-    Dynamic/eval helpers, static-block nested class declarations or non-production
+    descriptor-backed static-block function declarations can close over the
+    materialized resumable body environment, and noncapturing nested static-block
+    class declarations execute through the static-block VM.
+    Dynamic/eval helpers, activation-capturing static-block nested class declarations or non-production
     static-block plans, plus otherwise complex class declaration neighbors
     (computed/private/static shapes outside the public B24h-compatible subset)
     are the remaining separate B36 declaration-instantiation work.

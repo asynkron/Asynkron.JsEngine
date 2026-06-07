@@ -762,7 +762,7 @@ public sealed class UnifiedBytecodeResumableClassDeclarationTests(ITestOutputHel
                     static value = seed;
                     static {
                         class Nested {
-                            static value() { return Box.value; }
+                            static value() { return seed; }
                         }
                         Box.Nested = Nested;
                     }
@@ -778,7 +778,39 @@ public sealed class UnifiedBytecodeResumableClassDeclarationTests(ITestOutputHel
 
         Assert.False(result.IsEligible);
         Assert.Equal(UnifiedBytecodeProductionDeclineCode.UnsupportedPlanShape, result.Code);
-        Assert.Contains("static block contains nested class declarations", result.Reason, StringComparison.Ordinal);
+        Assert.Contains("nested class declaration capturing activation binding", result.Reason, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void EvaluateResumable_ClassDeclarationMixedStaticFieldAndBlockNestedClassDeclaration_AdmitsDeclareClass()
+    {
+        var plan = GetFunctionPlan("""
+            function* g(seed) {
+                yield "ready";
+                class Box {
+                    static value = seed;
+                    static {
+                        class Nested {
+                            static value() { return 7; }
+                        }
+                        Box.Nested = Nested;
+                    }
+                }
+                yield typeof Box;
+            }
+            """,
+            "g");
+
+        var result = UnifiedBytecodeProductionEligibility.EvaluateResumable(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor(IsGenerator: true));
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(
+            result.Program.Instructions,
+            static instruction => instruction.OpCode == UnifiedBytecodeOpCode.DeclareClass);
+        Assert.False(UnifiedBytecodeProductionEligibility.PlanNeedsMaterializedResumableBodyEnvironment(plan));
     }
 
     [Fact(Timeout = 5000)]
@@ -1538,6 +1570,52 @@ public sealed class UnifiedBytecodeResumableClassDeclarationTests(ITestOutputHel
             logs,
             static record => record.Message.Contains(
                 "unified-bytecode-production-fast-path func=readLater",
+                StringComparison.Ordinal));
+        Assert.DoesNotContain(
+            logs,
+            static record => record.Message.Contains(
+                "classified-static-block-ir-fallback",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task GeneratorClassDeclarationMixedStaticFieldAndBlockNestedClassDeclaration_RoutesResumable()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function* g(seed) {
+                yield "ready";
+                class Box {
+                    static value = seed;
+                    static {
+                        class Nested {
+                            static value() { return 7; }
+                        }
+                        Box.Nested = Nested;
+                    }
+                }
+                yield Box;
+            }
+
+            var iterator = g(41);
+            var first = iterator.next();
+            var second = iterator.next();
+            var Box = second.value;
+            first.value + ":" + first.done + "|" + Box.value + ":" + Box.Nested.value() + ":" + second.done;
+            """);
+
+        Assert.Equal("ready:false|41:7:false", result);
+        AssertGeneratorFastPath("g", argc: 1);
+        var logs = CurrentLogger!.Collector.Snapshot();
+        Assert.Contains(
+            logs,
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path static-block",
+                StringComparison.Ordinal));
+        Assert.Contains(
+            logs,
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=<anonymous>",
                 StringComparison.Ordinal));
         Assert.DoesNotContain(
             logs,

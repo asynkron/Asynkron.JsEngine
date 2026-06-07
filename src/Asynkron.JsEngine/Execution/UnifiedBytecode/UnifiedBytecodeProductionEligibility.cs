@@ -3166,7 +3166,7 @@ internal static class UnifiedBytecodeProductionEligibility
             return false;
         }
 
-        if (IsB24dStaticBlockClassLiteral(definition, out declineReason))
+        if (IsB24dStaticBlockClassLiteral(definition, activationSlots, out declineReason))
         {
             return true;
         }
@@ -3342,7 +3342,11 @@ internal static class UnifiedBytecodeProductionEligibility
             return true;
         }
 
-        if (TryAdmitB36StaticBlockClassDeclaration(cache, out var staticBlockCandidate, out declineReason))
+        if (TryAdmitB36StaticBlockClassDeclaration(
+                cache,
+                activationSlots,
+                out var staticBlockCandidate,
+                out declineReason))
         {
             return true;
         }
@@ -3401,7 +3405,7 @@ internal static class UnifiedBytecodeProductionEligibility
             return false;
         }
 
-        if (!TryValidateB36StaticBlockClassDeclaration(cache, out declineReason))
+        if (!TryValidateB36StaticBlockClassDeclaration(cache, activationSlots, out declineReason))
         {
             return false;
         }
@@ -3494,6 +3498,7 @@ internal static class UnifiedBytecodeProductionEligibility
 
     private static bool TryAdmitB36StaticBlockClassDeclaration(
         ClassDefinitionProgramCache cache,
+        ActivationSlotShape activationSlots,
         out bool candidate,
         out string declineReason)
     {
@@ -3512,11 +3517,12 @@ internal static class UnifiedBytecodeProductionEligibility
         }
 
         candidate = true;
-        return TryValidateB36StaticBlockClassDeclaration(cache, out declineReason);
+        return TryValidateB36StaticBlockClassDeclaration(cache, activationSlots, out declineReason);
     }
 
     private static bool TryValidateB36StaticBlockClassDeclaration(
         ClassDefinitionProgramCache cache,
+        ActivationSlotShape activationSlots,
         out string declineReason)
     {
         var definition = cache.Definition;
@@ -3595,10 +3601,13 @@ internal static class UnifiedBytecodeProductionEligibility
 
         foreach (var staticBlockPlan in definition.StaticBlockPlans)
         {
-            if (StaticBlockPlanContainsNestedClassDeclaration(staticBlockPlan))
+            if (StaticBlockPlanContainsActivationCapturingNestedClassDeclaration(
+                    staticBlockPlan,
+                    activationSlots,
+                    out var capturedName))
             {
                 declineReason =
-                    "Class declaration is outside B36: static block contains nested class declarations that need the broader materialized class-definition environment route.";
+                    $"Class declaration is outside B36: static block contains nested class declaration capturing activation binding '{capturedName}' and needs the broader materialized class-definition environment route.";
                 return false;
             }
 
@@ -4040,11 +4049,90 @@ internal static class UnifiedBytecodeProductionEligibility
         return hasSuperConstruct;
     }
 
-    private static bool StaticBlockPlanContainsNestedClassDeclaration(ExecutionPlan plan)
+    private static bool StaticBlockPlanContainsActivationCapturingNestedClassDeclaration(
+        ExecutionPlan plan,
+        ActivationSlotShape activationSlots,
+        out string capturedName)
     {
+        capturedName = string.Empty;
         foreach (var instruction in plan.Instructions)
         {
-            if (instruction is ClassDeclarationInstruction)
+            if (instruction is ClassDeclarationInstruction { Descriptor: { } descriptor } &&
+                ClassDeclarationNeedsMaterializedBodyEnvironment(
+                    descriptor.ProgramCache,
+                    activationSlots,
+                    out capturedName))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool ClassDeclarationNeedsMaterializedBodyEnvironment(
+        ClassDefinitionProgramCache cache,
+        ActivationSlotShape activationSlots,
+        out string capturedName)
+    {
+        capturedName = string.Empty;
+        if (!cache.Succeeded)
+        {
+            capturedName = "<unknown>";
+            return true;
+        }
+
+        var definition = cache.Definition;
+        if (FunctionCapturesActivationSlot(definition.Constructor.Function, activationSlots, out capturedName))
+        {
+            return true;
+        }
+
+        foreach (var member in definition.Members)
+        {
+            if (FunctionCapturesActivationSlot(member.Callable.Function, activationSlots, out capturedName))
+            {
+                return true;
+            }
+        }
+
+        if (ClassExpressionProgramsReferenceActivationSlot(cache.MemberNamePrograms, activationSlots, out capturedName) ||
+            ClassExpressionProgramsReferenceActivationSlot(cache.FieldNamePrograms, activationSlots, out capturedName) ||
+            ClassExpressionProgramsReferenceActivationSlot(cache.FieldInitializerPrograms, activationSlots, out capturedName))
+        {
+            return true;
+        }
+
+        if (StaticBlockPlansNeedMaterializedResumableBodyEnvironment(cache, activationSlots))
+        {
+            capturedName = "<static-block>";
+            return true;
+        }
+
+        foreach (var staticBlockPlan in definition.StaticBlockPlans)
+        {
+            if (StaticBlockPlanContainsActivationCapturingNestedClassDeclaration(
+                    staticBlockPlan,
+                    activationSlots,
+                    out capturedName))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool ClassExpressionProgramsReferenceActivationSlot(
+        ImmutableArray<ExpressionProgram?> programs,
+        ActivationSlotShape activationSlots,
+        out string capturedName)
+    {
+        capturedName = string.Empty;
+        foreach (var program in programs)
+        {
+            if (program is { } candidate &&
+                ExpressionProgramReferencesActivationSlot(candidate, activationSlots, out capturedName))
             {
                 return true;
             }
@@ -4331,7 +4419,7 @@ internal static class UnifiedBytecodeProductionEligibility
             return false;
         }
 
-        if (!TryValidateB24hStaticBlockNeighbors(cache, out declineReason))
+        if (!TryValidateB24hStaticBlockNeighbors(cache, activationSlots, out declineReason))
         {
             return false;
         }
@@ -4420,6 +4508,7 @@ internal static class UnifiedBytecodeProductionEligibility
 
     private static bool TryValidateB24hStaticBlockNeighbors(
         ClassDefinitionProgramCache cache,
+        ActivationSlotShape activationSlots,
         out string declineReason)
     {
         declineReason = string.Empty;
@@ -4474,21 +4563,29 @@ internal static class UnifiedBytecodeProductionEligibility
             return false;
         }
 
-        return TryValidateClassLiteralStaticBlockPlans(definition.StaticBlockPlans, "B24h", out declineReason);
+        return TryValidateClassLiteralStaticBlockPlans(
+            definition.StaticBlockPlans,
+            activationSlots,
+            "B24h",
+            out declineReason);
     }
 
     private static bool TryValidateClassLiteralStaticBlockPlans(
         ImmutableArray<ExecutionPlan> staticBlockPlans,
+        ActivationSlotShape activationSlots,
         string bucket,
         out string declineReason)
     {
         declineReason = string.Empty;
         foreach (var staticBlockPlan in staticBlockPlans)
         {
-            if (StaticBlockPlanContainsNestedClassDeclaration(staticBlockPlan))
+            if (StaticBlockPlanContainsActivationCapturingNestedClassDeclaration(
+                    staticBlockPlan,
+                    activationSlots,
+                    out var capturedName))
             {
                 declineReason =
-                    $"Class literal is outside {bucket}: static block contains nested class declarations that need the broader materialized class-definition environment route.";
+                    $"Class literal is outside {bucket}: static block contains nested class declaration capturing activation binding '{capturedName}' and needs the broader materialized class-definition environment route.";
                 return false;
             }
 
@@ -4709,6 +4806,7 @@ internal static class UnifiedBytecodeProductionEligibility
 
     private static bool IsB24dStaticBlockClassLiteral(
         ClassDefinition definition,
+        ActivationSlotShape activationSlots,
         out string declineReason)
     {
         declineReason = string.Empty;
@@ -4742,7 +4840,11 @@ internal static class UnifiedBytecodeProductionEligibility
             return false;
         }
 
-        return TryValidateClassLiteralStaticBlockPlans(cache.Definition.StaticBlockPlans, "B24d", out declineReason);
+        return TryValidateClassLiteralStaticBlockPlans(
+            cache.Definition.StaticBlockPlans,
+            activationSlots,
+            "B24d",
+            out declineReason);
     }
 
     private static bool IsB24cPublicStaticFieldClassLiteral(ClassDefinition definition)

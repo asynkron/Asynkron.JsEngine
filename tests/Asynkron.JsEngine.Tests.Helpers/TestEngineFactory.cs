@@ -47,7 +47,7 @@ public static class TestEngineFactory
 
         if (!string.IsNullOrEmpty(Environment.GetEnvironmentVariable("JSENGINE_TRACE_REALM")))
         {
-            engine.RealmState.Logger = new TestLogger(name: loggerName ?? "RealmLogger");
+            engine.RealmState.Logger = new TestLogger(name: loggerName ?? "RealmLogger", writeToConsole: true);
         }
     }
 }

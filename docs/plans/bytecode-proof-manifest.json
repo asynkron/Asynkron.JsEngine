@@ -55,16 +55,16 @@
     },
     {
       "id": "A7",
-      "title": "Private-name class constructor activation remains hard-quarantined",
-      "status": "open",
+      "title": "Private-name class constructor activation is admitted",
+      "status": "done",
       "proofs": [
         {
-          "id": "A7-private-name-constructor-stays-off-production-route",
-          "claim": "hard-quarantined",
+          "id": "A7-private-name-constructor-routes",
+          "claim": "admitted",
           "kind": "runtime",
           "source": "class C { #value; constructor(value) { this.#value = value; } read() { return this.#value; } }\nString(new C(7).read());",
           "expectedResult": "7",
-          "forbiddenLogs": [
+          "requiredLogs": [
             "unified-bytecode-production-fast-path func=C"
           ]
         }

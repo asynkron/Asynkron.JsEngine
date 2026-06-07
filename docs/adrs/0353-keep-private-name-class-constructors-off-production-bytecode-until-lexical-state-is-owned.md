@@ -2,7 +2,13 @@
 
 ## Status
 
-Accepted
+Superseded on 2026-06-07 by the A7 private-name constructor admission slice.
+
+The original quarantine below remains useful history. Current behavior admits
+base and derived private-name class constructors when the constructor body uses
+admitted private mutation shapes or only needs private brand/field
+initialization. Private reads used as nested RHS operands still decline under
+A51f5, not A7.
 
 ## Context
 
@@ -51,6 +57,10 @@ the constructor callable carries private-name lexical state:
   lexical state directly.
 
 ## Evidence
+
+The evidence in this section describes the original accepted quarantine. Current
+tests with the same semantic shapes now assert production routing after the
+2026-06-07 superseding A7 admission.
 
 - PR #3321 merged as squash commit
   `ba2eb8921c2005bce98dcc0c7b9a01354f66e0ab`.

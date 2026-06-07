@@ -106,3 +106,11 @@ derived class-constructor route predicates after stale construct-call tests had
 expected private-brand classes to route. The durable lesson is that constructor
 admission must check callable private-name lexical state, not just whether the
 constructor body contains a private expression op.
+
+2026-06-07 update: that quarantine is superseded for A7 constructor activation.
+The production constructor bridge now proves private-name lexical-state setup:
+it initializes private brands/fields and enters own/captured private-name scopes
+before VM execution. Direct private writes in base/derived constructors and
+private-brand-only constructors may route through production bytecode. Private
+reads used as nested RHS operands still decline under the A51f5 private-neighbor
+expression gap.

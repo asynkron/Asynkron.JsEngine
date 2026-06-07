@@ -193,11 +193,14 @@ public sealed class ProductionRouteCoverageRatchetTests(ITestOutputHelper output
     // plain `this`-store, `new.target` inside the body, and a nested-lexical-scope body (`this`-stores
     // resolve through the receiver, so the captured-name shadowing hazard that bounds the closure/arrow
     // lifts does not apply here). The log func is the class name. Derived (super) ctors, instance-field
-    // ctors, and private-name ctors stay declined downstream — no ratchet entry for them.
+    // ctors, and direct private-name constructor writes now route too; private reads used as nested RHS
+    // operands remain tracked under A51f5.
     [InlineData("class C { constructor(a,b){ this.x=a; this.y=b; } } new C(1,2);", "unified-bytecode-production-fast-path func=C")]
     [InlineData("class C { constructor(n){ let t=n+1; this.v=t; } } new C(2);", "unified-bytecode-production-fast-path func=C")]
     [InlineData("class C { constructor(){ this.nt=new.target; } } new C();", "unified-bytecode-production-fast-path func=C")]
     [InlineData("class C { constructor(n){ let s=0; if(n>0){ s=n+10; } this.s=s; } } new C(3);", "unified-bytecode-production-fast-path func=C")]
+    [InlineData("class C { #x; constructor(v){ this.#x=v; } read(){ return this.#x; } } new C(1).read();", "unified-bytecode-production-fast-path func=C")]
+    [InlineData("class B { constructor(v){ this.b=v; } } class D extends B { #x; constructor(v){ super(v); this.#x=v; } read(){ return this.#x; } } new D(2).read();", "unified-bytecode-production-fast-path func=D")]
     // A37 (private-named mutation): private-field MUTATION inside a class method routes through the
     // production VM identically to the ordinary-property counterpart — the private name is just a name
     // gated by the private-name scope (PropertyHandle.Resolve(allowPrivate: true) performs the brand

@@ -163,27 +163,43 @@ public sealed class ClassConstructorActivationAdmissionTests(ITestOutputHelper o
     }
 
     [Fact(Timeout = 5000)]
-    public async Task BaseCtor_WithPrivateFieldAccess_DeclinesButIsCorrect()
+    public async Task BaseCtor_WithDirectPrivateFieldWrite_RoutesAndInitializesPrivateState()
     {
         await using var engine = CreateEngine();
-        // A private name/field touches the private-name scope and is explicitly kept off the class-ctor
-        // production route until that activation bridge owns private-name lexical state.
+        // A7: private-name constructor activation is admitted when the constructor body uses an already
+        // supported private mutation shape. Private brand/field initialization runs before constructor
+        // bytecode, and the VM enters the constructor's private-name scope before executing the write.
+        var result = await engine.Evaluate("""
+            class C { #p; constructor(v) { this.#p = v; } getP() { return this.#p; } }
+            new C(10).getP();
+            """);
+
+        Assert.Equal(10d, result);
+        Assert.True(Routed("C"), "a base-class ctor with direct private field write should route");
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task BaseCtor_WithPrivateReadAsNestedOperand_DeclinesUnderA51f5ButIsCorrect()
+    {
+        await using var engine = CreateEngine();
+        // This is no longer an A7 constructor-activation boundary. It remains an A51f5 expression gap:
+        // private reads used as nested value operands are still outside the admitted private-neighbor
+        // expression subset, so the constructor correctly falls back while preserving semantics.
         var result = await engine.Evaluate("""
             class C { #p; constructor(v) { this.#p = v; this.q = this.#p + 1; } }
             new C(10).q;
             """);
 
         Assert.Equal(11d, result);
-        Assert.False(Routed("C"), "a class ctor using a private name must NOT route");
+        Assert.False(Routed("C"), "private read as a nested RHS operand still belongs to A51f5");
     }
 
     [Fact(Timeout = 5000)]
-    public async Task BaseCtor_WithPrivateBrandOnly_DeclinesButIsCorrect()
+    public async Task BaseCtor_WithPrivateBrandOnly_RoutesAndInitializesPrivateState()
     {
         await using var engine = CreateEngine();
-        // The constructor body itself has no private expression op. This pins the selector-side A7
-        // boundary: private-name class state must not sneak into the production VM merely because the
-        // body would otherwise satisfy the ordinary base-constructor route.
+        // Brand-only private state now proves the constructor bridge itself owns private-name class state;
+        // any remaining private-expression declines are expression-shape gaps, not activation quarantine.
         var result = await engine.Evaluate("""
             class C { #p = 1; constructor(v) { this.q = v; } getP() { return this.#p; } }
             var c = new C(10);
@@ -191,15 +207,30 @@ public sealed class ClassConstructorActivationAdmissionTests(ITestOutputHelper o
             """);
 
         Assert.Equal(11d, result);
-        Assert.False(Routed("C"), "a private-name base ctor must decline even when the body has no private ops");
+        Assert.True(Routed("C"), "a private-name base ctor with brand-only state should route");
     }
 
     [Fact(Timeout = 5000)]
-    public async Task DerivedCtor_WithPrivateBrandOnly_DeclinesButIsCorrect()
+    public async Task DerivedCtor_WithPrivateFieldWrite_RoutesAndInitializesPrivateState()
     {
         await using var engine = CreateEngine();
-        // Mirrors the base-constructor boundary for derived constructors: super(...) remains admitted for
-        // public state, but private-name class state stays on the existing class-construction route.
+        var result = await engine.Evaluate("""
+            class B { constructor(v) { this.base = v; } }
+            class D extends B { #p; constructor(v) { super(v); this.#p = v; } getP() { return this.#p; } }
+            var d = new D(10);
+            d.base + d.getP();
+            """);
+
+        Assert.Equal(20d, result);
+        Assert.True(Routed("D"), "a derived ctor with direct private field write should route");
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task DerivedCtor_WithPrivateBrandOnly_RoutesAndInitializesPrivateState()
+    {
+        await using var engine = CreateEngine();
+        // Mirrors the base-constructor bridge: after super(...), pending instance initialization applies the
+        // private brand/fields before the remaining constructor bytecode observes the initialized receiver.
         var result = await engine.Evaluate("""
             class B { constructor(v) { this.base = v; } }
             class D extends B { #p = 1; constructor(v) { super(v); this.q = v + 1; } getP() { return this.#p; } }
@@ -208,7 +239,7 @@ public sealed class ClassConstructorActivationAdmissionTests(ITestOutputHelper o
             """);
 
         Assert.Equal(22d, result);
-        Assert.False(Routed("D"), "a private-name derived ctor must decline even when the body has no private ops");
+        Assert.True(Routed("D"), "a private-name derived ctor with brand-only state should route");
     }
 
     [Fact(Timeout = 5000)]

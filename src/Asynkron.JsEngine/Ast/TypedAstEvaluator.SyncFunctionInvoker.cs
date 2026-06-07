@@ -3826,8 +3826,6 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                    !_needsArgumentsBinding &&
                    _lexicalThisEnvironment is null &&
                    _homeObject is null &&
-                   PrivateNameScope is null &&
-                   _capturedPrivateNameScopes.IsDefaultOrEmpty &&
                    hasSuperBinding &&
                    hasAdmittedPlanShape;
         }
@@ -4048,8 +4046,6 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                    _allowIdentifierCache &&
                    _lexicalThisEnvironment is null &&
                    _homeObject is null &&
-                   PrivateNameScope is null &&
-                   _capturedPrivateNameScopes.IsDefaultOrEmpty &&
                    _superConstructor is null &&
                    _superPrototype is null &&
                    CanUseSimpleIrActivationPlanShape(plan);

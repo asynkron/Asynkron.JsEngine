@@ -148,14 +148,14 @@ are drift-checked in `ExpressionProgramCoverageMapTests`, so future opcode or
 instruction additions cannot hide behind the old default buckets.
 
 Phase 0 inventory closure is complete as of 2026-06-05. The burndown checklist
-now has 145 finite items: 127 complete and 18 open. The last coarse leaves were
+now has 145 finite items: 128 complete and 17 open. The last coarse leaves were
 split into A35a-A35e object-literal member opcode leaves and B24a-B24i
 class-expression semantic leaves.
 
 ### Current Retrospective Accounting
 
-The latest checklist recount is **127 / 145 complete**. Across the
-concrete A+B+C+D sections, **119 / 134** are complete and **15** remain open.
+The latest checklist recount is **128 / 145 complete**. Across the
+concrete A+B+C+D sections, **120 / 134** are complete and **14** remain open.
 Phase B stands at **54 / 57** complete. The D5 non-residue ratchet has **0**
 known-open rows, the resumable opcode gap inventory has **5** remaining gaps,
 and the resumable instruction gap inventory has **0** remaining gaps.
@@ -187,9 +187,6 @@ The remaining non-retirement work is concentrated in:
   direct eval in parameters/body when the resumable path cannot prove
   declaration-free dynamic activation, arguments-object safety, or absence of a
   live `with` object in the closure chain.
-- A7 constructor/private-name activation boundary: constructor route eligibility
-  still leaves private-name constructor shapes outside the admitted constructor
-  activation lane.
 - A51 compiler leaves: the remaining named `UnsupportedPlanShape` buckets for
   topology, slot layout, scope/environment, driver state, destructuring,
   expression-span, call-boundary, literal, property, mutation, and cleanup
@@ -243,6 +240,7 @@ is removed, or a proof gate becomes stricter.
 
 | Date | Gate surface | Concrete movement | Proof signal |
 |---|---|---|---|
+| 2026-06-07 | A7 closure: private-name constructor activation | Base and derived class constructors with private-name class state now route through production unified bytecode when the constructor body uses admitted private mutation shapes or only needs private brand/field initialization. The production constructor bridge initializes private brands/fields and enters own/captured private-name scopes before VM execution; private reads used as nested RHS operands remain an A51f5 private-neighbor expression gap, not an A7 activation quarantine. Checklist is now `128 / 145`, A+B+C+D is `120 / 134`, with `14` concrete A+B+C+D rows still open. | `BaseCtor_WithDirectPrivateFieldWrite_RoutesAndInitializesPrivateState`, `BaseCtor_WithPrivateBrandOnly_RoutesAndInitializesPrivateState`, `DerivedCtor_WithPrivateFieldWrite_RoutesAndInitializesPrivateState`, `DerivedCtor_WithPrivateBrandOnly_RoutesAndInitializesPrivateState`, `BaseCtor_WithPrivateReadAsNestedOperand_DeclinesUnderA51f5ButIsCorrect`, and `BytecodeProofManifestTests` row `A7-private-name-constructor-routes`. |
 | 2026-06-07 | B24h/B36 partial: declaration-free literal direct eval in static blocks | Static blocks inside public-computed class expressions and direct root class declarations now route when they contain a declaration-free single-literal direct eval statement, such as `eval("current = current + 1")`. The eval statement runs inside the static-block production bytecode path, mutates the surrounding resumable binding, and still forbids the classified static-block IR fallback. Checklist totals stay `127 / 145`, A+B+C+D stays `119 / 134`; the executable static-block eval residue moves to runtime-source eval. | `EvaluateResumable_ClassExpressionComputedMemberWithStaticBlockDirectEvalLiteral_AdmitsLoadClassLiteral`, `GeneratorClassExpressionComputedMemberWithStaticBlockDirectEvalLiteral_RoutesResumable`, `EvaluateResumable_ClassDeclarationStaticBlockDirectEvalLiteral_AdmitsDeclareClass`, `GeneratorClassDeclarationStaticBlockDirectEvalLiteral_RoutesResumable`, and `BytecodeProofManifestTests` rows `B24h-computed-static-block-direct-eval-literal-routes`, `B24h-computed-static-block-runtime-source-direct-eval-declines`, `B36-class-declaration-static-block-direct-eval-literal-routes`, and `B36-class-declaration-static-block-runtime-source-direct-eval-declines`. |
 | 2026-06-07 | B24h partial: activation construct spreads in computed names | Resumable class expressions now route public computed member names whose name program directly constructs an activation-resolved constructor with spread arguments, such as `[new MakeName(...args)]`. The construct skipper still requires the activation-resolved constructor load and terminal `Construct`, while the existing production complex-call-argument walker validates each logical argument value and the compiler/VM carry the construct spread mask through `ConstructInvocationBoundary`. Checklist totals stay `127 / 145`, A+B+C+D stays `119 / 134`; the static-block literal direct-eval row above narrows the executable B24h open proof to runtime-source eval. | `EvaluateResumable_ClassExpressionComputedNameActivationConstructSpread_AdmitsLoadClassLiteral`, `GeneratorComputedNameActivationConstructSpread_RoutesResumableAndSpreadsArguments`, and `BytecodeProofManifestTests` row `B24h-computed-name-activation-construct-spread-routes`; later manifest rows own the current open proof IDs. |
 | 2026-06-07 | B24h partial: activation construct arguments in computed names | Resumable class expressions now route public computed member names whose name program directly constructs an activation-resolved constructor with non-spread arguments, such as `[new MakeName(key)]`. The B24h scanner validates the constructor argument region with the production complex-call-argument walker and only admits a terminal `Construct`, preserving constructor-then-argument evaluation; the follow-up spread row extends the same route to spread arguments. The runtime proof passes the computed name through the constructed object's `toString`. Checklist totals stay `127 / 145`, A+B+C+D stays `119 / 134`; later static-block rows narrow the executable B24h open proof to runtime-source direct eval. | `EvaluateResumable_ClassExpressionComputedNameActivationConstructArgument_AdmitsLoadClassLiteral`, `GeneratorComputedNameActivationConstructArgument_RoutesResumable`, and `BytecodeProofManifestTests` row `B24h-computed-name-activation-construct-argument-routes`. |

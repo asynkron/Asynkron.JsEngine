@@ -688,6 +688,22 @@ all-or-nothing until a separate routing issue proves production readiness.
      `docs/adrs/0347-keep-resumable-runner-construction-classified-by-route-boundary.md`
      and
      `docs/adrs/0348-keep-resumable-super-binding-vm-owned-without-runner-bridges.md`.
+     Async functions follow the same accepted-route ordering discipline even
+     though route-ineligible async bodies may still settle through a classified
+     declined-body runner. The promise executor must attempt
+     `TryExecuteUnifiedBytecode(...)` before constructing
+     `CreateClassifiedAsyncDeclinedBodyRunner()`, accepted async bodies must
+     prove the resumable fast-path log, and adjacent route-ineligible async
+     bodies such as observable `arguments` dependencies must complete without
+     the resumable fast-path log. Source gates should strip/classify only the
+     named fallback helper and runner-construction helper before forbidding
+     unclassified `ExecutionPlanRunner` construction elsewhere in
+     `TypedAstEvaluator.AsyncFunctionInvoker`. WHY: Faktorial issue
+     `planitem-planitem-planmanual1780730299657353000-unified-bytecode-remaining-burndo-a8ee7eeeac`
+     / delivery commit `6e7d7f0e7` pinned E5 after a rebase onto current
+     `main`: accepted async functions needed to enter the resumable VM before
+     the declined-body fallback was constructed, while arguments-dependent
+     async bodies still needed the classified fallback to preserve behavior.
 10k. When retiring ordinary sync runner residue, convert the source gate from
      a classified fallback allowance to a tombstone. `TryInvokeIrFast<TArgs>(...)`
      must not construct `ExecutionPlanRunner`, call `.RunSync(`, or silently

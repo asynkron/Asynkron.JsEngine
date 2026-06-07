@@ -149,7 +149,10 @@ public sealed partial class BytecodeProofManifestTests(ITestOutputHelper output)
         }
         else
         {
-            var result = await engine.Evaluate(Require(proof.Source, proof.Id, nameof(proof.Source)));
+            var source = Require(proof.Source, proof.Id, nameof(proof.Source));
+            var result = proof.AwaitResult
+                ? await engine.EvaluateAndAwait(source)
+                : await engine.Evaluate(source);
             if (!string.IsNullOrWhiteSpace(proof.ExpectedResult))
             {
                 Assert.Equal(proof.ExpectedResult, result?.ToString());
@@ -475,6 +478,8 @@ public sealed partial class BytecodeProofManifestTests(ITestOutputHelper output)
         public List<string> RequiredLogs { get; set; } = [];
 
         public List<string> ForbiddenLogs { get; set; } = [];
+
+        public bool AwaitResult { get; set; }
 
         public string? Path { get; set; }
 

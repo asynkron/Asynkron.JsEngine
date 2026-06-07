@@ -38,7 +38,7 @@
       "status": "open",
       "proofs": [
         {
-          "id": "A2-declaration-free-direct-eval-routes",
+          "id": "A2-sync-declaration-free-direct-eval-routes",
           "claim": "admitted",
           "kind": "runtime",
           "source": "function invokeEval() {\n  var local = 42;\n  return eval('local');\n}\ninvokeEval();",
@@ -48,7 +48,7 @@
           ]
         },
         {
-          "id": "A2-bounded-arguments-direct-eval-routes",
+          "id": "A2-sync-bounded-arguments-direct-eval-routes",
           "claim": "admitted",
           "kind": "runtime",
           "source": "function invokeEval(first, second) {\n  var local = 42;\n  return eval('arguments[0] + \":\" + arguments.length + \":\" + local + \":\" + second');\n}\ninvokeEval(7, 9);",
@@ -56,6 +56,59 @@
           "requiredLogs": [
             "unified-bytecode-production-fast-path func=invokeEval argc=2"
           ]
+        },
+        {
+          "id": "A2-resumable-generator-declaration-free-direct-eval-routes",
+          "claim": "admitted",
+          "kind": "runtime",
+          "source": "function* g() {\n  yield eval('1 + 41');\n}\nvar iterator = g();\nvar result = iterator.next();\nString(result.value) + ':' + result.done;",
+          "expectedResult": "42:false",
+          "requiredLogs": [
+            "unified-bytecode-resumable-generator-fast-path func=g"
+          ]
+        },
+        {
+          "id": "A2-resumable-async-declaration-free-direct-eval-routes",
+          "claim": "admitted",
+          "kind": "runtime",
+          "awaitResult": true,
+          "source": "var asyncResult = undefined;\nvar externalValue = 20;\nfunction helper(value) {\n  return value + 1;\n}\n\nasync function run(delta) {\n  eval(\"'non-injecting direct eval'\");\n  externalValue = externalValue + delta;\n  await 0;\n  return helper(externalValue);\n}\n\nrun(21).then(value => asyncResult = value + ':' + externalValue);\nasyncResult;",
+          "expectedResult": "42:41",
+          "requiredLogs": [
+            "unified-bytecode-resumable-async-fast-path func=run argc=1"
+          ]
+        },
+        {
+          "id": "A2-resumable-async-generator-declaration-free-direct-eval-settles",
+          "claim": "admitted",
+          "kind": "runtime",
+          "awaitResult": true,
+          "source": "var output = undefined;\nvar externalValue = 20;\n\nasync function* values(delta) {\n  eval(\"'non-injecting direct eval'\");\n  externalValue = externalValue + delta;\n  yield externalValue + 1;\n}\n\nasync function run() {\n  var iterator = values(21);\n  var first = await iterator.next();\n  return first.value + ':' + externalValue;\n}\n\nrun().then(value => output = value);\noutput;",
+          "expectedResult": "42:41",
+          "requiredLogs": [
+            "unified-bytecode-resumable-async-generator-fast-path func=values argc=1"
+          ]
+        },
+        {
+          "id": "A2-resumable-generator-arguments-direct-eval-boundary-stays-open",
+          "claim": "open",
+          "kind": "source-presence",
+          "path": "src/Asynkron.JsEngine/Ast/TypedAstEvaluator.UnifiedBytecodeResumableActivation.cs",
+          "pattern": "ResumableDirectEvalActivationDetector.ContainsArgumentsObjectDependency(function.Body)"
+        },
+        {
+          "id": "A2-resumable-async-arguments-direct-eval-boundary-stays-open",
+          "claim": "open",
+          "kind": "source-presence",
+          "path": "src/Asynkron.JsEngine/Ast/TypedAstEvaluator.UnifiedBytecodeResumableActivation.cs",
+          "pattern": "ResumableDirectEvalActivationDetector.ContainsArgumentsObjectDependency(function.Body)"
+        },
+        {
+          "id": "A2-resumable-async-generator-arguments-direct-eval-boundary-stays-open",
+          "claim": "open",
+          "kind": "source-presence",
+          "path": "src/Asynkron.JsEngine/Ast/TypedAstEvaluator.UnifiedBytecodeResumableActivation.cs",
+          "pattern": "ResumableDirectEvalActivationDetector.ContainsArgumentsObjectDependency(function.Body)"
         },
         {
           "id": "A2-declaration-bearing-direct-eval-declines",
@@ -102,11 +155,11 @@
           "reasonContains": "Direct eval invocation semantics"
         },
         {
-          "id": "A2-resumable-arguments-direct-eval-boundary-stays-open",
+          "id": "A2-resumable-dynamic-activation-direct-eval-boundary-stays-open",
           "claim": "open",
           "kind": "source-presence",
           "path": "src/Asynkron.JsEngine/Ast/TypedAstEvaluator.UnifiedBytecodeResumableActivation.cs",
-          "pattern": "ResumableDirectEvalActivationDetector.ContainsArgumentsObjectDependency(function.Body)"
+          "pattern": "ResumableDirectEvalActivationDetector.ContainsDynamicActivationDependency(function.Body)"
         },
         {
           "id": "A2-script-eval-injected-binding-declines",

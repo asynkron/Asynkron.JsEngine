@@ -1332,11 +1332,11 @@ export default function() { return 23; };
     }
 
     [Fact(Timeout = 5000)]
-    public async Task TopLevelAwait_ForAwaitOfAwaitedIterableBreakFallsBackAfterUnifiedDecline()
+    public async Task TopLevelAwait_ForAwaitOfAwaitedIterableBreakFailsExplicitlyAfterUnifiedDecline()
     {
         await using var engine = CreateEngine();
 
-        var result = await engine.EvaluateModule("""
+        var exception = await Assert.ThrowsAsync<NotSupportedException>(() => engine.EvaluateModule("""
             var closed = 0;
             var seen = 0;
 
@@ -1354,9 +1354,12 @@ export default function() { return 23; };
             }
 
             seen + ":" + closed
-            """);
+            """));
 
-        Assert.Equal("1:1", result?.ToString());
+        Assert.StartsWith(
+            "Async-generator body 'gen' is not eligible for unified bytecode execution:",
+            exception.Message,
+            StringComparison.Ordinal);
     }
 
     [Fact(Timeout = 5000, Skip = "hangs indefinitely")]

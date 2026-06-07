@@ -122,7 +122,8 @@ Top-level scripts still use the classified
 `ExecutionPlanRunner.RunScript`, after the script production selector declines.
 Async functions and sync generators still construct runner-backed fallbacks when
 `EvaluateResumable` declines. Async generators no longer construct the old
-declined-body runner fallback; declined async-generator bodies now fail
+declined-body runner fallback or the renamed `_fallbackRunner` /
+`ExecuteFallbackRunnerStep` bridge; declined async-generator bodies now fail
 explicitly until the VM admits the missing semantics. Static-block-only class
 expressions can now route through resumable `LoadClassLiteral`, and eligible
 static-block bodies now attempt production unified bytecode first. Declined

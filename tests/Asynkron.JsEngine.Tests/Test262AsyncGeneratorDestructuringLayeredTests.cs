@@ -50,7 +50,7 @@ public sealed class Test262AsyncGeneratorDestructuringLayeredTests(ITestOutputHe
     }
 
     [Fact(Timeout = 5000)]
-    public async Task Layer3_AsyncGeneratorClassDestructuringMethod_DeclinesUnifiedRouteThenFallsBack()
+    public async Task Layer3_AsyncGeneratorClassDestructuringMethod_DeclinesUnifiedRouteThenFailsExplicitly()
     {
         await using var engine = CreateEngine();
         var result = await engine.EvaluateAndAwait("""
@@ -62,17 +62,23 @@ public sealed class Test262AsyncGeneratorDestructuringLayeredTests(ITestOutputHe
                 }
             }
 
-            new C().method().next().then(
-                () => output = callCount,
-                error => output = String(error));
+            async function run() {
+                var iterator = new C().method();
+                await iterator.next();
+                return callCount;
+            }
+
+            run().then(
+                value => output = "resolved:" + value,
+                error => output = "rejected:" + String(error));
             output;
             """);
 
-        Assert.Contains(
+        Assert.StartsWith("rejected:", result?.ToString(), StringComparison.Ordinal);
+        Assert.Contains("Non-simple async-generator parameter lists", result?.ToString(), StringComparison.Ordinal);
+        Assert.DoesNotContain(
             CurrentLogger!.Collector.Snapshot(),
-            record => record.Message.Contains("async-generator-runner-fallback", StringComparison.Ordinal) &&
-                      record.Message.Contains("Non-simple async-generator parameter lists", StringComparison.Ordinal));
-        Assert.Equal(23d, result);
+            record => record.Message.Contains("async-generator-runner-fallback", StringComparison.Ordinal));
     }
 
     [Fact]

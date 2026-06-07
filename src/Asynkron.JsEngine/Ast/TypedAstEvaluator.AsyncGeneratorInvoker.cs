@@ -7,8 +7,6 @@ using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 using Microsoft.Extensions.Logging;
 
-#pragma warning disable CS0618 // Obsolete AST evaluation methods are used intentionally here
-
 namespace Asynkron.JsEngine.Ast;
 
 public static partial class TypedAstEvaluator
@@ -38,34 +36,19 @@ public static partial class TypedAstEvaluator
         IJsCallable callable,
         RealmState realmState,
         bool isLexicallyStrict,
-        bool hasFunctionNameEnvironment,
         IJsObjectLike? homeObject,
         PrivateNameScope? privateNameScope,
         ImmutableArray<PrivateNameScope> capturedPrivateNameScopes,
         FunctionExecutionPlanSeed planSeed)
     {
-        private readonly ExecutionPlanRunner _fallbackRunner = new(
-            function,
-            closure,
-            arguments,
-            thisValue,
-            callable,
-            realmState,
-            isLexicallyStrict,
-            hasFunctionNameEnvironment,
-            homeObject,
-            privateNameScope,
-            capturedPrivateNameScopes,
-            planOverride: planSeed.Plan,
-            planFailureOverride: planSeed.Failure);
         private readonly Queue<AsyncGeneratorRequest> _queuedRequests = new();
         private UnifiedBytecodeResumeState? _unifiedState;
         private bool _isExecutingStep;
 
         // Each .next/.return/.throw call drives one async-generator step and wraps
         // the step result in a Promise. Admitted bodies are VM-owned through
-        // UnifiedBytecodeVirtualMachine.ExecuteResumable; declined bodies use the
-        // legacy ExecutionPlanRunner bridge restored from the last known-good route.
+        // UnifiedBytecodeVirtualMachine.ExecuteResumable; declined bodies fail
+        // explicitly until the VM owns the missing semantics.
         public void Initialize()
         {
             if (TryInitializeUnifiedBytecode(out var declineReason))
@@ -73,11 +56,8 @@ public static partial class TypedAstEvaluator
                 return;
             }
 
-            realmState.Logger?.LogInformation(
-                "async-generator-runner-fallback func={Function} reason={Reason}",
-                function.Name?.Name ?? "<anonymous>",
-                declineReason);
-            _fallbackRunner.Initialize();
+            throw new NotSupportedException(
+                $"Async-generator body '{function.Name?.Name ?? "<anonymous>"}' is not eligible for unified bytecode execution: {declineReason}");
         }
 
         public JsObject CreateAsyncIteratorObject()
@@ -321,39 +301,7 @@ public static partial class TypedAstEvaluator
                 return ExecuteUnifiedBytecodeStep(ToUnifiedResumeMode(mode), argument, unifiedState);
             }
 
-            return ExecuteFallbackRunnerStep(ToRunnerResumeMode(mode), argument);
-        }
-
-        private AsyncGeneratorStepResult ExecuteFallbackRunnerStep(
-            ExecutionPlanRunner.ResumeMode mode,
-            JsValue argument)
-        {
-            var step = _fallbackRunner.ExecuteAsyncStep(mode, argument);
-            return step.Kind switch
-            {
-                ExecutionPlanRunner.AsyncGeneratorStepKind.Yield => new AsyncGeneratorStepResult(
-                    AsyncGeneratorStepKind.Yield,
-                    step.Value,
-                    false,
-                    JsValue.Undefined),
-                ExecutionPlanRunner.AsyncGeneratorStepKind.Completed => new AsyncGeneratorStepResult(
-                    AsyncGeneratorStepKind.Completed,
-                    step.Value,
-                    true,
-                    JsValue.Undefined),
-                ExecutionPlanRunner.AsyncGeneratorStepKind.Throw => new AsyncGeneratorStepResult(
-                    AsyncGeneratorStepKind.Throw,
-                    step.Value,
-                    true,
-                    JsValue.Undefined),
-                ExecutionPlanRunner.AsyncGeneratorStepKind.Pending => new AsyncGeneratorStepResult(
-                    AsyncGeneratorStepKind.Pending,
-                    JsValue.Undefined,
-                    false,
-                    step.PendingPromise),
-                _ => throw new NotSupportedException(
-                    $"Async-generator runner step '{step.Kind}' is not supported.")
-            };
+            throw new InvalidOperationException("Async-generator unified bytecode state is not initialized.");
         }
 
         private AsyncGeneratorStepResult ExecuteUnifiedBytecodeStep(
@@ -417,14 +365,6 @@ public static partial class TypedAstEvaluator
                 AsyncGeneratorResumeMode.Throw => UnifiedBytecodeResumeMode.Throw,
                 AsyncGeneratorResumeMode.Return => UnifiedBytecodeResumeMode.Return,
                 _ => UnifiedBytecodeResumeMode.Next
-            };
-
-        private static ExecutionPlanRunner.ResumeMode ToRunnerResumeMode(AsyncGeneratorResumeMode mode) =>
-            mode switch
-            {
-                AsyncGeneratorResumeMode.Throw => ExecutionPlanRunner.ResumeMode.Throw,
-                AsyncGeneratorResumeMode.Return => ExecutionPlanRunner.ResumeMode.Return,
-                _ => ExecutionPlanRunner.ResumeMode.Next
             };
 
         private enum AsyncGeneratorResumeMode : byte

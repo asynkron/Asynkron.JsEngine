@@ -9,7 +9,7 @@ namespace Asynkron.JsEngine.Tests;
 public sealed class LanguageCrashRegressionTests(ITestOutputHelper output) : InternalTestBase(output)
 {
     [Fact(Timeout = 5000)]
-    public async Task AsyncPrivateGeneratorMethod_ObjectPropertyBindingFallsBackAfterUnifiedDecline()
+    public async Task AsyncPrivateGeneratorMethod_ObjectPropertyBindingFailsExplicitlyAfterUnifiedDecline()
     {
         await using var engine = CreateEngine();
         var result = await engine.EvaluateAndAwait("""
@@ -52,14 +52,12 @@ public sealed class LanguageCrashRegressionTests(ITestOutputHelper output) : Int
             result;
             """);
 
-        var summary = Assert.IsType<JsObject>(result);
-        Assert.Equal(1d, summary["callCount"]);
-        Assert.Equal(true, summary["sawValue"]);
-        Assert.Equal(true, summary["sawReferenceError"]);
+        var message = Assert.IsType<string>(result);
+        Assert.Contains("Non-simple async-generator parameter lists", message, StringComparison.Ordinal);
     }
 
     [Fact(Timeout = 5000)]
-    public async Task AsyncPrivateGeneratorMethod_ObjectPropertyArrayInitializerFallsBackAfterUnifiedDecline()
+    public async Task AsyncPrivateGeneratorMethod_ObjectPropertyArrayInitializerFailsExplicitlyAfterUnifiedDecline()
     {
         await using var engine = CreateEngine();
         var result = await engine.EvaluateAndAwait("""
@@ -102,14 +100,12 @@ public sealed class LanguageCrashRegressionTests(ITestOutputHelper output) : Int
             result;
             """);
 
-        var summary = Assert.IsType<JsObject>(result);
-        Assert.Equal(1d, summary["callCount"]);
-        Assert.Equal(true, summary["sawValues"]);
-        Assert.Equal(true, summary["sawReferenceError"]);
+        var message = Assert.IsType<string>(result);
+        Assert.Contains("Non-simple async-generator parameter lists", message, StringComparison.Ordinal);
     }
 
     [Fact(Timeout = 5000)]
-    public async Task AsyncPrivateGeneratorMethod_InClassExpressionObjectPropertyBindingFallsBackAfterUnifiedDecline()
+    public async Task AsyncPrivateGeneratorMethod_InClassExpressionObjectPropertyBindingFailsExplicitlyAfterUnifiedDecline()
     {
         await using var engine = CreateEngine();
         var result = await engine.EvaluateAndAwait("""
@@ -152,10 +148,8 @@ public sealed class LanguageCrashRegressionTests(ITestOutputHelper output) : Int
             result;
             """);
 
-        var summary = Assert.IsType<JsObject>(result);
-        Assert.Equal(1d, summary["callCount"]);
-        Assert.Equal(true, summary["sawValue"]);
-        Assert.Equal(true, summary["sawReferenceError"]);
+        var message = Assert.IsType<string>(result);
+        Assert.Contains("Non-simple async-generator parameter lists", message, StringComparison.Ordinal);
     }
 
     [Fact(Timeout = 5000)]
@@ -226,7 +220,7 @@ public sealed class LanguageCrashRegressionTests(ITestOutputHelper output) : Int
     }
 
     [Fact(Timeout = 5000)]
-    public async Task ForAwaitOf_AsyncGenerator_ArrayRestBindingFallsBackAfterUnifiedDecline()
+    public async Task ForAwaitOf_AsyncGenerator_ArrayRestBindingFailsExplicitlyAfterUnifiedDecline()
     {
         await using var engine = CreateEngine();
         var result = await engine.EvaluateAndAwait("""
@@ -266,14 +260,8 @@ public sealed class LanguageCrashRegressionTests(ITestOutputHelper output) : Int
             result;
             """);
 
-        var obj = Assert.IsType<JsObject>(result);
-        Assert.Equal(1.0, obj["iterCount"]);
-        Assert.Equal(true, obj["isArray"]);
-        Assert.Equal(3.0, obj["length"]);
-        Assert.Equal(1.0, obj["first"]);
-        Assert.Equal(2.0, obj["second"]);
-        Assert.Equal(3.0, obj["third"]);
-        Assert.Equal(true, obj["copied"]);
+        var message = Assert.IsType<string>(result);
+        Assert.StartsWith("Async-generator body 'fn' is not eligible for unified bytecode execution:", message, StringComparison.Ordinal);
     }
 
     [Fact(Timeout = 5000)]

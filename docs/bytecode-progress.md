@@ -109,13 +109,14 @@ The remaining work is mostly semantic admission: activation, calls, dynamic
 lookup, driver state, class-definition state, and fallback-route retirement.
 
 The current `ExecutionPlanRunner` reachability baseline for E5 is explicit and
-classification-only. Ordinary sync functions no longer construct the runner
-inside `TryInvokeIrFast`; unsupported ordinary sync shapes decline there and
-then the outer invocation path remains the classified runner fallback after the
-production unified-bytecode selector, specialized parameter/binary routes,
-`SyncIrCallTrampoline`, and constructor/class invocation bridges decline. The
-old generic simple-return-expression branch in `TryInvokeIrFast` no longer
-executes `ExpressionProgram`; it now declines to the classified fallback too.
+classification-only, not a retirement claim. Ordinary sync functions no longer
+construct the runner inside `TryInvokeIrFast`; unsupported ordinary sync shapes
+decline there and then the outer invocation path remains the classified runner
+fallback after the production unified-bytecode selector, specialized
+parameter/binary routes, `SyncIrCallTrampoline`, and constructor/class
+invocation bridges decline. The old generic simple-return-expression branch in
+`TryInvokeIrFast` no longer executes `ExpressionProgram`; it now declines to
+the classified fallback too.
 Top-level scripts still use the classified
 `RunScriptViaClassifiedIrFallback` helper, which delegates to
 `ExecutionPlanRunner.RunScript`, after the script production selector declines.
@@ -139,11 +140,14 @@ binding-target calls still pass through the runner as part of E5 until the IR
 runner itself is retired. The
 profiler-only `ExpressionProgram` loop no longer constructs a runner;
 `ProfileRunner` now compiles its synthetic bytecode profile cases to standalone
-unified bytecode and executes the unified VM directly. Direct eval, awaited
-`with`
-object evaluation, eval-injected bindings, `with` scopes that are live outside
-the admitted VM current-environment lane, and `Function(...)`-produced bodies
-remain dynamic residue rather than ordinary E5 retirement work.
+unified bytecode and executes the unified VM directly. Terminal dynamic residue
+remains outside ordinary E5 retirement work: multi-argument, spread,
+runtime-source, or declaration-injecting direct eval; awaited `with` object
+evaluation; retained live `with` scopes outside the admitted VM
+current-environment lane; eval-injected runtime bindings; and
+`Function(...)`-produced bodies. Non-awaited sync/resumable `with` through the
+VM current-environment lane and already-admitted declaration-free literal eval
+lanes are not parked as residue.
 
 The remaining default-admission gaps are now inventoried directly. The sync
 prototype guard has 6 currently non-admitted resumable-only opcodes; the

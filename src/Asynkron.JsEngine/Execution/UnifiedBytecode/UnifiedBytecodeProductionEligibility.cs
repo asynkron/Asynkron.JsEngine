@@ -4315,7 +4315,7 @@ internal static class UnifiedBytecodeProductionEligibility
                 continue;
             }
 
-            if (member.IsPrivate || !IsMaterializedResumableBodyEnvironmentCapture(capturedName))
+            if (!IsMaterializedResumableBodyEnvironmentCapture(capturedName))
             {
                 declineReason =
                     $"Class literal is outside B24h: computed member body captures activation binding '{capturedName}' and needs the materialized body environment route.";

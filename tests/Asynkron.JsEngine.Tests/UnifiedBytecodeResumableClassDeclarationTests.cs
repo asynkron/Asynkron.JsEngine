@@ -721,7 +721,39 @@ public sealed class UnifiedBytecodeResumableClassDeclarationTests(ITestOutputHel
     }
 
     [Fact]
-    public void EvaluateResumable_ClassDeclarationMixedStaticFieldAndBlockFunctionDeclaration_DeclinesBeforeVm()
+    public void EvaluateResumable_ClassDeclarationMixedStaticFieldAndBlockFunctionDeclaration_AdmitsDeclareClass()
+    {
+        var plan = GetFunctionPlan("""
+            function* g(seed) {
+                yield "ready";
+                var current = seed;
+                class Box {
+                    static value = current;
+                    static {
+                        function readLater() { return current + Box.value; }
+                        Box.readLater = readLater;
+                    }
+                }
+                current = seed + 1;
+                yield typeof Box;
+            }
+            """,
+            "g");
+
+        var result = UnifiedBytecodeProductionEligibility.EvaluateResumable(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor(IsGenerator: true));
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(
+            result.Program.Instructions,
+            static instruction => instruction.OpCode == UnifiedBytecodeOpCode.DeclareClass);
+        Assert.True(UnifiedBytecodeProductionEligibility.PlanNeedsMaterializedResumableBodyEnvironment(plan));
+    }
+
+    [Fact]
+    public void EvaluateResumable_ClassDeclarationMixedStaticFieldAndBlockClassDeclaration_DeclinesBeforeVm()
     {
         var plan = GetFunctionPlan("""
             function* g(seed) {
@@ -729,8 +761,10 @@ public sealed class UnifiedBytecodeResumableClassDeclarationTests(ITestOutputHel
                 class Box {
                     static value = seed;
                     static {
-                        function readLater() { return Box.value; }
-                        Box.readLater = readLater;
+                        class Nested {
+                            static value() { return Box.value; }
+                        }
+                        Box.Nested = Nested;
                     }
                 }
                 yield typeof Box;
@@ -744,7 +778,7 @@ public sealed class UnifiedBytecodeResumableClassDeclarationTests(ITestOutputHel
 
         Assert.False(result.IsEligible);
         Assert.Equal(UnifiedBytecodeProductionDeclineCode.UnsupportedPlanShape, result.Code);
-        Assert.Contains("static block contains nested declarations", result.Reason, StringComparison.Ordinal);
+        Assert.Contains("static block contains nested class declarations", result.Reason, StringComparison.Ordinal);
     }
 
     [Fact(Timeout = 5000)]
@@ -1459,6 +1493,51 @@ public sealed class UnifiedBytecodeResumableClassDeclarationTests(ITestOutputHel
             logs,
             static record => record.Message.Contains(
                 "unified-bytecode-production-fast-path static-block",
+                StringComparison.Ordinal));
+        Assert.DoesNotContain(
+            logs,
+            static record => record.Message.Contains(
+                "classified-static-block-ir-fallback",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task GeneratorClassDeclarationMixedStaticFieldAndBlockFunctionDeclaration_RoutesResumableAndObservesLaterActivationMutation()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function* g(seed) {
+                yield "ready";
+                var current = seed;
+                class Box {
+                    static value = current;
+                    static {
+                        function readLater() { return current + Box.value; }
+                        Box.readLater = readLater;
+                    }
+                }
+                current = seed + 1;
+                yield Box.readLater() + "|" + Box.value;
+            }
+
+            var iterator = g(41);
+            var first = iterator.next();
+            var second = iterator.next();
+            first.value + ":" + first.done + "|" + second.value + ":" + second.done;
+            """);
+
+        Assert.Equal("ready:false|83|41:false", result);
+        AssertGeneratorFastPath("g", argc: 1);
+        var logs = CurrentLogger!.Collector.Snapshot();
+        Assert.Contains(
+            logs,
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path static-block",
+                StringComparison.Ordinal));
+        Assert.Contains(
+            logs,
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=readLater",
                 StringComparison.Ordinal));
         Assert.DoesNotContain(
             logs,

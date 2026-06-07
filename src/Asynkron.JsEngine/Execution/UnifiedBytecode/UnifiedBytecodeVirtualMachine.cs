@@ -7286,6 +7286,15 @@ internal static class UnifiedBytecodeVirtualMachine
                     varEnvironment.GetRootGlobalObject()?.SetProperty(name.Name, functionJsValue);
                 }
             }
+            else if (!varEnvironment.HasFunctionScopedBinding(name))
+            {
+                varEnvironment.DefineFunctionScoped(
+                    name,
+                    functionJsValue,
+                    hasInitializer: true,
+                    isFunctionDeclaration: true,
+                    context: context);
+            }
 
             return;
         }

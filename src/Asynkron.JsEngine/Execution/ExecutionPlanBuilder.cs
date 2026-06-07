@@ -54,6 +54,8 @@ internal sealed partial class ExecutionPlanBuilder
     /// </summary>
     internal bool IsScriptLevel { get; private set; }
 
+    internal bool TreatRootFunctionDeclarationsAsBlockScoped { get; private set; }
+
     /// <summary>
     /// Allocates a new slot index for a generator-internal symbol.
     /// </summary>
@@ -81,8 +83,11 @@ internal sealed partial class ExecutionPlanBuilder
     ///     When true, indicates this is a top-level script (not a function body).
     ///     Script-level var declarations must update the global object.
     /// </param>
-    public static ExecutionPlanBuildResult Build(FunctionExpression function, bool reportDiagnostics = true,
-        bool isScriptLevel = false)
+    public static ExecutionPlanBuildResult Build(
+        FunctionExpression function,
+        bool reportDiagnostics = true,
+        bool isScriptLevel = false,
+        bool treatRootFunctionDeclarationsAsBlockScoped = false)
     {
         // First run the yield-lowering pre-pass so that ExecutionPlanBuilder
         // can assume a simplified, pauseable-function-friendly AST. The lowerer currently acts
@@ -102,7 +107,11 @@ internal sealed partial class ExecutionPlanBuilder
             return failure;
         }
 
-        var builder = new ExecutionPlanBuilder { IsScriptLevel = isScriptLevel };
+        var builder = new ExecutionPlanBuilder
+        {
+            IsScriptLevel = isScriptLevel,
+            TreatRootFunctionDeclarationsAsBlockScoped = treatRootFunctionDeclarationsAsBlockScoped
+        };
         var succeeded = builder.TryBuildInternal(lowered, out var plan);
         var result = succeeded
             ? ExecutionPlanBuildResult.Success(plan)

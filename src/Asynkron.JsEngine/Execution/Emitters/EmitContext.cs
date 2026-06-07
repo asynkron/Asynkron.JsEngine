@@ -66,6 +66,8 @@ internal sealed class EmitContext(
     /// </summary>
     public bool IsScriptLevel => builder.IsScriptLevel;
 
+    public bool TreatRootFunctionDeclarationsAsBlockScoped => builder.TreatRootFunctionDeclarationsAsBlockScoped;
+
     /// <summary>
     /// Get the instruction list (for IteratorInstructionTemplate).
     /// </summary>

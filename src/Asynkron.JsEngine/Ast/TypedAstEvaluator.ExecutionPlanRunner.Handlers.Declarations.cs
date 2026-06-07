@@ -65,6 +65,15 @@ public static partial class TypedAstEvaluator
                             globalThis?.SetProperty(funcDecl.Name.Name, fnValueJs);
                         }
                     }
+                    else if (!varEnvironment.HasFunctionScopedBinding(funcDecl.Name))
+                    {
+                        varEnvironment.DefineFunctionScoped(
+                            funcDecl.Name,
+                            fnValueJs,
+                            hasInitializer: true,
+                            isFunctionDeclaration: true,
+                            context: ctx);
+                    }
                     // Function-scoped declarations were initialized during entry/instantiation.
                     // Runtime evaluation is a no-op unless we are filling a hoisted undefined
                     // binding for an Annex B branch-scoped function.

@@ -2405,21 +2405,88 @@ public sealed class UnifiedBytecodeResumableClassExpressionTests(ITestOutputHelp
         AssertNoStaticBlockFallback();
     }
 
+    [Fact(Timeout = 5000)]
+    public async Task GeneratorClassExpressionComputedMemberWithStaticBlockFunctionDeclaration_RoutesResumableAndObservesLaterActivationMutation()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function* g(seed) {
+                yield "ready";
+                var current = seed;
+                var C = class {
+                    ["read"]() { return 42; }
+                    static {
+                        function readLater() { return current; }
+                        this.readLater = readLater;
+                    }
+                };
+                current = seed + 1;
+                yield C.readLater;
+            }
+
+            var iterator = g(41);
+            var first = iterator.next();
+            var second = iterator.next();
+            first.value + ":" + first.done + "|" + second.value() + ":" + second.done;
+            """);
+
+        Assert.Equal("ready:false|42:false", result);
+        AssertGeneratorFastPath("g", argc: 1);
+        AssertProductionFastPath("readLater");
+        AssertStaticBlockFastPath();
+        AssertNoStaticBlockFallback();
+    }
+
     [Fact]
-    public void EvaluateResumable_ClassExpressionComputedMemberWithStaticBlockFunctionDeclaration_DeclinesBeforeVm() =>
+    public void EvaluateResumable_ClassExpressionComputedMemberWithStaticBlockFunctionDeclaration_AdmitsLoadClassLiteral()
+    {
+        var plan = GetFunctionPlan("""
+            function* g(seed) {
+                yield 1;
+                var current = seed;
+                var C = class {
+                    ["read"]() { return 42; }
+                    static {
+                        function readLater() { return current; }
+                        this.readLater = readLater;
+                    }
+                };
+                current = seed + 1;
+                return C;
+            }
+            """,
+            "g");
+
+        var result = UnifiedBytecodeProductionEligibility.EvaluateResumable(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor(IsGenerator: true));
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(
+            result.Program.Instructions,
+            static instruction => instruction.OpCode == UnifiedBytecodeOpCode.LoadClassLiteral);
+        Assert.True(UnifiedBytecodeProductionEligibility.PlanNeedsMaterializedResumableBodyEnvironment(plan));
+    }
+
+    [Fact]
+    public void EvaluateResumable_ClassExpressionComputedMemberWithStaticBlockClassDeclaration_DeclinesBeforeVm() =>
         AssertClassExpressionDeclines("""
             function* g(seed) {
                 yield 1;
                 var C = class {
                     ["read"]() { return 42; }
                     static {
-                        function readLater() { return seed; }
-                        this.readLater = readLater;
+                        class Nested {
+                            static value() { return seed; }
+                        }
+                        this.Nested = Nested;
                     }
                 };
                 return C;
             }
-            """);
+            """,
+            "static block contains nested class declarations");
 
     [Fact]
     public void EvaluateResumable_ClassExpressionStaticPublicAccessor_AdmitsLoadClassLiteral()
@@ -2934,7 +3001,7 @@ public sealed class UnifiedBytecodeResumableClassExpressionTests(ITestOutputHelp
         }
         """);
 
-    private static void AssertClassExpressionDeclines(string source)
+    private static void AssertClassExpressionDeclines(string source, string reasonContains = "B24")
     {
         var plan = GetFunctionPlan(source, "g");
 
@@ -2944,7 +3011,7 @@ public sealed class UnifiedBytecodeResumableClassExpressionTests(ITestOutputHelp
 
         Assert.False(result.IsEligible, source);
         Assert.Equal(UnifiedBytecodeProductionDeclineCode.UnsupportedPlanShape, result.Code);
-        Assert.Contains("B24", result.Reason, StringComparison.Ordinal);
+        Assert.Contains(reasonContains, result.Reason, StringComparison.Ordinal);
     }
 
     [Theory]

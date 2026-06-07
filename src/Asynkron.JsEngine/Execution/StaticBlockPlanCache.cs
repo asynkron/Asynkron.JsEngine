@@ -39,6 +39,9 @@ internal sealed class StaticBlockPlanCache
             HasClosures: TypedAstEvaluator.ContainsInnerFunctionExpression(body));
 
         return new StaticBlockPlanCache(
-            ExecutionPlanBuilder.Build(syntheticFunction, reportDiagnostics: false));
+            ExecutionPlanBuilder.Build(
+                syntheticFunction,
+                reportDiagnostics: false,
+                treatRootFunctionDeclarationsAsBlockScoped: true));
     }
 }

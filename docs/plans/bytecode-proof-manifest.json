@@ -208,7 +208,7 @@
     },
     {
       "id": "B24h",
-      "title": "Computed class-member names are partial; static-block nested declarations still decline",
+      "title": "Computed class-member names are partial; static-block nested class declarations still decline",
       "status": "open",
       "proofs": [
         {
@@ -465,15 +465,30 @@
           ]
         },
         {
-          "id": "B24h-computed-static-block-function-declaration-declines",
+          "id": "B24h-computed-static-block-function-declaration-routes",
+          "claim": "admitted",
+          "kind": "runtime",
+          "source": "function* g(seed) {\n  yield 'ready';\n  var current = seed;\n  var C = class {\n    ['read']() { return 42; }\n    static {\n      function readLater() { return current; }\n      this.readLater = readLater;\n    }\n  };\n  current = seed + 1;\n  yield C.readLater;\n}\nvar iterator = g(41);\nvar first = iterator.next();\nvar second = iterator.next();\nfirst.value + ':' + first.done + '|' + second.value() + ':' + second.done;",
+          "expectedResult": "ready:false|42:false",
+          "requiredLogs": [
+            "unified-bytecode-resumable-generator-fast-path func=g",
+            "unified-bytecode-production-fast-path static-block",
+            "unified-bytecode-production-fast-path func=readLater"
+          ],
+          "forbiddenLogs": [
+            "classified-static-block-ir-fallback"
+          ]
+        },
+        {
+          "id": "B24h-computed-static-block-class-declaration-declines",
           "claim": "open",
           "kind": "eligibility",
           "subject": "resumable-generator",
           "functionName": "g",
-          "source": "function* g(seed) {\n  yield 1;\n  var C = class {\n    ['read']() { return 42; }\n    static {\n      function readLater() { return seed; }\n      this.readLater = readLater;\n    }\n  };\n  return C;\n}",
+          "source": "function* g(seed) {\n  yield 1;\n  var C = class {\n    ['read']() { return 42; }\n    static {\n      class Nested {\n        static value() { return seed; }\n      }\n      this.Nested = Nested;\n    }\n  };\n  return C;\n}",
           "expectedEligible": false,
           "declineCode": "UnsupportedPlanShape",
-          "reasonContains": "static block contains nested declarations"
+          "reasonContains": "static block contains nested class declarations"
         }
       ]
     },
@@ -626,15 +641,30 @@
           ]
         },
         {
-          "id": "B36-class-declaration-mixed-static-field-and-block-function-declaration-declines",
+          "id": "B36-class-declaration-mixed-static-field-and-block-function-declaration-routes",
+          "claim": "admitted",
+          "kind": "runtime",
+          "source": "function* g(seed) {\n  yield 'ready';\n  var current = seed;\n  class Box {\n    static value = current;\n    static {\n      function readLater() { return current + Box.value; }\n      Box.readLater = readLater;\n    }\n  }\n  current = seed + 1;\n  yield Box.readLater() + '|' + Box.value;\n}\nvar iterator = g(41);\nvar first = iterator.next();\nvar second = iterator.next();\nfirst.value + ':' + first.done + '|' + second.value + ':' + second.done;",
+          "expectedResult": "ready:false|83|41:false",
+          "requiredLogs": [
+            "unified-bytecode-resumable-generator-fast-path func=g",
+            "unified-bytecode-production-fast-path static-block",
+            "unified-bytecode-production-fast-path func=readLater"
+          ],
+          "forbiddenLogs": [
+            "classified-static-block-ir-fallback"
+          ]
+        },
+        {
+          "id": "B36-class-declaration-mixed-static-field-and-block-class-declaration-declines",
           "claim": "open",
           "kind": "eligibility",
           "subject": "resumable-generator",
           "functionName": "g",
-          "source": "function* g(seed) {\n  yield 'ready';\n  class Box {\n    static value = seed;\n    static {\n      function readLater() { return Box.value; }\n      Box.readLater = readLater;\n    }\n  }\n  yield typeof Box;\n}",
+          "source": "function* g(seed) {\n  yield 'ready';\n  class Box {\n    static value = seed;\n    static {\n      class Nested {\n        static value() { return Box.value; }\n      }\n      Box.Nested = Nested;\n    }\n  }\n  yield typeof Box;\n}",
           "expectedEligible": false,
           "declineCode": "UnsupportedPlanShape",
-          "reasonContains": "static block contains nested declarations"
+          "reasonContains": "static block contains nested class declarations"
         },
         {
           "id": "B36-class-declaration-extends-public-super-method-routes",

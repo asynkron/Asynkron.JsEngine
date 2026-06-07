@@ -28,7 +28,7 @@ internal static class StatementEmitter
                     return BlockEmitter.TryEmitBlock(ctx, block, nextIndex, out entryIndex);
 
                 case FunctionDeclaration funcDecl:
-                    if (!ctx.IsInNestedScope)
+                    if (!ctx.IsInNestedScope && !ctx.TreatRootFunctionDeclarationsAsBlockScoped)
                     {
                         entryIndex = DeclarationEmitter.EmitFunctionDeclaration(ctx, nextIndex);
                         return true;

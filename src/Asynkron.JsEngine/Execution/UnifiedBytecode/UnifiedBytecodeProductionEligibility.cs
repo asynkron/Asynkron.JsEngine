@@ -278,6 +278,7 @@ internal static class UnifiedBytecodeProductionEligibility
                 activationSlots,
                 activation.AllowsOrdinaryDynamicIdentifierEnvironmentOperations,
                 activation.AllowsImplicitArgumentsObjectPropertyReadOperands,
+                activation.AllowsMaterializedBodyEnvironmentFunctionLiterals,
                 activation.IsStrict,
                 out var declineCode,
                 out var declineReason))
@@ -479,6 +480,7 @@ internal static class UnifiedBytecodeProductionEligibility
         ActivationSlotShape activationSlots,
         bool allowsOrdinaryDynamicIdentifiers,
         bool allowImplicitArgumentsObjectPropertyReadOperands,
+        bool allowsMaterializedBodyEnvironmentFunctionLiterals,
         bool isStrict,
         out UnifiedBytecodeProductionDeclineCode declineCode,
         out string declineReason)
@@ -615,7 +617,8 @@ internal static class UnifiedBytecodeProductionEligibility
             }
 
             if (instruction is FunctionDeclarationInstruction { Descriptor: { } descriptor } &&
-                FunctionCapturesActivationSlot(descriptor.Function, activationSlots, out var capturedName))
+                FunctionCapturesActivationSlot(descriptor.Function, activationSlots, out var capturedName) &&
+                !allowsMaterializedBodyEnvironmentFunctionLiterals)
             {
                 declineCode = UnifiedBytecodeProductionDeclineCode.UnsupportedPlanShape;
                 declineReason =
@@ -1607,6 +1610,13 @@ internal static class UnifiedBytecodeProductionEligibility
         {
             foreach (var instruction in staticBlockPlan.Instructions)
             {
+                if (instruction is FunctionDeclarationInstruction { Descriptor: { } descriptor } &&
+                    FunctionCapturesActivationSlot(descriptor.Function, activationSlots, out var functionDeclarationCapturedName) &&
+                    IsMaterializedResumableBodyEnvironmentCapture(functionDeclarationCapturedName))
+                {
+                    return true;
+                }
+
                 if (!TryGetExpressionProgram(instruction, out var program) ||
                     !ExpressionProgramHasActivationCapturingFunctionLiteral(
                         program,
@@ -3585,10 +3595,10 @@ internal static class UnifiedBytecodeProductionEligibility
 
         foreach (var staticBlockPlan in definition.StaticBlockPlans)
         {
-            if (StaticBlockPlanContainsNestedDeclaration(staticBlockPlan))
+            if (StaticBlockPlanContainsNestedClassDeclaration(staticBlockPlan))
             {
                 declineReason =
-                    "Class declaration is outside B36: static block contains nested declarations that need the broader materialized class-definition environment route.";
+                    "Class declaration is outside B36: static block contains nested class declarations that need the broader materialized class-definition environment route.";
                 return false;
             }
 
@@ -3596,6 +3606,7 @@ internal static class UnifiedBytecodeProductionEligibility
                 staticBlockPlan,
                 new UnifiedBytecodeProductionActivationDescriptor(
                     AllowsOrdinaryDynamicIdentifierEnvironmentOperations: true,
+                    AllowsMaterializedBodyEnvironmentFunctionLiterals: true,
                     IsStrict: true));
             if (result.IsEligible)
             {
@@ -4029,15 +4040,13 @@ internal static class UnifiedBytecodeProductionEligibility
         return hasSuperConstruct;
     }
 
-    private static bool StaticBlockPlanContainsNestedDeclaration(ExecutionPlan plan)
+    private static bool StaticBlockPlanContainsNestedClassDeclaration(ExecutionPlan plan)
     {
         foreach (var instruction in plan.Instructions)
         {
-            switch (instruction)
+            if (instruction is ClassDeclarationInstruction)
             {
-                case FunctionDeclarationInstruction:
-                case ClassDeclarationInstruction:
-                    return true;
+                return true;
             }
         }
 
@@ -4476,10 +4485,10 @@ internal static class UnifiedBytecodeProductionEligibility
         declineReason = string.Empty;
         foreach (var staticBlockPlan in staticBlockPlans)
         {
-            if (StaticBlockPlanContainsNestedDeclaration(staticBlockPlan))
+            if (StaticBlockPlanContainsNestedClassDeclaration(staticBlockPlan))
             {
                 declineReason =
-                    $"Class literal is outside {bucket}: static block contains nested declarations that need the broader materialized class-definition environment route.";
+                    $"Class literal is outside {bucket}: static block contains nested class declarations that need the broader materialized class-definition environment route.";
                 return false;
             }
 
@@ -4487,6 +4496,7 @@ internal static class UnifiedBytecodeProductionEligibility
                 staticBlockPlan,
                 new UnifiedBytecodeProductionActivationDescriptor(
                     AllowsOrdinaryDynamicIdentifierEnvironmentOperations: true,
+                    AllowsMaterializedBodyEnvironmentFunctionLiterals: true,
                     IsStrict: true));
             if (result.IsEligible)
             {

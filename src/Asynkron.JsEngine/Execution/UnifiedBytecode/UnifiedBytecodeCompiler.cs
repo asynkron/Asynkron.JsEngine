@@ -5940,6 +5940,11 @@ internal static class UnifiedBytecodeCompiler
             return true;
         }
 
+        if (IsPrivateReceiverPrefixNamedCallTargetPreparationCandidate(expressionProgram, call))
+        {
+            return true;
+        }
+
         for (var operationIndex = 0; operationIndex < expressionProgram.OperationCount; operationIndex++)
         {
             var operation = expressionProgram.GetOperation(operationIndex);
@@ -5950,6 +5955,50 @@ internal static class UnifiedBytecodeCompiler
         }
 
         return false;
+    }
+
+    private static bool IsPrivateReceiverPrefixNamedCallTargetPreparationCandidate(
+        ExpressionProgram expressionProgram,
+        PackedExpressionOp call)
+    {
+        if (call.Kind != ExpressionOpKind.Call ||
+            !call.HasExplicitThis ||
+            call.IsDirectEval ||
+            call.SpreadMaskConstantIndex >= 0)
+        {
+            return false;
+        }
+
+        var callTargetIndex = FindFirstOperation(expressionProgram, ExpressionOpKind.LoadNamedCallTarget);
+        if (callTargetIndex < 2)
+        {
+            return false;
+        }
+
+        var callTarget = expressionProgram.GetOperation(callTargetIndex);
+        var stringConstants = expressionProgram.StringConstants.AsSpan();
+        if (callTarget.IsOptional ||
+            callTarget.ShortCircuitOnNullishTarget ||
+            callTarget.GetString(stringConstants).IsPrivateName())
+        {
+            return false;
+        }
+
+        var sawPrivatePrefix = false;
+        for (var operationIndex = 1; operationIndex < callTargetIndex; operationIndex++)
+        {
+            var operation = expressionProgram.GetOperation(operationIndex);
+            if (operation.Kind != ExpressionOpKind.GetNamedProperty ||
+                operation.IsOptional ||
+                operation.ShortCircuitOnNullishTarget)
+            {
+                return false;
+            }
+
+            sawPrivatePrefix |= operation.GetString(stringConstants).IsPrivateName();
+        }
+
+        return sawPrivatePrefix;
     }
 
     private static bool IsOptionalChainSignalOperation(PackedExpressionOp operation)
@@ -6327,6 +6376,7 @@ internal static class UnifiedBytecodeCompiler
                 stringConstants,
                 callTargetIndexInProgram,
                 allowDeepChain: true,
+                allowPrivateNamedPrefix: true,
                 allowsDynamicIdentifiers: allowsDynamicIdentifiers,
                 out reason))
         {
@@ -6382,6 +6432,7 @@ internal static class UnifiedBytecodeCompiler
                 stringConstants,
                 receiverEnd,
                 allowDeepChain: true,
+                allowPrivateNamedPrefix: false,
                 allowsDynamicIdentifiers: allowsDynamicIdentifiers,
                 out reason))
         {
@@ -6455,6 +6506,7 @@ internal static class UnifiedBytecodeCompiler
                 stringConstants,
                 callTargetIndexInProgram,
                 allowDeepChain: true,
+                allowPrivateNamedPrefix: false,
                 allowsDynamicIdentifiers: allowsDynamicIdentifiers,
                 out reason))
         {
@@ -6628,6 +6680,7 @@ internal static class UnifiedBytecodeCompiler
                 stringConstants,
                 keyStartIndex,
                 allowDeepChain: true,
+                allowPrivateNamedPrefix: false,
                 allowsDynamicIdentifiers: allowsDynamicIdentifiers,
                 out reason))
         {
@@ -6855,6 +6908,7 @@ internal static class UnifiedBytecodeCompiler
                 stringConstants,
                 keyIndex,
                 allowDeepChain: false,
+                allowPrivateNamedPrefix: false,
                 allowsDynamicIdentifiers: allowsDynamicIdentifiers,
                 out reason))
         {
@@ -7192,6 +7246,7 @@ internal static class UnifiedBytecodeCompiler
                 stringConstants,
                 optionalHopIndex,
                 allowDeepChain: true,
+                allowPrivateNamedPrefix: false,
                 allowsDynamicIdentifiers: allowsDynamicIdentifiers,
                 out reason))
         {
@@ -7341,6 +7396,7 @@ internal static class UnifiedBytecodeCompiler
         ImmutableArray<string>.Builder stringConstants,
         int endExclusive,
         bool allowDeepChain,
+        bool allowPrivateNamedPrefix,
         bool allowsDynamicIdentifiers,
         out string reason)
     {
@@ -7384,7 +7440,7 @@ internal static class UnifiedBytecodeCompiler
             }
 
             var propertyName = propertyRead.GetString(expressionProgram.StringConstants.AsSpan());
-            if (propertyName.IsPrivateName())
+            if (!allowPrivateNamedPrefix && propertyName.IsPrivateName())
             {
                 reason = "Private named receiver properties are outside the call-target preparation boundary.";
                 return false;

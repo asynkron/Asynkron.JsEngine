@@ -114,6 +114,7 @@ before VM execution. Direct private writes in base/derived constructors and
 private-brand-only constructors may route through production bytecode. Plain
 private reads used as nested binary/RHS value operands and single-hop optional
 private reads (`receiver?.#field`) now route through the A51f5 partial
-private-neighbor admission; chained optional-private receiver-neighbor,
-delete-defense, call-neighbor, and super-neighbor diagnostics remain tracked by
-A51f5.
+private-neighbor admission. Private receiver-prefix named calls such as
+`receiver.#child.value()` now route too, preserving the method receiver after the
+private prefix read. Chained optional-private receiver-neighbor, delete-defense,
+mutation-neighbor, and super-neighbor diagnostics remain tracked by A51f5.

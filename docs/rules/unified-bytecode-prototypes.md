@@ -237,9 +237,11 @@ all-or-nothing until a separate routing issue proves production readiness.
 9h. Keep private receiver-prefix property-read admission value-read-only and
     rollback-safe. Private named hops may participate in simple property-read
     span measurement only when the whole expression is an admitted value read,
-    such as `receiver.#child.value` or `receiver.#child[key]`; private
-    receiver-prefix calls, mutations, updates, deletes, and optional-private
-    neighbors remain owned by their separate A51 lanes until explicitly proven.
+    such as `receiver.#child.value` or `receiver.#child[key]`, or when the
+    prefix feeds an admitted ordinary named call target such as
+    `receiver.#child.value()`; private receiver-prefix mutations, updates,
+    deletes, and optional-private neighbors remain owned by their separate A51
+    lanes until explicitly proven.
     Any compiler probe that emits instructions, literal constants, or string
     constants before proving the whole private-prefix value-read shape must
     snapshot and restore every touched builder before handing control to later

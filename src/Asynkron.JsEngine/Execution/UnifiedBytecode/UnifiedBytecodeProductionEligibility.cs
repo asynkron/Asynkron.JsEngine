@@ -5730,6 +5730,12 @@ internal static class UnifiedBytecodeProductionEligibility
             stringConstants,
             activationSlots,
             allowsDynamicIdentifiers);
+        var isPrivateReceiverPrefixNamedCallExpressionCandidate = TryIsPrivateReceiverPrefixNamedCallExpressionCandidate(
+            program,
+            identifierConstants,
+            stringConstants,
+            activationSlots,
+            allowsDynamicIdentifiers);
         var isConstructInvocationCandidate = TryIsConstructInvocationCandidate(program, identifierConstants, activationSlots);
         var hasOptionalChainOperation = HasOptionalChainOperation(program);
 
@@ -5848,6 +5854,7 @@ internal static class UnifiedBytecodeProductionEligibility
                 case ExpressionOpKind.LoadNamedCallTarget:
                 case ExpressionOpKind.LoadComputedCallTarget:
                     if (isCallTargetPreparationCandidate ||
+                        isPrivateReceiverPrefixNamedCallExpressionCandidate ||
                         isGeneralNamedMemberCallExpressionCandidate ||
                         isComplexRhsPropertyWriteCandidate ||
                         isComplexRhsCompoundPropertyWriteCandidate)
@@ -5887,6 +5894,7 @@ internal static class UnifiedBytecodeProductionEligibility
                 case ExpressionOpKind.Call:
                     if (isCallTargetPreparationCandidate ||
                         isGeneralIdentifierCallExpressionCandidate ||
+                        isPrivateReceiverPrefixNamedCallExpressionCandidate ||
                         isGeneralNamedMemberCallExpressionCandidate ||
                         isComplexRhsPropertyWriteCandidate ||
                         isComplexRhsCompoundPropertyWriteCandidate)
@@ -6255,6 +6263,11 @@ internal static class UnifiedBytecodeProductionEligibility
                     }
 
                     if (isCallTargetPreparationCandidate)
+                    {
+                        break;
+                    }
+
+                    if (isPrivateReceiverPrefixNamedCallExpressionCandidate)
                     {
                         break;
                     }
@@ -9675,6 +9688,74 @@ internal static class UnifiedBytecodeProductionEligibility
         }
 
         return hasCall && depth == 1 && identifierReferenceSlots is not { Count: > 0 };
+    }
+
+    private static bool TryIsPrivateReceiverPrefixNamedCallExpressionCandidate(
+        ExpressionProgram program,
+        ReadOnlySpan<IdentifierOperand> identifierConstants,
+        ReadOnlySpan<string> stringConstants,
+        ActivationSlotShape activationSlots,
+        bool allowsDynamicIdentifiers)
+    {
+        if (program.OperationCount < 4)
+        {
+            return false;
+        }
+
+        var callIndex = program.OperationCount - 1;
+        var call = program.GetOperation(callIndex);
+        if (call.Kind != ExpressionOpKind.Call ||
+            !call.HasExplicitThis ||
+            call.IsDirectEval ||
+            call.SpreadMaskConstantIndex >= 0)
+        {
+            return false;
+        }
+
+        var namedCallTargetIndex = FindFirstOperation(program, ExpressionOpKind.LoadNamedCallTarget);
+        if (namedCallTargetIndex < 2)
+        {
+            return false;
+        }
+
+        var namedCallTarget = program.GetOperation(namedCallTargetIndex);
+        if (namedCallTarget.IsOptional ||
+            namedCallTarget.ShortCircuitOnNullishTarget ||
+            namedCallTarget.GetString(stringConstants).IsPrivateName())
+        {
+            return false;
+        }
+
+        if (!TryGetActivationResolvedValue(program.GetOperation(0), identifierConstants, activationSlots) &&
+            !(allowsDynamicIdentifiers &&
+              TryGetPlainDynamicIdentifierReadValue(program.GetOperation(0), identifierConstants, activationSlots)))
+        {
+            return false;
+        }
+
+        var sawPrivatePrefix = false;
+        for (var operationIndex = 1; operationIndex < namedCallTargetIndex; operationIndex++)
+        {
+            var receiverOperation = program.GetOperation(operationIndex);
+            if (receiverOperation.Kind != ExpressionOpKind.GetNamedProperty ||
+                receiverOperation.IsOptional ||
+                receiverOperation.ShortCircuitOnNullishTarget)
+            {
+                return false;
+            }
+
+            sawPrivatePrefix |= receiverOperation.GetString(stringConstants).IsPrivateName();
+        }
+
+        return sawPrivatePrefix &&
+               HasSimpleCallArguments(
+                   program,
+                   identifierConstants,
+                   activationSlots,
+                   namedCallTargetIndex + 1,
+                   call,
+                   callIndex,
+                   allowsDynamicIdentifiers);
     }
 
     private static int FindComputedCallKeyStart(

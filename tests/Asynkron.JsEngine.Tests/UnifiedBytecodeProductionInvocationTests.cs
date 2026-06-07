@@ -9355,6 +9355,35 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     }
 
     [Fact(Timeout = 5000)]
+    public async Task PrivateReceiverPrefixNamedCall_PreservesReceiverAndUsesUnifiedBytecodeProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            class Holder {
+                #child = {
+                    offset: 40,
+                    value(delta) {
+                        return this.offset + delta;
+                    }
+                };
+
+                call(receiver, delta) {
+                    return receiver.#child.value(delta);
+                }
+            }
+
+            var holder = new Holder();
+            holder.call(holder, 2);
+            """);
+
+        Assert.Equal(42d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=<anonymous> argc=2",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task PrivateNamedPropertyWrite_UsesUnifiedBytecodeProductionFastPath()
     {
         await using var engine = CreateEngine();

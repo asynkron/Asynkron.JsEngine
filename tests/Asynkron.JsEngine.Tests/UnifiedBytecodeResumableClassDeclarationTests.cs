@@ -383,6 +383,60 @@ public sealed class UnifiedBytecodeResumableClassDeclarationTests(ITestOutputHel
     }
 
     [Fact]
+    public void EvaluateResumable_ClassDeclarationExtendsPublicInstanceMethod_AdmitsDeclareClass()
+    {
+        var plan = GetFunctionPlan("""
+            class Base {
+            }
+
+            function* g(seed) {
+                yield "ready";
+                class Box extends Base {
+                    value() { return seed + 1; }
+                }
+                yield typeof Box;
+            }
+            """,
+            "g");
+
+        var result = UnifiedBytecodeProductionEligibility.EvaluateResumable(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor(IsGenerator: true));
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(
+            result.Program.Instructions,
+            static instruction => instruction.OpCode == UnifiedBytecodeOpCode.DeclareClass);
+    }
+
+    [Fact]
+    public void EvaluateResumable_ClassDeclarationExtendsPrivateInstanceMethod_StillDeclines()
+    {
+        var plan = GetFunctionPlan("""
+            class Base {
+            }
+
+            function* g() {
+                yield "ready";
+                class Box extends Base {
+                    #value() { return 1; }
+                    read() { return 1; }
+                }
+                yield typeof Box;
+            }
+            """,
+            "g");
+
+        var result = UnifiedBytecodeProductionEligibility.EvaluateResumable(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor(IsGenerator: true));
+
+        Assert.False(result.IsEligible);
+        Assert.NotEqual(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+    }
+
+    [Fact]
     public void EvaluateResumable_ClassDeclarationExtendsPublicFieldWithSuper_AdmitsDeclareClass()
     {
         var plan = GetFunctionPlan("""
@@ -1123,6 +1177,33 @@ public sealed class UnifiedBytecodeResumableClassDeclarationTests(ITestOutputHel
         Assert.Equal("ready:false|42|true:false", result);
         AssertGeneratorFastPath("g", argc: 1);
         AssertProductionFastPath("<anonymous>");
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task GeneratorClassDeclarationExtendsPublicInstanceMethodCapturesActivation_RoutesResumableAndPreservesSuperclass()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            class Base {
+            }
+
+            function* g(seed) {
+                yield "ready";
+                class Box extends Base {
+                    value() { return seed + 1; }
+                }
+                var box = new Box();
+                yield box.value() + "|" + (box instanceof Base);
+            }
+
+            var iterator = g(41);
+            var first = iterator.next();
+            var second = iterator.next();
+            first.value + ":" + first.done + "|" + second.value + ":" + second.done;
+            """);
+
+        Assert.Equal("ready:false|42|true:false", result);
+        AssertGeneratorFastPath("g", argc: 1);
     }
 
     [Fact(Timeout = 5000)]

@@ -195,16 +195,16 @@ The remaining non-retirement work is concentrated in:
   need runtime-source direct eval or otherwise non-production static-block plan
   ownership and broader class-definition environment bridging.
 - B36 resumable declarations: dynamic/eval helpers plus complex class
-  declarations (non-production static-block plans and computed/private/static neighbors outside the public
-  B24h-compatible direct computed-call/IIFE subset, public
-  super-member/super-field, public static-super-member, and public
-  static-field/static-block subsets) remain on the IR route while direct root helpers,
+  declarations (non-production static-block plans and private/static/computed
+  neighbors outside the admitted public method/computed/super/static subsets)
+  remain on the IR route while direct root helpers,
   recursive/sibling helper graphs, block/Annex B declarations, simple class
   declarations, plain `extends` declarations whose superclass expression
   compiles as standalone unified bytecode, activation-safe explicit public
   derived constructors, eligible static-block-only class declarations,
-  activation-safe computed public class declarations, and public instance
-  computed-member `extends` declarations, public instance super-member and
+  activation-safe computed public class declarations, public instance
+  computed-member `extends` declarations, public non-computed instance-method
+  `extends` declarations, public instance super-member and
   super-field `extends` declarations, public static super-member `extends`
   declarations, public non-computed static-field `extends` declarations with
   bytecode-compilable non-closure initializers, and non-extends declarations
@@ -240,6 +240,7 @@ is removed, or a proof gate becomes stricter.
 
 | Date | Gate surface | Concrete movement | Proof signal |
 |---|---|---|---|
+| 2026-06-07 | B36 partial: public instance methods with `extends` | Direct root `extends` class declarations now route through resumable `DeclareClass` when their class body contains ordinary public non-computed instance methods without `super`, such as `class Box extends Base { value() { return seed + 1; } }`. This proves the outer class declaration route, superclass construction, `instanceof`, and captured-value correctness; it does not claim member-body production routing. Checklist totals stay `128 / 145`, A+B+C+D stays `120 / 134`. | `EvaluateResumable_ClassDeclarationExtendsPublicInstanceMethod_AdmitsDeclareClass`, `EvaluateResumable_ClassDeclarationExtendsPrivateInstanceMethod_StillDeclines`, and `GeneratorClassDeclarationExtendsPublicInstanceMethodCapturesActivation_RoutesResumableAndPreservesSuperclass`; focused B36 class-declaration pack passed 60 tests. |
 | 2026-06-07 | A51f3 partial: zero-depth catch free `typeof` | Zero-depth catch/finally-region `typeof` of a free identifier now enables the ordinary dynamic-name production route through a `typeof`-only exception-region scan. `typeof externalValue` and `typeof missing` route through `TypeOfDynamicIdentifier`, preserving `"undefined"` for unbound names, while zero-depth catch free stores remain declined. Checklist totals stay `128 / 145`, A+B+C+D stays `120 / 134`. | `ContainsOrdinaryDynamicIdentifierDependency_ZeroDepthCatchFreeTypeOf_EnablesOrdinaryDynamicNamePath`, `ContainsOrdinaryDynamicIdentifierDependency_ZeroDepthCatchFreeStore_DoesNotEnableOrdinaryDynamicNamePath`, and `TryCatch_CatchOnlyFreeTypeOf_UsesUnifiedBytecodeProductionFastPath`; focused A51f3 pack passed 5 tests. |
 | 2026-06-07 | A51f5 partial: private receiver-prefix named calls | Private receiver-prefix named calls now route through production unified bytecode. The compiler lowers the private prefix read before `PrepareNamedCallTarget`, so `receiver.#child.value()` preserves the method receiver and brand checks while staying on the fast path. Private receiver-prefix mutations, chained optional-private neighbors, and private super/member call-neighbor diagnostics remain declined. Checklist totals stay `128 / 145`, A+B+C+D stays `120 / 134`. | `Evaluate_PrivateReceiverPrefixNamedCall_AcceptsCallTargetPreparation` and `PrivateReceiverPrefixNamedCall_PreservesReceiverAndUsesUnifiedBytecodeProductionFastPath`; focused private receiver-prefix pack passed 8 tests. |
 | 2026-06-07 | A51f3 partial: zero-depth catch free reads | Zero-depth catch/finally-region free identifier reads now enable the ordinary dynamic-name production route through a read-only exception-region scan. `try { throw 1; } catch (e) { return externalValue + e; }` routes through `LoadDynamicIdentifier` while zero-depth catch free stores remain declined. Checklist totals stay `128 / 145`, A+B+C+D stays `120 / 134`. | `ContainsOrdinaryDynamicIdentifierDependency_ZeroDepthCatchFreeRead_EnablesOrdinaryDynamicNamePath`, `ContainsOrdinaryDynamicIdentifierDependency_ZeroDepthCatchFreeStore_DoesNotEnableOrdinaryDynamicNamePath`, and `TryCatch_CatchOnlyFreeRead_UsesUnifiedBytecodeProductionFastPath`; focused A51f3 pack passed 3 tests. |

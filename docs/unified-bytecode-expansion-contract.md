@@ -941,7 +941,10 @@ predicates and proof tests.
     member gate, including direct activation-call computed names such as
     `[key = read()]()` and immediate computed-name IIFEs that create escaping
     activation-capturing closures under the B24h materialized body-environment
-    subset. Public instance super-member and public static super-member
+    subset. Public non-computed instance-method `extends` declarations now route
+    when the method set is ordinary public instance methods without `super`;
+    this proves the outer `DeclareClass` route and superclass behavior, not
+    member-body production routing. Public instance super-member and public static super-member
     `extends` declarations now route even when their member bodies capture
     resumable activation slots, public instance super-field declarations route
     even when field initializers capture resumable activation slots, and public
@@ -956,7 +959,7 @@ predicates and proof tests.
     blocks route through the same production static-block path. Dynamic/eval
     helpers, runtime-source direct eval or otherwise non-production static-block
     plans, plus otherwise complex class declaration neighbors
-    (computed/private/static shapes outside the public B24h-compatible subset)
+    (private/static/computed shapes outside the admitted public subsets)
     are the remaining separate B36 declaration-instantiation work.
     `DeclareFunction` remains off the resumable opcode allowlist because
     descriptor-backed block/Annex B declarations still need persisted

@@ -198,8 +198,25 @@
       ]
     },
     {
+      "id": "A7",
+      "title": "Private-name class constructor activation is admitted",
+      "status": "done",
+      "proofs": [
+        {
+          "id": "A7-private-name-constructor-routes",
+          "claim": "admitted",
+          "kind": "runtime",
+          "source": "class C { #value; constructor(value) { this.#value = value; } read() { return this.#value; } }\nString(new C(7).read());",
+          "expectedResult": "7",
+          "requiredLogs": [
+            "unified-bytecode-production-fast-path func=C"
+          ]
+        }
+      ]
+    },
+    {
       "id": "A51b",
-      "title": "Activation-slot metadata and flat-storage target gaps remain open",
+      "title": "Activation-slot metadata, flat-storage target gaps, and iterator/for-in TDZ-head flat-slot mapping residue remain open",
       "status": "open",
       "proofs": [
         {
@@ -250,23 +267,13 @@
           "kind": "source-presence",
           "path": "src/Asynkron.JsEngine/Execution/UnifiedBytecode/UnifiedBytecodeProductionEligibility.cs",
           "pattern": "Activation slot metadata is required."
-        }
-      ]
-    },
-    {
-      "id": "A7",
-      "title": "Private-name class constructor activation is admitted",
-      "status": "done",
-      "proofs": [
+        },
         {
-          "id": "A7-private-name-constructor-routes",
-          "claim": "admitted",
-          "kind": "runtime",
-          "source": "class C { #value; constructor(value) { this.#value = value; } read() { return this.#value; } }\nString(new C(7).read());",
-          "expectedResult": "7",
-          "requiredLogs": [
-            "unified-bytecode-production-fast-path func=C"
-          ]
+          "id": "A51b-iterator-for-in-tdz-head-flat-slot-mapping-stays-open",
+          "claim": "open",
+          "kind": "source-presence",
+          "path": "src/Asynkron.JsEngine/Execution/UnifiedBytecode/UnifiedBytecodeCompiler.cs",
+          "pattern": "Iterator/for-in driver TDZ head binding '{binding.Name}' could not be resolved to a flat activation slot."
         }
       ]
     },

@@ -415,6 +415,15 @@ line or nearby marker when necessary, so a new caller in an already approved
 file cannot silently inherit bridge, dynamic-boundary, class-field, or
 fallback-only permission. See ADR 0345.
 
+Issue
+`planitem-planitem-planmanual1780730299657353000-unified-bytecode-remaining-burndo-dc78f9b61a`
+/ PR #3375 replayed the helper-ownership guardrail on current `main` and moved
+the proof into `docs/plans/bytecode-proof-manifest.json`. The durable lesson is
+that retired profiling bridges must be source-gated across both engine code and
+`tools/ProfileRunner`, and standalone executor ownership should use a manifest
+allowlist so new call sites outside the approved helper-owned surface fail the
+ordinary proof-manifest test suite. See ADR 0345.
+
 PR #2729 completed full deletion of `EvaluateLegacyAstExpression` and its
 sibling methods from `Ast/Legacy/ExpressionNodeExtensions.cs`. The build-stage
 quality gate failed because the quarantine guard test

@@ -43,6 +43,13 @@ was too coarse for files such as `TypedAstEvaluator.ExpressionPrograms.cs` and
 dynamic-boundary forwarding, class-field support, and fallback-only execution
 can coexist.
 
+PR #3375 then replayed the same ownership boundary on current `main` and
+expanded the guardrail from hand-written source gates into durable proof
+manifest rows. That pass made two additional facts test-owned: the profiler
+bridge tombstones must be absent from both engine code and `tools/ProfileRunner`,
+and `UnifiedBytecodeExpressionProgramExecutor.ExecuteStandalone(...)` call sites
+must stay inside the approved helper-owned boundary surface.
+
 ## Decision
 
 Keep standalone `ExpressionProgram` execution centralized in
@@ -85,6 +92,8 @@ bytecode rather than the AST evaluator or IR runner.
 - Source-gate tests can prove direct standalone runner and lowered evaluator
   calls are absent while still allowing intended lowered payload execution
   through standalone unified bytecode.
+- Proof-manifest source gates should cover both engine and profiling-tool
+  owners when the retired bridge previously had tool-visible call sites.
 - Future expression-bytecode refactors must use the unified executor or update
   the dynamic executor source gate when adding a new dynamic expression-program
   caller.
@@ -126,6 +135,15 @@ bytecode rather than the AST evaluator or IR runner.
     2 tests.
   - `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionInvocationTests&FullyQualifiedName~SourceGate"`:
     4 tests.
+  - `rtk git diff --check`.
+- PR #3375, from Faktorial issue
+  `planitem-planitem-planmanual1780730299657353000-unified-bytecode-remaining-burndo-dc78f9b61a`,
+  added durable proof manifest rows for the profiler tombstones and the
+  `ExecuteStandalone(...)` helper ownership allowlist. The delivery branch
+  commit was `e6cdf2b9f`; the merged PR commit on `main` was `7fa2a4b0a`.
+  Focused verification passed:
+  - `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~ExecutionPlanDiagnosticsTests.SourceGate|FullyQualifiedName~BytecodeProofManifestTests"`:
+    120 tests.
   - `rtk git diff --check`.
 
 ## Related

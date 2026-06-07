@@ -47,6 +47,21 @@ The JsEngine has two separate generator execution paths:
    `OptionalChainDependency` on `o?.[k]()` while keeping non-simple parameter
    fallback unclassified. That preserves the distinction between a classified
    production-resumable boundary and an invocation-shape pre-gate.
+5. When an async-generator fallback bridge is retired, update the stale tests in
+   the same slice to assert explicit decline failure instead of fallback
+   success. Rename affected tests away from `FallsBack...`, assert that the
+   rejection message includes the owning decline reason, and source-gate absence
+   of old runner bridges and fallback log markers such as `_fallbackRunner`,
+   `ExecuteFallbackRunnerStep`, `ExecuteAsyncStep(`, and
+   `async-generator-runner-fallback`.
+   WHY: issue
+   `planitem-planmanual1780730299657353000-unified-bytecode-remaining-burndown-05-fal-4aeda4866f`
+   / PR #3387 retired `AsyncGeneratorInvoker`'s IR fallback, but the first
+   quality run failed 12 stale tests that still expected declined
+   async-generator bodies to complete through the old runner. The build-back
+   commit changed those tests to expect explicit rejection and added proof
+   manifest source-absence markers so future fallback retirement work does not
+   leave route expectations stale.
 
 ## Why
 
@@ -67,3 +82,11 @@ The durable decision is to expose the real production-resumable decline code for
 diagnostics, while leaving earlier invocation pre-gates unclassified so future
 burndown work does not confuse missing classifier evidence with an
 `EvaluateResumable` result.
+
+Issue
+`planitem-planmanual1780730299657353000-unified-bytecode-remaining-burndown-05-fal-4aeda4866f`
+/ PR #3387 retired the async-generator runner fallback entirely. The durable
+lesson is that fallback-retirement slices must update both runtime bridges and
+test expectations: old fallback-success tests become explicit-decline tests,
+and source-absence proof should ratchet the deleted bridge names and fallback
+log marker so a renamed runner bridge cannot quietly reappear.

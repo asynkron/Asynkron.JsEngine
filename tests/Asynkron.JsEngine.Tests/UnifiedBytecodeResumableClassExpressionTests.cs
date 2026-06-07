@@ -1501,6 +1501,63 @@ public sealed class UnifiedBytecodeResumableClassExpressionTests(ITestOutputHelp
         AssertGeneratorFastPath("g", argc: 1);
     }
 
+    [Fact]
+    public void EvaluateResumable_ClassExpressionComputedNameActivationConstructArgument_AdmitsLoadClassLiteral()
+    {
+        var plan = GetFunctionPlan("""
+            function* g(MakeName, key) {
+                yield 1;
+                var C = class {
+                    [new MakeName(key)]() { return 42; }
+                };
+                return C;
+            }
+            """,
+            "g");
+
+        var result = UnifiedBytecodeProductionEligibility.EvaluateResumable(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor(IsGenerator: true));
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(
+            result.Program.Instructions,
+            static instruction => instruction.OpCode == UnifiedBytecodeOpCode.LoadClassLiteral);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task GeneratorComputedNameActivationConstructArgument_RoutesResumable()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function MakeName(name) {
+                this.name = name;
+            }
+
+            MakeName.prototype.toString = function() {
+                return this.name;
+            };
+
+            function* g(MakeName, key) {
+                yield "ready";
+                var C = class {
+                    [new MakeName(key)]() { return 42; }
+                };
+                return C;
+            }
+
+            var iterator = g(MakeName, "value");
+            var first = iterator.next();
+            var second = iterator.next();
+            var C = second.value;
+            first.value + ":" + first.done + "|" + new C().value() + ":" + second.done;
+            """);
+
+        Assert.Equal("ready:false|42:true", result);
+        AssertGeneratorFastPath("g", argc: 2);
+    }
+
     [Fact(Timeout = 5000)]
     public async Task GeneratorComputedNameSpreadCall_RoutesResumableAndSpreadsActivationArguments()
     {

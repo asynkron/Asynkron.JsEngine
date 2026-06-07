@@ -4694,16 +4694,23 @@ internal static class UnifiedBytecodeProductionEligibility
             return false;
         }
 
-        var candidateIndex = constructorOperationIndex + 1;
-        if (candidateIndex >= program.OperationCount)
+        var candidateIndex = program.OperationCount - 1;
+        if (candidateIndex <= constructorOperationIndex)
         {
             return false;
         }
 
         var constructOperation = program.GetOperation(candidateIndex);
         if (constructOperation.Kind != ExpressionOpKind.Construct ||
-            constructOperation.ArgumentCount != 0 ||
-            constructOperation.SpreadMaskConstantIndex >= 0)
+            constructOperation.SpreadMaskConstantIndex >= 0 ||
+            !TryValidateAdmittedComplexCallArgumentRegion(
+                program,
+                argsStartIndex: constructorOperationIndex + 1,
+                callIndex: candidateIndex,
+                expectedArgumentCount: constructOperation.ArgumentCount,
+                identifierConstants,
+                activationSlots,
+                allowsDynamicIdentifiers: false))
         {
             return false;
         }

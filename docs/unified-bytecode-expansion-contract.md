@@ -130,7 +130,7 @@ statement interpretation.
   class-definition evaluation to lower-level class machinery that can run
   expression programs and static-block IR plans. Direct no-argument
   activation-resolved constructs in computed names are admitted, while the
-  remaining B24h/B24i shapes keep activation-dependent construct-argument/super
+  remaining B24h/B24i shapes keep activation-dependent construct-spread/super
   or otherwise unadmitted computed-name call-target dependencies, member-super
   outside the admitted public-computed/public-non-computed subsets, noneligible
   static-block plan state, and activation-slot `extends` shapes declined.
@@ -517,9 +517,9 @@ initializers through expression programs and static blocks through
 activation slots also remain declined until class-definition evaluation owns
 that environment bridge. The remaining B24h and B24i shapes remain declined by
 the resumable shape gate: computed names that use activation-dependent
-construct arguments, super, or otherwise unadmitted call-target shapes still stay
-outside B24h, while direct no-argument activation-resolved constructs now stay on
-`LoadClassLiteral`; non-production-eligible static-block plans remain outside the
+construct spreads, super, or otherwise unadmitted call-target shapes still stay
+outside B24h, while direct activation-resolved constructs with non-spread
+arguments now stay on `LoadClassLiteral`; non-production-eligible static-block plans remain outside the
 admitted B24 subsets. Static-block function declarations and nested class
 declarations whose bodies capture resumable activation slots are inside the
 materialized-body-environment route when the static-block body is otherwise

@@ -4159,7 +4159,7 @@ internal static class UnifiedBytecodeProductionEligibility
         {
             if (field.IsPrivate)
             {
-                if (field.IsStatic || field.IsComputed)
+                if (field.IsComputed)
                 {
                     return false;
                 }
@@ -4226,6 +4226,27 @@ internal static class UnifiedBytecodeProductionEligibility
             if (!field.IsPrivate)
             {
                 continue;
+            }
+
+            if (field.IsStatic &&
+                field.Initializer is not null &&
+                ExpressionContainsSuper(field.Initializer))
+            {
+                declineReason =
+                    "Class literal is outside B24h: private static field initializer uses super and needs the class-definition environment route.";
+                return false;
+            }
+
+            if (field.IsStatic &&
+                cache.FieldInitializerPrograms[i] is { } staticInitializerProgram &&
+                ExpressionProgramReferencesActivationSlot(
+                    staticInitializerProgram,
+                    activationSlots,
+                    out var staticCapturedName))
+            {
+                declineReason =
+                    $"Class literal is outside B24h: private static field initializer captures activation binding '{staticCapturedName}' and needs the materialized body environment route.";
+                return false;
             }
 
         }

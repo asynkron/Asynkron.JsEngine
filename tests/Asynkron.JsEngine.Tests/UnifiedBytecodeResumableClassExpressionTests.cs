@@ -1558,6 +1558,69 @@ public sealed class UnifiedBytecodeResumableClassExpressionTests(ITestOutputHelp
         AssertGeneratorFastPath("g", argc: 2);
     }
 
+    [Fact]
+    public void EvaluateResumable_ClassExpressionComputedNameActivationConstructSpread_AdmitsLoadClassLiteral()
+    {
+        var plan = GetFunctionPlan("""
+            function* g(MakeName, args) {
+                yield 1;
+                var C = class {
+                    [new MakeName(...args)]() { return 42; }
+                };
+                return C;
+            }
+            """,
+            "g");
+
+        var result = UnifiedBytecodeProductionEligibility.EvaluateResumable(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor(IsGenerator: true));
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(
+            result.Program.Instructions,
+            static instruction => instruction.OpCode == UnifiedBytecodeOpCode.LoadClassLiteral);
+        var classExpression = Assert.Single(result.Program.ClassLiteralConstants);
+        var classCache = ((IAstCacheable<ClassDefinitionProgramCache>)classExpression.Definition).GetOrCreateCache();
+        Assert.True(classCache.Succeeded, classCache.FailureReason);
+        var computedNameProgram = Assert.Single(classCache.MemberNamePrograms);
+        Assert.NotNull(computedNameProgram);
+        Assert.NotEmpty(computedNameProgram.Value.SpreadMaskConstants);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task GeneratorComputedNameActivationConstructSpread_RoutesResumableAndSpreadsArguments()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function MakeName(prefix, suffix) {
+                this.name = prefix + suffix;
+            }
+
+            MakeName.prototype.toString = function() {
+                return this.name;
+            };
+
+            function* g(MakeName, args) {
+                yield "ready";
+                var C = class {
+                    [new MakeName(...args)]() { return 42; }
+                };
+                return C;
+            }
+
+            var iterator = g(MakeName, ["val", "ue"]);
+            var first = iterator.next();
+            var second = iterator.next();
+            var C = second.value;
+            first.value + ":" + first.done + "|" + new C().value() + ":" + second.done;
+            """);
+
+        Assert.Equal("ready:false|42:true", result);
+        AssertGeneratorFastPath("g", argc: 2);
+    }
+
     [Fact(Timeout = 5000)]
     public async Task GeneratorComputedNameSpreadCall_RoutesResumableAndSpreadsActivationArguments()
     {

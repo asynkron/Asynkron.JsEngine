@@ -4702,7 +4702,6 @@ internal static class UnifiedBytecodeProductionEligibility
 
         var constructOperation = program.GetOperation(candidateIndex);
         if (constructOperation.Kind != ExpressionOpKind.Construct ||
-            constructOperation.SpreadMaskConstantIndex >= 0 ||
             !TryValidateAdmittedComplexCallArgumentRegion(
                 program,
                 argsStartIndex: constructorOperationIndex + 1,

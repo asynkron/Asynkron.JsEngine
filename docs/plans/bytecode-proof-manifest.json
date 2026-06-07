@@ -208,7 +208,7 @@
     },
     {
       "id": "B24h",
-      "title": "Computed class-member names are partial; activation-dependent construct-spread/super residue remains",
+      "title": "Computed class-member names are partial; non-production static-block residue remains",
       "status": "open",
       "proofs": [
         {
@@ -530,15 +530,25 @@
           ]
         },
         {
-          "id": "B24h-computed-name-activation-construct-spread-declines",
+          "id": "B24h-computed-name-activation-construct-spread-routes",
+          "claim": "admitted",
+          "kind": "runtime",
+          "source": "function MakeName(prefix, suffix) {\n  this.name = prefix + suffix;\n}\nMakeName.prototype.toString = function() {\n  return this.name;\n};\nfunction* g(MakeName, args) {\n  yield 'ready';\n  var C = class {\n    [new MakeName(...args)]() { return 42; }\n  };\n  return C;\n}\nvar iterator = g(MakeName, ['val', 'ue']);\nvar first = iterator.next();\nvar second = iterator.next();\nvar C = second.value;\nfirst.value + ':' + first.done + '|' + new C().value() + ':' + second.done;",
+          "expectedResult": "ready:false|42:true",
+          "requiredLogs": [
+            "unified-bytecode-resumable-generator-fast-path func=g"
+          ]
+        },
+        {
+          "id": "B24h-computed-static-block-direct-eval-declines",
           "claim": "open",
           "kind": "eligibility",
           "subject": "resumable-generator",
           "functionName": "g",
-          "source": "function* g(MakeName, args) {\n  yield 1;\n  var C = class {\n    [new MakeName(...args)]() { return 42; }\n  };\n  return C;\n}",
+          "source": "function* g(source) {\n  yield 'ready';\n  var C = class {\n    ['read']() { return 42; }\n    static {\n      eval(source);\n    }\n  };\n  return C;\n}",
           "expectedEligible": false,
           "declineCode": "UnsupportedPlanShape",
-          "reasonContains": "activation-dependent call or construct"
+          "reasonContains": "Direct eval invocation semantics"
         }
       ]
     },

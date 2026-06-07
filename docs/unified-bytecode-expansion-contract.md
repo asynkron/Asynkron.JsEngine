@@ -735,6 +735,7 @@ above in the same slice.
 - `Logical argument count does not match call.ArgumentCount in the call-target preparation boundary.`
 - `Logical computed property writes require jump target at cleanup start.`
 - `Logical named property writes require jump target at cleanup start.`
+- `Loop-shaped unified bytecode plan detected at instruction {branch.AlternateIndex}.`
 - `Loop-shaped unified bytecode plan detected at instruction {instructionIndex}.`
 - `Loop-shaped unified bytecode plan detected at instruction {targetIndex}.`
 - `Member call receiver is outside the direct named-chain boundary.`

@@ -3795,14 +3795,6 @@ public static partial class TypedAstEvaluator
 
             try
             {
-                var superBindingForCall = environment.ExpectSuperBinding(context);
-
-                if (!environment.TryResolveSuperConstructorForCall(superBindingForCall, out var constructorValue))
-                {
-                    throw new InvalidOperationException(
-                        $"Super constructor is not available in this context.{context.GetSourceInfo()}");
-                }
-
                 JsEnvironment? thisInitializationEnvironment = null;
                 var thisInitializationValue = JsValue.Undefined;
                 if (environment.TryGetObject<JsEnvironment>(Symbol.LexicalThisEnvironment, out var lexicalThisEnv) ||
@@ -3851,6 +3843,21 @@ public static partial class TypedAstEvaluator
                         baseIndex,
                         context,
                         out pooledArguments);
+
+                if (context.ShouldStopEvaluation)
+                {
+                    stack[baseIndex] = context.FlowValue;
+                    stackFlags.Set(baseIndex, false);
+                    return baseIndex + 1;
+                }
+
+                var superBindingForCall = environment.ExpectSuperBinding(context);
+
+                if (!environment.TryResolveSuperConstructorForCall(superBindingForCall, out var constructorValue))
+                {
+                    throw new InvalidOperationException(
+                        $"Super constructor is not available in this context.{context.GetSourceInfo()}");
+                }
 
                 if (!JsOps.IsConstructor(constructorValue) ||
                     !constructorValue.TryGetObject<IJsCallable>(out var callable))

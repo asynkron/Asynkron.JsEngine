@@ -138,6 +138,91 @@ public sealed class GeneratorTests(ITestOutputHelper output) : InternalTestBase(
     }
 
     [Fact(Timeout = 2000)]
+    public async Task Generator_YieldOperandInsideWith_UsesObjectBinding()
+    {
+        await using var engine = CreateEngine();
+
+            await engine.Evaluate(BasicAssertSameValueHarness + """
+
+            function* gen() {
+              var x = 1;
+              yield x;
+              with ({ x: 2 }) {
+                yield x;
+              }
+              yield x;
+            }
+
+            var iter = gen();
+            var first = iter.next();
+            var second = iter.next();
+            var third = iter.next();
+            assert.sameValue(first.value, 1);
+            assert.sameValue(second.value, 2);
+            assert.sameValue(third.value, 1);
+            """);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task Generator_YieldOperandReferenceError_IsCaughtInsideGenerator()
+    {
+        await using var engine = CreateEngine();
+
+        await engine.Evaluate(BasicAssertSameValueHarness + """
+
+            var caught;
+            function* gen() {
+              try {
+                yield missingGeneratorBinding;
+              } catch (err) {
+                caught = err;
+              }
+            }
+
+            var result = gen().next();
+            assert.sameValue(result.done, true);
+            assert.sameValue(caught instanceof ReferenceError, true);
+            assert.sameValue(caught.name, 'ReferenceError');
+            """);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task Generator_YieldStarReturnProtocolError_IsCaughtInsideGenerator()
+    {
+        await using var engine = CreateEngine();
+
+        await engine.Evaluate(BasicAssertSameValueHarness + """
+
+            var caught;
+            var iterator = {
+              next() {
+                return { value: 1, done: false };
+              },
+              return() {
+                return 1;
+              },
+              [Symbol.iterator]() {
+                return this;
+              }
+            };
+
+            function* gen() {
+              try {
+                yield* iterator;
+              } catch (err) {
+                caught = err;
+              }
+            }
+
+            var iter = gen();
+            assert.sameValue(iter.next().value, 1);
+            var result = iter.return(0);
+            assert.sameValue(result.done, true);
+            assert.sameValue(caught instanceof TypeError, true);
+            """);
+    }
+
+    [Fact(Timeout = 2000)]
     public async Task Generator_ReturnsIteratorResult()
     {
         // Arrange

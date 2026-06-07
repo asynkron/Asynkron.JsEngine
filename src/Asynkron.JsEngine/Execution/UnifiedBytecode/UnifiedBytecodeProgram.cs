@@ -159,6 +159,10 @@ internal readonly record struct UnifiedBytecodeCallTarget(
     int NameConstantIndex = -1,
     bool IsOptionalReceiverCheck = false);
 
+internal readonly record struct UnifiedBytecodeClassLiteralDescriptor(
+    ClassExpression ClassExpression,
+    Symbol? InferredName = null);
+
 internal readonly record struct UnifiedBytecodeScopeDescriptor(
     int ScopeId,
     ImmutableArray<int> LexicalSlotIndices,
@@ -469,6 +473,7 @@ internal sealed class UnifiedBytecodeResumeState
     public bool[]? ResumableInactiveCatchBindingSlots;
     public AssignmentReference[]? DynamicIdentifierReferences;
     public int DynamicIdentifierReferenceCount;
+    public bool IsExecuting { get; set; }
     public bool IsCompleted { get; set; }
     public UnifiedBytecodeResumePayloadKind ResumePayloadKind { get; set; }
     public JsTypes.JsValue ResumePayload { get; set; } = JsTypes.JsValue.Undefined;
@@ -496,7 +501,7 @@ internal sealed record UnifiedBytecodeProgram(
     ImmutableArray<UnifiedBytecodeDriverDescriptor> DriverDescriptors,
     ImmutableArray<ImmutableArray<int>> CallSpreadMasks = default,
     ImmutableArray<FunctionLiteralDescriptor> FunctionLiteralConstants = default,
-    ImmutableArray<ClassExpression> ClassLiteralConstants = default,
+    ImmutableArray<UnifiedBytecodeClassLiteralDescriptor> ClassLiteralConstants = default,
     ImmutableArray<ClassDeclarationDescriptor> ClassDeclarationConstants = default,
     ImmutableArray<BindingTargetProgram> BindingTargetConstants = default,
     ImmutableArray<TaggedTemplateDescriptor> TemplateObjectConstants = default,

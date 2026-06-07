@@ -211,6 +211,32 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
+    public void EvaluateScript_LongSequentialThrowBranches_AcceptsWithoutRecursiveTargetCompilation()
+    {
+        var source = new System.Text.StringBuilder();
+        source.AppendLine("var ok = true;");
+        for (var i = 0; i < 512; i++)
+        {
+            var index = i.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            source.Append("if (0 !== 0) { throw new Error(\"branch ");
+            source.Append(index);
+            source.AppendLine("\"); }");
+        }
+
+        source.AppendLine("ok;");
+        var plan = GetScriptPlan(source.ToString());
+        var branchCount = plan.Instructions.Count(instruction => instruction is BranchInstruction);
+        Assert.True(branchCount >= 512, $"Expected at least 512 branch instructions, saw {branchCount}.");
+
+        var result = UnifiedBytecodeProductionEligibility.EvaluateScript(plan);
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.JumpIfFalse);
+    }
+
+    [Fact]
     public void EvaluateScript_TopLevelDeclarationOnly_AcceptsWithScriptCompletionSlot()
     {
         var plan = GetScriptPlan("""
@@ -1263,6 +1289,25 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
+    public async Task Execute_GlobalBlockFunctionDeclarationBlockedByLexicalName_DoesNotThrowOrUpdate()
+    {
+        await using var engine = CreateEngine();
+
+        var result = await engine.Evaluate("""
+            let f = 123;
+
+            {
+                function f() {
+                }
+            }
+
+            f;
+            """);
+
+        Assert.Equal(123d, result);
+    }
+
+    [Fact]
     public async Task Execute_StrictBlockFunctionDeclaration_DoesNotLeakOutsideBlock()
     {
         await using var engine = CreateEngine();
@@ -1730,6 +1775,45 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
             instruction.OpCode == UnifiedBytecodeOpCode.CallInvocationBoundary);
         var callTarget = Assert.Single(result.Program.CallTargetConstants);
         Assert.Equal("fn", result.Program.SlotNames[callTarget.SlotIndex]);
+    }
+
+    [Fact]
+    public void Evaluate_CatchBindingDoesNotOverwriteActivationFunctionCallTargetSlot()
+    {
+        var plan = GetFunctionPlan("""
+            function outer() {
+                function f() { x = 1; }
+
+                try {
+                    f();
+                } catch (e) {
+                }
+
+                let x;
+            }
+            """,
+            "outer");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor(
+                AllowsRootFunctionDeclarationInstructions: true,
+                AllowsMaterializedBodyEnvironmentFunctionLiterals: true));
+
+        Assert.True(result.IsEligible, result.Reason);
+        var catchSlot = result.Program.SlotNames.IndexOf("e");
+        var functionSlot = result.Program.SlotNames.IndexOf("f");
+        var lexicalSlot = result.Program.SlotNames.IndexOf("x");
+
+        Assert.True(catchSlot >= 0, "Expected catch binding slot 'e'.");
+        Assert.True(functionSlot >= 0, "Expected activation function slot 'f'.");
+        Assert.True(lexicalSlot >= 0, "Expected activation lexical slot 'x'.");
+        Assert.NotEqual(catchSlot, functionSlot);
+        Assert.NotEqual(catchSlot, lexicalSlot);
+
+        var callTarget = Assert.Single(result.Program.CallTargetConstants);
+        Assert.Equal(functionSlot, callTarget.SlotIndex);
+        Assert.Contains(lexicalSlot, result.Program.LexicalSlotIndices);
     }
 
     [Fact]

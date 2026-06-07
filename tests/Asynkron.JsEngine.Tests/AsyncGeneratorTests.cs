@@ -193,7 +193,7 @@ public sealed class AsyncGeneratorTests(ITestOutputHelper output) : InternalTest
     }
 
     [Fact(Timeout = 2000)]
-    public async Task AsyncGenerator_ClassComputedMethodNameRejectsAfterFallbackRetirement()
+    public async Task AsyncGenerator_ClassComputedMethodNameFallsBackAfterUnifiedDecline()
     {
         await using var engine = CreateEngine();
 
@@ -228,14 +228,11 @@ public sealed class AsyncGeneratorTests(ITestOutputHelper output) : InternalTest
             output;
         """);
 
-        Assert.Contains(
-            "Async-generator body is not eligible for unified bytecode routing after IR fallback retirement",
-            result?.ToString(),
-            StringComparison.Ordinal);
+        Assert.Equal("ok", result?.ToString());
     }
 
     [Fact(Timeout = 2000)]
-    public async Task AsyncGenerator_ClassComputedFieldNameRejectsAfterFallbackRetirement()
+    public async Task AsyncGenerator_ClassComputedFieldNameFallsBackAfterUnifiedDecline()
     {
         await using var engine = CreateEngine();
 
@@ -268,14 +265,11 @@ public sealed class AsyncGeneratorTests(ITestOutputHelper output) : InternalTest
             output;
         """);
 
-        Assert.Contains(
-            "Async-generator body is not eligible for unified bytecode routing after IR fallback retirement",
-            result?.ToString(),
-            StringComparison.Ordinal);
+        Assert.Equal("true", result?.ToString());
     }
 
     [Fact(Timeout = 2000)]
-    public async Task AsyncGenerator_ForLoopWithYieldRejectsAfterFallbackRetirement()
+    public async Task AsyncGenerator_ForLoopWithYieldFallsBackAfterUnifiedDecline()
     {
         await using var engine = CreateEngine();
 
@@ -305,14 +299,11 @@ public sealed class AsyncGeneratorTests(ITestOutputHelper output) : InternalTest
             output;
         """);
 
-        Assert.Contains(
-            "Async-generator body is not eligible for unified bytecode routing after IR fallback retirement",
-            result?.ToString(),
-            StringComparison.Ordinal);
+        Assert.Equal("loop:0|value:0|loop:1|value:1|loop:2|value:2", result?.ToString());
     }
 
     [Fact(Timeout = 2000)]
-    public async Task AsyncGenerator_WhileAndDoWhileWithAwaitAndYieldRejectsAfterFallbackRetirement()
+    public async Task AsyncGenerator_WhileAndDoWhileWithAwaitAndYieldFallsBackAfterUnifiedDecline()
     {
         await using var engine = CreateEngine();
 
@@ -355,10 +346,7 @@ public sealed class AsyncGeneratorTests(ITestOutputHelper output) : InternalTest
             output;
         """);
 
-        Assert.Contains(
-            "Async-generator body is not eligible for unified bytecode routing after IR fallback retirement",
-            result?.ToString(),
-            StringComparison.Ordinal);
+        Assert.Equal("while:0|value:w0|while:1|value:w1|do:0|value:d0|do:1|value:d1", result?.ToString());
     }
 
     [Fact(Timeout = 2000)]
@@ -483,10 +471,9 @@ public sealed class AsyncGeneratorTests(ITestOutputHelper output) : InternalTest
             output;
             """);
 
-        Assert.Contains(
-            "Async-generator body is not eligible for unified bytecode routing after IR fallback retirement",
-            result?.ToString(),
-            StringComparison.Ordinal);
+        Assert.Equal(
+            "try-start|value:body|try-end|finally-start|value:cleanup|finally-end",
+            result?.ToString());
     }
 
     [Fact(Timeout = 2000)]

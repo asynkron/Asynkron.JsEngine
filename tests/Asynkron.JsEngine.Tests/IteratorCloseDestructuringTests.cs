@@ -316,10 +316,10 @@ public sealed class IteratorCloseDestructuringTests(ITestOutputHelper output) : 
     /// The async generator method destructures its argument, which closes the iterator when done.
     /// </summary>
     [Fact(Timeout = 5000)]
-    public async Task AsyncGeneratorMethod_ParameterDestructuringRejectsAfterFallbackRetirement()
+    public async Task AsyncGeneratorMethod_ParameterDestructuringFallsBackAfterUnifiedDecline()
     {
         await using var engine = CreateEngine();
-        var error = await Assert.ThrowsAsync<NotSupportedException>(async () => await engine.Evaluate(
+        var result = await engine.EvaluateAndAwait(
             """
             var doneCallCount = 0;
             var iter = {};
@@ -351,12 +351,11 @@ public sealed class IteratorCloseDestructuringTests(ITestOutputHelper output) : 
               finalResult = e.message;
             }
             finalResult;
-            """));
+            """);
 
-        Assert.Contains(
-            "Async-generator body is not eligible for unified bytecode routing after IR fallback retirement",
-            error.Message,
-            StringComparison.Ordinal);
+        var summary = Assert.IsType<JsObject>(result);
+        Assert.Equal(1d, summary["callCount"]);
+        Assert.Equal(1d, summary["doneCallCount"]);
     }
 
     /// <summary>

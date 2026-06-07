@@ -49,6 +49,42 @@ public sealed class EvalFunctionTests(ITestOutputHelper output) : InternalTestBa
     }
 
     [Fact(Timeout = 5000)]
+    public async Task DirectEvalVarDeclaration_CanRedeclareExistingLocalVarBinding()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function probe() {
+              var x = 44443;
+              eval("initial = x; var x;");
+            }
+
+            var initial;
+            probe();
+            initial;
+            """);
+
+        Assert.Equal(44443d, result);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task DirectEvalFunctionDeclaration_UpdatesExistingLocalVarBinding()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function probe() {
+              var f = 88;
+              eval("initial = f; function f() { return 33; }");
+            }
+
+            var initial;
+            probe();
+            initial();
+            """);
+
+        Assert.Equal(33d, result);
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task StrictDirectEval_WithDeclarations_DoesNotLeakBindingsToCallerScope()
     {
         await using var engine = CreateEngine();

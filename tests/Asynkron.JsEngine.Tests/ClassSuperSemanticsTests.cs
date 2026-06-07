@@ -153,6 +153,39 @@ public sealed class ClassSuperSemanticsTests(ITestOutputHelper output) : Interna
     }
 
     [Fact(Timeout = 2000)]
+    public async Task DerivedConstructor_SuperSpreadIteratorErrorPreservesOriginalThrow()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            var iter = {};
+            Object.defineProperty(iter, Symbol.iterator, {
+              get: function() {
+                throw new Error("iterator");
+              }
+            });
+
+            class Base {
+              constructor() {}
+            }
+
+            class Derived extends Base {
+              constructor() {
+                super(0, ...iter);
+              }
+            }
+
+            try {
+              new Derived();
+              "NO_THROW";
+            } catch (err) {
+              err.name + ":" + err.message;
+            }
+            """);
+
+        Assert.Equal("Error:iterator", result);
+    }
+
+    [Fact(Timeout = 2000)]
     public async Task DerivedDefaultConstructor_InitializesInstanceFieldsAfterSuper()
     {
         await using var engine = CreateEngine();

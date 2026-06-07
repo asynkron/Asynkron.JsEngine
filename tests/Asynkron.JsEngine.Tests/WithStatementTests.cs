@@ -255,6 +255,61 @@ public sealed class WithStatementTests(ITestOutputHelper output) : InternalTestB
     }
 
     [Fact(Timeout = 2000)]
+    public async Task With_FunctionVarInitializerUpdatesBindingObjectWhenPropertyExists()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            const env = { value: "object" };
+
+            function run() {
+                let observed;
+                with (env) {
+                    var value = "inner";
+                    observed = value;
+                }
+
+                return [observed, env.value, value];
+            }
+
+            run();
+            """);
+
+        var array = Assert.IsType<JsArray>(result);
+        Assert.Equal("inner", array.GetElement(0).ToObject());
+        Assert.Equal("inner", array.GetElement(1).ToObject());
+        Assert.Same(Symbol.Undefined, array.GetElement(2).ToObject());
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task With_FunctionThrowReadsVarInitializerObjectBindingBeforeLeavingWith()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            const env = { value: "object" };
+            let thrown;
+
+            function run() {
+                with (env) {
+                    var value = "inner";
+                    throw value;
+                }
+            }
+
+            try {
+                run();
+            } catch (e) {
+                thrown = e;
+            }
+
+            [thrown, env.value];
+            """);
+
+        var array = Assert.IsType<JsArray>(result);
+        Assert.Equal("inner", array.GetElement(0).ToObject());
+        Assert.Equal("inner", array.GetElement(1).ToObject());
+    }
+
+    [Fact(Timeout = 2000)]
     public async Task With_VarInitializerFallsBackToFunctionScopeWhenPropertyMissing()
     {
         await using var engine = CreateEngine();

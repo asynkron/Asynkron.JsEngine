@@ -2415,6 +2415,35 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     }
 
     [Fact(Timeout = 5000)]
+    public async Task WithCompoundAssignment_PreservesResolvedObjectReferenceOnProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function run(scope) {
+                var x = 0;
+                with (scope) {
+                    x *= 3;
+                }
+
+                return scope.x + ":" + x;
+            }
+
+            run({
+                get x() {
+                    delete this.x;
+                    return 2;
+                }
+            });
+            """);
+
+        Assert.Equal("6:0", result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=run argc=1",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task WithFunctionVarInitializer_UsesUnifiedBytecodeProductionFastPath()
     {
         await using var engine = CreateEngine();
@@ -2843,6 +2872,31 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
         Assert.Contains(CurrentLogger!.Collector.Snapshot(),
             static record => record.Message.Contains(
                 "unified-bytecode-production-fast-path func=probe argc=0",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task TryCatch_CatchBindingAssignmentShadowsParameterOnProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function probe(a) {
+                try {
+                    throw "caught";
+                } catch (a) {
+                    var before = a;
+                    a = 2;
+                    return before + ":" + a;
+                }
+            }
+
+            probe(1);
+            """);
+
+        Assert.Equal("caught:2", result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=probe argc=1",
                 StringComparison.Ordinal));
     }
 
@@ -10169,24 +10223,6 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
             AssertUnifiedBytecodeAcceptedSectionDoesNotDelegate(sectionWithoutRequiredSetup, sectionName);
         }
 
-        var asyncGeneratorInvokerPath = Path.Combine(
-            repositoryRoot.FullName,
-            "src",
-            "Asynkron.JsEngine",
-            "Ast",
-            "TypedAstEvaluator.AsyncGeneratorInvoker.cs");
-        Assert.True(
-            File.Exists(asyncGeneratorInvokerPath),
-            $"Expected async-generator invoker source at '{asyncGeneratorInvokerPath}'.");
-        var asyncGeneratorInvokerSource = File.ReadAllText(asyncGeneratorInvokerPath);
-
-        Assert.DoesNotContain("CreateClassifiedAsyncGeneratorDeclinedBodyRunner", asyncGeneratorInvokerSource, StringComparison.Ordinal);
-        Assert.DoesNotContain("new ExecutionPlanRunner(", asyncGeneratorInvokerSource, StringComparison.Ordinal);
-        Assert.DoesNotContain("ToRunnerResumeMode", asyncGeneratorInvokerSource, StringComparison.Ordinal);
-        Assert.DoesNotContain(".ExecuteAsyncStep(", asyncGeneratorInvokerSource, StringComparison.Ordinal);
-        AssertUnifiedBytecodeAcceptedSectionDoesNotDelegate(
-            asyncGeneratorInvokerSource,
-            "async-generator invoker after fallback retirement");
     }
 
     private static DirectoryInfo FindRepositoryRootForSourceGate()

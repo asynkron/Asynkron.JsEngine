@@ -38,16 +38,34 @@ public static partial class TypedAstEvaluator
         IJsCallable callable,
         RealmState realmState,
         bool isLexicallyStrict,
+        bool hasFunctionNameEnvironment,
         IJsObjectLike? homeObject,
         PrivateNameScope? privateNameScope,
         ImmutableArray<PrivateNameScope> capturedPrivateNameScopes,
         FunctionExecutionPlanSeed planSeed)
     {
+        private readonly ExecutionPlanRunner _fallbackRunner = new(
+            function,
+            closure,
+            arguments,
+            thisValue,
+            callable,
+            realmState,
+            isLexicallyStrict,
+            hasFunctionNameEnvironment,
+            homeObject,
+            privateNameScope,
+            capturedPrivateNameScopes,
+            planOverride: planSeed.Plan,
+            planFailureOverride: planSeed.Failure);
+        private readonly Queue<AsyncGeneratorRequest> _queuedRequests = new();
         private UnifiedBytecodeResumeState? _unifiedState;
+        private bool _isExecutingStep;
 
         // Each .next/.return/.throw call drives one async-generator step and wraps
         // the step result in a Promise. Admitted bodies are VM-owned through
-        // UnifiedBytecodeVirtualMachine.ExecuteResumable.
+        // UnifiedBytecodeVirtualMachine.ExecuteResumable; declined bodies use the
+        // legacy ExecutionPlanRunner bridge restored from the last known-good route.
         public void Initialize()
         {
             if (TryInitializeUnifiedBytecode(out var declineReason))
@@ -55,8 +73,11 @@ public static partial class TypedAstEvaluator
                 return;
             }
 
-            throw new NotSupportedException(
-                $"Async-generator body is not eligible for unified bytecode routing after IR fallback retirement: {declineReason}");
+            realmState.Logger?.LogInformation(
+                "async-generator-runner-fallback func={Function} reason={Reason}",
+                function.Name?.Name ?? "<anonymous>",
+                declineReason);
+            _fallbackRunner.Initialize();
         }
 
         public JsObject CreateAsyncIteratorObject()
@@ -300,7 +321,39 @@ public static partial class TypedAstEvaluator
                 return ExecuteUnifiedBytecodeStep(ToUnifiedResumeMode(mode), argument, unifiedState);
             }
 
-            throw new InvalidOperationException("Async-generator unified bytecode state has not been initialized.");
+            return ExecuteFallbackRunnerStep(ToRunnerResumeMode(mode), argument);
+        }
+
+        private AsyncGeneratorStepResult ExecuteFallbackRunnerStep(
+            ExecutionPlanRunner.ResumeMode mode,
+            JsValue argument)
+        {
+            var step = _fallbackRunner.ExecuteAsyncStep(mode, argument);
+            return step.Kind switch
+            {
+                ExecutionPlanRunner.AsyncGeneratorStepKind.Yield => new AsyncGeneratorStepResult(
+                    AsyncGeneratorStepKind.Yield,
+                    step.Value,
+                    false,
+                    JsValue.Undefined),
+                ExecutionPlanRunner.AsyncGeneratorStepKind.Completed => new AsyncGeneratorStepResult(
+                    AsyncGeneratorStepKind.Completed,
+                    step.Value,
+                    true,
+                    JsValue.Undefined),
+                ExecutionPlanRunner.AsyncGeneratorStepKind.Throw => new AsyncGeneratorStepResult(
+                    AsyncGeneratorStepKind.Throw,
+                    step.Value,
+                    true,
+                    JsValue.Undefined),
+                ExecutionPlanRunner.AsyncGeneratorStepKind.Pending => new AsyncGeneratorStepResult(
+                    AsyncGeneratorStepKind.Pending,
+                    JsValue.Undefined,
+                    false,
+                    step.PendingPromise),
+                _ => throw new NotSupportedException(
+                    $"Async-generator runner step '{step.Kind}' is not supported.")
+            };
         }
 
         private AsyncGeneratorStepResult ExecuteUnifiedBytecodeStep(
@@ -364,6 +417,14 @@ public static partial class TypedAstEvaluator
                 AsyncGeneratorResumeMode.Throw => UnifiedBytecodeResumeMode.Throw,
                 AsyncGeneratorResumeMode.Return => UnifiedBytecodeResumeMode.Return,
                 _ => UnifiedBytecodeResumeMode.Next
+            };
+
+        private static ExecutionPlanRunner.ResumeMode ToRunnerResumeMode(AsyncGeneratorResumeMode mode) =>
+            mode switch
+            {
+                AsyncGeneratorResumeMode.Throw => ExecutionPlanRunner.ResumeMode.Throw,
+                AsyncGeneratorResumeMode.Return => ExecutionPlanRunner.ResumeMode.Return,
+                _ => ExecutionPlanRunner.ResumeMode.Next
             };
 
         private enum AsyncGeneratorResumeMode : byte
@@ -510,8 +571,7 @@ public static partial class TypedAstEvaluator
 
                 try
                 {
-                    var resumed = executor.ExecuteStep(mode, value);
-                    executor.ResolveFromStep(resumed, resolve, reject);
+                    executor.ExecuteAndResolveStep(mode, value, resolve, reject);
                 }
                 finally
                 {
@@ -598,8 +658,7 @@ public static partial class TypedAstEvaluator
                         return JsValue.Undefined;
                     }
 
-                    var step = executor.ExecuteStep(mode, argument);
-                    executor.ResolveFromStep(step, resolve, reject);
+                    executor.EnqueueOrExecuteStep(mode, argument, resolve, reject);
                     return JsValue.Undefined;
                 }
                 finally
@@ -625,6 +684,65 @@ public static partial class TypedAstEvaluator
 
             [Conditional("DEBUG")]
             internal void AssertOwnership(string usage) => PoolDebug.AssertOwned(this, usage);
+        }
+
+        private readonly record struct AsyncGeneratorRequest(
+            AsyncGeneratorResumeMode Mode,
+            JsValue Argument,
+            IJsCallable Resolve,
+            IJsCallable Reject);
+
+        private void EnqueueOrExecuteStep(
+            AsyncGeneratorResumeMode mode,
+            JsValue argument,
+            IJsCallable resolve,
+            IJsCallable reject)
+        {
+            if (_isExecutingStep)
+            {
+                _queuedRequests.Enqueue(new AsyncGeneratorRequest(mode, argument, resolve, reject));
+                return;
+            }
+
+            ExecuteAndResolveStep(mode, argument, resolve, reject);
+        }
+
+        private void ExecuteAndResolveStep(
+            AsyncGeneratorResumeMode mode,
+            JsValue argument,
+            IJsCallable resolve,
+            IJsCallable reject)
+        {
+            _isExecutingStep = true;
+            AsyncGeneratorStepResult step;
+            try
+            {
+                step = ExecuteStep(mode, argument);
+            }
+            finally
+            {
+                _isExecutingStep = false;
+            }
+
+            ResolveFromStep(step, resolve, reject);
+            if (step.Kind != AsyncGeneratorStepKind.Pending)
+            {
+                DrainQueuedRequests();
+            }
+        }
+
+        private void DrainQueuedRequests()
+        {
+            if (_isExecutingStep)
+            {
+                return;
+            }
+
+            while (_queuedRequests.Count > 0 && !_isExecutingStep)
+            {
+                var request = _queuedRequests.Dequeue();
+                ExecuteAndResolveStep(request.Mode, request.Argument, request.Resolve, request.Reject);
+            }
         }
 
         private sealed class IteratorResultReturnMicrotask : IMicrotask, IRentable

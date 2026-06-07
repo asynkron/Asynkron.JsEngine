@@ -558,11 +558,12 @@ public static partial class TypedAstEvaluator
     internal static JsValue CreateClassValueFromLiteral(
         ClassExpression classExpression,
         JsEnvironment environment,
-        EvaluationContext context) =>
+        EvaluationContext context,
+        Symbol? inferredName = null) =>
         classExpression.Definition.CreateClassValue(
             environment,
             context,
-            classExpression.Name ?? context.CurrentFunctionNameHint);
+            classExpression.Name ?? inferredName ?? context.CurrentFunctionNameHint);
 
     internal static JsValue CreateClassValueFromDeclaration(
         ClassDeclarationDescriptor descriptor,

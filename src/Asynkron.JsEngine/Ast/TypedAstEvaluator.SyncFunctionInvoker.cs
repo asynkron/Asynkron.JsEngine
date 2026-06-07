@@ -3075,6 +3075,13 @@ TryCreateSimpleNumericSelfRecursionFastPath(
                     context.MarkThisInitialized();
                 }
 
+                using var capturedPrivateScopes = !_capturedPrivateNameScopes.IsDefaultOrEmpty
+                    ? context.EnterPrivateNameScopes(_capturedPrivateNameScopes)
+                    : null;
+                using var privateScope = PrivateNameScope is not null
+                    ? context.EnterPrivateNameScope(PrivateNameScope)
+                    : null;
+
                 if (IsClassConstructor &&
                     !_isDerivedClassConstructor &&
                     (PrivateNameScope is not null || !_instanceFields.IsDefaultOrEmpty))
@@ -3141,12 +3148,6 @@ TryCreateSimpleNumericSelfRecursionFastPath(
                     _function.Name?.Name ?? "<anonymous>",
                     arguments.Count);
 
-                using var capturedPrivateScopes = !_capturedPrivateNameScopes.IsDefaultOrEmpty
-                    ? context.EnterPrivateNameScopes(_capturedPrivateNameScopes)
-                    : null;
-                using var privateScope = PrivateNameScope is not null
-                    ? context.EnterPrivateNameScope(PrivateNameScope)
-                    : null;
                 result = UnifiedBytecodeVirtualMachine.Execute(
                     program,
                     slots,
@@ -3182,6 +3183,12 @@ TryCreateSimpleNumericSelfRecursionFastPath(
         {
             if (!IsClassConstructor)
             {
+                return;
+            }
+
+            if (context.IsThrow)
+            {
+                result = context.FlowValue;
                 return;
             }
 
@@ -4627,9 +4634,22 @@ TryCreateSimpleNumericSelfRecursionFastPath(
                 return;
             }
 
+            if (ShouldPreserveMappedArgumentsObjectEnvironment())
+            {
+                return;
+            }
+
             var functionEnvironment = executionEnvironment.Enclosing;
             JsEnvironmentPool.Return(executionEnvironment, RealmState.Logger);
             JsEnvironmentPool.Return(functionEnvironment, RealmState.Logger);
+        }
+
+        private bool ShouldPreserveMappedArgumentsObjectEnvironment()
+        {
+            return _argumentsObjectNeeded &&
+                   (_usesArguments || _needsArgumentsBinding) &&
+                   !_isStrict &&
+                   _function.IsSimpleParameterList();
         }
 
         [MethodImpl(JsEngineConstants.Inlining)]

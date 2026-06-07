@@ -1332,11 +1332,11 @@ export default function() { return 23; };
     }
 
     [Fact(Timeout = 5000)]
-    public async Task TopLevelAwait_ForAwaitOfAwaitedIterableBreakRejectsAfterFallbackRetirement()
+    public async Task TopLevelAwait_ForAwaitOfAwaitedIterableBreakFallsBackAfterUnifiedDecline()
     {
         await using var engine = CreateEngine();
 
-        var error = await Assert.ThrowsAsync<NotSupportedException>(async () => await engine.EvaluateModule("""
+        var result = await engine.EvaluateModule("""
             var closed = 0;
             var seen = 0;
 
@@ -1354,12 +1354,9 @@ export default function() { return 23; };
             }
 
             seen + ":" + closed
-            """));
+            """);
 
-        Assert.Contains(
-            "Async-generator body is not eligible for unified bytecode routing after IR fallback retirement",
-            error.Message,
-            StringComparison.Ordinal);
+        Assert.Equal("1:1", result?.ToString());
     }
 
     [Fact(Timeout = 5000, Skip = "hangs indefinitely")]

@@ -547,6 +547,18 @@ public static partial class TypedAstEvaluator
             return tailCallValue;
         }
 
+        if (statement.Expression is CallExpression returnCallExpression)
+        {
+            var callValue = returnCallExpression.EvaluateCall(environment, context);
+            if (context.ShouldStopEvaluation)
+            {
+                return callValue;
+            }
+
+            context.SetReturn(callValue);
+            return callValue;
+        }
+
         var jsValue = statement.Expression is null
             ? JsValue.Undefined
             : UnifiedBytecodeExpressionProgramExecutor.ExecuteDynamic(

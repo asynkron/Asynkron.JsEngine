@@ -831,6 +831,38 @@ public sealed class UnifiedBytecodeResumableClassExpressionTests(ITestOutputHelp
     }
 
     [Fact(Timeout = 5000)]
+    public async Task GeneratorComputedPublicClassElementNamesFromYield_RouteResumable()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function* g() {
+                var C = class {
+                    [yield "instance"]() {
+                        return "instance-value";
+                    }
+
+                    static [yield "static"]() {
+                        return "static-value";
+                    }
+                };
+                var c = new C();
+                return c.instanceKey() + "|" + C.staticKey();
+            }
+
+            var iterator = g();
+            var first = iterator.next();
+            var second = iterator.next("instanceKey");
+            var third = iterator.next("staticKey");
+            first.value + ":" + first.done + "|" +
+                second.value + ":" + second.done + "|" +
+                third.value + ":" + third.done;
+            """);
+
+        Assert.Equal("instance:false|static:false|instance-value|static-value:true", result);
+        AssertGeneratorFastPath("g", argc: 0);
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task GeneratorComputedPublicInstanceActivationName_RouteResumableAndResolveName()
     {
         await using var engine = CreateEngine();
@@ -1609,8 +1641,8 @@ public sealed class UnifiedBytecodeResumableClassExpressionTests(ITestOutputHelp
         Assert.Contains(
             result.Program.Instructions,
             static instruction => instruction.OpCode == UnifiedBytecodeOpCode.LoadClassLiteral);
-        var classExpression = Assert.Single(result.Program.ClassLiteralConstants);
-        var classCache = ((IAstCacheable<ClassDefinitionProgramCache>)classExpression.Definition).GetOrCreateCache();
+        var classLiteral = Assert.Single(result.Program.ClassLiteralConstants);
+        var classCache = ((IAstCacheable<ClassDefinitionProgramCache>)classLiteral.ClassExpression.Definition).GetOrCreateCache();
         Assert.True(classCache.Succeeded, classCache.FailureReason);
         var computedNameProgram = Assert.Single(classCache.MemberNamePrograms);
         Assert.NotNull(computedNameProgram);

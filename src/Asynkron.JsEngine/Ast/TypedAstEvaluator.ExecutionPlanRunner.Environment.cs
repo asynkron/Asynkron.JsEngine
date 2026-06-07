@@ -108,7 +108,8 @@ public static partial class TypedAstEvaluator
             var executionEnvironment = CreateInvocationEnvironment(varEnvironment, false, description,
                 isBodyEnvironment: true);
             executionEnvironment.SetBodyLexicalNames(bodyLexicalTemplate);
-            _ownsExecutionEnvironment = CanReturnExecutionEnvironmentAfterRunSync();
+            _ownsExecutionEnvironment = CanReturnExecutionEnvironmentAfterRunSync() &&
+                                        !ShouldPreserveMappedArgumentsObjectEnvironment(needsArgumentsObject);
 
             // Store names that block Annex B.3.3 function-scope hoisting so runtime
             // HandleFunctionDeclaration can skip the var-binding update for these names.
@@ -498,6 +499,13 @@ public static partial class TypedAstEvaluator
                    !_isGenerator &&
                    !_isAsync &&
                    _callable is not SyncFunctionInvoker { IsClassConstructor: true };
+        }
+
+        private bool ShouldPreserveMappedArgumentsObjectEnvironment(bool needsArgumentsObject)
+        {
+            return needsArgumentsObject &&
+                   !_isStrict &&
+                   _function.IsSimpleParameterList();
         }
 
         private JsEnvironment CreateInvocationEnvironment(

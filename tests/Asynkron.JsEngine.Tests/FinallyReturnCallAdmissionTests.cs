@@ -6,30 +6,22 @@ using Xunit.Abstractions;
 namespace Asynkron.JsEngine.Tests;
 
 /// <summary>
-///     A8 (burn-down): admit a call RETURNED FROM INSIDE a <c>finally</c> block into the production sync VM,
-///     scoped to NON-STRICT (sloppy) functions only.
+///     A8 boundary: a call RETURNED FROM INSIDE a <c>finally</c> block stays on the IR runner.
 ///
 ///     Spec: a <c>return f();</c> inside a finally block is a TAIL POSITION — the finally completion overrides
 ///     the protected block's completion. The production unified-bytecode VM has NO same-function tail-call
 ///     optimization. The IR runner (SyncFunctionInvoker.TryGetLegacySameFunctionTailRestartTarget) DOES
-///     tail-call-optimize deep STRICT same-function identifier recursion onto a flat native stack, and that
-///     restart fires for a finally-region return exactly as for a try-body return. So:
-///
-///     - STRICT finally-return calls STAY DECLINED — routing a strict self-recursive finally tail call to the
-///       VM would re-enter the native stack each iteration and overflow it (uncatchable StackOverflow).
-///     - NON-STRICT finally-return calls are ADMITTED — the restart requires strict mode, so a sloppy
-///       finally-return is never tail-call-optimized anywhere and the VM is no worse than the IR runner.
+///     tail-call-optimize same-function identifier recursion onto a flat native stack in supported cases.
+///     A sloppy self-recursive finally-return call still overflowed through the production route during
+///     <c>make quality</c>, so this boundary is conservative until the VM owns this completion path.
 ///
 ///     Each test asserts BOTH the observable result (finally-return overrides try-return/throw, exactly per
-///     spec) AND the routing decision (admitted sloppy shapes route through the production fast path; strict
-///     self-recursion stays flat and declines).
+///     spec) AND the routing decision.
 /// </summary>
 [Category(TestCategories.RuntimeSemantics)]
 public sealed class FinallyReturnCallAdmissionTests(ITestOutputHelper output) : InternalTestBase(output)
 {
-    // A8 headline (sloppy finally-return overrides the protected try-return). The FREE-identifier callee `g`
-    // sits inside a zero-with-depth finally region. A45 must still visit that finally entry so the ordinary
-    // dynamic-name scan sees the free call target and admits the production VM route.
+    // A8 headline: a finally-return call overrides the protected try-return but stays off the VM route.
     [Fact]
     public async Task SloppyFinallyReturnFreeCall_OverridesTryReturnAndComputes()
     {
@@ -37,46 +29,40 @@ public sealed class FinallyReturnCallAdmissionTests(ITestOutputHelper output) : 
         var result = await engine.Evaluate(
             "function g(){ return 7; } function f(){ try { return 1; } finally { return g(); } } f();");
         Assert.Equal(7d, Convert.ToDouble(result));
-        AssertRouted("unified-bytecode-production-fast-path func=f");
+        AssertNotRouted("unified-bytecode-production-fast-path func=f");
     }
 
-    // A8 routing-positive for a FREE-identifier finally callee: once the REACHABLE region carries a dynamic
-    // dependency (here a free READ of `seed` in the try body) the ordinary-dynamic-name path is enabled and the
-    // sloppy free finally-return call routes through the production VM. Proves the strict-only narrowing admits
-    // the free-callee shape whenever the gating path is already on, while finally-return still overrides.
     [Fact]
-    public async Task SloppyFinallyReturnFreeCall_WithReachableDynamicDep_OverridesTryReturnAndRoutes()
+    public async Task SloppyFinallyReturnFreeCall_WithReachableDynamicDep_OverridesTryReturnAndDeclines()
     {
         await using var engine = CreateEngine();
         var result = await engine.Evaluate(
             "var seed = 3; function g(){ return 7; } " +
             "function f(){ try { return seed; } finally { return g(); } } f();");
         Assert.Equal(7d, Convert.ToDouble(result));
-        AssertRouted("unified-bytecode-production-fast-path func=f");
+        AssertNotRouted("unified-bytecode-production-fast-path func=f");
     }
 
-    // A8: a finally-return MEMBER call (o.m()) — member callees are NEVER tail-call-optimized anywhere
-    // (the IR restart requires an identifier callee), so this is admitted even though it is in tail position.
     [Fact]
-    public async Task SloppyFinallyReturnMemberCall_OverridesTryReturnAndRoutes()
+    public async Task SloppyFinallyReturnMemberCall_OverridesTryReturnAndDeclines()
     {
         await using var engine = CreateEngine();
         var result = await engine.Evaluate(
             "function f(o){ try { return 1; } finally { return o.m(); } } f({ m(){ return 9; } });");
         Assert.Equal(9d, Convert.ToDouble(result));
-        AssertRouted("unified-bytecode-production-fast-path func=f");
+        AssertNotRouted("unified-bytecode-production-fast-path func=f");
     }
 
     // A8: a finally-return call overrides a THROW from the protected block — the finally's abrupt return
-    // completion replaces the pending throw, so no exception escapes. Routes (sloppy).
+    // completion replaces the pending throw, so no exception escapes.
     [Fact]
-    public async Task SloppyFinallyReturnCall_OverridesThrowAndRoutes()
+    public async Task SloppyFinallyReturnCall_OverridesThrowAndDeclines()
     {
         await using var engine = CreateEngine();
         var result = await engine.Evaluate(
             "function g(){ return 5; } function f(){ try { throw new Error('boom'); } finally { return g(); } } f();");
         Assert.Equal(5d, Convert.ToDouble(result));
-        AssertRouted("unified-bytecode-production-fast-path func=f");
+        AssertNotRouted("unified-bytecode-production-fast-path func=f");
     }
 
     // A8 SAFETY BOUNDARY (regression guard): a STRICT self-recursive tail call returned from inside a finally
@@ -111,11 +97,8 @@ public sealed class FinallyReturnCallAdmissionTests(ITestOutputHelper output) : 
         AssertNotRouted("unified-bytecode-production-fast-path func=f");
     }
 
-    // A8: a NON-STRICT (sloppy) self-recursive finally-return call is NEVER tail-call-optimized anywhere (the
-    // IR runner's restart requires strict mode), so the strict-only A8 guard no longer force-declines it. The
-    // self-reference `countdown` is a free identifier inside a zero-with-depth finally region, so the ordinary
-    // finally free-call dynamic-name gate remains out of scope for A45 and this shape still DECLINES. Shallow
-    // depth so the IR runner computes without overflowing.
+    // A8: a NON-STRICT (sloppy) self-recursive finally-return call must stay on the IR runner too. This is the
+    // make-quality stack-overflow regression shape.
     [Fact(Timeout = 15000)]
     public async Task SloppySelfRecursiveFinallyReturnCall_Computes()
     {
@@ -124,6 +107,7 @@ public sealed class FinallyReturnCallAdmissionTests(ITestOutputHelper output) : 
             "function countdown(n) { if (n === 0) { return 0; } " +
             "try { } finally { return countdown(n - 1); } } countdown(50);");
         Assert.Equal(0d, Convert.ToDouble(result));
+        AssertNotRouted("unified-bytecode-production-fast-path func=countdown");
     }
 
     // BOUNDARY-DOESN'T-OVERREACH: a finally that CALLS a function without RETURNING it (a statement call in

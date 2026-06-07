@@ -2,6 +2,7 @@ using System.Collections.Immutable;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using Asynkron.JsEngine.Ast;
+using Asynkron.JsEngine.Execution.Instructions;
 using Asynkron.JsEngine.Parser;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.StdLib;
@@ -530,9 +531,7 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
 
                 var hasGlobalLexical =
                     !skipArgumentsLexicalCollision &&
-                    (HasLexicalInChain(lexicalEnv, name) ||
-                     HasLexicalInChain(varEnv, name) ||
-                     globalLexicalRecord.HasGlobalLexicalDeclaration(name));
+                    globalLexicalRecord.HasGlobalLexicalDeclaration(name);
                 // EvalDeclarationInstantiation (18.2.1.3, step 5.d) rejects var names
                 // that collide with existing lexical bindings on the path to the var
                 // environment, except for simple catch parameters (Annex B.3.3.3).
@@ -662,9 +661,8 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
         }
 
         // ES2024 19.2.1.3 EvalDeclarationInstantiation step 15:
-        // Ensure var-scoped function declarations create deletable bindings in sloppy eval.
-        // The actual function object initialization happens during hoisting, but we must
-        // mark the bindings as deletable up-front so `delete` can remove them.
+        // Var-scoped function declarations are instantiated before eval code executes.
+        // New eval-created bindings are deletable; existing local var bindings are updated.
         if (!isStrictEval)
         {
             var declaredFunctionNames = new HashSet<Symbol>(ReferenceEqualityComparer<Symbol>.Instance);
@@ -677,20 +675,32 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
                 }
 
                 var name = declaration.Function.Name;
-                if (!declaredFunctionNames.Add(name) || varEnv.HasOwnBinding(name))
+                if (!declaredFunctionNames.Add(name))
                 {
                     continue;
                 }
 
+                var hadExistingBinding = varEnv.HasOwnBinding(name);
+                var descriptor = FunctionLiteralDescriptor.Create(declaration.Function);
+                var functionValue = TypedAstEvaluator.CreateFunctionValueFromDeclaration(
+                    descriptor,
+                    evalEnvironment,
+                    callingContext!);
+                var functionJsValue = JsValue.FromObjectUnsafe(functionValue);
+
                 varEnv.DefineFunctionScoped(
                     name,
-                    JsValue.Undefined,
-                    hasInitializer: false,
+                    functionJsValue,
+                    hasInitializer: true,
                     isFunctionDeclaration: true,
                     globalFunctionConfigurable: true,
                     context: callingContext,
                     canDelete: true);
-                varEnv.MarkEvalDeletable(name);
+                SyncMirroredBodyVarBinding(lexicalEnv, varEnv, name, functionJsValue);
+                if (!hadExistingBinding)
+                {
+                    varEnv.MarkEvalDeletable(name);
+                }
             }
         }
 
@@ -1500,7 +1510,12 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
                 continue;
             }
 
-            if (current.HasOwnBinding(name))
+            // The engine inserts an internal body execution environment between
+            // direct eval's lexical environment and the function var environment.
+            // Its non-lexical slots mirror function-scoped vars for bytecode/IR
+            // execution and are not separate declarative bindings for
+            // EvalDeclarationInstantiation step 5.d.
+            if (!current.IsBodyEnvironment && current.HasOwnBinding(name))
             {
                 return true;
             }
@@ -1516,34 +1531,27 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
         return false;
     }
 
-    private static bool HasLexicalInChain(JsEnvironment environment, Symbol name)
+    private static void SyncMirroredBodyVarBinding(
+        JsEnvironment lexicalEnv,
+        JsEnvironment varEnv,
+        Symbol name,
+        JsValue value)
     {
-        var current = environment;
-        while (current is not null)
+        var current = lexicalEnv.Enclosing;
+        while (current is not null && !ReferenceEquals(current, varEnv))
         {
-            // Per Annex B.3.3.3, simple catch parameters are not considered lexical
-            // bindings for the purposes of blocking eval var/function declarations.
-            if (current.IsSimpleCatchParameter(name))
+            if (current.IsBodyEnvironment &&
+                current.TryGetSlotIndex(name, out var slotIndex))
             {
-                current = current.Enclosing;
-                continue;
-            }
-
-            if (current.HasOwnLexicalBinding(name) || current.HasBodyLexicalName(name))
-            {
-                return true;
-            }
-
-            ref var slot = ref current.TryGetSlotRef(name);
-            if (!Unsafe.IsNullRef(ref slot) && slot.IsLexical)
-            {
-                return true;
+                ref var slot = ref current.GetSlotByIndex(slotIndex);
+                if (!slot.IsLexical)
+                {
+                    current.SetSlotDirect(slotIndex, value);
+                }
             }
 
             current = current.Enclosing;
         }
-
-        return false;
     }
 
     private static bool CanDeclareGlobalFunction(JsEnvironment varEnv, Symbol name)

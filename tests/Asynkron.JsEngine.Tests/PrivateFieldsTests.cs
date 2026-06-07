@@ -541,6 +541,128 @@ public sealed class PrivateFieldsTests(ITestOutputHelper output) : InternalTestB
     }
 
     [Fact(Timeout = 2000)]
+    public async Task PrivateSetterAccessOnCapturedReceiverInsideInnerFunction()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+                                           class C {
+                                               set #m(value) {
+                                                   this._value = value;
+                                               }
+
+                                               method() {
+                                                   let self = this;
+                                                   function innerFunction() {
+                                                       self.#m = "ok";
+                                                   }
+
+                                                   innerFunction();
+                                               }
+                                           }
+
+                                           const c = new C();
+                                           c.method();
+                                           c._value;
+                                           """);
+
+        Assert.Equal("ok", result);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task PrivateSetterAccessOnThisInAccessorOnlyClass()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+                                           class C {
+                                               set #m(value) {
+                                                   this._value = value;
+                                               }
+
+                                               method() {
+                                                   this.#m = "ok";
+                                               }
+                                           }
+
+                                           const c = new C();
+                                           c.method();
+                                           c._value;
+                                           """);
+
+        Assert.Equal("ok", result);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task InnerFunctionReadsCapturedClassMethodReceiver()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+                                           class C {
+                                               method() {
+                                                   let self = this;
+                                                   function innerFunction() {
+                                                       return self;
+                                                   }
+
+                                                   return innerFunction() === this;
+                                               }
+                                           }
+
+                                           new C().method();
+                                           """);
+
+        Assert.Equal(true, result);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task StaticPrivateSetterAccessOnCapturedReceiverInsideInnerFunction()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+                                           class C {
+                                               static set #m(value) {
+                                                   this._value = value;
+                                               }
+
+                                               static method() {
+                                                   let self = this;
+                                                   function innerFunction() {
+                                                       self.#m = "ok";
+                                                   }
+
+                                                   innerFunction();
+                                               }
+                                           }
+
+                                           C.method();
+                                           C._value;
+                                           """);
+
+        Assert.Equal("ok", result);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task StaticPrivateSetterAccessOnThisInAccessorOnlyClass()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+                                           class C {
+                                               static set #m(value) {
+                                                   this._value = value;
+                                               }
+
+                                               static method() {
+                                                   this.#m = "ok";
+                                               }
+                                           }
+
+                                           C.method();
+                                           C._value;
+                                           """);
+
+        Assert.Equal("ok", result);
+    }
+
+    [Fact(Timeout = 2000)]
     public async Task FunctionCreatedByPrivateFieldInitializerCapturesPrivateNameScope()
     {
         await using var engine = CreateEngine();

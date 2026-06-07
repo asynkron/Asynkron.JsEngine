@@ -705,6 +705,7 @@ public static partial class TypedAstEvaluator
                 _callable,
                 _realmState,
                 _isLexicallyStrict,
+                _hasFunctionNameEnvironment,
                 _homeObject,
                 _privateNameScope,
                 _capturedPrivateNameScopes,

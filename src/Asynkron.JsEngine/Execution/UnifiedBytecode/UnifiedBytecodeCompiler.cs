@@ -140,7 +140,7 @@ internal static class UnifiedBytecodeCompiler
         var stringConstants = ImmutableArray.CreateBuilder<string>();
         var callTargetConstants = ImmutableArray.CreateBuilder<UnifiedBytecodeCallTarget>();
         var functionLiteralConstants = ImmutableArray.CreateBuilder<FunctionLiteralDescriptor>();
-        var classLiteralConstants = ImmutableArray.CreateBuilder<ClassExpression>();
+        var classLiteralConstants = ImmutableArray.CreateBuilder<UnifiedBytecodeClassLiteralDescriptor>();
         var classDeclarationConstants = ImmutableArray.CreateBuilder<ClassDeclarationDescriptor>();
         var templateObjectConstants = ImmutableArray.CreateBuilder<TaggedTemplateDescriptor>();
         var scopeDescriptors = ImmutableArray.CreateBuilder<UnifiedBytecodeScopeDescriptor>();
@@ -207,7 +207,7 @@ internal static class UnifiedBytecodeCompiler
                 ? ImmutableArray<FunctionLiteralDescriptor>.Empty
                 : functionLiteralConstants.ToImmutable(),
             classLiteralConstants.Count == 0
-                ? ImmutableArray<ClassExpression>.Empty
+                ? ImmutableArray<UnifiedBytecodeClassLiteralDescriptor>.Empty
                 : classLiteralConstants.ToImmutable(),
             classDeclarationConstants.Count == 0
                 ? ImmutableArray<ClassDeclarationDescriptor>.Empty
@@ -287,7 +287,7 @@ internal static class UnifiedBytecodeCompiler
         var stringConstants = ImmutableArray.CreateBuilder<string>();
         var callTargetConstants = ImmutableArray.CreateBuilder<UnifiedBytecodeCallTarget>();
         var functionLiteralConstants = ImmutableArray.CreateBuilder<FunctionLiteralDescriptor>();
-        var classLiteralConstants = ImmutableArray.CreateBuilder<ClassExpression>();
+        var classLiteralConstants = ImmutableArray.CreateBuilder<UnifiedBytecodeClassLiteralDescriptor>();
         var templateObjectConstants = ImmutableArray.CreateBuilder<TaggedTemplateDescriptor>();
         var bindingTargetConstants = ImmutableArray.CreateBuilder<BindingTargetProgram>();
 
@@ -332,7 +332,7 @@ internal static class UnifiedBytecodeCompiler
                 ? ImmutableArray<FunctionLiteralDescriptor>.Empty
                 : functionLiteralConstants.ToImmutable(),
             ClassLiteralConstants: classLiteralConstants.Count == 0
-                ? ImmutableArray<ClassExpression>.Empty
+                ? ImmutableArray<UnifiedBytecodeClassLiteralDescriptor>.Empty
                 : classLiteralConstants.ToImmutable(),
             BindingTargetConstants: bindingTargetConstants.Count == 0
                 ? ImmutableArray<BindingTargetProgram>.Empty
@@ -626,18 +626,6 @@ internal static class UnifiedBytecodeCompiler
         ActivationSlotShape activationSlots,
         ImmutableDictionary<int, ImmutableArray<(int SlotIndex, int FlatSlotId)>> flatSlotMappings)
     {
-        if (!flatSlotMappings.TryGetValue(activationSlots.ScopeId, out var mappings))
-        {
-            var rootMappings = ImmutableArray.CreateBuilder<(int SlotIndex, int FlatSlotId)>(activationSlots.SlotCount);
-            for (var slotIndex = 0; slotIndex < activationSlots.SlotCount; slotIndex++)
-            {
-                rootMappings.Add((slotIndex, slotIndex));
-            }
-
-            return flatSlotMappings.Add(activationSlots.ScopeId, rootMappings.ToImmutable());
-        }
-
-        var mappedSlots = new HashSet<int>();
         var usedFlatSlots = new HashSet<int>();
         var nextFlatSlotId = 0;
         foreach (var scopeMappings in flatSlotMappings.Values)
@@ -649,6 +637,30 @@ internal static class UnifiedBytecodeCompiler
             }
         }
 
+        if (!flatSlotMappings.TryGetValue(activationSlots.ScopeId, out var mappings))
+        {
+            var rootMappings = ImmutableArray.CreateBuilder<(int SlotIndex, int FlatSlotId)>(activationSlots.SlotCount);
+            for (var slotIndex = 0; slotIndex < activationSlots.SlotCount; slotIndex++)
+            {
+                var flatSlotId = slotIndex;
+                if (!usedFlatSlots.Add(flatSlotId))
+                {
+                    while (usedFlatSlots.Contains(nextFlatSlotId))
+                    {
+                        nextFlatSlotId++;
+                    }
+
+                    flatSlotId = nextFlatSlotId;
+                    usedFlatSlots.Add(flatSlotId);
+                }
+
+                rootMappings.Add((slotIndex, flatSlotId));
+            }
+
+            return flatSlotMappings.Add(activationSlots.ScopeId, rootMappings.ToImmutable());
+        }
+
+        var mappedSlots = new HashSet<int>();
         foreach (var mapping in mappings)
         {
             mappedSlots.Add(mapping.SlotIndex);
@@ -935,7 +947,7 @@ internal static class UnifiedBytecodeCompiler
         ImmutableArray<string>.Builder stringConstants,
         ImmutableArray<UnifiedBytecodeCallTarget>.Builder callTargetConstants,
         ImmutableArray<FunctionLiteralDescriptor>.Builder functionLiteralConstants,
-        ImmutableArray<ClassExpression>.Builder classLiteralConstants,
+        ImmutableArray<UnifiedBytecodeClassLiteralDescriptor>.Builder classLiteralConstants,
         ImmutableArray<ClassDeclarationDescriptor>.Builder classDeclarationConstants,
         ImmutableArray<TaggedTemplateDescriptor>.Builder templateObjectConstants,
         ImmutableArray<UnifiedBytecodeScopeDescriptor>.Builder scopeDescriptors,
@@ -975,7 +987,8 @@ internal static class UnifiedBytecodeCompiler
                 activeInstructions.Add(instructionIndex);
                 activated.Add(instructionIndex);
                 instructionPcMap[instructionIndex] = unified.Count;
-                var allowsDynamicIdentifiers = activeWithDepths[instructionIndex] > 0 ||
+                var preferDynamicIdentifierLookup = activeWithDepths[instructionIndex] > 0;
+                var allowsDynamicIdentifiers = preferDynamicIdentifierLookup ||
                                                slotLayout.AllowsOrdinaryDynamicIdentifiers;
 
                 switch (instructions[instructionIndex])
@@ -1134,7 +1147,8 @@ internal static class UnifiedBytecodeCompiler
                                     classLiteralConstants,
                                     templateObjectConstants,
                                     out reason,
-                                    bindingTargetConstants))
+                                    bindingTargetConstants,
+                                    preferDynamicIdentifierLookup: preferDynamicIdentifierLookup))
                             {
                                 return false;
                             }
@@ -1168,7 +1182,9 @@ internal static class UnifiedBytecodeCompiler
                                 classLiteralConstants,
                                 templateObjectConstants,
                                 out reason,
-                                bindingTargetConstants))
+                                bindingTargetConstants,
+                                preferDynamicIdentifierLookup: activeWithDepths[instructionIndex] > 0,
+                                classLiteralNameHint: declaration.AllowNameInference ? declarationTargetSymbol : null))
                         {
                             return false;
                         }
@@ -1237,7 +1253,9 @@ internal static class UnifiedBytecodeCompiler
                                 classLiteralConstants,
                                 templateObjectConstants,
                                 out reason,
-                                bindingTargetConstants))
+                                bindingTargetConstants,
+                                preferDynamicIdentifierLookup: activeWithDepths[instructionIndex] > 0,
+                                classLiteralNameHint: awaitedDeclaration.AllowNameInference ? awaitedDeclarationTargetSymbol : null))
                         {
                             return false;
                         }
@@ -1294,7 +1312,8 @@ internal static class UnifiedBytecodeCompiler
                                 classLiteralConstants,
                                 templateObjectConstants,
                                 out reason,
-                                bindingTargetConstants))
+                                bindingTargetConstants,
+                                preferDynamicIdentifierLookup: activeWithDepths[instructionIndex] > 0))
                         {
                             return false;
                         }
@@ -1345,7 +1364,8 @@ internal static class UnifiedBytecodeCompiler
                                     classLiteralConstants,
                                     templateObjectConstants,
                                     out reason,
-                                    bindingTargetConstants))
+                                    bindingTargetConstants,
+                                    preferDynamicIdentifierLookup: preferDynamicIdentifierLookup))
                             {
                                 return false;
                             }
@@ -1400,14 +1420,18 @@ internal static class UnifiedBytecodeCompiler
                             AwaitedProgram: null,
                             TargetSymbol: { } assignmentTargetSymbol
                         } assignment:
-                        if (!TryResolveInstructionSlot(
-                                assignmentTargetSymbol,
-                                assignment.ScopeId,
-                                assignment.SlotIndex,
-                                assignment.FlatSlotId,
-                                slotLayout,
-                                activeScopes,
-                                out var assignmentSlot))
+                        var preferDynamicAssignment = activeWithDepths[instructionIndex] > 0;
+                        var assignmentSlot = -1;
+                        var hasAssignmentSlot = !preferDynamicAssignment &&
+                                                TryResolveInstructionSlot(
+                                                    assignmentTargetSymbol,
+                                                    assignment.ScopeId,
+                                                    assignment.SlotIndex,
+                                                    assignment.FlatSlotId,
+                                                    slotLayout,
+                                                    activeScopes,
+                                                    out assignmentSlot);
+                        if (!hasAssignmentSlot)
                         {
                             if (!allowsDynamicIdentifiers)
                             {
@@ -1439,7 +1463,8 @@ internal static class UnifiedBytecodeCompiler
                                     classLiteralConstants,
                                     templateObjectConstants,
                                     out reason,
-                                    bindingTargetConstants))
+                                    bindingTargetConstants,
+                                    preferDynamicIdentifierLookup: preferDynamicIdentifierLookup))
                             {
                                 return false;
                             }
@@ -1477,7 +1502,9 @@ internal static class UnifiedBytecodeCompiler
                                 classLiteralConstants,
                                 templateObjectConstants,
                                 out reason,
-                                bindingTargetConstants))
+                                bindingTargetConstants,
+                                preferDynamicIdentifierLookup: activeWithDepths[instructionIndex] > 0,
+                                classLiteralNameHint: assignment.AllowNameInference ? assignmentTargetSymbol : null))
                         {
                             return false;
                         }
@@ -1513,14 +1540,18 @@ internal static class UnifiedBytecodeCompiler
                             TargetSymbol: { } compoundTargetSymbol
                         } compoundAssignment
                         when IsSupportedBinaryOperator(compoundAssignment.Operator):
-                        if (!TryResolveInstructionSlot(
-                                compoundTargetSymbol,
-                                compoundAssignment.ScopeId,
-                                compoundAssignment.SlotIndex,
-                                compoundAssignment.FlatSlotId,
-                                slotLayout,
-                                activeScopes,
-                                out var compoundSlot))
+                        var preferDynamicCompoundAssignment = activeWithDepths[instructionIndex] > 0;
+                        var compoundSlot = -1;
+                        var hasCompoundSlot = !preferDynamicCompoundAssignment &&
+                                              TryResolveInstructionSlot(
+                                                  compoundTargetSymbol,
+                                                  compoundAssignment.ScopeId,
+                                                  compoundAssignment.SlotIndex,
+                                                  compoundAssignment.FlatSlotId,
+                                                  slotLayout,
+                                                  activeScopes,
+                                                  out compoundSlot);
+                        if (!hasCompoundSlot)
                         {
                             if (!allowsDynamicIdentifiers)
                             {
@@ -1547,7 +1578,8 @@ internal static class UnifiedBytecodeCompiler
                                     classLiteralConstants,
                                     templateObjectConstants,
                                     out reason,
-                                    bindingTargetConstants))
+                                    bindingTargetConstants,
+                                    preferDynamicIdentifierLookup: preferDynamicIdentifierLookup))
                             {
                                 return false;
                             }
@@ -1589,7 +1621,8 @@ internal static class UnifiedBytecodeCompiler
                                 classLiteralConstants,
                                 templateObjectConstants,
                                 out reason,
-                                bindingTargetConstants))
+                                bindingTargetConstants,
+                                preferDynamicIdentifierLookup: preferDynamicIdentifierLookup))
                         {
                             return false;
                         }
@@ -1620,14 +1653,18 @@ internal static class UnifiedBytecodeCompiler
                             AwaitedProgram: null,
                             TargetSymbol: { } logicalTargetSymbol
                         } logicalAssignment:
-                        if (!TryResolveInstructionSlot(
-                                logicalTargetSymbol,
-                                logicalAssignment.ScopeId,
-                                logicalAssignment.SlotIndex,
-                                logicalAssignment.FlatSlotId,
-                                slotLayout,
-                                activeScopes,
-                                out var logicalSlot))
+                        var preferDynamicLogicalAssignment = activeWithDepths[instructionIndex] > 0;
+                        var logicalSlot = -1;
+                        var hasLogicalSlot = !preferDynamicLogicalAssignment &&
+                                             TryResolveInstructionSlot(
+                                                 logicalTargetSymbol,
+                                                 logicalAssignment.ScopeId,
+                                                 logicalAssignment.SlotIndex,
+                                                 logicalAssignment.FlatSlotId,
+                                                 slotLayout,
+                                                 activeScopes,
+                                                 out logicalSlot);
+                        if (!hasLogicalSlot)
                         {
                             if (!allowsDynamicIdentifiers)
                             {
@@ -1664,7 +1701,9 @@ internal static class UnifiedBytecodeCompiler
                                     classLiteralConstants,
                                     templateObjectConstants,
                                     out reason,
-                                    bindingTargetConstants))
+                                    bindingTargetConstants,
+                                    preferDynamicIdentifierLookup: preferDynamicIdentifierLookup,
+                                    classLiteralNameHint: logicalAssignment.AllowNameInference ? logicalTargetSymbol : null))
                             {
                                 return false;
                             }
@@ -1718,7 +1757,9 @@ internal static class UnifiedBytecodeCompiler
                                 classLiteralConstants,
                                 templateObjectConstants,
                                 out reason,
-                                bindingTargetConstants))
+                                bindingTargetConstants,
+                                preferDynamicIdentifierLookup: preferDynamicIdentifierLookup,
+                                classLiteralNameHint: logicalAssignment.AllowNameInference ? logicalTargetSymbol : null))
                         {
                             return false;
                         }
@@ -1749,7 +1790,9 @@ internal static class UnifiedBytecodeCompiler
                         {
                             TargetSymbol: { } incrementTargetSymbol
                         } increment:
-                            if (TryResolveInstructionSlot(
+                            var preferDynamicIncrement = activeWithDepths[instructionIndex] > 0;
+                            if (!preferDynamicIncrement &&
+                                TryResolveInstructionSlot(
                                     incrementTargetSymbol,
                                     increment.ScopeId,
                                     increment.SlotIndex,
@@ -1908,7 +1951,8 @@ internal static class UnifiedBytecodeCompiler
                                 classLiteralConstants,
                                 templateObjectConstants,
                                 out reason,
-                                bindingTargetConstants))
+                                bindingTargetConstants,
+                                preferDynamicIdentifierLookup: preferDynamicIdentifierLookup))
                         {
                             return false;
                         }
@@ -2006,7 +2050,8 @@ internal static class UnifiedBytecodeCompiler
                                 classLiteralConstants,
                                 templateObjectConstants,
                                 out reason,
-                                bindingTargetConstants))
+                                bindingTargetConstants,
+                                preferDynamicIdentifierLookup: preferDynamicIdentifierLookup))
                         {
                             return false;
                         }
@@ -2074,7 +2119,8 @@ internal static class UnifiedBytecodeCompiler
                                 classLiteralConstants,
                                 templateObjectConstants,
                                 out reason,
-                                bindingTargetConstants))
+                                bindingTargetConstants,
+                                preferDynamicIdentifierLookup: preferDynamicIdentifierLookup))
                         {
                             return false;
                         }
@@ -2207,7 +2253,8 @@ internal static class UnifiedBytecodeCompiler
                                 classLiteralConstants,
                                 templateObjectConstants,
                                 out reason,
-                                bindingTargetConstants))
+                                bindingTargetConstants,
+                                preferDynamicIdentifierLookup: preferDynamicIdentifierLookup))
                         {
                             return false;
                         }
@@ -2273,7 +2320,8 @@ internal static class UnifiedBytecodeCompiler
                                 classLiteralConstants,
                                 templateObjectConstants,
                                 out reason,
-                                bindingTargetConstants))
+                                bindingTargetConstants,
+                                preferDynamicIdentifierLookup: preferDynamicIdentifierLookup))
                         {
                             return false;
                         }
@@ -2357,7 +2405,8 @@ internal static class UnifiedBytecodeCompiler
                                 classLiteralConstants,
                                 templateObjectConstants,
                                 out reason,
-                                bindingTargetConstants))
+                                bindingTargetConstants,
+                                preferDynamicIdentifierLookup: preferDynamicIdentifierLookup))
                         {
                             return false;
                         }
@@ -2542,7 +2591,8 @@ internal static class UnifiedBytecodeCompiler
                                 classLiteralConstants,
                                 templateObjectConstants,
                                 out reason,
-                                bindingTargetConstants))
+                                bindingTargetConstants,
+                                preferDynamicIdentifierLookup: preferDynamicIdentifierLookup))
                         {
                             return false;
                         }
@@ -2846,6 +2896,11 @@ internal static class UnifiedBytecodeCompiler
                         unified.Add(new UnifiedBytecodeInstruction(
                             UnifiedBytecodeOpCode.EnterCatch,
                             catchDescriptorIndex));
+                        activeScopes.Push(new UnifiedBytecodeScopeFrame(
+                            enterCatch.ScopeId,
+                            enterCatch.SlotMap,
+                            GetFlatSlotMappings(slotLayout, enterCatch.ScopeId)));
+                        pushedScopeCount++;
                         if (TryAppendJumpToCompiledTarget(
                                 instructionIndex,
                                 enterCatch.Next,
@@ -2862,6 +2917,16 @@ internal static class UnifiedBytecodeCompiler
                         continue;
 
                     case LeaveTryInstruction leaveTry:
+                        if (activeScopes.Count > 1 &&
+                            IsCatchScopeFrame(
+                                activeScopes.Peek(),
+                                catchDescriptors,
+                                pushedScopeCount))
+                        {
+                            activeScopes.Pop();
+                            pushedScopeCount--;
+                        }
+
                         return TryAppendResolvedJump(
                             instructionIndex,
                             leaveTry.Next,
@@ -2965,7 +3030,8 @@ internal static class UnifiedBytecodeCompiler
                                 classLiteralConstants,
                                 templateObjectConstants,
                                 out reason,
-                                bindingTargetConstants))
+                                bindingTargetConstants,
+                                preferDynamicIdentifierLookup: preferDynamicIdentifierLookup))
                         {
                             return false;
                         }
@@ -3017,35 +3083,28 @@ internal static class UnifiedBytecodeCompiler
                             return false;
                         }
 
-                        if (!TryCompileTarget(
-                                branch.AlternateIndex,
-                                instructions,
-                                activeWithDepths,
-                                slotLayout,
-                                activeScopes,
-                                instructionPcMap,
-                                activeInstructions,
-                                unified,
-                                literalConstants,
-                                stringConstants,
-                                callTargetConstants,
-                                functionLiteralConstants,
-                                classLiteralConstants,
-                                classDeclarationConstants,
-                                templateObjectConstants,
-                                scopeDescriptors,
-                                tryDescriptors,
-                                catchDescriptors,
-                                driverDescriptors,
-                                bindingTargetConstants,
-                                ref maxStackDepth,
-                                out reason))
+                        if ((uint)branch.AlternateIndex >= (uint)instructions.Length)
                         {
+                            reason = "Instruction flow reached an invalid target index.";
                             return false;
                         }
 
-                        PatchOperand(unified, jumpIfFalseIndex, instructionPcMap[branch.AlternateIndex]);
-                        return true;
+                        if (instructionPcMap.TryGetValue(branch.AlternateIndex, out var alternateProgramCounter))
+                        {
+                            PatchOperand(unified, jumpIfFalseIndex, alternateProgramCounter);
+                            reason = string.Empty;
+                            return true;
+                        }
+
+                        if (activeInstructions.Contains(branch.AlternateIndex))
+                        {
+                            reason = $"Loop-shaped unified bytecode plan detected at instruction {branch.AlternateIndex}.";
+                            return false;
+                        }
+
+                        PatchOperand(unified, jumpIfFalseIndex, unified.Count);
+                        instructionIndex = branch.AlternateIndex;
+                        continue;
 
                     case ReturnInstruction { ReturnProgram: { } returnProgram, AwaitedProgram: null }:
                         if (!TryAppendExpressionProgramOps(
@@ -3060,7 +3119,8 @@ internal static class UnifiedBytecodeCompiler
                                 classLiteralConstants,
                                 templateObjectConstants,
                                 out reason,
-                                bindingTargetConstants))
+                                bindingTargetConstants,
+                                preferDynamicIdentifierLookup: preferDynamicIdentifierLookup))
                         {
                             return false;
                         }
@@ -3100,7 +3160,8 @@ internal static class UnifiedBytecodeCompiler
                                 classLiteralConstants,
                                 templateObjectConstants,
                                 out reason,
-                                bindingTargetConstants))
+                                bindingTargetConstants,
+                                preferDynamicIdentifierLookup: preferDynamicIdentifierLookup))
                         {
                             return false;
                         }
@@ -3123,7 +3184,8 @@ internal static class UnifiedBytecodeCompiler
                                 classLiteralConstants,
                                 templateObjectConstants,
                                 out reason,
-                                bindingTargetConstants))
+                                bindingTargetConstants,
+                                preferDynamicIdentifierLookup: preferDynamicIdentifierLookup))
                         {
                             return false;
                         }
@@ -3146,6 +3208,7 @@ internal static class UnifiedBytecodeCompiler
                         continue;
 
                     case YieldInstruction { AwaitedProgram: null, YieldProgram: { } yieldProgram } yield:
+                    {
                         if (!TryAppendExpressionProgramOps(
                                 yieldProgram,
                                 slotLayout,
@@ -3158,7 +3221,8 @@ internal static class UnifiedBytecodeCompiler
                                 classLiteralConstants,
                                 templateObjectConstants,
                                 out reason,
-                                bindingTargetConstants))
+                                bindingTargetConstants,
+                                preferDynamicIdentifierLookup: preferDynamicIdentifierLookup))
                         {
                             return false;
                         }
@@ -3179,6 +3243,7 @@ internal static class UnifiedBytecodeCompiler
 
                         instructionIndex = yield.Next;
                         continue;
+                    }
 
                     case YieldInstruction { AwaitedProgram: null, YieldProgram: null } yield:
                         var undefinedLiteralIndex = literalConstants.Count;
@@ -3204,6 +3269,7 @@ internal static class UnifiedBytecodeCompiler
                         continue;
 
                     case YieldStarInstruction { AwaitedProgram: null, IterableProgram: { } iterableProgram } yieldStar:
+                    {
                         if (yieldStar.StateSlotSymbol is null)
                         {
                             reason = "yield* requires a state slot for resumable unified bytecode routing.";
@@ -3240,7 +3306,8 @@ internal static class UnifiedBytecodeCompiler
                                 classLiteralConstants,
                                 templateObjectConstants,
                                 out reason,
-                                bindingTargetConstants))
+                                bindingTargetConstants,
+                                preferDynamicIdentifierLookup: preferDynamicIdentifierLookup))
                         {
                             return false;
                         }
@@ -3267,6 +3334,7 @@ internal static class UnifiedBytecodeCompiler
 
                         instructionIndex = yieldStar.Next;
                         continue;
+                    }
 
                     case YieldStarInstruction { AwaitedProgram: { } awaitedProgram, IterableProgram: null } yieldStar:
                         if (yieldStar.StateSlotSymbol is null)
@@ -3309,7 +3377,8 @@ internal static class UnifiedBytecodeCompiler
                                 classLiteralConstants,
                                 templateObjectConstants,
                                 out reason,
-                                bindingTargetConstants))
+                                bindingTargetConstants,
+                                preferDynamicIdentifierLookup: preferDynamicIdentifierLookup))
                         {
                             return false;
                         }
@@ -3376,7 +3445,8 @@ internal static class UnifiedBytecodeCompiler
                                 classLiteralConstants,
                                 templateObjectConstants,
                                 out reason,
-                                bindingTargetConstants))
+                                bindingTargetConstants,
+                                preferDynamicIdentifierLookup: preferDynamicIdentifierLookup))
                         {
                             return false;
                         }
@@ -3399,7 +3469,8 @@ internal static class UnifiedBytecodeCompiler
                                 classLiteralConstants,
                                 templateObjectConstants,
                                 out reason,
-                                bindingTargetConstants))
+                                bindingTargetConstants,
+                                preferDynamicIdentifierLookup: preferDynamicIdentifierLookup))
                         {
                             return false;
                         }
@@ -3469,7 +3540,7 @@ internal static class UnifiedBytecodeCompiler
         ImmutableArray<string>.Builder stringConstants,
         ImmutableArray<UnifiedBytecodeCallTarget>.Builder callTargetConstants,
         ImmutableArray<FunctionLiteralDescriptor>.Builder functionLiteralConstants,
-        ImmutableArray<ClassExpression>.Builder classLiteralConstants,
+        ImmutableArray<UnifiedBytecodeClassLiteralDescriptor>.Builder classLiteralConstants,
         ImmutableArray<ClassDeclarationDescriptor>.Builder classDeclarationConstants,
         ImmutableArray<TaggedTemplateDescriptor>.Builder templateObjectConstants,
         ImmutableArray<UnifiedBytecodeScopeDescriptor>.Builder scopeDescriptors,
@@ -3536,7 +3607,7 @@ internal static class UnifiedBytecodeCompiler
         ImmutableArray<string>.Builder stringConstants,
         ImmutableArray<UnifiedBytecodeCallTarget>.Builder callTargetConstants,
         ImmutableArray<FunctionLiteralDescriptor>.Builder functionLiteralConstants,
-        ImmutableArray<ClassExpression>.Builder classLiteralConstants,
+        ImmutableArray<UnifiedBytecodeClassLiteralDescriptor>.Builder classLiteralConstants,
         ImmutableArray<ClassDeclarationDescriptor>.Builder classDeclarationConstants,
         ImmutableArray<TaggedTemplateDescriptor>.Builder templateObjectConstants,
         ImmutableArray<UnifiedBytecodeScopeDescriptor>.Builder scopeDescriptors,
@@ -3646,6 +3717,27 @@ internal static class UnifiedBytecodeCompiler
         return true;
     }
 
+    private static bool IsCatchScopeFrame(
+        UnifiedBytecodeScopeFrame scopeFrame,
+        ImmutableArray<UnifiedBytecodeCatchDescriptor>.Builder catchDescriptors,
+        int pushedScopeCount)
+    {
+        if (pushedScopeCount <= 0)
+        {
+            return false;
+        }
+
+        for (var i = 0; i < catchDescriptors.Count; i++)
+        {
+            if (catchDescriptors[i].ScopeId == scopeFrame.ScopeId)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     private static int GetMappedTarget(int instructionIndex, Dictionary<int, int> instructionPcMap) =>
         instructionIndex >= 0 && instructionPcMap.TryGetValue(instructionIndex, out var programCounter)
             ? programCounter
@@ -3728,7 +3820,7 @@ internal static class UnifiedBytecodeCompiler
         ImmutableArray<string>.Builder stringConstants,
         ImmutableArray<UnifiedBytecodeCallTarget>.Builder callTargetConstants,
         ImmutableArray<FunctionLiteralDescriptor>.Builder functionLiteralConstants,
-        ImmutableArray<ClassExpression>.Builder classLiteralConstants,
+        ImmutableArray<UnifiedBytecodeClassLiteralDescriptor>.Builder classLiteralConstants,
         ImmutableArray<ClassDeclarationDescriptor>.Builder classDeclarationConstants,
         ImmutableArray<TaggedTemplateDescriptor>.Builder templateObjectConstants,
         ImmutableArray<UnifiedBytecodeScopeDescriptor>.Builder scopeDescriptors,
@@ -3835,7 +3927,7 @@ internal static class UnifiedBytecodeCompiler
         ImmutableArray<string>.Builder stringConstants,
         ImmutableArray<UnifiedBytecodeCallTarget>.Builder callTargetConstants,
         ImmutableArray<FunctionLiteralDescriptor>.Builder functionLiteralConstants,
-        ImmutableArray<ClassExpression>.Builder classLiteralConstants,
+        ImmutableArray<UnifiedBytecodeClassLiteralDescriptor>.Builder classLiteralConstants,
         ImmutableArray<ClassDeclarationDescriptor>.Builder classDeclarationConstants,
         ImmutableArray<TaggedTemplateDescriptor>.Builder templateObjectConstants,
         ImmutableArray<UnifiedBytecodeScopeDescriptor>.Builder scopeDescriptors,
@@ -4404,10 +4496,12 @@ internal static class UnifiedBytecodeCompiler
         ImmutableArray<string>.Builder stringConstants,
         ImmutableArray<UnifiedBytecodeCallTarget>.Builder callTargetConstants,
         ImmutableArray<FunctionLiteralDescriptor>.Builder functionLiteralConstants,
-        ImmutableArray<ClassExpression>.Builder classLiteralConstants,
+        ImmutableArray<UnifiedBytecodeClassLiteralDescriptor>.Builder classLiteralConstants,
         ImmutableArray<TaggedTemplateDescriptor>.Builder templateObjectConstants,
         out string reason,
-        ImmutableArray<BindingTargetProgram>.Builder? bindingTargetConstants = null)
+        ImmutableArray<BindingTargetProgram>.Builder? bindingTargetConstants = null,
+        bool preferDynamicIdentifierLookup = false,
+        Symbol? classLiteralNameHint = null)
     {
         var activationSlots = slotLayout.ActivationSlots;
         if (TryAppendFirstBoundaryCallTargetPreparation(
@@ -4940,7 +5034,8 @@ internal static class UnifiedBytecodeCompiler
             {
                 case ExpressionOpKind.LoadIdentifier:
                     var identifier = operation.GetIdentifier(expressionProgram.IdentifierConstants.AsSpan());
-                    if (TryResolveActivationSlot(identifier, slotLayout, out var slotIndex))
+                    if (!preferDynamicIdentifierLookup &&
+                        TryResolveActivationSlot(identifier, slotLayout, out var slotIndex))
                     {
                         unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.LoadSlot, slotIndex));
                         break;
@@ -5657,7 +5752,11 @@ internal static class UnifiedBytecodeCompiler
 
                 case ExpressionOpKind.LoadClassLiteral:
                     var classLiteralIndex = classLiteralConstants.Count;
-                    classLiteralConstants.Add(operation.GetObject<ClassExpression>(expressionProgram.ObjectConstants.AsSpan()));
+                    var classExpression = operation.GetObject<ClassExpression>(expressionProgram.ObjectConstants.AsSpan());
+                    classLiteralConstants.Add(
+                        new UnifiedBytecodeClassLiteralDescriptor(
+                            classExpression,
+                            classExpression.Name is null ? classLiteralNameHint : null));
                     unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.LoadClassLiteral, classLiteralIndex));
                     break;
 
@@ -5748,7 +5847,7 @@ internal static class UnifiedBytecodeCompiler
         ImmutableArray<string>.Builder stringConstants,
         ImmutableArray<UnifiedBytecodeCallTarget>.Builder callTargetConstants,
         ImmutableArray<FunctionLiteralDescriptor>.Builder functionLiteralConstants,
-        ImmutableArray<ClassExpression>.Builder classLiteralConstants,
+        ImmutableArray<UnifiedBytecodeClassLiteralDescriptor>.Builder classLiteralConstants,
         ImmutableArray<TaggedTemplateDescriptor>.Builder templateObjectConstants,
         out string reason)
     {
@@ -17838,10 +17937,11 @@ internal static class UnifiedBytecodeCompiler
         ImmutableArray<string>.Builder stringConstants,
         ImmutableArray<UnifiedBytecodeCallTarget>.Builder callTargetConstants,
         ImmutableArray<FunctionLiteralDescriptor>.Builder functionLiteralConstants,
-        ImmutableArray<ClassExpression>.Builder classLiteralConstants,
+        ImmutableArray<UnifiedBytecodeClassLiteralDescriptor>.Builder classLiteralConstants,
         ImmutableArray<TaggedTemplateDescriptor>.Builder templateObjectConstants,
         out string reason,
-        ImmutableArray<BindingTargetProgram>.Builder? bindingTargetConstants = null)
+        ImmutableArray<BindingTargetProgram>.Builder? bindingTargetConstants = null,
+        bool preferDynamicIdentifierLookup = false)
     {
         if (declaration.TargetSymbol is not { } targetSymbol)
         {
@@ -17875,7 +17975,9 @@ internal static class UnifiedBytecodeCompiler
                     classLiteralConstants,
                     templateObjectConstants,
                     out reason,
-                    bindingTargetConstants))
+                    bindingTargetConstants,
+                    preferDynamicIdentifierLookup: preferDynamicIdentifierLookup,
+                    classLiteralNameHint: declaration.AllowNameInference ? targetSymbol : null))
             {
                 return false;
             }
@@ -17908,7 +18010,9 @@ internal static class UnifiedBytecodeCompiler
                 classLiteralConstants,
                 templateObjectConstants,
                 out reason,
-                bindingTargetConstants))
+                bindingTargetConstants,
+                preferDynamicIdentifierLookup: preferDynamicIdentifierLookup,
+                classLiteralNameHint: declaration.AllowNameInference ? targetSymbol : null))
         {
             return false;
         }
@@ -18133,6 +18237,11 @@ internal static class UnifiedBytecodeCompiler
         Stack<UnifiedBytecodeScopeFrame> activeScopes,
         out int slotIndex)
     {
+        if (TryResolveActiveScopedSymbolSlot(symbol, activeScopes, out slotIndex))
+        {
+            return true;
+        }
+
         if (scopeId >= 0)
         {
             if (scopeId == slotLayout.ActivationSlots.ScopeId)
@@ -18183,6 +18292,32 @@ internal static class UnifiedBytecodeCompiler
         }
 
         return TryResolveActivationSymbolSlot(symbol, slotLayout, out slotIndex);
+    }
+
+    private static bool TryResolveActiveScopedSymbolSlot(
+        Symbol symbol,
+        Stack<UnifiedBytecodeScopeFrame> activeScopes,
+        out int slotIndex)
+    {
+        foreach (var scope in activeScopes)
+        {
+            if (!scope.SlotMap.TryGetValue(symbol, out var scopedSlotIndex))
+            {
+                continue;
+            }
+
+            foreach (var (candidateSlotIndex, flatSlotId) in scope.FlatSlotMappings)
+            {
+                if (candidateSlotIndex == scopedSlotIndex)
+                {
+                    slotIndex = flatSlotId;
+                    return true;
+                }
+            }
+        }
+
+        slotIndex = -1;
+        return false;
     }
 
     private static bool TryResolveDriverSlot(

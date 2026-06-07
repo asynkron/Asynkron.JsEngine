@@ -9,7 +9,7 @@ namespace Asynkron.JsEngine.Tests;
 public sealed class LanguageCrashRegressionTests(ITestOutputHelper output) : InternalTestBase(output)
 {
     [Fact(Timeout = 5000)]
-    public async Task AsyncPrivateGeneratorMethod_ObjectPropertyBindingRejectsAfterFallbackRetirement()
+    public async Task AsyncPrivateGeneratorMethod_ObjectPropertyBindingFallsBackAfterUnifiedDecline()
     {
         await using var engine = CreateEngine();
         var result = await engine.EvaluateAndAwait("""
@@ -52,14 +52,14 @@ public sealed class LanguageCrashRegressionTests(ITestOutputHelper output) : Int
             result;
             """);
 
-        Assert.Contains(
-            "Async-generator body is not eligible for unified bytecode routing after IR fallback retirement",
-            result?.ToString(),
-            StringComparison.Ordinal);
+        var summary = Assert.IsType<JsObject>(result);
+        Assert.Equal(1d, summary["callCount"]);
+        Assert.Equal(true, summary["sawValue"]);
+        Assert.Equal(true, summary["sawReferenceError"]);
     }
 
     [Fact(Timeout = 5000)]
-    public async Task AsyncPrivateGeneratorMethod_ObjectPropertyArrayInitializerRejectsAfterFallbackRetirement()
+    public async Task AsyncPrivateGeneratorMethod_ObjectPropertyArrayInitializerFallsBackAfterUnifiedDecline()
     {
         await using var engine = CreateEngine();
         var result = await engine.EvaluateAndAwait("""
@@ -102,14 +102,14 @@ public sealed class LanguageCrashRegressionTests(ITestOutputHelper output) : Int
             result;
             """);
 
-        Assert.Contains(
-            "Async-generator body is not eligible for unified bytecode routing after IR fallback retirement",
-            result?.ToString(),
-            StringComparison.Ordinal);
+        var summary = Assert.IsType<JsObject>(result);
+        Assert.Equal(1d, summary["callCount"]);
+        Assert.Equal(true, summary["sawValues"]);
+        Assert.Equal(true, summary["sawReferenceError"]);
     }
 
     [Fact(Timeout = 5000)]
-    public async Task AsyncPrivateGeneratorMethod_InClassExpressionObjectPropertyBindingRejectsAfterFallbackRetirement()
+    public async Task AsyncPrivateGeneratorMethod_InClassExpressionObjectPropertyBindingFallsBackAfterUnifiedDecline()
     {
         await using var engine = CreateEngine();
         var result = await engine.EvaluateAndAwait("""
@@ -152,10 +152,10 @@ public sealed class LanguageCrashRegressionTests(ITestOutputHelper output) : Int
             result;
             """);
 
-        Assert.Contains(
-            "Async-generator body is not eligible for unified bytecode routing after IR fallback retirement",
-            result?.ToString(),
-            StringComparison.Ordinal);
+        var summary = Assert.IsType<JsObject>(result);
+        Assert.Equal(1d, summary["callCount"]);
+        Assert.Equal(true, summary["sawValue"]);
+        Assert.Equal(true, summary["sawReferenceError"]);
     }
 
     [Fact(Timeout = 5000)]
@@ -226,7 +226,7 @@ public sealed class LanguageCrashRegressionTests(ITestOutputHelper output) : Int
     }
 
     [Fact(Timeout = 5000)]
-    public async Task ForAwaitOf_AsyncGenerator_ArrayRestBindingRejectsAfterFallbackRetirement()
+    public async Task ForAwaitOf_AsyncGenerator_ArrayRestBindingFallsBackAfterUnifiedDecline()
     {
         await using var engine = CreateEngine();
         var result = await engine.EvaluateAndAwait("""
@@ -266,10 +266,14 @@ public sealed class LanguageCrashRegressionTests(ITestOutputHelper output) : Int
             result;
             """);
 
-        Assert.Contains(
-            "Async-generator body is not eligible for unified bytecode routing after IR fallback retirement",
-            result?.ToString(),
-            StringComparison.Ordinal);
+        var obj = Assert.IsType<JsObject>(result);
+        Assert.Equal(1.0, obj["iterCount"]);
+        Assert.Equal(true, obj["isArray"]);
+        Assert.Equal(3.0, obj["length"]);
+        Assert.Equal(1.0, obj["first"]);
+        Assert.Equal(2.0, obj["second"]);
+        Assert.Equal(3.0, obj["third"]);
+        Assert.Equal(true, obj["copied"]);
     }
 
     [Fact(Timeout = 5000)]

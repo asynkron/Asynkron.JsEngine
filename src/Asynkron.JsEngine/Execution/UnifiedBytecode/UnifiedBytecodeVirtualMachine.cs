@@ -914,7 +914,7 @@ internal static class UnifiedBytecodeVirtualMachine
                         // declaration only puts the binding into the environment in its TDZ (uninitialized)
                         // state; mirror that TDZ state into the bound flat slot so a premature read still
                         // throws and a later InitializeDynamicLexical can lift it (see below).
-                        MirrorDynamicLexicalToFlatSlot(
+                        MirrorDynamicBindingToFlatSlot(
                             slotEnvironments,
                             slots,
                             currentCallingEnvironment,
@@ -950,7 +950,7 @@ internal static class UnifiedBytecodeVirtualMachine
                         // const/let that the compiler lowered to dynamic-lexical ops (e.g. because a loop
                         // body containing `continue` over the per-iteration scope kept its declaration off
                         // the flat-slot path) would throw a spurious "before initialization" error on read.
-                        MirrorDynamicLexicalToFlatSlot(
+                        MirrorDynamicBindingToFlatSlot(
                             slotEnvironments,
                             slots,
                             currentCallingEnvironment,
@@ -1007,7 +1007,19 @@ internal static class UnifiedBytecodeVirtualMachine
                             nameTarget.EnsureHasName(dynamicReferenceName);
                         }
 
-                        dynamicIdentifierReferences[--dynamicIdentifierReferenceCount].SetValue(dynamicReferenceValue);
+                        var dynamicReference = dynamicIdentifierReferences[dynamicIdentifierReferenceCount - 1];
+                        dynamicReference.SetValue(dynamicReferenceValue);
+                        if (dynamicReference.TryGetDeclarativeTarget(out var dynamicReferenceEnvironment, out var dynamicReferenceTargetName))
+                        {
+                            MirrorDynamicBindingToFlatSlot(
+                                slotEnvironments,
+                                slots,
+                                dynamicReferenceEnvironment,
+                                dynamicReferenceTargetName.Name,
+                                dynamicReferenceValue);
+                        }
+
+                        dynamicIdentifierReferenceCount--;
                         dynamicIdentifierReferences[dynamicIdentifierReferenceCount] = default;
                         if (context.ShouldStopEvaluation)
                         {
@@ -2963,11 +2975,12 @@ internal static class UnifiedBytecodeVirtualMachine
                         {
                             var closureEnv = currentCallingEnvironment
                                 ?? throw new InvalidOperationException("Cannot create class literal without a calling environment.");
-                            var classExpression = program.ClassLiteralConstants[instruction.Operand];
+                            var classLiteral = program.ClassLiteralConstants[instruction.Operand];
                             PushValue(TypedAstEvaluator.CreateClassValueFromLiteral(
-                                classExpression,
+                                classLiteral.ClassExpression,
                                 closureEnv,
-                                context));
+                                context,
+                                classLiteral.InferredName));
                             programCounter++;
                             break;
                         }
@@ -3707,6 +3720,40 @@ internal static class UnifiedBytecodeVirtualMachine
             return false;
         }
 
+        bool TryHandleResumableThrownValue(JsValue thrownValue)
+        {
+            if (TryHandleResumableAbruptCompletion(
+                    UnifiedBytecodeAbruptCompletionKind.Throw,
+                    thrownValue,
+                    -1,
+                    hasControlTarget: false))
+            {
+                context.Clear();
+                stackPointer = 0;
+                return true;
+            }
+
+            return false;
+        }
+
+        bool TryHandleResumableContextThrow()
+        {
+            if (!context.IsThrow)
+            {
+                return false;
+            }
+
+            var thrownValue = context.FlowValue;
+            context.Clear();
+            if (TryHandleResumableThrownValue(thrownValue))
+            {
+                return true;
+            }
+
+            context.SetThrow(thrownValue);
+            return false;
+        }
+
         bool TryCompleteResumableFinally(int nextTarget, out UnifiedBytecodeStepResult stepResult)
         {
             stepResult = default;
@@ -3842,6 +3889,11 @@ internal static class UnifiedBytecodeVirtualMachine
                     if (IsInactiveCatchBindingSlot(resumableInactiveCatchBindingSlots, instruction.Operand))
                     {
                         SetInactiveCatchBindingReferenceError(program, instruction.Operand, context);
+                        if (TryHandleResumableContextThrow())
+                        {
+                            break;
+                        }
+
                         state.IsCompleted = true;
                         SaveResumableState();
                         return UnifiedBytecodeStepResult.Throw(context.FlowValue);
@@ -3854,6 +3906,11 @@ internal static class UnifiedBytecodeVirtualMachine
                             $"ReferenceError: Cannot access '{GetSlotName(program, instruction.Operand)}' before initialization",
                             context,
                             context.RealmState));
+                        if (TryHandleResumableContextThrow())
+                        {
+                            break;
+                        }
+
                         state.IsCompleted = true;
                         return UnifiedBytecodeStepResult.Throw(context.FlowValue);
                     }
@@ -3911,6 +3968,11 @@ internal static class UnifiedBytecodeVirtualMachine
                             "import.meta is not defined",
                             context,
                             context.RealmState));
+                        if (TryHandleResumableContextThrow())
+                        {
+                            break;
+                        }
+
                         state.IsCompleted = true;
                         return UnifiedBytecodeStepResult.Throw(context.FlowValue);
                     }
@@ -3938,6 +4000,11 @@ internal static class UnifiedBytecodeVirtualMachine
                     stack[stackPointer - 1] = new JsValue(JsOps.ToJsString(stack[stackPointer - 1], context));
                     if (context.ShouldStopEvaluation)
                     {
+                        if (TryHandleResumableContextThrow())
+                        {
+                            break;
+                        }
+
                         state.IsCompleted = true;
                         return UnifiedBytecodeStepResult.Throw(context.FlowValue);
                     }
@@ -4003,6 +4070,11 @@ internal static class UnifiedBytecodeVirtualMachine
 
                         if (context.ShouldStopEvaluation)
                         {
+                            if (TryHandleResumableContextThrow())
+                            {
+                                break;
+                            }
+
                             state.IsCompleted = true;
                             return UnifiedBytecodeStepResult.Throw(context.FlowValue);
                         }
@@ -4023,7 +4095,8 @@ internal static class UnifiedBytecodeVirtualMachine
 
                 case UnifiedBytecodeOpCode.LoadClassLiteral:
                     {
-                        var classExpression = program.ClassLiteralConstants[instruction.Operand];
+                        var classLiteral = program.ClassLiteralConstants[instruction.Operand];
+                        var classExpression = classLiteral.ClassExpression;
                         var callingEnvironment = RequireDynamicEnvironment(currentEnvironment);
                         var classEnvironment = slotEnvironments is null &&
                                                RequiresResumableClassLiteralSlotEnvironment(classExpression)
@@ -4038,7 +4111,8 @@ internal static class UnifiedBytecodeVirtualMachine
                             PushResumableValue(TypedAstEvaluator.CreateClassValueFromLiteral(
                                 classExpression,
                                 classEnvironment,
-                                context));
+                                context,
+                                classLiteral.InferredName));
                         }
                         catch (ThrowSignal signal)
                         {
@@ -4052,6 +4126,11 @@ internal static class UnifiedBytecodeVirtualMachine
 
                         if (context.ShouldStopEvaluation)
                         {
+                            if (TryHandleResumableContextThrow())
+                            {
+                                break;
+                            }
+
                             state.IsCompleted = true;
                             return UnifiedBytecodeStepResult.Throw(context.FlowValue);
                         }
@@ -4087,6 +4166,11 @@ internal static class UnifiedBytecodeVirtualMachine
                             context));
                         if (context.ShouldStopEvaluation)
                         {
+                            if (TryHandleResumableContextThrow())
+                            {
+                                break;
+                            }
+
                             state.IsCompleted = true;
                             return UnifiedBytecodeStepResult.Throw(context.FlowValue);
                         }
@@ -4113,6 +4197,11 @@ internal static class UnifiedBytecodeVirtualMachine
                         SetResumableShortCircuitFlag(stackPointer - 2, false);
                         if (context.ShouldStopEvaluation)
                         {
+                            if (TryHandleResumableContextThrow())
+                            {
+                                break;
+                            }
+
                             state.IsCompleted = true;
                             return UnifiedBytecodeStepResult.Throw(context.FlowValue);
                         }
@@ -4150,6 +4239,11 @@ internal static class UnifiedBytecodeVirtualMachine
                             state.DynamicIdentifierReferences[state.DynamicIdentifierReferenceCount - 1].GetJsValue());
                         if (context.ShouldStopEvaluation)
                         {
+                            if (TryHandleResumableContextThrow())
+                            {
+                                break;
+                            }
+
                             state.IsCompleted = true;
                             return UnifiedBytecodeStepResult.Throw(context.FlowValue);
                         }
@@ -4176,11 +4270,27 @@ internal static class UnifiedBytecodeVirtualMachine
                             nameTarget.EnsureHasName(dynamicReferenceName);
                         }
 
-                        state.DynamicIdentifierReferences[--state.DynamicIdentifierReferenceCount]
-                            .SetValue(dynamicReferenceValue);
+                        var dynamicReference = state.DynamicIdentifierReferences[state.DynamicIdentifierReferenceCount - 1];
+                        dynamicReference.SetValue(dynamicReferenceValue);
+                        if (dynamicReference.TryGetDeclarativeTarget(out var dynamicReferenceEnvironment, out var dynamicReferenceTargetName))
+                        {
+                            MirrorDynamicBindingToFlatSlot(
+                                slotEnvironments,
+                                slots,
+                                dynamicReferenceEnvironment,
+                                dynamicReferenceTargetName.Name,
+                                dynamicReferenceValue);
+                        }
+
+                        state.DynamicIdentifierReferenceCount--;
                         state.DynamicIdentifierReferences[state.DynamicIdentifierReferenceCount] = default;
                         if (context.ShouldStopEvaluation)
                         {
+                            if (TryHandleResumableContextThrow())
+                            {
+                                break;
+                            }
+
                             state.IsCompleted = true;
                             return UnifiedBytecodeStepResult.Throw(context.FlowValue);
                         }
@@ -4207,6 +4317,11 @@ internal static class UnifiedBytecodeVirtualMachine
                     if (slots[instruction.Operand].IsUninitialized)
                     {
                         SetUninitializedSlotReferenceError(program, instruction.Operand, context);
+                        if (TryHandleResumableContextThrow())
+                        {
+                            break;
+                        }
+
                         state.IsCompleted = true;
                         return UnifiedBytecodeStepResult.Throw(context.FlowValue);
                     }
@@ -4214,6 +4329,11 @@ internal static class UnifiedBytecodeVirtualMachine
                     if (state.IsConstSlot(instruction.Operand))
                     {
                         SetConstantSlotTypeError(program, instruction.Operand, context);
+                        if (TryHandleResumableContextThrow())
+                        {
+                            break;
+                        }
+
                         state.IsCompleted = true;
                         return UnifiedBytecodeStepResult.Throw(context.FlowValue);
                     }
@@ -4234,6 +4354,11 @@ internal static class UnifiedBytecodeVirtualMachine
                         if (IsInactiveCatchBindingSlot(resumableInactiveCatchBindingSlots, resumableUpdateIndex))
                         {
                             SetInactiveCatchBindingReferenceError(program, resumableUpdateIndex, context);
+                            if (TryHandleResumableContextThrow())
+                            {
+                                break;
+                            }
+
                             state.IsCompleted = true;
                             SaveResumableState();
                             return UnifiedBytecodeStepResult.Throw(context.FlowValue);
@@ -4246,6 +4371,11 @@ internal static class UnifiedBytecodeVirtualMachine
                             // ReferenceError, identical to the sync VM. (Parameter / `var` slots are never
                             // uninitialized at an update site, so this guards the residual TDZ window only.)
                             SetUninitializedSlotReferenceError(program, resumableUpdateIndex, context);
+                            if (TryHandleResumableContextThrow())
+                            {
+                                break;
+                            }
+
                             state.IsCompleted = true;
                             return UnifiedBytecodeStepResult.Throw(context.FlowValue);
                         }
@@ -4253,6 +4383,11 @@ internal static class UnifiedBytecodeVirtualMachine
                         if (state.IsConstSlot(resumableUpdateIndex))
                         {
                             SetConstantSlotTypeError(program, resumableUpdateIndex, context);
+                            if (TryHandleResumableContextThrow())
+                            {
+                                break;
+                            }
+
                             state.IsCompleted = true;
                             return UnifiedBytecodeStepResult.Throw(context.FlowValue);
                         }
@@ -4267,6 +4402,11 @@ internal static class UnifiedBytecodeVirtualMachine
                         {
                             // ToNumeric on a non-coercible operand (e.g. a Symbol, or a BigInt/Number mix)
                             // throws; surface it as the resumable Throw step rather than mutating the slot.
+                            if (TryHandleResumableContextThrow())
+                            {
+                                break;
+                            }
+
                             state.IsCompleted = true;
                             return UnifiedBytecodeStepResult.Throw(context.FlowValue);
                         }
@@ -4294,6 +4434,11 @@ internal static class UnifiedBytecodeVirtualMachine
                         RegisterDisposableResource(resumableDisposableValue, currentEnvironment, context);
                         if (context.ShouldStopEvaluation)
                         {
+                            if (TryHandleResumableContextThrow())
+                            {
+                                break;
+                            }
+
                             state.IsCompleted = true;
                             return UnifiedBytecodeStepResult.Throw(context.FlowValue);
                         }
@@ -4320,6 +4465,11 @@ internal static class UnifiedBytecodeVirtualMachine
                         SyncEnvironmentToUnifiedSlots(program, slots, slotEnvironments, bindingEnvironment);
                         if (context.ShouldStopEvaluation)
                         {
+                            if (TryHandleResumableContextThrow())
+                            {
+                                break;
+                            }
+
                             state.IsCompleted = true;
                             return UnifiedBytecodeStepResult.Throw(context.FlowValue);
                         }
@@ -4354,6 +4504,11 @@ internal static class UnifiedBytecodeVirtualMachine
                         SyncEnvironmentToUnifiedSlots(program, slots, slotEnvironments, declarationBindingEnvironment);
                         if (context.ShouldStopEvaluation)
                         {
+                            if (TryHandleResumableContextThrow())
+                            {
+                                break;
+                            }
+
                             state.IsCompleted = true;
                             return UnifiedBytecodeStepResult.Throw(context.FlowValue);
                         }
@@ -4384,6 +4539,11 @@ internal static class UnifiedBytecodeVirtualMachine
                             context));
                         if (context.ShouldStopEvaluation)
                         {
+                            if (TryHandleResumableContextThrow())
+                            {
+                                break;
+                            }
+
                             state.IsCompleted = true;
                             return UnifiedBytecodeStepResult.Throw(context.FlowValue);
                         }
@@ -4424,6 +4584,11 @@ internal static class UnifiedBytecodeVirtualMachine
                     stack[stackPointer++] = ApplyBinaryOperator(op, left, right, context);
                     if (context.ShouldStopEvaluation)
                     {
+                        if (TryHandleResumableContextThrow())
+                        {
+                            break;
+                        }
+
                         state.IsCompleted = true;
                         return UnifiedBytecodeStepResult.Throw(context.FlowValue);
                     }
@@ -4449,6 +4614,11 @@ internal static class UnifiedBytecodeVirtualMachine
                         context));
                     if (context.ShouldStopEvaluation)
                     {
+                        if (TryHandleResumableContextThrow())
+                        {
+                            break;
+                        }
+
                         state.IsCompleted = true;
                         return UnifiedBytecodeStepResult.Throw(context.FlowValue);
                     }
@@ -6165,6 +6335,11 @@ internal static class UnifiedBytecodeVirtualMachine
                         }
                         catch (ThrowSignal signal)
                         {
+                            if (TryHandleResumableThrownValue(signal.ThrownValue))
+                            {
+                                break;
+                            }
+
                             state.IsCompleted = true;
                             state.ProgramCounter = programCounter;
                             state.StackPointer = stackPointer;
@@ -6190,6 +6365,11 @@ internal static class UnifiedBytecodeVirtualMachine
                         if (awaitedYieldStarThrow)
                         {
                             CompleteIteratorDriverState(yieldStarDescriptor.StateSlot, slots, null, yieldStarState);
+                            if (TryHandleResumableThrownValue(awaitedYieldStarResult))
+                            {
+                                break;
+                            }
+
                             state.IsCompleted = true;
                             return UnifiedBytecodeStepResult.Throw(awaitedYieldStarResult);
                         }
@@ -6206,6 +6386,11 @@ internal static class UnifiedBytecodeVirtualMachine
                                 out var awaitedDelegatedIteratorResult))
                         {
                             CompleteIteratorDriverState(yieldStarDescriptor.StateSlot, slots, null, yieldStarState);
+                            if (TryHandleResumableContextThrow())
+                            {
+                                break;
+                            }
+
                             state.IsCompleted = true;
                             return UnifiedBytecodeStepResult.Throw(context.FlowValue);
                         }
@@ -6265,6 +6450,11 @@ internal static class UnifiedBytecodeVirtualMachine
                                 out var throwPendingStep))
                         {
                             CompleteIteratorDriverState(yieldStarDescriptor.StateSlot, slots, null, yieldStarState);
+                            if (TryHandleResumableContextThrow())
+                            {
+                                break;
+                            }
+
                             state.IsCompleted = true;
                             return UnifiedBytecodeStepResult.Throw(context.FlowValue);
                         }
@@ -6277,11 +6467,17 @@ internal static class UnifiedBytecodeVirtualMachine
                         if (throwMethodMissing)
                         {
                             CompleteIteratorDriverState(yieldStarDescriptor.StateSlot, slots, null, yieldStarState);
-                            state.IsCompleted = true;
-                            return UnifiedBytecodeStepResult.Throw(StandardLibrary.CreateTypeError(
+                            var missingThrowMethodError = StandardLibrary.CreateTypeError(
                                 "The iterator does not provide a 'throw' method.",
                                 context,
-                                context.RealmState));
+                                context.RealmState);
+                            if (TryHandleResumableThrownValue(missingThrowMethodError))
+                            {
+                                break;
+                            }
+
+                            state.IsCompleted = true;
+                            return UnifiedBytecodeStepResult.Throw(missingThrowMethodError);
                         }
 
                         if (throwResumeDone)
@@ -6321,6 +6517,11 @@ internal static class UnifiedBytecodeVirtualMachine
                                 out var returnPendingStep))
                         {
                             CompleteIteratorDriverState(yieldStarDescriptor.StateSlot, slots, null, yieldStarState);
+                            if (TryHandleResumableContextThrow())
+                            {
+                                break;
+                            }
+
                             state.IsCompleted = true;
                             return UnifiedBytecodeStepResult.Throw(context.FlowValue);
                         }
@@ -6376,6 +6577,11 @@ internal static class UnifiedBytecodeVirtualMachine
                             out var nextPendingStep))
                     {
                         CompleteIteratorDriverState(yieldStarDescriptor.StateSlot, slots, null, yieldStarState);
+                        if (TryHandleResumableContextThrow())
+                        {
+                            break;
+                        }
+
                         state.IsCompleted = true;
                         return UnifiedBytecodeStepResult.Throw(context.FlowValue);
                     }
@@ -7219,7 +7425,7 @@ internal static class UnifiedBytecodeVirtualMachine
                 return;
             }
 
-            MirrorDynamicLexicalToFlatSlot(
+            MirrorDynamicBindingToFlatSlot(
                 slotEnvironments,
                 slots,
                 targetEnvironment,
@@ -7237,7 +7443,7 @@ internal static class UnifiedBytecodeVirtualMachine
                 return;
             }
 
-            MirrorDynamicLexicalToFlatSlot(
+            MirrorDynamicBindingToFlatSlot(
                 slotEnvironments,
                 slots,
                 targetEnvironment,
@@ -7714,6 +7920,11 @@ internal static class UnifiedBytecodeVirtualMachine
                 continue;
             }
 
+            if (IsLexicalSlotIndex(i, program.LexicalSlotIndices))
+            {
+                continue;
+            }
+
             if (callingEnvironment.TryFindBindingJsValue(
                     symbol,
                     allowUninitialized: true,
@@ -7860,6 +8071,24 @@ internal static class UnifiedBytecodeVirtualMachine
         return false;
     }
 
+    private static bool IsLexicalSlotIndex(int slotIndex, ImmutableArray<int> lexicalSlotIndices)
+    {
+        if (lexicalSlotIndices.IsDefaultOrEmpty)
+        {
+            return false;
+        }
+
+        for (var i = 0; i < lexicalSlotIndices.Length; i++)
+        {
+            if (lexicalSlotIndices[i] == slotIndex)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     private static bool TryGetSlotEnvironmentBinding(
         UnifiedBytecodeProgram program,
         UnifiedSlotEnvironmentBinding?[]? slotEnvironments,
@@ -7930,17 +8159,17 @@ internal static class UnifiedBytecodeVirtualMachine
     }
 
     /// <summary>
-    /// Inverse of <see cref="SyncSlotEnvironment"/> for the dynamic-lexical write path. A lexical binding
-    /// in the materialized call environment can be shadowed by a flat VM slot that own-scope
-    /// <c>LoadSlot</c> reads use as the source of truth. The <c>DeclareDynamicLexical</c> /
-    /// <c>InitializeDynamicLexical</c> opcodes only touch the environment binding (by name), so the bound
-    /// flat slot would otherwise keep its stale value. This writes <paramref name="value"/> into the flat
-    /// slot whose <see cref="UnifiedSlotEnvironmentBinding"/> resolves to <paramref name="environment"/>
-    /// and the env-slot index that <paramref name="name"/> maps to, keeping the two representations
-    /// consistent. No-op when there is no materialized slot-environment mapping (pure slot path) or when
-    /// the name has no flat-slot shadow.
+    /// Inverse of <see cref="SyncSlotEnvironment"/> for dynamic binding writes. A binding in a
+    /// materialized call environment can be shadowed by a flat VM slot that own-scope
+    /// <c>LoadSlot</c> reads use as the source of truth. Dynamic declaration and assignment-reference
+    /// opcodes touch the environment binding by name, so the bound flat slot would otherwise keep its
+    /// stale value. This writes <paramref name="value"/> into the flat slot whose
+    /// <see cref="UnifiedSlotEnvironmentBinding"/> resolves to <paramref name="environment"/> and the
+    /// env-slot index that <paramref name="name"/> maps to, keeping the two representations consistent.
+    /// No-op when there is no materialized slot-environment mapping (pure slot path) or when the name has
+    /// no flat-slot shadow.
     /// </summary>
-    private static void MirrorDynamicLexicalToFlatSlot(
+    private static void MirrorDynamicBindingToFlatSlot(
         UnifiedSlotEnvironmentBinding?[]? slotEnvironments,
         Span<JsValue> slots,
         JsEnvironment? environment,
@@ -10693,14 +10922,6 @@ internal static class UnifiedBytecodeVirtualMachine
 
         try
         {
-            var superBindingForCall = environment.ExpectSuperBinding(context);
-
-            if (!environment.TryResolveSuperConstructorForCall(superBindingForCall, out var constructorValue))
-            {
-                throw new InvalidOperationException(
-                    "Super constructor is not available in this context.");
-            }
-
             JsEnvironment? thisInitializationEnvironment = null;
             var thisInitializationValue = JsValue.Undefined;
             if (environment.TryGetObject<JsEnvironment>(Symbol.LexicalThisEnvironment, out var lexicalThisEnv) ||
@@ -10740,6 +10961,38 @@ internal static class UnifiedBytecodeVirtualMachine
 
             callDepthIncremented = true;
 
+            IReadOnlyList<JsValue>? materializedSpreadArguments = null;
+            if (!spreadMask.IsDefaultOrEmpty)
+            {
+                materializedSpreadArguments = TryGetDefaultDerivedConstructorForwardedArguments(
+                    environment,
+                    argumentCount,
+                    spreadMask,
+                    stack,
+                    baseIndex,
+                    out var forwardedArguments)
+                    ? forwardedArguments
+                    : MaterializeSpreadCallArguments(
+                        argumentCount,
+                        spreadMask,
+                        stack,
+                        baseIndex,
+                        context);
+                if (context.ShouldStopEvaluation)
+                {
+                    stack[baseIndex] = context.FlowValue;
+                    return baseIndex + 1;
+                }
+            }
+
+            var superBindingForCall = environment.ExpectSuperBinding(context);
+
+            if (!environment.TryResolveSuperConstructorForCall(superBindingForCall, out var constructorValue))
+            {
+                throw new InvalidOperationException(
+                    "Super constructor is not available in this context.");
+            }
+
             if (!JsOps.IsConstructor(constructorValue) ||
                 !constructorValue.TryGetObject<IJsCallable>(out var callable))
             {
@@ -10767,28 +11020,11 @@ internal static class UnifiedBytecodeVirtualMachine
                     baseIndex,
                     argumentCount,
                     context.RealmState)
-                : TryGetDefaultDerivedConstructorForwardedArguments(
-                    environment,
-                    argumentCount,
-                    spreadMask,
-                    stack,
-                    baseIndex,
-                    out var forwardedArguments)
-                    ? ReflectHelper.Construct(
-                        callable,
-                        forwardedArguments,
-                        newTargetCallable,
-                        context.RealmState)
-                    : ReflectHelper.Construct(
-                        callable,
-                        MaterializeSpreadCallArguments(
-                            argumentCount,
-                            spreadMask,
-                            stack,
-                            baseIndex,
-                            context),
-                        newTargetCallable,
-                        context.RealmState);
+                : ReflectHelper.Construct(
+                    callable,
+                    materializedSpreadArguments!,
+                    newTargetCallable,
+                    context.RealmState);
 
             var callResultObject = result.Kind == JsValueKind.Object ? result.ObjectValue : null;
             var thisAfterSuper = callResultObject;
@@ -11820,7 +12056,7 @@ internal static class UnifiedBytecodeVirtualMachine
         if (DecodeDefineObjectPropertyAllowNameInference(operand) &&
             propertyValue is { Kind: JsValueKind.Object, ObjectValue: TypedAstEvaluator.IFunctionNameTarget nameTarget })
         {
-            nameTarget.EnsureHasName(propertyName);
+            nameTarget.EnsureHasName(BuildFunctionNameDisplay(propertyName));
         }
 
         if (DecodeDefineObjectPropertyIsKnownNewProperty(operand))
@@ -11841,7 +12077,7 @@ internal static class UnifiedBytecodeVirtualMachine
         if (DecodeDefineObjectPropertyAllowNameInference(operand) &&
             propertyValue is { Kind: JsValueKind.Object, ObjectValue: TypedAstEvaluator.IFunctionNameTarget nameTarget })
         {
-            nameTarget.EnsureHasName(propertyName);
+            nameTarget.EnsureHasName(BuildFunctionNameDisplay(propertyName));
         }
 
         targetObject.DefineDefaultDataProperty(propertyName, propertyValue);

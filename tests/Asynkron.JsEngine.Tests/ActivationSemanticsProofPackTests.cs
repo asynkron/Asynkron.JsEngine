@@ -430,6 +430,32 @@ public sealed class ActivationSemanticsProofPackTests(ITestOutputHelper output) 
     }
 
     [Fact(Timeout = 5000)]
+    public async Task SloppyMappedArgumentsObject_SurvivesEscapedActivation()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            var arg;
+            (function probe(a, b, c) {
+                arg = arguments;
+            }(0, 1, 2));
+
+            Object.defineProperties(arg, {
+                "0": {
+                    value: 20,
+                    writable: false,
+                    enumerable: false,
+                    configurable: false
+                }
+            });
+
+            var descriptor = Object.getOwnPropertyDescriptor(arg, "0");
+            arg[0] + ":" + descriptor.writable + ":" + descriptor.enumerable + ":" + descriptor.configurable;
+            """);
+
+        Assert.Equal("20:false:false:false", result);
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task StrictSimpleParameters_DoNotMapArgumentsObject()
     {
         await using var engine = CreateEngine();
@@ -952,7 +978,7 @@ public sealed class ActivationSemanticsProofPackTests(ITestOutputHelper output) 
     }
 
     [Fact(Timeout = 5000)]
-    public async Task AsyncGeneratorActivation_CapturedParameterRejectsAfterFallbackRetirement()
+    public async Task AsyncGeneratorActivation_CapturedParameterFallsBackAfterUnifiedDecline()
     {
         await using var engine = CreateEngine();
 
@@ -982,9 +1008,6 @@ public sealed class ActivationSemanticsProofPackTests(ITestOutputHelper output) 
             output;
             """);
 
-        Assert.Contains(
-            "Async-generator body is not eligible for unified bytecode routing after IR fallback retirement",
-            result?.ToString(),
-            StringComparison.Ordinal);
+        Assert.Equal("start:41|yield:42", result?.ToString());
     }
 }

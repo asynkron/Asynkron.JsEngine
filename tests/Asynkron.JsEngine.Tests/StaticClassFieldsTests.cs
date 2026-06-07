@@ -28,6 +28,24 @@ public sealed class StaticClassFieldsTests(ITestOutputHelper output) : InternalT
         Assert.Equal(3.0, result);
     }
 
+    [Fact(Timeout = 2000)]
+    public async Task Anonymous_Class_Expression_Static_Field_Sees_Inferred_Binding_Name()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+
+                                           var className;
+                                           var C = class {
+                                               static f = (className = this.name);
+                                           };
+
+                                           className;
+
+                                           """);
+
+        Assert.Equal("C", result);
+    }
+
     // Note: Fields without initializers not yet supported - parser requires = for field declarations
     // [Fact(Timeout = 2000)]
     // public async Task Static_Field_Without_Initializer()
@@ -244,6 +262,35 @@ public sealed class StaticClassFieldsTests(ITestOutputHelper output) : InternalT
 
                                        """);
         Assert.Equal(42.0, result);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task Static_Block_Lexical_Declarations_Do_Not_Overwrite_Outer_Bindings()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+
+                                           let test262 = "outer scope";
+                                           let probe1;
+                                           let probe2;
+
+                                           class C {
+                                               static {
+                                                   let test262 = "first block";
+                                                   probe1 = test262;
+                                               }
+
+                                               static {
+                                                   let test262 = "second block";
+                                                   probe2 = test262;
+                                               }
+                                           }
+
+                                           [test262, probe1, probe2].join("|");
+
+                                           """);
+
+        Assert.Equal("outer scope|first block|second block", result);
     }
 
     [Fact(Timeout = 2000)]

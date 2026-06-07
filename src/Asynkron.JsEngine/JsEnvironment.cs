@@ -2414,6 +2414,11 @@ public sealed class JsEnvironment : IRentable
                 return true;
             }
 
+            if (current.IsGlobalFunctionScope && current.HasGlobalLexicalDeclaration(name))
+            {
+                return true;
+            }
+
             if (current.IsFunctionScope || current._isEvalDeclarationEnvironment)
             {
                 break;
@@ -3600,6 +3605,10 @@ public sealed class JsEnvironment : IRentable
             _environment = environment;
             _name = name;
         }
+
+        internal JsEnvironment Environment => _environment;
+
+        internal Symbol Name => _name;
 
         /// <summary>
         /// Reads the binding value as JsValue, avoiding boxing for primitives.

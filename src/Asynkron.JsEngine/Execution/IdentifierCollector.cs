@@ -311,6 +311,10 @@ internal sealed class ScopeSlotCollector : AstVisitor
                 VisitExpressionProgram(yield.YieldProgram.Value);
                 return;
 
+            case StoreResumeValueInstruction { TargetSymbol: { } targetSymbol }:
+                RegisterDeclaration(VariableKind.Var, targetSymbol);
+                return;
+
             case ReturnInstruction { AwaitedProgram: not null } ret:
                 VisitExpressionProgram(ret.AwaitedProgram.Value);
                 return;

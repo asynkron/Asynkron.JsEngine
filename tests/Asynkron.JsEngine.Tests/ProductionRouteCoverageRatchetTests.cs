@@ -128,15 +128,8 @@ public sealed class ProductionRouteCoverageRatchetTests(ITestOutputHelper output
     [InlineData("function a(){ return 1; } function b(){ return 2; } function f(){ a(); return b(); } f();", "unified-bytecode-production-fast-path func=f")]
     [InlineData("var log=''; function p(t){ log+=t; } function f(){ p('a'); p('b'); p('c'); return log; } f();", "unified-bytecode-production-fast-path func=f")]
     [InlineData("function f(g,h){ g(); return h(); } f(()=>0, ()=>7);", "unified-bytecode-production-fast-path func=f")]
-    // A8: a call RETURNED FROM INSIDE a finally block is a tail position, but in NON-STRICT (sloppy) mode no
-    // tail-call optimization applies anywhere (the IR runner's restart requires strict mode), so the VM is no
-    // worse and the shape is admitted (the A8 guard is now strict-only). A finally-return MEMBER call
-    // (member callees are never tail-call-optimized), a finally-return free call whose try body carries a
-    // reachable dynamic dependency that enables the dynamic-name path, and a finally-return overriding a throw
-    // (the `new Error(...)` read enables the dynamic-name path). Strict finally-return calls stay declined (TCO).
-    [InlineData("function f(o){ try { return 1; } finally { return o.m(); } } f({ m(){ return 9; } });", "unified-bytecode-production-fast-path func=f")]
-    [InlineData("var seed=3; function g(){ return 7; } function f(){ try { return seed; } finally { return g(); } } f();", "unified-bytecode-production-fast-path func=f")]
-    [InlineData("function g(){ return 5; } function f(){ try { throw new Error('boom'); } finally { return g(); } } f();", "unified-bytecode-production-fast-path func=f")]
+    // A8: calls returned from inside finally are deliberately absent from this admitted ratchet. That tail
+    // position is a safety boundary until the VM owns the completion path without expression-bytecode recursion.
     // A1 (closure Stage 0): FLAT multi-statement closures that capture an enclosing activation
     // binding now route through the production VM — captured names lower to dynamic-identifier ops
     // over the threaded closure environment. Captured READ (config), captured WRITE (counter n++),
@@ -282,6 +275,17 @@ public sealed class ProductionRouteCoverageRatchetTests(ITestOutputHelper output
         await using var engine = CreateEngine();
         await engine.Evaluate(source);
         AssertRouted(expectedLog);
+    }
+
+    [Theory]
+    [InlineData("function f(o){ try { return 1; } finally { return o.m(); } } f({ m(){ return 9; } });")]
+    [InlineData("var seed=3; function g(){ return 7; } function f(){ try { return seed; } finally { return g(); } } f();")]
+    [InlineData("function g(){ return 5; } function f(){ try { throw new Error('boom'); } finally { return g(); } } f();")]
+    public async Task DeclinedFinallyReturnCallShape_DoesNotRouteThroughProduction(string source)
+    {
+        await using var engine = CreateEngine();
+        await engine.Evaluate(source);
+        AssertNotRouted("unified-bytecode-production-fast-path func=f");
     }
 
     // Top-level script route — `unified-bytecode-production-fast-path script`.

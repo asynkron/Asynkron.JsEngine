@@ -299,7 +299,7 @@ public sealed class UnifiedBytecodeAsyncGeneratorRouteTests(ITestOutputHelper ou
     }
 
     [Fact(Timeout = 5000)]
-    public async Task AsyncGeneratorDefaultParameter_RetiresRunnerFallbackAndThrowsUnsupportedRoute()
+    public async Task AsyncGeneratorDefaultParameter_DeclinesUnifiedRouteThenFallsBack()
     {
         await using var engine = CreateEngine();
         var result = await engine.EvaluateAndAwait("""
@@ -321,13 +321,14 @@ public sealed class UnifiedBytecodeAsyncGeneratorRouteTests(ITestOutputHelper ou
             output;
             """);
 
-        Assert.Contains("rejected:", result?.ToString(), StringComparison.Ordinal);
-        Assert.Contains("Async-generator body is not eligible for unified bytecode routing", result?.ToString(), StringComparison.Ordinal);
-        Assert.Contains("Non-simple async-generator parameter lists", result?.ToString(), StringComparison.Ordinal);
+        Assert.Equal("resolved:7:false", result?.ToString());
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            record => record.Message.Contains("async-generator-runner-fallback func=values", StringComparison.Ordinal) &&
+                      record.Message.Contains("Non-simple async-generator parameter lists", StringComparison.Ordinal));
     }
 
     [Fact(Timeout = 5000)]
-    public async Task AsyncGeneratorNonSimpleParameter_RetiresRunnerFallbackAndThrowsBeforeBody()
+    public async Task AsyncGeneratorNonSimpleParameter_DeclinesUnifiedRouteThenFallsBack()
     {
         await using var engine = CreateEngine();
         var result = await engine.EvaluateAndAwait("""
@@ -351,13 +352,14 @@ public sealed class UnifiedBytecodeAsyncGeneratorRouteTests(ITestOutputHelper ou
             output;
             """);
 
-        Assert.Contains("rejected:|", result?.ToString(), StringComparison.Ordinal);
-        Assert.Contains("Async-generator body is not eligible for unified bytecode routing", result?.ToString(), StringComparison.Ordinal);
-        Assert.Contains("Non-simple async-generator parameter lists", result?.ToString(), StringComparison.Ordinal);
+        Assert.Equal("resolved:7:false|default,body:7", result?.ToString());
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            record => record.Message.Contains("async-generator-runner-fallback func=values", StringComparison.Ordinal) &&
+                      record.Message.Contains("Non-simple async-generator parameter lists", StringComparison.Ordinal));
     }
 
     [Fact(Timeout = 5000)]
-    public async Task AsyncGeneratorDestructuringParameter_RetiresRunnerFallbackAndThrowsUnsupportedRoute()
+    public async Task AsyncGeneratorDestructuringParameter_DeclinesUnifiedRouteThenFallsBack()
     {
         await using var engine = CreateEngine();
         var result = await engine.EvaluateAndAwait("""
@@ -379,9 +381,10 @@ public sealed class UnifiedBytecodeAsyncGeneratorRouteTests(ITestOutputHelper ou
             output;
             """);
 
-        Assert.Contains("rejected:", result?.ToString(), StringComparison.Ordinal);
-        Assert.Contains("Async-generator body is not eligible for unified bytecode routing", result?.ToString(), StringComparison.Ordinal);
-        Assert.Contains("Non-simple async-generator parameter lists", result?.ToString(), StringComparison.Ordinal);
+        Assert.Equal("resolved:1:false", result?.ToString());
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            record => record.Message.Contains("async-generator-runner-fallback func=values", StringComparison.Ordinal) &&
+                      record.Message.Contains("Non-simple async-generator parameter lists", StringComparison.Ordinal));
     }
 
     [Fact(Timeout = 5000)]

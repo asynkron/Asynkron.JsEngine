@@ -187,6 +187,20 @@ internal readonly struct AssignmentReference
     /// </summary>
     internal bool IsUnresolvable => _kind == ReferenceKind.Unresolvable;
 
+    internal bool TryGetDeclarativeTarget(out JsEnvironment environment, out Symbol name)
+    {
+        if (_kind == ReferenceKind.DeclarativeBinding)
+        {
+            environment = _binding.Environment;
+            name = _binding.Name;
+            return true;
+        }
+
+        environment = null!;
+        name = null!;
+        return false;
+    }
+
     public JsValue GetJsValue()
     {
         return _kind switch

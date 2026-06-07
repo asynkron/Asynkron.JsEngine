@@ -238,9 +238,25 @@ public static partial class TypedAstEvaluator
             JsValue value,
             EvaluationContext context)
         {
-            var step = UnifiedBytecodeVirtualMachine.DisposeCompletedResumableStep(
-                state,
-                UnifiedBytecodeVirtualMachine.ExecuteResumable(state, mode, value, context));
+            if (state.IsExecuting)
+            {
+                state.IsCompleted = true;
+                throw StandardLibrary.ThrowTypeError("Generator is already executing", context, context.RealmState);
+            }
+
+            state.IsExecuting = true;
+            UnifiedBytecodeStepResult step;
+            try
+            {
+                step = UnifiedBytecodeVirtualMachine.DisposeCompletedResumableStep(
+                    state,
+                    UnifiedBytecodeVirtualMachine.ExecuteResumable(state, mode, value, context));
+            }
+            finally
+            {
+                state.IsExecuting = false;
+            }
+
             return step.Kind switch
             {
                 UnifiedBytecodeStepKind.Yield =>

@@ -19,7 +19,8 @@ internal static class BlockEmitter
         int nextIndex,
         out int entryIndex)
     {
-        if (block.ReuseEnclosingEnvironment)
+        var containsDirectFunctionDeclaration = ContainsDirectFunctionDeclaration(block);
+        if (block.ReuseEnclosingEnvironment && !containsDirectFunctionDeclaration)
         {
             return ctx.TryBuildStatementList(block.Statements, nextIndex, out entryIndex);
         }
@@ -27,7 +28,7 @@ internal static class BlockEmitter
         // If the block needs its own scope (has let/const declarations),
         // we need to create an environment for it.
         var hoistPlan = ((IAstCacheable<HoistPlan>)block).GetOrCreateCache();
-        if (hoistPlan.NeedsEnvironment)
+        if (hoistPlan.NeedsEnvironment || containsDirectFunctionDeclaration)
         {
             // Always emit proper IR for blocks with lexical bindings:
             // PushEnvironment + individual statements + PopEnvironment
@@ -147,6 +148,19 @@ internal static class BlockEmitter
             ConstLexicalSlotIndices: constLexicalSlotIndices));
 
         return true;
+    }
+
+    private static bool ContainsDirectFunctionDeclaration(BlockStatement block)
+    {
+        foreach (var statement in block.Statements)
+        {
+            if (statement is FunctionDeclaration)
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /// <summary>

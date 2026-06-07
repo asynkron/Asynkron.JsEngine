@@ -4159,6 +4159,8 @@ internal static class UnifiedBytecodeProductionEligibility
         {
             if (field.IsPrivate)
             {
+                // B24h currently composes public computed elements with private methods only.
+                // Private fields still use the separate B24e route and need their own mixed-member proof.
                 return false;
             }
 
@@ -4177,7 +4179,14 @@ internal static class UnifiedBytecodeProductionEligibility
         {
             if (member.IsPrivate)
             {
-                return false;
+                if (member.IsStatic ||
+                    member.IsComputed ||
+                    member.Kind != ClassMemberKind.Method)
+                {
+                    return false;
+                }
+
+                continue;
             }
 
             if (member.IsComputed)
@@ -4271,8 +4280,12 @@ internal static class UnifiedBytecodeProductionEligibility
 
         foreach (var member in definition.Members)
         {
-            if (FunctionCapturesActivationSlot(member.Function, activationSlots, out var capturedName) &&
-                !IsMaterializedResumableBodyEnvironmentCapture(capturedName))
+            if (!FunctionCapturesActivationSlot(member.Function, activationSlots, out var capturedName))
+            {
+                continue;
+            }
+
+            if (member.IsPrivate || !IsMaterializedResumableBodyEnvironmentCapture(capturedName))
             {
                 declineReason =
                     $"Class literal computed member body captures activation binding '{capturedName}' and needs the materialized body environment route.";

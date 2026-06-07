@@ -1740,13 +1740,64 @@ public sealed class UnifiedBytecodeResumableClassExpressionTests(ITestOutputHelp
     }
 
     [Fact]
-    public void EvaluateResumable_ClassExpressionComputedMemberWithPrivateNeighbor_DeclinesBeforeVm() =>
+    public void EvaluateResumable_ClassExpressionComputedMemberWithPrivateNeighbor_AdmitsLoadClassLiteral()
+    {
+        var plan = GetFunctionPlan("""
+        function* g() {
+            yield 1;
+            var C = class {
+                ["read"]() { return 42; }
+                #secret() { return 41; }
+            };
+            return C;
+        }
+        """,
+            "g");
+
+        var result = UnifiedBytecodeProductionEligibility.EvaluateResumable(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor(IsGenerator: true));
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(
+            result.Program.Instructions,
+            static instruction => instruction.OpCode == UnifiedBytecodeOpCode.LoadClassLiteral);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task GeneratorClassExpressionComputedMemberWithPrivateNeighbor_RoutesResumableAndInvokesComputedMethod()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function* g() {
+                yield "ready";
+                var C = class {
+                    ["read"]() { return 42; }
+                    #secret() { return 41; }
+                };
+                var c = new C();
+                yield c.read();
+            }
+
+            var iterator = g();
+            var first = iterator.next();
+            var second = iterator.next();
+            first.value + ":" + first.done + "|" + second.value + ":" + second.done;
+            """);
+
+        Assert.Equal("ready:false|42:false", result);
+        AssertGeneratorFastPath("g", argc: 0);
+    }
+
+    [Fact]
+    public void EvaluateResumable_ClassExpressionComputedMemberWithPrivateFieldNeighbor_DeclinesBeforeVm() =>
         AssertClassExpressionDeclines("""
         function* g() {
             yield 1;
             var C = class {
-                ["read"]() { return 1; }
-                #secret() { return 2; }
+                ["read"]() { return this.#value; }
+                #value = 1;
             };
             return C;
         }

@@ -1093,6 +1093,38 @@
           "pattern": "ApplyStandaloneBindingTargetProgram("
         },
         {
+          "id": "E4-profile-lowered-expression-program-loop-removed-from-profile-runner",
+          "claim": "retired-fallback",
+          "kind": "source-absence",
+          "path": "tools/ProfileRunner/Program.cs",
+          "pattern": "ProfileEvaluateLoweredExpressionProgramLoop("
+        },
+        {
+          "id": "E4-profile-expression-program-loop-removed-from-profile-runner",
+          "claim": "retired-fallback",
+          "kind": "source-absence",
+          "path": "tools/ProfileRunner/Program.cs",
+          "pattern": "ProfileEvaluateExpressionProgramLoop("
+        },
+        {
+          "id": "E4-standalone-expression-executor-call-sites-stay-helper-owned",
+          "claim": "source-ratchet",
+          "kind": "source-allowlist",
+          "paths": [
+            "src/Asynkron.JsEngine",
+            "tools/ProfileRunner"
+          ],
+          "pattern": "UnifiedBytecodeExpressionProgramExecutor.ExecuteStandalone(",
+          "allowedPaths": [
+            "src/Asynkron.JsEngine/Execution/UnifiedBytecode/UnifiedBytecodeExpressionProgramExecutor.cs",
+            "src/Asynkron.JsEngine/Ast/ClassDefinitionExtensions.cs",
+            "src/Asynkron.JsEngine/Ast/ClassFieldInitializer.cs",
+            "src/Asynkron.JsEngine/Ast/ClassPropertyNameResolver.cs",
+            "src/Asynkron.JsEngine/Ast/TypedAstEvaluator.ExecutionPlanRunner.BindingPrograms.cs",
+            "src/Asynkron.JsEngine/Ast/TypedAstEvaluator.SyncFunctionInvoker.cs"
+          ]
+        },
+        {
           "id": "E4-dynamic-expression-executor-still-present",
           "claim": "open",
           "kind": "source-presence",

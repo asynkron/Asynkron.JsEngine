@@ -94,6 +94,9 @@ public sealed partial class BytecodeProofManifestTests(ITestOutputHelper output)
             case "source-absence":
                 VerifySourcePresence(proof, shouldExist: false);
                 break;
+            case "source-allowlist":
+                VerifySourceAllowlist(proof);
+                break;
             case "standalone-expression-compile":
                 VerifyStandaloneExpressionCompile(proof);
                 break;
@@ -179,6 +182,67 @@ public sealed partial class BytecodeProofManifestTests(ITestOutputHelper output)
         var contains = source.Contains(Require(proof.Pattern, proof.Id, nameof(proof.Pattern)), StringComparison.Ordinal);
         Assert.Equal(shouldExist, contains);
     }
+
+    private static void VerifySourceAllowlist(ProofManifestProof proof)
+    {
+        var repositoryRoot = FindRepositoryRoot();
+        Assert.NotEmpty(proof.Paths);
+        Assert.NotEmpty(proof.AllowedPaths);
+        var pattern = Require(proof.Pattern, proof.Id, nameof(proof.Pattern));
+        var scannedFiles = proof.Paths
+            .SelectMany(path => EnumerateManifestSourceFiles(repositoryRoot, proof.Id, path))
+            .ToArray();
+
+        Assert.NotEmpty(scannedFiles);
+        foreach (var allowedPath in proof.AllowedPaths)
+        {
+            Assert.Contains(scannedFiles, file => NormalizeManifestPath(repositoryRoot, file) == allowedPath);
+        }
+
+        var allowedPaths = proof.AllowedPaths.ToHashSet(StringComparer.Ordinal);
+        var matches = scannedFiles
+            .SelectMany(file =>
+            {
+                var relativePath = NormalizeManifestPath(repositoryRoot, file);
+                return File.ReadAllLines(file)
+                    .Select((line, index) => new { line, index })
+                    .Where(entry => entry.line.Contains(pattern, StringComparison.Ordinal))
+                    .Select(entry => (relativePath, LineNumber: entry.index + 1, Text: entry.line.Trim()));
+            })
+            .ToArray();
+        Assert.NotEmpty(matches);
+
+        var disallowed = matches
+            .Where(match => !allowedPaths.Contains(match.relativePath))
+            .Select(match => $"{match.relativePath}:{match.LineNumber}:{match.Text}")
+            .ToArray();
+
+        Assert.True(
+            disallowed.Length == 0,
+            $"{proof.Id}: source allowlist drift detected for '{pattern}':\n" + string.Join('\n', disallowed));
+    }
+
+    private static IEnumerable<string> EnumerateManifestSourceFiles(
+        DirectoryInfo repositoryRoot,
+        string proofId,
+        string relativePath)
+    {
+        var path = Path.Combine(repositoryRoot.FullName, relativePath);
+        if (File.Exists(path))
+        {
+            yield return path;
+            yield break;
+        }
+
+        Assert.True(Directory.Exists(path), $"{proofId}: expected source path '{path}'.");
+        foreach (var file in Directory.EnumerateFiles(path, "*.cs", SearchOption.AllDirectories))
+        {
+            yield return file;
+        }
+    }
+
+    private static string NormalizeManifestPath(DirectoryInfo repositoryRoot, string path) =>
+        Path.GetRelativePath(repositoryRoot.FullName, path).Replace('\\', '/');
 
     private static UnifiedBytecodeProductionEligibilityResult EvaluateEligibility(ProofManifestProof proof)
     {
@@ -415,6 +479,10 @@ public sealed partial class BytecodeProofManifestTests(ITestOutputHelper output)
         public string? Path { get; set; }
 
         public string? Pattern { get; set; }
+
+        public List<string> Paths { get; set; } = [];
+
+        public List<string> AllowedPaths { get; set; } = [];
 
         public string? RequiredOpCode { get; set; }
 

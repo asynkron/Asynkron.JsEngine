@@ -6972,6 +6972,33 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
+    public void ContainsOrdinaryDynamicIdentifierDependency_ZeroDepthCatchFreeTypeOf_EnablesOrdinaryDynamicNamePath()
+    {
+        var plan = GetFunctionPlan("""
+            function typeFromCatch() {
+                try {
+                    throw 1;
+                } catch (e) {
+                    return typeof externalValue + ":" + typeof missing;
+                }
+            }
+            """,
+            "typeFromCatch");
+
+        Assert.True(UnifiedBytecodeProductionEligibility.ContainsOrdinaryDynamicIdentifierDependency(plan));
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor(
+                AllowsOrdinaryDynamicIdentifierEnvironmentOperations: true));
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.TypeOfDynamicIdentifier);
+    }
+
+    [Fact]
     public void ContainsOrdinaryDynamicIdentifierDependency_ZeroDepthCatchFreeStore_DoesNotEnableOrdinaryDynamicNamePath()
     {
         var plan = GetFunctionPlan("""

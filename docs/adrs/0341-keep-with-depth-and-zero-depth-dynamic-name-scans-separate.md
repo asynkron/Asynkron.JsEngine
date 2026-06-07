@@ -2,7 +2,8 @@
 
 ## Status
 
-Accepted; narrowed by the 2026-06-07 A51f3 catch free-read admission.
+Accepted; narrowed by the 2026-06-07 A51f3 catch free-read/`typeof`
+admissions.
 
 ## Context
 
@@ -34,11 +35,12 @@ The accepted repair split the two meanings of "visit exception regions":
 
 That split admitted sloppy `finally { return helper(); }` free callees and
 active-with try/catch/finally bodies without treating catch-region stores or
-scope/environment shapes as broad dynamic-name admission signals. A later A51f3
-slice extended the same separate zero-depth scan to read-only free identifiers,
-so catch-region free reads can route while stores, updates, deletes, `typeof`,
-catch binding access, lexical dynamic declarations, and TDZ-head storage remain
-negative evidence.
+scope/environment shapes as broad dynamic-name admission signals. Later A51f3
+slices extended the same separate zero-depth scan to read-only free identifiers
+and `typeof` free identifiers, so catch-region free reads and free `typeof`
+can route while stores, updates, deletes, assignment references, catch binding
+access, lexical dynamic declarations, and TDZ-head storage remain negative
+evidence.
 
 ## Decision
 
@@ -53,10 +55,11 @@ not for every possible exception-region reachability question.
   opt-in for callers that need a separate reachability question. It must not
   silently become the default plan-shape scan.
 - Ordinary dynamic-name admission may use the zero-depth exception-region pass
-  only for read-only free identifiers and free call targets. Do not use
-  catch/finally stores, updates, deletes, `typeof`, catch binding access,
-  lexical dynamic declarations, or TDZ-head storage as evidence that the whole
-  body can take the ordinary dynamic-name production route.
+  only for read-only free identifiers, `typeof` free identifiers, and free call
+  targets. Do not use catch/finally stores, updates, deletes, assignment
+  references, catch binding access, lexical dynamic declarations, or TDZ-head
+  storage as evidence that the whole body can take the ordinary dynamic-name
+  production route.
 - Future widening must include positive route proof for the admitted
   exception-region shape and nearby no-route or regression proof for the
   dynamic-name families still owned by A51c and related scope/environment
@@ -67,9 +70,10 @@ not for every possible exception-region reachability question.
 - `with` inside try/catch/finally and try/catch/finally inside `with` can be
   reasoned about through one active-depth analysis without adding a second CFG
   recognizer.
-- Finally-region free call targets and zero-depth catch/finally free reads can
-  enable the same ordinary dynamic-name path as other free dynamic names, while
-  catch-region stores and broader scope/environment shapes stay declined.
+- Finally-region free call targets and zero-depth catch/finally free reads or
+  free `typeof` operations can enable the same ordinary dynamic-name path as
+  other free dynamic names, while catch-region stores and broader
+  scope/environment shapes stay declined.
 - The A45 checklist row is closed, while A51c remains the owner for catch
   binding, lexical dynamic declaration, active-with dynamic-name, and TDZ-head
   binding storage gaps.
@@ -103,10 +107,10 @@ not for every possible exception-region reachability question.
   / PR #3328 originally added regression tests for the A51c boundary covering
   zero-depth catch-region free read/store behavior before the read-only A51f3
   widening.
-- A later A51f3 slice superseded only the read half of that follow-up: zero-depth
-  catch free reads now enable `ContainsOrdinaryDynamicIdentifierDependency` and
-  route through production unified bytecode; zero-depth catch free stores remain
-  declined.
+- Later A51f3 slices superseded only the read/`typeof` half of that follow-up:
+  zero-depth catch free reads and free `typeof` now enable
+  `ContainsOrdinaryDynamicIdentifierDependency` and route through production
+  unified bytecode; zero-depth catch free stores remain declined.
 
 ## Related
 

@@ -5678,9 +5678,8 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     [Fact(Timeout = 5000)]
     public async Task ForOfLetHead_CapturedPerIterationBinding_UsesProductionFastPath()
     {
-        // A closure capturing the per-iteration binding makes per-iteration freshness observable.
-        // The captured-closure production path now admits this shape while still producing fresh
-        // per-iteration values [1,2,3].
+        // A44 admits captured per-iteration bindings once PushEnvironment carries per-iteration copy
+        // metadata into the VM. The route must preserve observable per-iteration freshness [1,2,3].
         await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
             function captured(values) {

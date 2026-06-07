@@ -2509,7 +2509,7 @@ TryCreateSimpleNumericSelfRecursionFastPath(
                         {
                             var isConst = _lexicalDeclarationKinds.TryGetValue(lexicalName, out var c) && c;
                             executionEnvironment.DefineJsValue(lexicalName, JsValue.Uninitialized, isConst: isConst,
-isLexicalBinding: true, blocksFunctionScopeOverride: true);
+                                isLexicalBinding: true, blocksFunctionScopeOverride: true);
                         }
                     }
 
@@ -3357,6 +3357,11 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
         private bool CanUseProductionUnifiedBytecodeFastPath(ExecutionPlan plan, JsValue newTarget)
         {
             if (_function.IsDynamicFunctionConstructorBody)
+            {
+                return false;
+            }
+
+            if (ScriptFastPathBlockBindingLeakDetector.HasOutOfScopeForHeadBindingReference(_function.Body))
             {
                 return false;
             }

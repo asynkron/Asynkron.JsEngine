@@ -851,6 +851,22 @@ internal static class UnifiedBytecodeCompiler
         return builder.ToImmutable();
     }
 
+    private static ImmutableArray<string> BuildPerIterationCopyNames(ImmutableArray<Symbol> perIterationBindings)
+    {
+        if (perIterationBindings.IsDefaultOrEmpty)
+        {
+            return ImmutableArray<string>.Empty;
+        }
+
+        var builder = ImmutableArray.CreateBuilder<string>(perIterationBindings.Length);
+        foreach (var binding in perIterationBindings)
+        {
+            builder.Add(binding.Name ?? string.Empty);
+        }
+
+        return builder.ToImmutable();
+    }
+
     private static ImmutableArray<int> RemapParameterSlotIndices(
         int scopeId,
         ImmutableArray<int> slotIndices,
@@ -1384,7 +1400,14 @@ internal static class UnifiedBytecodeCompiler
                             AwaitedProgram: null,
                             TargetSymbol: { } assignmentTargetSymbol
                         } assignment:
-                        if (!TryResolveInstructionSlot(assignmentTargetSymbol, assignment.FlatSlotId, slotLayout, out var assignmentSlot))
+                        if (!TryResolveInstructionSlot(
+                                assignmentTargetSymbol,
+                                assignment.ScopeId,
+                                assignment.SlotIndex,
+                                assignment.FlatSlotId,
+                                slotLayout,
+                                activeScopes,
+                                out var assignmentSlot))
                         {
                             if (!allowsDynamicIdentifiers)
                             {
@@ -1490,7 +1513,14 @@ internal static class UnifiedBytecodeCompiler
                             TargetSymbol: { } compoundTargetSymbol
                         } compoundAssignment
                         when IsSupportedBinaryOperator(compoundAssignment.Operator):
-                        if (!TryResolveInstructionSlot(compoundTargetSymbol, compoundAssignment.FlatSlotId, slotLayout, out var compoundSlot))
+                        if (!TryResolveInstructionSlot(
+                                compoundTargetSymbol,
+                                compoundAssignment.ScopeId,
+                                compoundAssignment.SlotIndex,
+                                compoundAssignment.FlatSlotId,
+                                slotLayout,
+                                activeScopes,
+                                out var compoundSlot))
                         {
                             if (!allowsDynamicIdentifiers)
                             {
@@ -1590,7 +1620,14 @@ internal static class UnifiedBytecodeCompiler
                             AwaitedProgram: null,
                             TargetSymbol: { } logicalTargetSymbol
                         } logicalAssignment:
-                        if (!TryResolveInstructionSlot(logicalTargetSymbol, logicalAssignment.FlatSlotId, slotLayout, out var logicalSlot))
+                        if (!TryResolveInstructionSlot(
+                                logicalTargetSymbol,
+                                logicalAssignment.ScopeId,
+                                logicalAssignment.SlotIndex,
+                                logicalAssignment.FlatSlotId,
+                                slotLayout,
+                                activeScopes,
+                                out var logicalSlot))
                         {
                             if (!allowsDynamicIdentifiers)
                             {
@@ -1712,11 +1749,14 @@ internal static class UnifiedBytecodeCompiler
                         {
                             TargetSymbol: { } incrementTargetSymbol
                         } increment:
-                        if (TryResolveInstructionSlot(
-                                incrementTargetSymbol,
-                                increment.FlatSlotId,
-                                slotLayout,
-                                out var incrementSlot))
+                            if (TryResolveInstructionSlot(
+                                    incrementTargetSymbol,
+                                    increment.ScopeId,
+                                    increment.SlotIndex,
+                                    increment.FlatSlotId,
+                                    slotLayout,
+                                    activeScopes,
+                                    out var incrementSlot))
                         {
                             unified.Add(new UnifiedBytecodeInstruction(
                                 UnifiedBytecodeOpCode.UpdateSlot,
@@ -1797,12 +1837,16 @@ internal static class UnifiedBytecodeCompiler
                             pushEnvironment.PerIterationBindings,
                             pushEnvironment.SlotMap,
                             slotLayout.FlatSlotMappings);
+                        var perIterationCopyNames = perIterationCopySlotIndices.IsDefaultOrEmpty
+                            ? BuildPerIterationCopyNames(pushEnvironment.PerIterationBindings)
+                            : ImmutableArray<string>.Empty;
                         var scopeDescriptorIndex = scopeDescriptors.Count;
                         scopeDescriptors.Add(new UnifiedBytecodeScopeDescriptor(
                             pushEnvironment.ScopeId,
                             lexicalSlotIndices,
                             constSlotIndices,
-                            perIterationCopySlotIndices));
+                            perIterationCopySlotIndices,
+                            perIterationCopyNames));
                         unified.Add(new UnifiedBytecodeInstruction(
                             UnifiedBytecodeOpCode.PushEnvironment,
                             scopeDescriptorIndex));
@@ -7482,11 +7526,10 @@ internal static class UnifiedBytecodeCompiler
     private static bool ShouldUseDynamicTypeOfIdentifierForScriptBlockLexical(
         IdentifierOperand identifier,
         UnifiedBytecodeSlotLayout slotLayout,
-        bool allowsDynamicIdentifiers) =>
-        allowsDynamicIdentifiers &&
-        slotLayout.ScriptCompletionSlot >= 0 &&
-        identifier.ScopeId >= 0 &&
-        identifier.ScopeId != slotLayout.ActivationSlots.ScopeId;
+        bool allowsDynamicIdentifiers)
+    {
+        return allowsDynamicIdentifiers && slotLayout.ScriptCompletionSlot >= 0;
+    }
 
     private static bool TryAppendCallArguments(
         ExpressionProgram expressionProgram,
@@ -9954,6 +9997,28 @@ internal static class UnifiedBytecodeCompiler
                 slotLayout,
                 out spanLength,
                 out reason);
+        }
+
+        if (operation.Kind == ExpressionOpKind.LoadIdentifier &&
+            slotLayout is not null &&
+            startIndex + 1 < endExclusive &&
+            expressionProgram.GetOperation(startIndex + 1).Kind == ExpressionOpKind.TypeOf)
+        {
+            var identifier = operation.GetIdentifier(expressionProgram.IdentifierConstants.AsSpan());
+            if (ShouldUseDynamicTypeOfIdentifierForScriptBlockLexical(
+                    identifier,
+                    slotLayout,
+                    allowsDynamicIdentifiers))
+            {
+                var nameIndex = stringConstants.Count;
+                stringConstants.Add(identifier.Name.Name ?? string.Empty);
+                unified.Add(new UnifiedBytecodeInstruction(
+                    UnifiedBytecodeOpCode.TypeOfDynamicIdentifier,
+                    nameIndex));
+                spanLength = 2;
+                reason = string.Empty;
+                return true;
+            }
         }
 
         var unifiedCount = unified.Count;
@@ -18061,11 +18126,57 @@ internal static class UnifiedBytecodeCompiler
 
     private static bool TryResolveInstructionSlot(
         Symbol symbol,
+        int scopeId,
+        int scopedSlotIndex,
         int flatSlotId,
         UnifiedBytecodeSlotLayout slotLayout,
+        Stack<UnifiedBytecodeScopeFrame> activeScopes,
         out int slotIndex)
     {
-        if (flatSlotId >= 0)
+        if (scopeId >= 0)
+        {
+            if (scopeId == slotLayout.ActivationSlots.ScopeId)
+            {
+                if (scopedSlotIndex >= 0 &&
+                    TryMapSlot(scopeId, scopedSlotIndex, slotLayout.FlatSlotMappings, out slotIndex))
+                {
+                    return true;
+                }
+
+                if (flatSlotId >= 0)
+                {
+                    slotIndex = flatSlotId;
+                    return true;
+                }
+            }
+
+            foreach (var scope in activeScopes)
+            {
+                if (scope.ScopeId != scopeId)
+                {
+                    continue;
+                }
+
+                if (scopedSlotIndex >= 0 &&
+                    TryMapSlot(scopeId, scopedSlotIndex, slotLayout.FlatSlotMappings, out slotIndex))
+                {
+                    return true;
+                }
+
+                if (flatSlotId >= 0)
+                {
+                    slotIndex = flatSlotId;
+                    return true;
+                }
+
+                break;
+            }
+
+            slotIndex = -1;
+            return false;
+        }
+
+        if (flatSlotId >= 0 && SlotNameMatches(slotLayout, flatSlotId, symbol))
         {
             slotIndex = flatSlotId;
             return true;

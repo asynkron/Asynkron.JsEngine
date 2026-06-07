@@ -1240,6 +1240,11 @@ public sealed class JsEnvironment : IRentable
         ref var slot = ref TryGetSlotRef(name);
         if (!Unsafe.IsNullRef(ref slot))
         {
+            if (slot is { IsLexical: true, IsUninitialized: true })
+            {
+                return false;
+            }
+
             return slot.IsConst || slot.IsGlobalConstant;
         }
 

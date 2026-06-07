@@ -1,6 +1,5 @@
 using System.Collections.Immutable;
 using Asynkron.JsEngine.Ast;
-using Asynkron.JsEngine.Ast.ShapeAnalyzer;
 using Asynkron.JsEngine.Execution.Instructions;
 
 namespace Asynkron.JsEngine.Execution.Emitters;
@@ -64,96 +63,10 @@ internal static class LoopEmitter
 
     private static bool CanElideNonCapturingForLoopScope(LoopPlan plan)
     {
-        // Slot metadata may still be stamped after initial emission, so this
-        // gate stays on semantic shape and lets the slot rewriter fill layout.
-        if (plan.Kind != LoopKind.For ||
-            plan.PerIterationBindings.IsDefaultOrEmpty ||
-            plan.PerIterationBindings.Length != 1 ||
-            !plan.AllowIterationEnvironmentPooling ||
-            plan.ConditionAfterBody ||
-            !plan.ConditionPrologue.IsDefaultOrEmpty ||
-            plan.IterationScopeId < 0)
-        {
-            return false;
-        }
-
-        if (plan.LeadingStatements.Length != 1 ||
-            plan.LeadingStatements[0] is not VariableDeclaration
-            {
-                Kind: VariableKind.Let,
-                Declarators.Length: 1
-            } declaration)
-        {
-            return false;
-        }
-
-        var declarator = declaration.Declarators[0];
-        if (declarator.Target is not IdentifierBinding identifier ||
-            declarator.Initializer is null ||
-            !ReferenceEquals(identifier.Name, plan.PerIterationBindings[0]))
-        {
-            return false;
-        }
-
-        return !ContainsDynamicScope(plan.Body) &&
-               !ContainsDynamicScope(plan.LeadingStatements) &&
-               !ContainsDirectEval(plan.Condition) &&
-               !ContainsDynamicScope(plan.PostIteration) &&
-               !ContainsSuspension(plan.Body) &&
-               !ContainsSuspension(plan.LeadingStatements) &&
-               !ContainsSuspension(plan.Condition) &&
-               !ContainsSuspension(plan.PostIteration);
-    }
-
-    private static bool ContainsDynamicScope(BlockStatement block)
-    {
-        return DynamicScopeDetector.ContainsWithOrDirectEval(block);
-    }
-
-    private static bool ContainsDynamicScope(ImmutableArray<StatementNode> statements)
-    {
-        if (statements.IsDefaultOrEmpty)
-        {
-            return false;
-        }
-
-        return DynamicScopeDetector.ContainsWithOrDirectEval(new BlockStatement(null, statements, false));
-    }
-
-    private static bool ContainsDirectEval(ExpressionNode expression)
-    {
-        return DynamicScopeDetector.ContainsDirectEval(expression);
-    }
-
-    private static bool ContainsSuspension(BlockStatement block)
-    {
-        return AstShapeAnalyzer.StatementContainsAwait(block) ||
-               AstShapeAnalyzer.StatementContainsYield(block);
-    }
-
-    private static bool ContainsSuspension(ImmutableArray<StatementNode> statements)
-    {
-        if (statements.IsDefaultOrEmpty)
-        {
-            return false;
-        }
-
-        foreach (var statement in statements)
-        {
-            if (AstShapeAnalyzer.StatementContainsAwait(statement) ||
-                AstShapeAnalyzer.StatementContainsYield(statement))
-            {
-                return true;
-            }
-        }
-
+        // This optimization is only valid if the loop-head lexical binding is unobservable after loop exit.
+        // Current script/function routes can leak the binding through the flat-slot environment, so keep the
+        // parent loop scope materialized until the elision path has a source-level proof.
         return false;
-    }
-
-    private static bool ContainsSuspension(ExpressionNode expression)
-    {
-        return AstShapeAnalyzer.ContainsAwait(expression) ||
-               AstShapeAnalyzer.ContainsYield(expression);
     }
 }
 

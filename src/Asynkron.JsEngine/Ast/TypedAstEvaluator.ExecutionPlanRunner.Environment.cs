@@ -162,7 +162,7 @@ public static partial class TypedAstEvaluator
             {
                 var isConst = lexicalDeclarationKinds.TryGetValue(lexicalName, out var c) && c;
                 executionEnvironment.DefineJsValue(lexicalName, JsValue.Uninitialized, isConst: isConst,
-isLexicalBinding: true, blocksFunctionScopeOverride: true);
+                    isLexicalBinding: true, blocksFunctionScopeOverride: true);
             }
 
             var generatorContext = _context is not null &&

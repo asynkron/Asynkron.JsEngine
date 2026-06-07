@@ -7461,15 +7461,15 @@ internal static class UnifiedBytecodeProductionEligibility
         PushEnvironmentInstruction instruction,
         ImmutableDictionary<int, ImmutableArray<(int SlotIndex, int FlatSlotId)>>? flatSlotMappings)
     {
+        // Per-iteration binding environments (for (const/let x in/of ...)) are admitted when every
+        // lexical slot resolves to a flat slot. Captured A44 shapes depend on the compiler carrying
+        // PerIterationBindings as copy metadata so PushEnvironment copies the current value into the fresh
+        // scope environment instead of applying the ordinary TDZ wipe to that slot.
         if (instruction.LexicalSlotIndices.IsDefaultOrEmpty)
         {
             return true;
         }
 
-        // Per-iteration binding environments (for (const/let x in/of ...)) are admitted when every
-        // lexical slot resolves to a flat slot. Captured A44 shapes depend on the compiler carrying
-        // PerIterationBindings as copy metadata so PushEnvironment copies the current value into the fresh
-        // scope environment instead of applying the ordinary TDZ wipe to that slot.
         if (instruction.ScopeId < 0 ||
             instruction.SlotCount < 0 ||
             instruction.SlotMap.IsEmpty ||
@@ -7485,6 +7485,18 @@ internal static class UnifiedBytecodeProductionEligibility
             if (!ContainsSlotMapping(mappings, lexicalSlotIndex))
             {
                 return false;
+            }
+        }
+
+        if (!instruction.PerIterationBindings.IsDefaultOrEmpty)
+        {
+            foreach (var binding in instruction.PerIterationBindings)
+            {
+                if (!instruction.SlotMap.TryGetValue(binding, out var slotIndex) ||
+                    !ContainsSlotMapping(mappings, slotIndex))
+                {
+                    return false;
+                }
             }
         }
 

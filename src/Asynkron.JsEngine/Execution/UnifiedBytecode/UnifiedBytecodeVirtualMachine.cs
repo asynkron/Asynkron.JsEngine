@@ -8,6 +8,7 @@ using Asynkron.JsEngine.Execution.Instructions;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.StdLib;
+using Microsoft.Extensions.Logging;
 
 namespace Asynkron.JsEngine.Execution.UnifiedBytecode;
 
@@ -357,6 +358,11 @@ internal static class UnifiedBytecodeVirtualMachine
                         }
 
                         var callableValue = slots[callTarget.SlotIndex];
+                        context.RealmState.Logger?.LogDebug(
+                            "diagnostic-identifier-call-target name={Name} slot={Slot} valueKind={Kind}",
+                            GetSlotName(program, callTarget.SlotIndex) ?? "<unnamed>",
+                            callTarget.SlotIndex,
+                            callableValue.Kind);
                         if (callableValue.IsUninitialized)
                         {
                             SetUninitializedSlotReferenceError(program, callTarget.SlotIndex, context);
@@ -2138,6 +2144,9 @@ internal static class UnifiedBytecodeVirtualMachine
                         var scopeDescriptor = program.ScopeDescriptors[instruction.Operand];
                         var lexicalSlotIndices = scopeDescriptor.LexicalSlotIndices;
                         var perIterationCopySlotIndices = scopeDescriptor.PerIterationCopySlotIndices;
+                        var perIterationCopyNames = scopeDescriptor.PerIterationCopyNames;
+                        var replacesActiveIterationEnvironment = false;
+                        var replacedIterationFrame = default(EnvironmentScopeFrame);
                         JsValue[]? perIterationCopyValues = null;
                         if (!perIterationCopySlotIndices.IsDefaultOrEmpty)
                         {
@@ -2145,6 +2154,30 @@ internal static class UnifiedBytecodeVirtualMachine
                             for (var i = 0; i < perIterationCopySlotIndices.Length; i++)
                             {
                                 perIterationCopyValues[i] = slots[perIterationCopySlotIndices[i]];
+                            }
+                        }
+
+                        JsValue[]? perIterationNamedCopyValues = null;
+                        bool[]? perIterationNamedCopyConst = null;
+                        if (!perIterationCopyNames.IsDefaultOrEmpty && currentCallingEnvironment is not null)
+                        {
+                            perIterationNamedCopyValues = new JsValue[perIterationCopyNames.Length];
+                            perIterationNamedCopyConst = new bool[perIterationCopyNames.Length];
+                            for (var i = 0; i < perIterationCopyNames.Length; i++)
+                            {
+                                var binding = Symbol.Intern(perIterationCopyNames[i]);
+                                if (currentCallingEnvironment.TryGetJsValueWithConst(
+                                        binding,
+                                        out var value,
+                                        out var isConst))
+                                {
+                                    perIterationNamedCopyValues[i] = value;
+                                    perIterationNamedCopyConst[i] = isConst;
+                                }
+                                else
+                                {
+                                    perIterationNamedCopyValues[i] = JsValue.Uninitialized;
+                                }
                             }
                         }
 
@@ -2176,6 +2209,24 @@ internal static class UnifiedBytecodeVirtualMachine
 
                         if (currentCallingEnvironment is not null)
                         {
+                            if ((!perIterationCopySlotIndices.IsDefaultOrEmpty ||
+                                 !perIterationCopyNames.IsDefaultOrEmpty) &&
+                                environmentStack is not null &&
+                                environmentStackCount > 0)
+                            {
+                                var activeFrame = environmentStack[environmentStackCount - 1];
+                                if (ReferenceEquals(activeFrame.Environment, currentCallingEnvironment) &&
+                                    activeFrame.Environment.ScopeId == scopeDescriptor.ScopeId &&
+                                    SlotIndicesEqual(activeFrame.SlotIndices, lexicalSlotIndices) &&
+                                    activeFrame.Environment.Enclosing is { } loopScopeEnvironment)
+                                {
+                                    replacesActiveIterationEnvironment = true;
+                                    replacedIterationFrame = activeFrame;
+                                    environmentStackCount--;
+                                    currentCallingEnvironment = loopScopeEnvironment;
+                                }
+                            }
+
                             var scopeEnvironment = CreateScopeEnvironment(
                                 program,
                                 scopeDescriptor,
@@ -2185,7 +2236,9 @@ internal static class UnifiedBytecodeVirtualMachine
                                 isStrict);
                             var previousSlotEnvironments = slotEnvironments is null
                                 ? []
-                                : new UnifiedSlotEnvironmentBinding?[lexicalSlotIndices.Length];
+                                : replacesActiveIterationEnvironment
+                                    ? replacedIterationFrame.PreviousSlotEnvironments
+                                    : new UnifiedSlotEnvironmentBinding?[lexicalSlotIndices.Length];
                             if (slotEnvironments is not null)
                             {
                                 for (var i = 0; i < lexicalSlotIndices.Length; i++)
@@ -2195,7 +2248,11 @@ internal static class UnifiedBytecodeVirtualMachine
                                     var isCopiedPerIterationSlot = ContainsSlotIndex(
                                         perIterationCopySlotIndices,
                                         slotIndex);
-                                    previousSlotEnvironments[i] = slotEnvironments[slotIndex];
+                                    if (!replacesActiveIterationEnvironment)
+                                    {
+                                        previousSlotEnvironments[i] = slotEnvironments[slotIndex];
+                                    }
+
                                     slotEnvironments[slotIndex] = new UnifiedSlotEnvironmentBinding(
                                         scopeEnvironment,
                                         slotIndex);
@@ -2215,6 +2272,19 @@ internal static class UnifiedBytecodeVirtualMachine
                                     var value = perIterationCopyValues[i];
                                     slots[slotIndex] = value;
                                     scopeEnvironment.SetSlotDirect(slotIndex, value);
+                                }
+                            }
+
+                            if (perIterationNamedCopyValues is not null)
+                            {
+                                for (var i = 0; i < perIterationCopyNames.Length; i++)
+                                {
+                                    var binding = Symbol.Intern(perIterationCopyNames[i]);
+                                    scopeEnvironment.DefineJsValue(
+                                        binding,
+                                        perIterationNamedCopyValues[i],
+                                        perIterationNamedCopyConst![i],
+                                        isLexicalBinding: true);
                                 }
                             }
 
@@ -7632,12 +7702,26 @@ internal static class UnifiedBytecodeVirtualMachine
         var rootSlotCount = Math.Min(slotCount, slotNames.Length);
         for (var i = 0; i < rootSlotCount; i++)
         {
-            if (slotNames[i] is { } name &&
-                callingEnvironment.TryGetSlotIndex(Symbol.Intern(name), out var environmentSlotIndex))
+            if (slotNames[i] is not { } name)
             {
-                slotEnvironments[i] = new UnifiedSlotEnvironmentBinding(
-                    callingEnvironment,
-                    environmentSlotIndex);
+                continue;
+            }
+
+            var symbol = Symbol.Intern(name);
+            if (callingEnvironment.TryGetSlotIndex(symbol, out var environmentSlotIndex))
+            {
+                slotEnvironments[i] = new UnifiedSlotEnvironmentBinding(callingEnvironment, environmentSlotIndex);
+                continue;
+            }
+
+            if (callingEnvironment.TryFindBindingJsValue(
+                    symbol,
+                    allowUninitialized: true,
+                    out var bindingEnvironment,
+                    out _) &&
+                bindingEnvironment.TryGetSlotIndex(symbol, out environmentSlotIndex))
+            {
+                slotEnvironments[i] = new UnifiedSlotEnvironmentBinding(bindingEnvironment, environmentSlotIndex);
             }
         }
 
@@ -8015,6 +8099,24 @@ internal static class UnifiedBytecodeVirtualMachine
         {
             slotEnvironments[slotIndices[i]] = previousSlotEnvironments[i];
         }
+    }
+
+    private static bool SlotIndicesEqual(ImmutableArray<int> left, ImmutableArray<int> right)
+    {
+        if (left.Length != right.Length)
+        {
+            return false;
+        }
+
+        for (var i = 0; i < left.Length; i++)
+        {
+            if (left[i] != right[i])
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private static IteratorDriverState CreateIteratorDriverState(

@@ -23,9 +23,19 @@ internal static class ScriptFastPathBlockBindingLeakDetector
 {
     public static bool HasOutOfScopeBlockBindingReference(BlockStatement body)
     {
+        return HasOutOfScopeBlockBindingReference(body, includeNestedBlocks: true);
+    }
+
+    public static bool HasOutOfScopeForHeadBindingReference(BlockStatement body)
+    {
+        return HasOutOfScopeBlockBindingReference(body, includeNestedBlocks: false);
+    }
+
+    private static bool HasOutOfScopeBlockBindingReference(BlockStatement body, bool includeNestedBlocks)
+    {
         // Collect (declaring construct, block-scoped lexical names) pairs.
         var declarations = new List<(StatementNode Construct, HashSet<Symbol> Names)>();
-        CollectBlockLexicalDeclarations(body, isFunctionBody: true, declarations);
+        CollectBlockLexicalDeclarations(body, isFunctionBody: true, includeNestedBlocks, declarations);
 
         if (declarations.Count == 0)
         {
@@ -48,17 +58,19 @@ internal static class ScriptFastPathBlockBindingLeakDetector
     private static void CollectBlockLexicalDeclarations(
         BlockStatement block,
         bool isFunctionBody,
+        bool includeNestedBlocks,
         List<(StatementNode Construct, HashSet<Symbol> Names)> declarations)
     {
         foreach (var statement in block.Statements)
         {
-            CollectFromStatement(statement, isTopLevelBlock: isFunctionBody, declarations);
+            CollectFromStatement(statement, isTopLevelBlock: isFunctionBody, includeNestedBlocks, declarations);
         }
     }
 
     private static void CollectFromStatement(
         StatementNode statement,
         bool isTopLevelBlock,
+        bool includeNestedBlocks,
         List<(StatementNode Construct, HashSet<Symbol> Names)> declarations)
     {
         switch (statement)
@@ -82,7 +94,7 @@ internal static class ScriptFastPathBlockBindingLeakDetector
                     }
                 }
 
-                CollectFromStatement(forStatement.Body, isTopLevelBlock: false, declarations);
+                CollectFromStatement(forStatement.Body, isTopLevelBlock: false, includeNestedBlocks, declarations);
                 break;
             }
 
@@ -99,14 +111,14 @@ internal static class ScriptFastPathBlockBindingLeakDetector
                     }
                 }
 
-                CollectFromStatement(forEach.Body, isTopLevelBlock: false, declarations);
+                CollectFromStatement(forEach.Body, isTopLevelBlock: false, includeNestedBlocks, declarations);
                 break;
             }
 
             case BlockStatement nestedBlock:
             {
                 // A nested block (not the function's own top-level block) introduces a block scope.
-                if (!isTopLevelBlock)
+                if (includeNestedBlocks && !isTopLevelBlock)
                 {
                     var names = new HashSet<Symbol>();
                     foreach (var inner in nestedBlock.Statements)
@@ -131,23 +143,37 @@ internal static class ScriptFastPathBlockBindingLeakDetector
 
                 foreach (var inner in nestedBlock.Statements)
                 {
-                    CollectFromStatement(inner, isTopLevelBlock: false, declarations);
+                    CollectFromStatement(inner, isTopLevelBlock: false, includeNestedBlocks, declarations);
                 }
 
                 break;
             }
 
             case IfStatement ifStatement:
-                CollectFromStatement(ifStatement.Then, isTopLevelBlock: false, declarations);
+                CollectFromStatement(ifStatement.Then, isTopLevelBlock: false, includeNestedBlocks, declarations);
                 if (ifStatement.Else is not null)
                 {
-                    CollectFromStatement(ifStatement.Else, isTopLevelBlock: false, declarations);
+                    CollectFromStatement(ifStatement.Else, isTopLevelBlock: false, includeNestedBlocks, declarations);
                 }
 
                 break;
 
             case LoopStatementNode { Body: { } loopBody }:
-                CollectFromStatement(loopBody, isTopLevelBlock: false, declarations);
+                CollectFromStatement(loopBody, isTopLevelBlock: false, includeNestedBlocks, declarations);
+                break;
+
+            case TryStatement tryStatement:
+                CollectFromStatement(tryStatement.TryBlock, isTopLevelBlock: false, includeNestedBlocks, declarations);
+                if (tryStatement.Catch is { } catchClause)
+                {
+                    CollectFromStatement(catchClause.Body, isTopLevelBlock: false, includeNestedBlocks, declarations);
+                }
+
+                if (tryStatement.Finally is { } finallyBlock)
+                {
+                    CollectFromStatement(finallyBlock, isTopLevelBlock: false, includeNestedBlocks, declarations);
+                }
+
                 break;
         }
     }

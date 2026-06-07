@@ -83,7 +83,7 @@ public sealed class IrLoopEnvironmentTests(ITestOutputHelper output) : InternalT
     }
 
     [Fact(Timeout = 5000)]
-    public async Task SyncForLoop_NonCapturingSimpleLet_ElidesParentLoopScope()
+    public async Task SyncForLoop_NonCapturingSimpleLet_MaterializesParentLoopScope()
     {
         await using var engine = CreateEngine();
         var program = engine.ParseProgram("""
@@ -111,8 +111,8 @@ public sealed class IrLoopEnvironmentTests(ITestOutputHelper output) : InternalT
             .ToArray();
 
         Assert.NotEmpty(pushScopes);
-        Assert.Single(pushScopes.Where(push => !push.PerIterationBindings.IsDefaultOrEmpty));
-        Assert.DoesNotContain(pushScopes, IsLoopScopeForI);
+        Assert.Equal(2, pushScopes.Count(push => !push.PerIterationBindings.IsDefaultOrEmpty));
+        Assert.Contains(pushScopes, push => push.PerIterationBindings.IsDefaultOrEmpty);
         Assert.Contains(pushScopes, push => !push.PerIterationBindings.IsDefaultOrEmpty);
     }
 

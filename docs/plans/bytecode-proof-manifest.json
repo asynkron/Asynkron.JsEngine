@@ -50,6 +50,26 @@
             "classified-script-ir-fallback reason=production-unified-bytecode-declined",
             "code=CallDependency"
           ]
+        },
+        {
+          "id": "A2-retained-with-closure-read-stays-open",
+          "claim": "open",
+          "kind": "runtime",
+          "source": "function mk(o) { with (o) { function g() { return x; } return g; } }\nvar f = mk({ x: 42 });\nString(f() + ':' + f());",
+          "expectedResult": "42:42",
+          "forbiddenLogs": [
+            "unified-bytecode-production-fast-path func=g"
+          ]
+        },
+        {
+          "id": "A2-retained-with-closure-receiver-call-stays-open",
+          "claim": "open",
+          "kind": "runtime",
+          "source": "function mk(o) { with (o) { function g() { return finish(); } return g; } }\nvar holder = { x: 7, finish: function() { return this === holder ? this.x * 2 : -1; } };\nvar f = mk(holder);\nString(f());",
+          "expectedResult": "14",
+          "forbiddenLogs": [
+            "unified-bytecode-production-fast-path func=g"
+          ]
         }
       ]
     },
@@ -1035,6 +1055,30 @@
           "expectedEligible": false,
           "declineCode": "UnsupportedPlanShape",
           "reasonContains": "Direct eval invocation semantics"
+        }
+      ]
+    },
+    {
+      "id": "D3",
+      "title": "With quarantine keeps active current-environment routing separate from awaited and retained-live residue",
+      "status": "done",
+      "proofs": [
+        {
+          "id": "D3-resumable-active-with-current-environment-routes",
+          "claim": "admitted",
+          "kind": "runtime",
+          "source": "function* g(scope) {\n  with (scope) {\n    yield value;\n    value = value + 1;\n    yield get();\n  }\n}\nvar scope = { value: 4, get: function() { return this.value; } };\nvar it = g(scope);\nString(it.next().value) + ':' + it.next().value + ':' + scope.value;",
+          "expectedResult": "4:5:5",
+          "requiredLogs": [
+            "unified-bytecode-resumable-generator-fast-path func=g"
+          ]
+        },
+        {
+          "id": "D3-awaited-with-object-residue-stays-declined",
+          "claim": "terminal-residue",
+          "kind": "source-presence",
+          "path": "src/Asynkron.JsEngine/Execution/UnifiedBytecode/UnifiedBytecodeProductionEligibility.cs",
+          "pattern": "D3 dynamic residue: awaited with-object evaluation is not eligible for resumable unified bytecode routing."
         }
       ]
     },

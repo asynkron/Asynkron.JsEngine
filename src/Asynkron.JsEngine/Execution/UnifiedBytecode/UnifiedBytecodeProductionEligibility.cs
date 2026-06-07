@@ -4235,13 +4235,6 @@ internal static class UnifiedBytecodeProductionEligibility
                 return false;
             }
 
-            if (cache.FieldInitializerPrograms[i] is { } initializerProgram &&
-                ExpressionProgramReferencesActivationSlot(initializerProgram, activationSlots, out var capturedName))
-            {
-                declineReason =
-                    $"Class literal is outside B24h: private field initializer captures activation binding '{capturedName}' and needs the materialized body environment route.";
-                return false;
-            }
         }
 
         if (FunctionCapturesActivationSlot(definition.Constructor, activationSlots, out var constructorCapturedName) &&

@@ -114,8 +114,9 @@ statement interpretation.
   slots,
   including mixes with non-computed public fields/methods/accessors,
   noncapturing or activation-capturing private instance methods/accessors
-  through the materialized body-environment route, and activation-safe private
-  instance fields under the same activation-safety rules, and
+  through the materialized body-environment route, and private instance fields
+  whose initializers do not use `super` under the same activation-safety rules,
+  and
   mixed public non-computed static fields plus static methods/accessors when
   field initializers compile as standalone unified bytecode and
   member/constructor bodies do not capture activation slots, are
@@ -124,9 +125,8 @@ statement interpretation.
   expression programs and static-block IR plans, and the remaining B24h/B24i
   shapes keep computed-name unadmitted call-target dependencies, member-super
   outside the admitted public-computed/public-non-computed subsets, private
-  static/computed member state, activation-capturing private field-initializer
-  state, static-block environment state, and activation-slot `extends` shapes
-  declined.
+  static/computed member state, private field-initializer `super` state,
+  static-block environment state, and activation-slot `extends` shapes declined.
 - `UnifiedBytecodeCompiler` now has generated audit coverage for every declared
   IR instruction record. Function-scoped `FunctionDeclarationInstruction`
   entries compile as no-ops after fast activation hoisting installs the callable
@@ -488,8 +488,8 @@ and whose public computed member bodies and field initializer programs may use
 including mixes
 with non-computed public fields/methods/accessors, noncapturing or
 activation-capturing private instance methods/accessors through the materialized
-body-environment route, and activation-safe private instance fields under
-the same activation-safety rules, plus public
+body-environment route, and private instance fields whose initializers do not
+use `super` under the same activation-safety rules, plus public
 non-computed static methods/accessors whose bodies do not capture activation
 slots and public non-computed static-field class literals with `extends` whose
 initializers compile as standalone unified bytecode and create no nested
@@ -504,7 +504,7 @@ activation slots also remain declined until class-definition evaluation owns
 that environment bridge. The remaining B24h and B24i shapes remain declined by
 the resumable shape gate: computed names that use direct-eval/spread/construct/super
 or otherwise unadmitted call-target shapes still stay outside B24h, and private
-static/computed members, activation-capturing private field initializers, and
+static/computed members, private field initializers that use `super`, and
 static-block-neighbor mixed static shapes remain outside the admitted B24
 subsets.
 

@@ -4228,13 +4228,6 @@ internal static class UnifiedBytecodeProductionEligibility
                 continue;
             }
 
-            if (field.Initializer is not null && ExpressionContainsSuper(field.Initializer))
-            {
-                declineReason =
-                    "Class literal is outside B24h: private field initializer uses super and needs the class-definition environment route.";
-                return false;
-            }
-
         }
 
         if (FunctionCapturesActivationSlot(definition.Constructor, activationSlots, out var constructorCapturedName) &&

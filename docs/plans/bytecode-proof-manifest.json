@@ -189,7 +189,7 @@
     },
     {
       "id": "B24h",
-      "title": "Computed class-member names are partial; private field initializer super still declines",
+      "title": "Computed class-member names are partial; private static/computed neighbors still decline",
       "status": "open",
       "proofs": [
         {
@@ -366,12 +366,22 @@
           ]
         },
         {
-          "id": "B24h-computed-private-field-initializer-super-declines",
+          "id": "B24h-computed-private-field-initializer-super-routes",
+          "claim": "admitted",
+          "kind": "runtime",
+          "source": "class Base {\n  get value() { return 41; }\n}\nfunction* g() {\n  yield 'ready';\n  var C = class extends Base {\n    ['read']() { return this.#value + 1; }\n    #value = super.value;\n  };\n  var c = new C();\n  yield c.read();\n}\nvar iterator = g();\nvar first = iterator.next();\nvar second = iterator.next();\nfirst.value + ':' + first.done + '|' + second.value + ':' + second.done;",
+          "expectedResult": "ready:false|42:false",
+          "requiredLogs": [
+            "unified-bytecode-resumable-generator-fast-path func=g"
+          ]
+        },
+        {
+          "id": "B24h-computed-private-static-field-neighbor-declines",
           "claim": "open",
           "kind": "eligibility",
           "subject": "resumable-generator",
           "functionName": "g",
-          "source": "class Base {\n  get value() { return 41; }\n}\nfunction* g() {\n  yield 1;\n  var C = class extends Base {\n    ['read']() { return this.#value; }\n    #value = super.value;\n  };\n  return C;\n}",
+          "source": "function* g() {\n  yield 1;\n  var C = class {\n    ['read']() { return 42; }\n    static #value = 41;\n  };\n  return C;\n}",
           "expectedEligible": false,
           "declineCode": "UnsupportedPlanShape",
           "reasonContains": "B24"

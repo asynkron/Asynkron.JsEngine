@@ -2521,9 +2521,8 @@ avoids the build-back repair cycle that the sibling task (PR #2748) required.
     `CreateClassValueFromLiteral(...)`, synchronize back after creation, and
     translate class-creation throws into the resumable throw step. Keep
     unproven fields, static elements/blocks, static/computed private members,
-    private field initializers that use `super`, and `extends` expressions that
-    read resumable activation slots as pre-VM declines until the VM owns those
-    class-definition environment semantics. Do
+    and `extends` expressions that read resumable activation slots as pre-VM
+    declines until the VM owns those class-definition environment semantics. Do
     not duplicate class-definition,
     `extends`, static-element, private-name, or name-inference semantics inside
     the VM, and do not satisfy the route by falling back to `ExpressionProgram`,

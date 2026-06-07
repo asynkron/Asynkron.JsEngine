@@ -11,6 +11,11 @@ The finite checklist source of truth remains
 remain in `docs/unified-bytecode-expansion-contract.md`. This page is the
 overview.
 
+The checklist now also carries the finite open-row inventory for A1/A2, the
+remaining A51 leaves, B24h, B36, E4, and E5. That ledger is the compact handoff
+for owner source surfaces, proof-anchor families, and dynamic-residue versus
+ordinary fallback classification.
+
 The executable proof index is `docs/plans/bytecode-proof-manifest.json`, checked
 by `BytecodeProofManifestTests`. A checklist/Faktorial item is not closed just
 because a broad row was investigated: every closure claim needs a manifest row

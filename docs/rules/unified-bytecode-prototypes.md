@@ -2520,7 +2520,7 @@ avoids the build-back repair cycle that the sibling task (PR #2748) required.
     synchronize unified slots into that environment before class creation, call
     `CreateClassValueFromLiteral(...)`, synchronize back after creation, and
     translate class-creation throws into the resumable throw step. Keep
-    unproven fields, static elements/blocks, private static initializer
+    unproven fields, static elements/blocks, private static initializer `super`
     dependencies, private computed members, and `extends` expressions that read
     resumable activation slots as pre-VM declines until the VM owns those
     class-definition environment semantics. Do

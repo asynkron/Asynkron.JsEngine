@@ -182,6 +182,14 @@ fallback or cleanup.
     for binding-target execution. If any other quarantined helper is deleted,
     change its guard from classified allowlist to tombstone instead of leaving
     stale permission. See ADR 0345.
+28. Treat D1/D2/D3 and A2 dynamic-activation residue rows as terminal dynamic
+    fallback guardrails, not parking buckets for ordinary bytecode work. When a
+    retrospective or rebaseline touches direct eval, `with`, retained dynamic
+    environments, or `Function(...)` bodies, explicitly keep ordinary compiler,
+    call-boundary, class/static-block, `ExpressionProgram`, and
+    `ExecutionPlanRunner` retirement work in their A/B/E owner rows. Pair
+    admitted vs open claims with exact proof-manifest rows, and split sync and
+    resumable proofs when the runtime entry point differs.
 
 ## Dynamic Boundary Classification (#1405 Retry)
 
@@ -423,6 +431,18 @@ that retired profiling bridges must be source-gated across both engine code and
 `tools/ProfileRunner`, and standalone executor ownership should use a manifest
 allowlist so new call sites outside the approved helper-owned surface fail the
 ordinary proof-manifest test suite. See ADR 0345.
+
+Issue
+`planitem-planitem-planitem-gh3377-rebaseline-the-finite-bytecode-retirement-inven-b668e36a1a`
+/ PRs #3388 and #3391 rebaselined the finite bytecode retirement inventory after
+A2 direct-eval evidence drift. The incident matters because declaration-free
+direct eval had admitted sync and resumable subsets, while arguments-dependent
+resumable eval, retained live-`with`, runtime-source eval, and declaration
+instantiation remained intentionally open or terminal residue. Without a rule,
+future agents could treat D1/D2/D3 as convenient open buckets and hide ordinary
+A51, B24h, B36, E4, or E5 retirement work there. Future rebaselines should keep
+those ordinary rows visible, use manifest rows for executable claims, and name
+sync vs resumable proof rows separately when their entry points differ.
 
 PR #2729 completed full deletion of `EvaluateLegacyAstExpression` and its
 sibling methods from `Ast/Legacy/ExpressionNodeExtensions.cs`. The build-stage

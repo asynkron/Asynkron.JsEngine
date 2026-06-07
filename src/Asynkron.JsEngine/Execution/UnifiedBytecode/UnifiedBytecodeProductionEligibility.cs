@@ -494,8 +494,8 @@ internal static class UnifiedBytecodeProductionEligibility
         {
             declineCode = UnifiedBytecodeProductionDeclineCode.CapturedOrDynamicActivation;
             declineReason = isResumable
-                ? "Captured or dynamic activation is not eligible for resumable unified bytecode routing."
-                : "Captured or dynamic activation is not eligible for production unified bytecode routing.";
+                ? "Unowned captured or dynamic activation residue is not eligible for resumable unified bytecode routing."
+                : "Unowned captured or dynamic activation residue is not eligible for production unified bytecode routing.";
             return true;
         }
 

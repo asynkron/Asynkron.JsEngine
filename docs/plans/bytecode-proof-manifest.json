@@ -540,7 +540,21 @@
           ]
         },
         {
-          "id": "B24h-computed-static-block-direct-eval-declines",
+          "id": "B24h-computed-static-block-direct-eval-literal-routes",
+          "claim": "admitted",
+          "kind": "runtime",
+          "source": "function* g(seed) {\n  var current = seed;\n  yield 'ready';\n  var C = class {\n    ['read']() { return 42; }\n    static {\n      eval('current = current + 1');\n      this.value = current + 1;\n      current = this.value + 1;\n    }\n  };\n  yield C.value + '|' + current;\n}\nvar iterator = g(40);\nvar first = iterator.next();\nvar second = iterator.next();\nfirst.value + ':' + first.done + '|' + second.value + ':' + second.done;",
+          "expectedResult": "ready:false|42|43:false",
+          "requiredLogs": [
+            "unified-bytecode-resumable-generator-fast-path func=g",
+            "unified-bytecode-production-fast-path static-block"
+          ],
+          "forbiddenLogs": [
+            "classified-static-block-ir-fallback"
+          ]
+        },
+        {
+          "id": "B24h-computed-static-block-runtime-source-direct-eval-declines",
           "claim": "open",
           "kind": "eligibility",
           "subject": "resumable-generator",
@@ -903,7 +917,21 @@
           ]
         },
         {
-          "id": "B36-class-declaration-static-block-direct-eval-declines",
+          "id": "B36-class-declaration-static-block-direct-eval-literal-routes",
+          "claim": "admitted",
+          "kind": "runtime",
+          "source": "function* g(seed) {\n  var current = seed;\n  yield 'ready';\n  class Box {\n    static {\n      eval('current = current + 1');\n      this.value = current + 1;\n      current = this.value + 1;\n    }\n  }\n  yield Box.value + '|' + current;\n}\nvar iterator = g(40);\nvar first = iterator.next();\nvar second = iterator.next();\nfirst.value + ':' + first.done + '|' + second.value + ':' + second.done;",
+          "expectedResult": "ready:false|42|43:false",
+          "requiredLogs": [
+            "unified-bytecode-resumable-generator-fast-path func=g",
+            "unified-bytecode-production-fast-path static-block"
+          ],
+          "forbiddenLogs": [
+            "classified-static-block-ir-fallback"
+          ]
+        },
+        {
+          "id": "B36-class-declaration-static-block-runtime-source-direct-eval-declines",
           "claim": "open",
           "kind": "eligibility",
           "subject": "resumable-generator",

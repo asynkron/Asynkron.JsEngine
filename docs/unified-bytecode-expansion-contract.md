@@ -121,8 +121,8 @@ statement interpretation.
   under the same activation-safety rules, and
   eligible static blocks whose bodies route through production unified bytecode,
   including static blocks that create activation-capturing function literal
-  closures or nested class declarations through the materialized
-  body-environment route, and
+  closures, nested class declarations, or declaration-free single-literal direct
+  eval statements through the materialized body-environment route, and
   mixed public non-computed static fields plus static methods/accessors when
   field initializers compile as standalone unified bytecode and
   member/constructor bodies do not capture activation slots, are
@@ -515,12 +515,14 @@ initializers through expression programs and static blocks through
 `ExecutionPlanRunner.RunScript`; `extends` expressions that read resumable
 activation slots also remain declined until class-definition evaluation owns
 that environment bridge. The remaining B24h and B24i shapes remain declined by
-the resumable shape gate for non-production-eligible static-block plans and
-class-definition environment state; direct activation-resolved constructs with
-spread and non-spread arguments now stay on `LoadClassLiteral`. Static-block
-function declarations and nested class declarations whose bodies capture
-resumable activation slots are inside the materialized-body-environment route
-when the static-block body is otherwise production eligible.
+the resumable shape gate for runtime-source direct eval, non-production-eligible
+static-block plans, and class-definition environment state; direct
+activation-resolved constructs with spread and non-spread arguments now stay on
+`LoadClassLiteral`. Static-block function declarations, nested class
+declarations, and declaration-free single-literal direct eval statements whose
+bodies capture or mutate resumable activation slots are inside the
+materialized-body-environment route when the static-block body is otherwise
+production eligible.
 
 - `B24a:ClassExpressionConstructor`
 - `B24b:ClassExpressionInstanceFields`
@@ -578,7 +580,7 @@ semantic bridge or mis-parking dynamic residue as ordinary fallback work.
 | Async function fallback | `TypedAstEvaluator.AsyncFunctionInvoker` | `EvaluateResumable` is attempted for admitted async bodies; declined bodies construct an `ExecutionPlanRunner` through `CreateClassifiedAsyncDeclinedBodyRunner`, while accepted super-property bodies snapshot `ResumableSuperBinding` into the resume state instead of constructing a runner-backed setup environment | `rtk rg -n "EvaluateResumable|CreateClassifiedAsyncDeclinedBodyRunner|TryCreateResumableSuperBinding|ResumableSuperBinding|new ExecutionPlanRunner|GetOrCreateExecutionEnvironmentForInternalUse" src/Asynkron.JsEngine/Ast/TypedAstEvaluator.AsyncFunctionInvoker.cs` |
 | Generator fallback | `TypedAstEvaluator.SyncGeneratorInvoker` and `TypedAstEvaluator.GeneratorFunctionBase` | `EvaluateResumable` is attempted for admitted generator bodies; declined bodies use the classified `CreateClassifiedGeneratorDeclinedBodyRunner` boundary, while accepted super-property bodies snapshot `ResumableSuperBinding` into the resume state instead of constructing a runner-backed setup environment | `rtk rg -n "EvaluateResumable|CreateClassifiedGeneratorDeclinedBodyRunner|TryCreateResumableSuperBinding|ResumableSuperBinding|new ExecutionPlanRunner|GetOrCreateExecutionEnvironmentForInternalUse" src/Asynkron.JsEngine/Ast/TypedAstEvaluator.SyncGeneratorInvoker.cs src/Asynkron.JsEngine/Ast/TypedAstEvaluator.GeneratorFunctionBase.cs` |
 | Async-generator fallback | `TypedAstEvaluator.AsyncGeneratorInvoker` | `EvaluateResumable` covers admitted async-generator bodies; declined bodies no longer construct `CreateClassifiedAsyncGeneratorDeclinedBodyRunner` and fail explicitly until the VM admits the declined semantics. Accepted super-property bodies snapshot `ResumableSuperBinding` into the resume state, and step-result adaptation is not itself route admission | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~BytecodeProofManifestTests|FullyQualifiedName~UnifiedBytecodeAsyncGeneratorRouteTests"` |
-| Class/static-block bridge | `ClassDefinitionExtensions.ExecuteStaticBlock` | Static-block-only class expressions can route through resumable `LoadClassLiteral`; eligible static-block bodies now execute their cached static-block plan through production unified bytecode before falling back to `ExecutionPlanRunner.RunScript`. Declined static-block bodies, including closure-producing blocks, remain a materialized-environment / IR-runner boundary. | `rtk rg -n "ExecuteStaticBlock|TryExecuteStaticBlockViaUnifiedBytecode|ExecutionPlanRunner\\.RunScript" src/Asynkron.JsEngine/Ast/ClassDefinitionExtensions.cs docs/plans/bytecode-burndown-checklist.md` |
+| Class/static-block bridge | `ClassDefinitionExtensions.ExecuteStaticBlock` | Static-block-only class expressions can route through resumable `LoadClassLiteral`; eligible static-block bodies now execute their cached static-block plan through production unified bytecode before falling back to `ExecutionPlanRunner.RunScript`, including declaration-free single-literal direct eval statements. Declined static-block bodies, including runtime-source direct eval and other non-production plans, remain a materialized-environment / IR-runner boundary. | `rtk rg -n "ExecuteStaticBlock|TryExecuteStaticBlockViaUnifiedBytecode|ExecutionPlanRunner\\.RunScript" src/Asynkron.JsEngine/Ast/ClassDefinitionExtensions.cs docs/plans/bytecode-burndown-checklist.md` |
 | Standalone expression and binding bridges | `UnifiedBytecodeExpressionProgramExecutor`, `TypedAstEvaluator.BindingTargetPrograms`, and `ExecutionPlanRunner` helper entrypoints | `EvaluateStandaloneExpressionProgram`, `EvaluateLoweredExpressionProgram`, `EvaluateDynamicExpressionProgram`, and `ApplyStandaloneBindingTargetProgram` are deleted. Standalone `ExpressionProgram` payloads now execute through `UnifiedBytecodeExpressionProgramExecutor`, which compiles them with `UnifiedBytecodeCompiler.TryCompileStandaloneExpressionProgram` and executes `UnifiedBytecodeVirtualMachine` directly. Legacy dynamic AST expression callers use `UnifiedBytecodeExpressionProgramExecutor.ExecuteDynamic`, which still lowers/caches expression payloads before executing standalone unified bytecode. External lowered binding-target programs now call the static lowered binding-target core directly instead of constructing an `ExecutionPlanRunner`; expression payloads on that external binding path execute through standalone unified bytecode. Runner-internal binding-target calls still pass the active runner and remain part of the E5 runner retirement surface. The profiler-only expression-program loop is also gone: `ProfileRunner` compiles synthetic profile cases to standalone unified bytecode and executes the unified VM directly, while `ProfileEvaluateExpressionProgramLoop` is source-gated as absent. | `rtk rg -n "EvaluateStandaloneExpressionProgram|EvaluateLoweredExpressionProgram|EvaluateDynamicExpressionProgram|ApplyStandaloneBindingTargetProgram|UnifiedBytecodeExpressionProgramExecutor.ExecuteDynamic|ApplyLoweredBindingTargetProgram" src/Asynkron.JsEngine`; `rtk rg -n "ProfileEvaluateExpressionProgramLoop" src/Asynkron.JsEngine/Ast` |
 | Dynamic residue boundary | Direct eval, live `with`, eval-injected runtime bindings, and `Function(...)`-produced bodies | Terminal dynamic residue stays out of ordinary E5 fallback retirement until a future issue owns those semantics explicitly | `rtk rg -n "Dynamic Residue|D1|D3|D4|Function\\(" docs/plans/bytecode-burndown-checklist.md docs/rules/unified-bytecode-prototypes.md` |
 
@@ -937,9 +939,11 @@ predicates and proof tests.
     root class declarations that mix public non-computed static fields with
     eligible static blocks now route as well, preserving static element order,
     descriptor-backed static-block function declarations and nested static-block
-    class declarations can close over the materialized resumable body environment.
-    Dynamic/eval helpers, non-production
-    static-block plans, plus otherwise complex class declaration neighbors
+    class declarations can close over the materialized resumable body environment,
+    and declaration-free single-literal direct eval statements inside static
+    blocks route through the same production static-block path. Dynamic/eval
+    helpers, runtime-source direct eval or otherwise non-production static-block
+    plans, plus otherwise complex class declaration neighbors
     (computed/private/static shapes outside the public B24h-compatible subset)
     are the remaining separate B36 declaration-instantiation work.
     `DeclareFunction` remains off the resumable opcode allowlist because

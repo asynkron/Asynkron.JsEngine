@@ -693,6 +693,36 @@ public sealed class UnifiedBytecodeResumableClassDeclarationTests(ITestOutputHel
     }
 
     [Fact]
+    public void EvaluateResumable_ClassDeclarationStaticBlockDirectEvalLiteral_AdmitsDeclareClass()
+    {
+        var plan = GetFunctionPlan("""
+            function* g(seed) {
+                var current = seed;
+                yield "ready";
+                class Box {
+                    static {
+                        eval("current = current + 1");
+                        this.value = current + 1;
+                        current = this.value + 1;
+                    }
+                }
+                yield Box.value + current;
+            }
+            """,
+            "g");
+
+        var result = UnifiedBytecodeProductionEligibility.EvaluateResumable(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor(IsGenerator: true));
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(
+            result.Program.Instructions,
+            static instruction => instruction.OpCode == UnifiedBytecodeOpCode.DeclareClass);
+    }
+
+    [Fact]
     public void EvaluateResumable_ClassDeclarationMixedStaticFieldAndBlock_AdmitsDeclareClass()
     {
         var plan = GetFunctionPlan("""
@@ -1488,6 +1518,45 @@ public sealed class UnifiedBytecodeResumableClassDeclarationTests(ITestOutputHel
         Assert.Equal("ready:false|42:false", result);
         AssertGeneratorFastPath("g", argc: 1);
         AssertProductionFastPath("<anonymous>");
+        var logs = CurrentLogger!.Collector.Snapshot();
+        Assert.Contains(
+            logs,
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path static-block",
+                StringComparison.Ordinal));
+        Assert.DoesNotContain(
+            logs,
+            static record => record.Message.Contains(
+                "classified-static-block-ir-fallback",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task GeneratorClassDeclarationStaticBlockDirectEvalLiteral_RoutesResumable()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function* g(seed) {
+                var current = seed;
+                yield "ready";
+                class Box {
+                    static {
+                        eval("current = current + 1");
+                        this.value = current + 1;
+                        current = this.value + 1;
+                    }
+                }
+                yield Box.value + "|" + current;
+            }
+
+            var iterator = g(40);
+            var first = iterator.next();
+            var second = iterator.next();
+            first.value + ":" + first.done + "|" + second.value + ":" + second.done;
+            """);
+
+        Assert.Equal("ready:false|42|43:false", result);
+        AssertGeneratorFastPath("g", argc: 1);
         var logs = CurrentLogger!.Collector.Snapshot();
         Assert.Contains(
             logs,

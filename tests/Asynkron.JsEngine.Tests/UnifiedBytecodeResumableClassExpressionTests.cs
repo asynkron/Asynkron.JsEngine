@@ -2521,6 +2521,68 @@ public sealed class UnifiedBytecodeResumableClassExpressionTests(ITestOutputHelp
     }
 
     [Fact]
+    public void EvaluateResumable_ClassExpressionComputedMemberWithStaticBlockDirectEvalLiteral_AdmitsLoadClassLiteral()
+    {
+        var plan = GetFunctionPlan("""
+            function* g(seed) {
+                var current = seed;
+                yield "ready";
+                var C = class {
+                    ["read"]() { return 42; }
+                    static {
+                        eval("current = current + 1");
+                        this.value = current + 1;
+                        current = this.value + 1;
+                    }
+                };
+                yield C.value + current;
+            }
+            """,
+            "g");
+
+        var result = UnifiedBytecodeProductionEligibility.EvaluateResumable(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor(IsGenerator: true));
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(
+            result.Program.Instructions,
+            static instruction => instruction.OpCode == UnifiedBytecodeOpCode.LoadClassLiteral);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task GeneratorClassExpressionComputedMemberWithStaticBlockDirectEvalLiteral_RoutesResumable()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function* g(seed) {
+                var current = seed;
+                yield "ready";
+                var C = class {
+                    ["read"]() { return 42; }
+                    static {
+                        eval("current = current + 1");
+                        this.value = current + 1;
+                        current = this.value + 1;
+                    }
+                };
+                yield C.value + "|" + current;
+            }
+
+            var iterator = g(40);
+            var first = iterator.next();
+            var second = iterator.next();
+            first.value + ":" + first.done + "|" + second.value + ":" + second.done;
+            """);
+
+        Assert.Equal("ready:false|42|43:false", result);
+        AssertGeneratorFastPath("g", argc: 1);
+        AssertStaticBlockFastPath();
+        AssertNoStaticBlockFallback();
+    }
+
+    [Fact]
     public void EvaluateResumable_ClassExpressionComputedMemberWithStaticBlockClosureNeighbor_AdmitsLoadClassLiteral()
     {
         var plan = GetFunctionPlan("""

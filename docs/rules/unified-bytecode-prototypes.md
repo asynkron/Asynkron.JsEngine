@@ -279,6 +279,26 @@ all-or-nothing until a separate routing issue proves production readiness.
     e)` and `typeof -(pick ? a : b)` after the bounded parser repair, while
     keeping `a + helper()` declined as `CallDependency`. Related ADR:
     `docs/adrs/0359-admit-nested-simple-operand-spans-through-bounded-recursive-walkers.md`.
+9j. Keep class static-block IR fallback classified by the production decline
+    that caused it. `ClassDefinitionExtensions.ExecuteStaticBlock` may still
+    delegate to `ExecutionPlanRunner.RunScript` for non-production static-block
+    plans, but only after `TryExecuteStaticBlockViaUnifiedBytecode(...)`
+    attempts production unified bytecode and logs the stable decline code and
+    reason. The accepted static-block section must execute through
+    `UnifiedBytecodeVirtualMachine.Execute` without runner, expression-program,
+    or AST delegation. Runtime-source direct eval and otherwise
+    non-production-eligible static-block plans stay B24h/B36 residue until the
+    broader class-definition environment route owns their eval environment and
+    declaration semantics. Future widening must pair a static-block route hit
+    with nearby classified fallback/no-route proof; do not replace the precise
+    decline with a generic runner edge or a VM-side fallback. WHY: Faktorial
+    issue
+    `planitem-planitem-planmanual1780730299657353000-unified-bytecode-remaining-burndo-bbaf44ae93`
+    / PR #3372 ratcheted the E5 class static-block bridge by proving eligible
+    static blocks attempt production unified bytecode first, while
+    runtime-source direct eval remains declined and auditable through the
+    classified fallback. Related ADR:
+    `docs/adrs/0364-keep-class-static-block-ir-fallback-classified-by-production-decline.md`.
 10. When invoking production unified bytecode from sync calls, keep the bridge
     slot-layout owned and fast-path ordered. The production unified route runs
     before direct specialized simple-return binary/chain shortcuts and the

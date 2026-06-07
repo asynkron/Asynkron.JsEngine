@@ -208,7 +208,7 @@
     },
     {
       "id": "B24h",
-      "title": "Computed class-member names are partial; computed-name spread calls still decline",
+      "title": "Computed class-member names are partial; static-block nested declarations still decline",
       "status": "open",
       "proofs": [
         {
@@ -454,15 +454,26 @@
           ]
         },
         {
-          "id": "B24h-computed-name-spread-call-declines",
+          "id": "B24h-computed-name-spread-call-routes",
+          "claim": "admitted",
+          "kind": "runtime",
+          "source": "function* g(read, args) {\n  yield 'ready';\n  var C = class {\n    [read(...args)]() { return 42; }\n  };\n  return C;\n}\nvar read = (prefix, suffix) => prefix + suffix;\nvar iterator = g(read, ['val', 'ue']);\nvar first = iterator.next();\nvar second = iterator.next();\nvar C = second.value;\nfirst.value + ':' + first.done + '|' + new C().value() + ':' + second.done;",
+          "expectedResult": "ready:false|42:true",
+          "requiredLogs": [
+            "unified-bytecode-resumable-generator-fast-path func=g",
+            "unified-bytecode-production-fast-path func=<anonymous>"
+          ]
+        },
+        {
+          "id": "B24h-computed-static-block-function-declaration-declines",
           "claim": "open",
           "kind": "eligibility",
           "subject": "resumable-generator",
           "functionName": "g",
-          "source": "function* g(read, args) {\n  yield 1;\n  var C = class {\n    [read(...args)]() { return 42; }\n  };\n  return C;\n}",
+          "source": "function* g(seed) {\n  yield 1;\n  var C = class {\n    ['read']() { return 42; }\n    static {\n      function readLater() { return seed; }\n      this.readLater = readLater;\n    }\n  };\n  return C;\n}",
           "expectedEligible": false,
           "declineCode": "UnsupportedPlanShape",
-          "reasonContains": "B24"
+          "reasonContains": "static block contains nested declarations"
         }
       ]
     },

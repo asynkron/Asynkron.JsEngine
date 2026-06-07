@@ -1526,6 +1526,29 @@ public sealed class ExpressionProgramLoweringTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task ReturnInstruction_SpreadCallExpression_StandaloneUnifiedBytecodeCarriesCallSpreadMasks()
+    {
+        var plan = await GetFunctionPlan("""
+            function pickMax(values) {
+                return Math.max(...values);
+            }
+            """, "pickMax");
+
+        var instruction = Assert.Single(plan.Instructions.OfType<ReturnInstruction>(), i => i.ReturnProgram is not null);
+        var returnProgram = Assert.NotNull(instruction.ReturnProgram);
+        Assert.True(
+            UnifiedBytecodeCompiler.TryCompileStandaloneExpressionProgram(
+                returnProgram,
+                allowsDynamicIdentifiers: true,
+                out var program,
+                out var reason),
+            reason);
+
+        Assert.NotEmpty(program.CallSpreadMasks);
+        Assert.Contains(0, program.CallSpreadMasks[0]);
+    }
+
+    [Fact]
     public async Task ReturnInstruction_MultiSpreadCallExpression_IsLoweredToExpressionProgram()
     {
         var plan = await GetFunctionPlan("""

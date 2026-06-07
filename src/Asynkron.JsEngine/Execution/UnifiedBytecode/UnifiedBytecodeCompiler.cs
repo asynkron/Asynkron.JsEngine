@@ -325,6 +325,9 @@ internal static class UnifiedBytecodeCompiler
             ImmutableArray<UnifiedBytecodeTryDescriptor>.Empty,
             ImmutableArray<UnifiedBytecodeCatchDescriptor>.Empty,
             ImmutableArray<UnifiedBytecodeDriverDescriptor>.Empty,
+            CallSpreadMasks: slotLayout.CallSpreadMasks.Count == 0
+                ? ImmutableArray<ImmutableArray<int>>.Empty
+                : [.. slotLayout.CallSpreadMasks],
             FunctionLiteralConstants: functionLiteralConstants.Count == 0
                 ? ImmutableArray<FunctionLiteralDescriptor>.Empty
                 : functionLiteralConstants.ToImmutable(),

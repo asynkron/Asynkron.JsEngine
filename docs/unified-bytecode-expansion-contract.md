@@ -514,7 +514,7 @@ initializers through expression programs and static blocks through
 `ExecutionPlanRunner.RunScript`; `extends` expressions that read resumable
 activation slots also remain declined until class-definition evaluation owns
 that environment bridge. The remaining B24h and B24i shapes remain declined by
-the resumable shape gate: computed names that use direct-eval/spread/construct/super
+the resumable shape gate: computed names that use direct-eval/construct/super
 or otherwise unadmitted call-target shapes still stay outside B24h, and private
 computed members plus static-block nested declarations or non-production-eligible
 static-block plans remain outside the admitted B24 subsets.

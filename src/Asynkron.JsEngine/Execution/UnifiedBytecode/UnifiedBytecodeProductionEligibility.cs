@@ -4575,8 +4575,7 @@ internal static class UnifiedBytecodeProductionEligibility
             }
 
             if (!callOperation.HasExplicitThis ||
-                callOperation.IsDirectEval ||
-                callOperation.SpreadMaskConstantIndex >= 0)
+                callOperation.IsDirectEval)
             {
                 return false;
             }

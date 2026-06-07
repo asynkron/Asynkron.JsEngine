@@ -1421,8 +1421,9 @@ public sealed class UnifiedBytecodeResumableClassExpressionTests(ITestOutputHelp
     }
 
     [Fact]
-    public void EvaluateResumable_ClassExpressionComputedNameSpreadCall_DeclinesBeforeVm() =>
-        AssertClassExpressionDeclines("""
+    public void EvaluateResumable_ClassExpressionComputedNameSpreadCall_AdmitsLoadClassLiteral()
+    {
+        var plan = GetFunctionPlan("""
             function* g(read, args) {
                 yield 1;
                 var C = class {
@@ -1430,7 +1431,45 @@ public sealed class UnifiedBytecodeResumableClassExpressionTests(ITestOutputHelp
                 };
                 return C;
             }
+            """,
+            "g");
+
+        var result = UnifiedBytecodeProductionEligibility.EvaluateResumable(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor(IsGenerator: true));
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(
+            result.Program.Instructions,
+            static instruction => instruction.OpCode == UnifiedBytecodeOpCode.LoadClassLiteral);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task GeneratorComputedNameSpreadCall_RoutesResumableAndSpreadsActivationArguments()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function* g(read, args) {
+                yield "ready";
+                var C = class {
+                    [read(...args)]() { return 42; }
+                };
+                return C;
+            }
+
+            var read = (prefix, suffix) => prefix + suffix;
+            var iterator = g(read, ["val", "ue"]);
+            var first = iterator.next();
+            var second = iterator.next();
+            var C = second.value;
+            first.value + ":" + first.done + "|" + new C().value() + ":" + second.done;
             """);
+
+        Assert.Equal("ready:false|42:true", result);
+        AssertGeneratorFastPath("g", argc: 2);
+        AssertProductionFastPath("<anonymous>");
+    }
 
     [Fact]
     public void EvaluateResumable_ClassExpressionComputedNameActivationDelete_AdmitLoadClassLiteral()
@@ -2365,6 +2404,22 @@ public sealed class UnifiedBytecodeResumableClassExpressionTests(ITestOutputHelp
         AssertStaticBlockFastPath();
         AssertNoStaticBlockFallback();
     }
+
+    [Fact]
+    public void EvaluateResumable_ClassExpressionComputedMemberWithStaticBlockFunctionDeclaration_DeclinesBeforeVm() =>
+        AssertClassExpressionDeclines("""
+            function* g(seed) {
+                yield 1;
+                var C = class {
+                    ["read"]() { return 42; }
+                    static {
+                        function readLater() { return seed; }
+                        this.readLater = readLater;
+                    }
+                };
+                return C;
+            }
+            """);
 
     [Fact]
     public void EvaluateResumable_ClassExpressionStaticPublicAccessor_AdmitsLoadClassLiteral()

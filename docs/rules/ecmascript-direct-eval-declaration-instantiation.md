@@ -84,6 +84,14 @@ and keep `arguments` handling path-specific.
     eval declarations stay isolated from the caller while logging no
     `unified-bytecode-production-fast-path` hit, plus a declined-neighbor
     async-generator settlement test when this surface is touched.
+11. When rebaselining bytecode inventory or proof-manifest rows around direct
+    eval, keep admitted and residue sublanes explicit under the same open
+    umbrella row when both still exist. Use admitted proof rows for
+    declaration-free, single-literal direct eval routes, open decline rows for
+    declaration-bearing or runtime-source direct eval, and hard-quarantined rows
+    for terminal multi-arg/spread residue. Do not relabel D1/D2 terminal
+    residue as ordinary A2 work, and do not count the admitted declaration-free
+    lane as open residue.
 
 ## Why
 
@@ -154,6 +162,16 @@ generators declined because their promise-settlement and classified fallback
 contract is a separate route-family proof problem. Future direct-eval widening
 must preserve that per-invoker flag split instead of inferring async-generator
 safety from a sync-generator or async-function proof.
+
+Faktorial issue
+`planitem-planitem-planitem-gh3377-rebaseline-the-finite-bytecode-retirement-inven-7320768cfe`
+/ PR #3383 rebaselined the A2 direct-eval proof inventory without runtime code
+changes. The useful lesson is taxonomy hygiene: A2 is mixed, so the proof
+manifest must distinguish admitted declaration-free literal eval and bounded
+caller-activation or implicit-`arguments` reads from declaration-bearing eval,
+runtime-source eval, and terminal multi-arg/spread D1/D2 residue. Future
+inventory passes should preserve that split instead of flattening the whole
+row into either "admitted" or "residue".
 
 Related ADRs:
 

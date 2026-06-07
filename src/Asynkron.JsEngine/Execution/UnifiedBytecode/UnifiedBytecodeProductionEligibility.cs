@@ -12076,8 +12076,7 @@ internal static class UnifiedBytecodeProductionEligibility
         var namedRead = program.GetOperation(startIndex + 1);
         if (namedRead.Kind != ExpressionOpKind.GetNamedProperty ||
             !namedRead.IsOptional ||
-            namedRead.ShortCircuitOnNullishTarget ||
-            namedRead.GetString(program.StringConstants.AsSpan()).IsPrivateName())
+            namedRead.ShortCircuitOnNullishTarget)
         {
             return false;
         }

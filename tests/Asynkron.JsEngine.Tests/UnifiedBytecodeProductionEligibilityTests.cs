@@ -6055,6 +6055,31 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
+    public void Evaluate_OptionalPrivateNamedPropertyRead_AcceptsOptionalNamedPropertyOpcode()
+    {
+        var plan = GetClassMethodPlan("""
+            class Holder {
+                #field = 1;
+                read(receiver) {
+                    return receiver?.#field;
+                }
+            }
+            """,
+            "Holder",
+            "read");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(
+            result.Program.Instructions,
+            instruction => instruction.OpCode == UnifiedBytecodeOpCode.GetNamedPropertyOptional);
+    }
+
+    [Fact]
     public void Evaluate_PrivateReceiverPrefixNamedPropertyRead_AcceptsOwnedPropertyOpcodes()
     {
         var plan = GetClassMethodPlan("""

@@ -193,9 +193,9 @@ public sealed class ProductionRouteCoverageRatchetTests(ITestOutputHelper output
     // plain `this`-store, `new.target` inside the body, and a nested-lexical-scope body (`this`-stores
     // resolve through the receiver, so the captured-name shadowing hazard that bounds the closure/arrow
     // lifts does not apply here). The log func is the class name. Derived (super) ctors, instance-field
-    // ctors, direct private-name constructor writes, and plain private reads used as nested RHS operands
-    // now route too; remaining optional/private, delete, call-neighbor, and super-neighbor diagnostics
-    // stay tracked under A51f5.
+    // ctors, direct private-name constructor writes, plain private reads used as nested RHS operands, and
+    // single-hop optional private reads now route too; remaining chained optional-private, delete-defense,
+    // call-neighbor, and super-neighbor diagnostics stay tracked under A51f5.
     [InlineData("class C { constructor(a,b){ this.x=a; this.y=b; } } new C(1,2);", "unified-bytecode-production-fast-path func=C")]
     [InlineData("class C { constructor(n){ let t=n+1; this.v=t; } } new C(2);", "unified-bytecode-production-fast-path func=C")]
     [InlineData("class C { constructor(){ this.nt=new.target; } } new C();", "unified-bytecode-production-fast-path func=C")]

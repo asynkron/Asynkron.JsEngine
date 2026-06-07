@@ -10445,8 +10445,7 @@ internal static class UnifiedBytecodeCompiler
         var namedRead = expressionProgram.GetOperation(startIndex + 1);
         if (namedRead.Kind != ExpressionOpKind.GetNamedProperty ||
             !namedRead.IsOptional ||
-            namedRead.ShortCircuitOnNullishTarget ||
-            namedRead.GetString(expressionStringConstants).IsPrivateName())
+            namedRead.ShortCircuitOnNullishTarget)
         {
             return false;
         }
@@ -15923,7 +15922,7 @@ internal static class UnifiedBytecodeCompiler
         return true;
     }
 
-    // Handles: [activation-resolved base, GetNamedProperty(IsOptional:true, !ShortCircuitOnNullishTarget, non-private)]
+    // Handles: [activation-resolved base, GetNamedProperty(IsOptional:true, !ShortCircuitOnNullishTarget)]
     // Emits: LoadSlot, GetNamedPropertyOptional
     private static bool TryAppendFirstBoundaryOptionalNamedPropertyRead(
         ExpressionProgram expressionProgram,
@@ -15943,8 +15942,7 @@ internal static class UnifiedBytecodeCompiler
 
         if (getNamedOp.Kind != ExpressionOpKind.GetNamedProperty ||
             !getNamedOp.IsOptional ||
-            getNamedOp.ShortCircuitOnNullishTarget ||
-            getNamedOp.GetString(expressionProgram.StringConstants.AsSpan()).IsPrivateName())
+            getNamedOp.ShortCircuitOnNullishTarget)
         {
             reason = string.Empty;
             return false;

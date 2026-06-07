@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted
+Accepted; narrowed by the 2026-06-07 A51f3 catch free-read admission.
 
 ## Context
 
@@ -33,8 +33,12 @@ The accepted repair split the two meanings of "visit exception regions":
   targets that enable the existing dynamic-name path.
 
 That split admitted sloppy `finally { return helper(); }` free callees and
-active-with try/catch/finally bodies without turning catch-only free reads into
-a broad dynamic-name admission signal.
+active-with try/catch/finally bodies without treating catch-region stores or
+scope/environment shapes as broad dynamic-name admission signals. A later A51f3
+slice extended the same separate zero-depth scan to read-only free identifiers,
+so catch-region free reads can route while stores, updates, deletes, `typeof`,
+catch binding access, lexical dynamic declarations, and TDZ-head storage remain
+negative evidence.
 
 ## Decision
 
@@ -49,10 +53,10 @@ not for every possible exception-region reachability question.
   opt-in for callers that need a separate reachability question. It must not
   silently become the default plan-shape scan.
 - Ordinary dynamic-name admission may use the zero-depth exception-region pass
-  only for free call targets. Do not use catch/finally free reads, stores,
-  catch binding access, lexical dynamic declarations, or TDZ-head storage as
-  evidence that the whole body can take the ordinary dynamic-name production
-  route.
+  only for read-only free identifiers and free call targets. Do not use
+  catch/finally stores, updates, deletes, `typeof`, catch binding access,
+  lexical dynamic declarations, or TDZ-head storage as evidence that the whole
+  body can take the ordinary dynamic-name production route.
 - Future widening must include positive route proof for the admitted
   exception-region shape and nearby no-route or regression proof for the
   dynamic-name families still owned by A51c and related scope/environment
@@ -63,9 +67,9 @@ not for every possible exception-region reachability question.
 - `with` inside try/catch/finally and try/catch/finally inside `with` can be
   reasoned about through one active-depth analysis without adding a second CFG
   recognizer.
-- Finally-region free call targets can enable the same ordinary dynamic-name
-  path as other free call targets, but zero-depth catch/finally free reads do
-  not over-admit dynamic lookup.
+- Finally-region free call targets and zero-depth catch/finally free reads can
+  enable the same ordinary dynamic-name path as other free dynamic names, while
+  catch-region stores and broader scope/environment shapes stay declined.
 - The A45 checklist row is closed, while A51c remains the owner for catch
   binding, lexical dynamic declaration, active-with dynamic-name, and TDZ-head
   binding storage gaps.
@@ -96,11 +100,13 @@ not for every possible exception-region reachability question.
     with no matches.
 - Follow-up Faktorial issue
   `planitem-planmanual1780730299657353000-unified-bytecode-remaining-burndown-03-com-b95fdc6b1a`
-  / PR #3328 added regression tests for the A51c boundary: zero-depth catch
-  free reads and stores do not enable
-  `ContainsOrdinaryDynamicIdentifierDependency`, the eligibility result remains
-  `UnsupportedPlanShape`, and a public catch-only free-read runtime computes on
-  the IR path without logging `unified-bytecode-production-fast-path`.
+  / PR #3328 originally added regression tests for the A51c boundary covering
+  zero-depth catch-region free read/store behavior before the read-only A51f3
+  widening.
+- A later A51f3 slice superseded only the read half of that follow-up: zero-depth
+  catch free reads now enable `ContainsOrdinaryDynamicIdentifierDependency` and
+  route through production unified bytecode; zero-depth catch free stores remain
+  declined.
 
 ## Related
 

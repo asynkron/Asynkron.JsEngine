@@ -184,8 +184,9 @@ internal static class UnifiedBytecodeProductionEligibility
         }
 
         // Zero-depth catch/finally bodies are not part of the main plan-shape scan. They can still contain
-        // a finally-return free callee whose dynamic call target enables the ordinary dynamic-name path.
-        // Keep this extra pass call-target-only so catch-only free reads do not over-admit the whole body.
+        // read-only free names or a finally-return free callee whose dynamic-name dependency enables the
+        // ordinary dynamic-name path. Keep this extra pass read/call-target-only so catch-only stores,
+        // updates, deletes, and typeof forms do not over-admit the whole body.
         if (!UnifiedBytecodeWithDepthAnalysis.TryBuildActiveWithDepths(
                 plan.Instructions,
                 plan.EntryPoint,
@@ -205,7 +206,8 @@ internal static class UnifiedBytecodeProductionEligibility
                 continue;
             }
 
-            if (HasOrdinaryDynamicCallTargetDependency(program, activationSlots))
+            if (HasOrdinaryDynamicReadDependency(program, activationSlots) ||
+                HasOrdinaryDynamicCallTargetDependency(program, activationSlots))
             {
                 return true;
             }
@@ -236,6 +238,29 @@ internal static class UnifiedBytecodeProductionEligibility
 
             var callIdentifier = operation.GetIdentifier(identifierConstants);
             if (IsOrdinaryDynamicIdentifier(callIdentifier, activationSlots))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool HasOrdinaryDynamicReadDependency(
+        ExpressionProgram program,
+        ActivationSlotShape activationSlots)
+    {
+        var identifierConstants = program.IdentifierConstants.AsSpan();
+        for (var operationIndex = 0; operationIndex < program.OperationCount; operationIndex++)
+        {
+            var operation = program.GetOperation(operationIndex);
+            if (operation.Kind != ExpressionOpKind.LoadIdentifier || operation.IsArguments)
+            {
+                continue;
+            }
+
+            var identifier = operation.GetIdentifier(identifierConstants);
+            if (IsOrdinaryDynamicIdentifier(identifier, activationSlots))
             {
                 return true;
             }

@@ -6934,7 +6934,7 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
-    public void ContainsOrdinaryDynamicIdentifierDependency_ZeroDepthCatchFreeRead_DoesNotEnableOrdinaryDynamicNamePath()
+    public void ContainsOrdinaryDynamicIdentifierDependency_ZeroDepthCatchFreeRead_EnablesOrdinaryDynamicNamePath()
     {
         var plan = GetFunctionPlan("""
             function readFromCatch() {
@@ -6947,15 +6947,17 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
             """,
             "readFromCatch");
 
-        Assert.False(UnifiedBytecodeProductionEligibility.ContainsOrdinaryDynamicIdentifierDependency(plan));
+        Assert.True(UnifiedBytecodeProductionEligibility.ContainsOrdinaryDynamicIdentifierDependency(plan));
 
         var result = UnifiedBytecodeProductionEligibility.Evaluate(
             plan,
-            new UnifiedBytecodeProductionActivationDescriptor());
+            new UnifiedBytecodeProductionActivationDescriptor(
+                AllowsOrdinaryDynamicIdentifierEnvironmentOperations: true));
 
-        Assert.False(result.IsEligible);
-        Assert.Equal(UnifiedBytecodeProductionDeclineCode.UnsupportedPlanShape, result.Code);
-        Assert.Contains("externalValue", result.Reason, StringComparison.Ordinal);
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.LoadDynamicIdentifier);
     }
 
     [Fact]

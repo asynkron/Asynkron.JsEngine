@@ -106,10 +106,11 @@ all-or-nothing until a separate routing issue proves production readiness.
     depth is greater than zero so active `with` boundaries are preserved across
     catch/finally. Zero-depth handler/finally traversal must remain an explicit
     opt-in for callers with a separate reachability question, and the ordinary
-    dynamic-name production gate may use that opt-in only to discover free call
-    targets. Do not let catch-only free reads, stores, catch binding access,
-    lexical dynamic declarations, or TDZ-head storage become evidence that the
-    whole body can route through the ordinary dynamic-name production path.
+    dynamic-name production gate may use that opt-in only to discover free
+    reads or free call targets. Do not let catch-only free stores, updates,
+    deletes, `typeof`, catch binding access, lexical dynamic declarations, or
+    TDZ-head storage become evidence that the whole body can route through the
+    ordinary dynamic-name production path.
     Future widening in this area needs both positive route proof for admitted
     exception-region shapes and nearby no-route/regression proof for A51c-style
     scope/environment gaps. WHY: Faktorial issue
@@ -120,9 +121,9 @@ all-or-nothing until a separate routing issue proves production readiness.
     Follow-up Faktorial issue
     `planitem-planmanual1780730299657353000-unified-bytecode-remaining-burndown-03-com-b95fdc6b1a`
     / PR #3328 pinned the A51c no-route side of the same boundary for
-    zero-depth catch-only free reads and stores, proving they compute through
-    the existing IR path but must not become ordinary dynamic-name production
-    route evidence.
+    zero-depth catch-only free reads and stores; the read-only shape was later
+    admitted with a dedicated zero-depth scan, while stores and broader
+    scope/environment shapes remain negative evidence.
     Related ADR:
     `docs/adrs/0341-keep-with-depth-and-zero-depth-dynamic-name-scans-separate.md`.
 9b. When admitting sync `using` declarations to production unified bytecode,

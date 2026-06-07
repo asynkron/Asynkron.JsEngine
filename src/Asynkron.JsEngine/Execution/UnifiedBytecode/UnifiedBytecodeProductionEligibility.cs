@@ -4220,25 +4220,6 @@ internal static class UnifiedBytecodeProductionEligibility
             return false;
         }
 
-        for (var i = 0; i < definition.Fields.Length; i++)
-        {
-            var field = definition.Fields[i];
-            if (!field.IsPrivate)
-            {
-                continue;
-            }
-
-            if (field.IsStatic &&
-                field.Initializer is not null &&
-                ExpressionContainsSuper(field.Initializer))
-            {
-                declineReason =
-                    "Class literal is outside B24h: private static field initializer uses super and needs the class-definition environment route.";
-                return false;
-            }
-
-        }
-
         if (FunctionCapturesActivationSlot(definition.Constructor, activationSlots, out var constructorCapturedName) &&
             !IsMaterializedResumableBodyEnvironmentCapture(constructorCapturedName))
         {

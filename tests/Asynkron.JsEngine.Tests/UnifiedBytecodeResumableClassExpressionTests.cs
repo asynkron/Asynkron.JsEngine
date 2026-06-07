@@ -2173,8 +2173,9 @@ public sealed class UnifiedBytecodeResumableClassExpressionTests(ITestOutputHelp
     }
 
     [Fact]
-    public void EvaluateResumable_ClassExpressionComputedMemberWithPrivateStaticFieldInitializerSuper_DeclinesBeforeVm() =>
-        AssertClassExpressionDeclines("""
+    public void EvaluateResumable_ClassExpressionComputedMemberWithPrivateStaticFieldInitializerSuper_AdmitsLoadClassLiteral()
+    {
+        var plan = GetFunctionPlan("""
         class Base {
             static get value() { return 41; }
         }
@@ -2185,6 +2186,63 @@ public sealed class UnifiedBytecodeResumableClassExpressionTests(ITestOutputHelp
                 ["read"]() { return 42; }
                 static #value = super.value;
                 static value() { return this.#value; }
+            };
+            return C;
+        }
+        """,
+            "g");
+
+        var result = UnifiedBytecodeProductionEligibility.EvaluateResumable(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor(IsGenerator: true));
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(
+            result.Program.Instructions,
+            static instruction => instruction.OpCode == UnifiedBytecodeOpCode.LoadClassLiteral);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task GeneratorClassExpressionComputedMemberWithPrivateStaticFieldInitializerSuper_RoutesResumableAndPreservesReceiver()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            class Base {
+                static get value() { return 41; }
+            }
+
+            function* g() {
+                yield "ready";
+                var C = class extends Base {
+                    ["read"]() { return 1; }
+                    static #value = super.value + 1;
+                    static value() { return this.#value; }
+                };
+                var c = new C();
+                yield C.value() + ":" + c.read();
+            }
+
+            var iterator = g();
+            var first = iterator.next();
+            var second = iterator.next();
+            first.value + ":" + first.done + "|" + second.value + ":" + second.done;
+            """);
+
+        Assert.Equal("ready:false|42:1:false", result);
+        AssertGeneratorFastPath("g", argc: 0);
+    }
+
+    [Fact]
+    public void EvaluateResumable_ClassExpressionComputedMemberWithStaticBlockNeighbor_DeclinesBeforeVm() =>
+        AssertClassExpressionDeclines("""
+        function* g() {
+            yield 1;
+            var C = class {
+                ["read"]() { return 42; }
+                static {
+                    this.value = 1;
+                }
             };
             return C;
         }

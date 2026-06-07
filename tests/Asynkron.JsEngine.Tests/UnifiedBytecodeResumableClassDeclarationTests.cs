@@ -664,6 +664,34 @@ public sealed class UnifiedBytecodeResumableClassDeclarationTests(ITestOutputHel
     }
 
     [Fact]
+    public void EvaluateResumable_ClassDeclarationStaticFieldClosureInitializer_AdmitsDeclareClass()
+    {
+        var plan = GetFunctionPlan("""
+            function* g(seed) {
+                yield "ready";
+                var current = seed;
+                class Box {
+                    static read = () => current;
+                }
+                current = seed + 1;
+                yield Box.read();
+            }
+            """,
+            "g");
+
+        var result = UnifiedBytecodeProductionEligibility.EvaluateResumable(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor(IsGenerator: true));
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(
+            result.Program.Instructions,
+            static instruction => instruction.OpCode == UnifiedBytecodeOpCode.DeclareClass);
+        Assert.True(UnifiedBytecodeProductionEligibility.PlanNeedsMaterializedResumableClassDeclarationEnvironment(plan));
+    }
+
+    [Fact]
     public void EvaluateResumable_ClassDeclarationMixedPublicStaticFieldAndMethod_AdmitsDeclareClass()
     {
         var plan = GetFunctionPlan("""
@@ -731,6 +759,34 @@ public sealed class UnifiedBytecodeResumableClassDeclarationTests(ITestOutputHel
                     static get value() { return seed; }
                 }
                 yield Box.value;
+            }
+            """,
+            "g");
+
+        var result = UnifiedBytecodeProductionEligibility.EvaluateResumable(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor(IsGenerator: true));
+
+        Assert.False(result.IsEligible);
+        Assert.NotEqual(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(
+            "static member body captures activation binding 'seed'",
+            result.Reason,
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void EvaluateResumable_ClassDeclarationStaticFieldClosureAndStaticMemberCapturesActivation_StillDeclines()
+    {
+        var plan = GetFunctionPlan("""
+            function* g(seed) {
+                yield "ready";
+                var current = seed;
+                class Box {
+                    static read = () => current;
+                    static value() { return seed; }
+                }
+                yield Box.value();
             }
             """,
             "g");
@@ -1596,6 +1652,32 @@ public sealed class UnifiedBytecodeResumableClassDeclarationTests(ITestOutputHel
 
         Assert.Equal("ready:false|42:false", result);
         AssertGeneratorFastPath("g", argc: 1);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task GeneratorClassDeclarationStaticFieldClosureInitializer_RoutesResumableAndObservesLaterActivationMutation()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function* g(seed) {
+                yield "ready";
+                var current = seed;
+                class Box {
+                    static read = () => current;
+                }
+                current = seed + 1;
+                yield Box.read();
+            }
+
+            var iterator = g(41);
+            var first = iterator.next();
+            var second = iterator.next();
+            first.value + ":" + first.done + "|" + second.value + ":" + second.done;
+            """);
+
+        Assert.Equal("ready:false|42:false", result);
+        AssertGeneratorFastPath("g", argc: 1);
+        AssertProductionFastPath("<anonymous>");
     }
 
     [Fact(Timeout = 5000)]

@@ -955,9 +955,10 @@ predicates and proof tests.
     initializer compiles as standalone unified bytecode, including
     closure-producing static fields and static `super` field initializers. Direct
     root public non-computed static-field class declarations without `extends`
-    now route when field initializers compile as standalone unified bytecode and
-    do not create closures, including mixes with public non-computed static
-    methods/accessors whose bodies do not capture activation. Direct root class
+    now route when field initializers compile as standalone unified bytecode,
+    including closure-producing static fields that observe later resumable slot
+    mutations and mixes with public non-computed static methods/accessors whose
+    bodies do not capture activation. Direct root class
     declarations that mix public non-computed static fields with eligible static
     blocks now route as well, preserving static element order, descriptor-backed
     static-block function declarations and nested static-block class declarations

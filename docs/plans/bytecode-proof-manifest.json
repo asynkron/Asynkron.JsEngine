@@ -888,6 +888,17 @@
           ]
         },
         {
+          "id": "B36-class-declaration-static-field-closure-routes",
+          "claim": "admitted",
+          "kind": "runtime",
+          "source": "function* g(seed) {\n  yield 'ready';\n  var current = seed;\n  class Box {\n    static read = () => current;\n  }\n  current = seed + 1;\n  yield Box.read();\n}\nvar iterator = g(41);\nvar first = iterator.next();\nvar second = iterator.next();\nfirst.value + ':' + first.done + '|' + second.value + ':' + second.done;",
+          "expectedResult": "ready:false|42:false",
+          "requiredLogs": [
+            "unified-bytecode-resumable-generator-fast-path func=g",
+            "unified-bytecode-production-fast-path func=<anonymous>"
+          ]
+        },
+        {
           "id": "B36-class-declaration-mixed-static-public-field-and-method-routes",
           "claim": "admitted",
           "kind": "runtime",

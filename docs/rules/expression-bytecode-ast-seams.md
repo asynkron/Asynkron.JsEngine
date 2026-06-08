@@ -264,6 +264,23 @@ fallback or cleanup.
     production routing from an unnamed async IR-step runner fallback. WHY:
     without the decline reason, future retirement work can only see that the
     runner still exists, not which production-eligibility boundary owns it.
+35. When reconciling E5b `ExecutionPlanRunner` entry anchors after fallback
+    ownership has moved to E5c/E5d rows, prefer classified source allowlists
+    over broad type or method source-presence rows. Anchor remaining
+    `new ExecutionPlanRunner(`, `ExecutionPlanRunner.RunScript(`,
+    `runner.RunSync();`, and `ExecuteAsyncStep(` usage to exact allowed paths
+    and named child owners, then convert each allowlist to a tombstone when
+    that owner is retired. Do not count `ExecutionPlanRunner.Core.cs` type or
+    method declarations as generic hot-path blockers once the live call sites
+    are semantically owned elsewhere. Issue #3377 / PR #3462 added this rule
+    after the E5b rebaseline changed the four runner-entry proof rows from
+    broad source-presence anchors into source-allowlist gates and the
+    quality-gate repair aligned four stale sync-generator tests with explicit
+    pre-gate decline failures. WHY: broad runner-entry scans can stay green
+    while ownership has already moved, which hides the actual retirement owner
+    and lets stale fallback-success tests survive beside an explicit-decline
+    runtime contract. Related ADR:
+    `docs/adrs/0371-keep-e5b-runner-entry-anchors-as-classified-allowlists.md`.
 
 ## Dynamic Boundary Classification (#1405 Retry)
 

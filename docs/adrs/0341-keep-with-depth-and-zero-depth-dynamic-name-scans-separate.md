@@ -3,7 +3,7 @@
 ## Status
 
 Accepted; narrowed by the 2026-06-07 A51f3 catch free-read/`typeof`
-admissions.
+admissions and the 2026-06-08 A51f3 plain-store rebaseline.
 
 ## Context
 
@@ -36,11 +36,11 @@ The accepted repair split the two meanings of "visit exception regions":
 That split admitted sloppy `finally { return helper(); }` free callees and
 active-with try/catch/finally bodies without treating catch-region stores or
 scope/environment shapes as broad dynamic-name admission signals. Later A51f3
-slices extended the same separate zero-depth scan to read-only free identifiers
-and `typeof` free identifiers, so catch-region free reads and free `typeof`
-can route while stores, updates, deletes, assignment references, catch binding
-access, lexical dynamic declarations, and TDZ-head storage remain negative
-evidence.
+slices extended the same separate zero-depth scan to read-only free identifiers,
+`typeof` free identifiers, and plain statement free stores, so catch-region free
+reads, free `typeof`, and plain free stores can route while consumed assignment
+references, updates, compound/logical writes, deletes, catch binding access,
+lexical dynamic declarations, and TDZ-head storage remain negative evidence.
 
 ## Decision
 
@@ -55,11 +55,11 @@ not for every possible exception-region reachability question.
   opt-in for callers that need a separate reachability question. It must not
   silently become the default plan-shape scan.
 - Ordinary dynamic-name admission may use the zero-depth exception-region pass
-  only for read-only free identifiers, `typeof` free identifiers, and free call
-  targets. Do not use catch/finally stores, updates, deletes, assignment
-  references, catch binding access, lexical dynamic declarations, or TDZ-head
-  storage as evidence that the whole body can take the ordinary dynamic-name
-  production route.
+  only for read-only free identifiers, `typeof` free identifiers, plain
+  statement free stores, and free call targets. Do not use zero-depth consumed
+  assignment references, updates, compound/logical writes, deletes, catch
+  binding access, lexical dynamic declarations, or TDZ-head storage as evidence
+  that the whole body can take the ordinary dynamic-name production route.
 - Future widening must include positive route proof for the admitted
   exception-region shape and nearby no-route or regression proof for the
   dynamic-name families still owned by A51c and related scope/environment
@@ -70,9 +70,10 @@ not for every possible exception-region reachability question.
 - `with` inside try/catch/finally and try/catch/finally inside `with` can be
   reasoned about through one active-depth analysis without adding a second CFG
   recognizer.
-- Finally-region free call targets and zero-depth catch/finally free reads or
-  free `typeof` operations can enable the same ordinary dynamic-name path as
-  other free dynamic names, while catch-region stores and broader
+- Finally-region free call targets, zero-depth catch/finally free reads, free
+  `typeof` operations, and plain free stores can enable the same ordinary
+  dynamic-name path as other free dynamic names, while consumed assignment
+  references, updates, compound/logical writes, deletes, and broader
   scope/environment shapes stay declined.
 - The A45 checklist row is closed, while A51c remains the owner for catch
   binding, lexical dynamic declaration, active-with dynamic-name, and TDZ-head
@@ -107,10 +108,18 @@ not for every possible exception-region reachability question.
   / PR #3328 originally added regression tests for the A51c boundary covering
   zero-depth catch-region free read/store behavior before the read-only A51f3
   widening.
-- Later A51f3 slices superseded only the read/`typeof` half of that follow-up:
+- Later A51f3 slices superseded the read/`typeof` half of that follow-up:
   zero-depth catch free reads and free `typeof` now enable
   `ContainsOrdinaryDynamicIdentifierDependency` and route through production
-  unified bytecode; zero-depth catch free stores remain declined.
+  unified bytecode.
+- Faktorial issue
+  `planitem-planitem-gh3377-rebaseline-the-finite-bytecode-retirement-inventory-conv-ee10c34197`
+  / PR #3402 rebaselined the inventory after source review showed the
+  ordinary expression loop already owns dynamic assignment references, updates,
+  compound/logical writes, and deletes once the dynamic-name route is enabled.
+  The delivery kept A51f3 open only for using those consumed references,
+  updates, compound/logical writes, or deletes as zero-depth catch/finally
+  route-enabling evidence, while plain statement free stores remain admitted.
 
 ## Related
 

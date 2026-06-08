@@ -292,195 +292,57 @@ public sealed class ExecutionPlanDiagnosticsTests(ITestOutputHelper output) : In
     }
 
     [Fact]
-    public void SourceGate_DynamicExpressionExecutor_StaysInsideApprovedBoundarySurface()
+    public void SourceGate_DynamicExpressionExecutor_IsCompletelyRemoved()
     {
         var repositoryRoot = FindRepositoryRoot();
         var sourceRoot = Path.Combine(repositoryRoot.FullName, "src", "Asynkron.JsEngine");
-        var executorSource = Path.Combine(
-            sourceRoot,
-            "Execution",
-            "UnifiedBytecode",
-            "UnifiedBytecodeExpressionProgramExecutor.cs");
-        var expectedSurfaces = new[]
-        {
-            new DynamicExecutorBoundarySurface(
-                "src/Asynkron.JsEngine/Ast/Legacy/ExpressionNodeExtensions.cs",
-                47,
-                "E4-legacy-expression-node-dynamic-payloads",
-                "legacy expression-node dynamic expression payloads"),
-            new DynamicExecutorBoundarySurface(
-                "src/Asynkron.JsEngine/Ast/Legacy/LoopPlanExtensions.cs",
-                2,
-                "E4-legacy-loop-operand-dynamic-payloads",
-                "legacy loop operand dynamic expression payloads"),
-            new DynamicExecutorBoundarySurface(
-                "src/Asynkron.JsEngine/Ast/Legacy/StatementNodeExtensions.cs",
-                10,
-                "E4-legacy-statement-operand-dynamic-payloads",
-                "legacy statement operand dynamic expression payloads")
-        };
-        var expectedStatementLoopCallSites = new[]
-        {
-            new DynamicExecutorCallSite(
-                "src/Asynkron.JsEngine/Ast/Legacy/LoopPlanExtensions.cs",
-                "ExecuteCondition",
-                "Dynamic loop condition",
-                "loop condition expression payload"),
-            new DynamicExecutorCallSite(
-                "src/Asynkron.JsEngine/Ast/Legacy/LoopPlanExtensions.cs",
-                "ExecutePostIteration",
-                "Dynamic loop post-iteration expression",
-                "loop post-iteration expression payload"),
-            new DynamicExecutorCallSite(
-                "src/Asynkron.JsEngine/Ast/Legacy/StatementNodeExtensions.cs",
-                "EvaluateForAwaitOfJsValue",
-                "Dynamic for-await-of iterable",
-                "for-await-of iterable expression payload"),
-            new DynamicExecutorCallSite(
-                "src/Asynkron.JsEngine/Ast/Legacy/StatementNodeExtensions.cs",
-                "EvaluateForEachJsValue",
-                "Dynamic foreach iterable",
-                "for-of/for-in iterable expression payload"),
-            new DynamicExecutorCallSite(
-                "src/Asynkron.JsEngine/Ast/Legacy/StatementNodeExtensions.cs",
-                "EvaluateIfJsValue",
-                "Dynamic if condition",
-                "if condition expression payload"),
-            new DynamicExecutorCallSite(
-                "src/Asynkron.JsEngine/Ast/Legacy/StatementNodeExtensions.cs",
-                "EvaluateReturnJsValue",
-                "Dynamic return expression",
-                "return expression payload"),
-            new DynamicExecutorCallSite(
-                "src/Asynkron.JsEngine/Ast/Legacy/StatementNodeExtensions.cs",
-                "EvaluateReturnJsValue",
-                "Dynamic tail-call argument",
-                "tail-call argument expression payload"),
-            new DynamicExecutorCallSite(
-                "src/Asynkron.JsEngine/Ast/Legacy/StatementNodeExtensions.cs",
-                "EvaluateStatementJsValue",
-                "Dynamic expression statement",
-                "expression statement payload"),
-            new DynamicExecutorCallSite(
-                "src/Asynkron.JsEngine/Ast/Legacy/StatementNodeExtensions.cs",
-                "EvaluateSwitchJsValue",
-                "Dynamic switch case test",
-                "switch case-test expression payload"),
-            new DynamicExecutorCallSite(
-                "src/Asynkron.JsEngine/Ast/Legacy/StatementNodeExtensions.cs",
-                "EvaluateSwitchJsValue",
-                "Dynamic switch discriminant",
-                "switch discriminant expression payload"),
-            new DynamicExecutorCallSite(
-                "src/Asynkron.JsEngine/Ast/Legacy/StatementNodeExtensions.cs",
-                "EvaluateThrowJsValue",
-                "Dynamic throw expression",
-                "throw expression payload"),
-            new DynamicExecutorCallSite(
-                "src/Asynkron.JsEngine/Ast/Legacy/StatementNodeExtensions.cs",
-                "EvaluateWithJsValue",
-                "Dynamic with object",
-                "with object expression payload")
-        };
-        var expectedMembersByPath = expectedStatementLoopCallSites
-            .GroupBy(static callSite => callSite.RelativePath)
-            .ToDictionary(
-                static group => group.Key,
-                static group => group.Select(static callSite => callSite.EnclosingMember).Distinct().ToArray(),
-                StringComparer.Ordinal);
-        var expectedSurfacesByPath = expectedSurfaces.ToDictionary(
-            static surface => surface.RelativePath,
-            StringComparer.Ordinal);
-        var allowedCallSites = new HashSet<string>(
-            expectedSurfaces.Select(static surface => surface.RelativePath),
-            StringComparer.Ordinal);
         var scannedFiles = Directory
             .EnumerateFiles(sourceRoot, "*.cs", SearchOption.AllDirectories)
             .ToArray();
-        foreach (var surface in expectedSurfaces)
+        var requiredFiles = new[]
+        {
+            "src/Asynkron.JsEngine/Execution/UnifiedBytecode/UnifiedBytecodeExpressionProgramExecutor.cs",
+            "src/Asynkron.JsEngine/Ast/Legacy/ExpressionNodeExtensions.cs",
+            "src/Asynkron.JsEngine/Ast/Legacy/LoopPlanExtensions.cs",
+            "src/Asynkron.JsEngine/Ast/Legacy/StatementNodeExtensions.cs"
+        };
+
+        foreach (var requiredFile in requiredFiles)
         {
             Assert.Contains(
                 scannedFiles,
-                file => NormalizeRelativePath(repositoryRoot, file) == surface.RelativePath);
+                file => NormalizeRelativePath(repositoryRoot, file) == requiredFile);
         }
 
         var matches = scannedFiles
             .SelectMany(file =>
             {
-                var relativePath = Path.GetRelativePath(repositoryRoot.FullName, file).Replace('\\', '/');
-                var lines = File.ReadAllLines(file);
-                return lines
+                var relativePath = NormalizeRelativePath(repositoryRoot, file);
+                return File.ReadAllLines(file)
                     .Select((line, index) => new { line, index })
                     .Where(entry =>
                         entry.line.Contains(
                             "UnifiedBytecodeExpressionProgramExecutor.ExecuteDynamic(",
                             StringComparison.Ordinal))
-                    .Select(entry => (
-                        relativePath,
-                        LineNumber: entry.index + 1,
-                        Text: entry.line.Trim(),
-                        EnclosingMember: FindEnclosingMemberName(
-                            lines,
-                            entry.index,
-                            expectedMembersByPath.GetValueOrDefault(relativePath, [])),
-                        DynamicLabel: FindDynamicExecutorLabel(lines, entry.index)));
+                    .Select(entry => (relativePath, LineNumber: entry.index + 1, Text: entry.line.Trim()));
             })
+            .Select(match => $"{match.relativePath}:{match.LineNumber}:{match.Text}")
             .ToArray();
 
-        Assert.Contains(
-            "internal static JsValue ExecuteDynamic(",
-            File.ReadAllText(executorSource),
-            StringComparison.Ordinal);
-
-        var disallowed = matches
-            .Where(match => !allowedCallSites.Contains(match.relativePath))
-            .Select(match => $"{match.relativePath}:{match.Item2}:{match.Item3}")
-            .ToArray();
-
-        Assert.True(
-            disallowed.Length == 0,
-            "UnifiedBytecodeExpressionProgramExecutor.ExecuteDynamic call-site drift detected:\n" +
-            string.Join('\n', disallowed));
-
-        var actualSurfaces = matches
-            .Where(match => expectedSurfacesByPath.ContainsKey(match.relativePath))
-            .GroupBy(static match => match.relativePath)
-            .Select(group =>
+        var definitionMatches = scannedFiles
+            .SelectMany(file =>
             {
-                var expected = expectedSurfacesByPath[group.Key];
-                return new DynamicExecutorBoundarySurface(
-                    group.Key,
-                    group.Count(),
-                    expected.ChildOwner,
-                    expected.Classification);
+                var relativePath = NormalizeRelativePath(repositoryRoot, file);
+                return File.ReadAllLines(file)
+                    .Select((line, index) => new { line, index })
+                    .Where(entry => entry.line.Contains("internal static JsValue ExecuteDynamic(", StringComparison.Ordinal))
+                    .Select(entry => (relativePath, LineNumber: entry.index + 1, Text: entry.line.Trim()));
             })
+            .Select(match => $"{match.relativePath}:{match.LineNumber}:{match.Text}")
             .ToArray();
 
-        Assert.Equal(
-            expectedSurfaces.OrderBy(static surface => surface.RelativePath),
-            actualSurfaces.OrderBy(static surface => surface.RelativePath));
-
-        var classifiedStatementLoopCallSites = matches
-            .Where(match => expectedMembersByPath.ContainsKey(match.relativePath))
-            .Select(match => new DynamicExecutorCallSite(
-                match.relativePath,
-                match.EnclosingMember,
-                match.DynamicLabel,
-                expectedStatementLoopCallSites
-                    .SingleOrDefault(callSite =>
-                        callSite.RelativePath == match.relativePath &&
-                        callSite.EnclosingMember == match.EnclosingMember &&
-                        callSite.DynamicLabel == match.DynamicLabel)
-                    ?.Classification ?? "unclassified dynamic expression payload"))
-            .ToArray();
-
-        Assert.Equal(
-            expectedStatementLoopCallSites.OrderBy(static callSite => callSite.RelativePath)
-                .ThenBy(static callSite => callSite.EnclosingMember)
-                .ThenBy(static callSite => callSite.DynamicLabel),
-            classifiedStatementLoopCallSites.OrderBy(static callSite => callSite.RelativePath)
-                .ThenBy(static callSite => callSite.EnclosingMember)
-                .ThenBy(static callSite => callSite.DynamicLabel));
+        Assert.Empty(matches);
+        Assert.Empty(definitionMatches);
     }
 
     [Fact]
@@ -1413,42 +1275,9 @@ public sealed class ExecutionPlanDiagnosticsTests(ITestOutputHelper output) : In
         return "<unknown>";
     }
 
-    private static string FindDynamicExecutorLabel(string[] lines, int callLineIndex)
-    {
-        for (var i = callLineIndex; i < Math.Min(lines.Length, callLineIndex + 8); i++)
-        {
-            var line = lines[i];
-            var labelStart = line.IndexOf("\"Dynamic ", StringComparison.Ordinal);
-            if (labelStart < 0)
-            {
-                continue;
-            }
-
-            var labelEnd = line.IndexOf('"', labelStart + 1);
-            if (labelEnd > labelStart)
-            {
-                return line.Substring(labelStart + 1, labelEnd - labelStart - 1);
-            }
-        }
-
-        return "<unknown>";
-    }
-
-    private sealed record DynamicExecutorCallSite(
-        string RelativePath,
-        string EnclosingMember,
-        string DynamicLabel,
-        string Classification);
-
     private sealed record StandaloneExecutorCallSite(
         string RelativePath,
         string EnclosingMember,
-        string Classification);
-
-    private sealed record DynamicExecutorBoundarySurface(
-        string RelativePath,
-        int CallCount,
-        string ChildOwner,
         string Classification);
 
     private static void AssertProgramContains<TOp>(ExpressionProgram? program, Func<ExpressionOpView, bool>? predicate = null)

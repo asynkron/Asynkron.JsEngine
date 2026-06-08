@@ -479,7 +479,7 @@ public static partial class TypedAstEvaluator
             }
         }
 
-        var test = UnifiedBytecodeExpressionProgramExecutor.ExecuteDynamic(
+        var test = LoweredExpressionProgramCache.ExecuteCached(
             plan.Condition,
             environment,
             context,
@@ -506,7 +506,7 @@ public static partial class TypedAstEvaluator
             // directly to avoid ToObject/GetNumber boxing on every iteration.
             if (statement is ExpressionStatement expr)
             {
-                _ = UnifiedBytecodeExpressionProgramExecutor.ExecuteDynamic(
+                _ = LoweredExpressionProgramCache.ExecuteCached(
                     expr.Expression,
                     environment,
                     context,

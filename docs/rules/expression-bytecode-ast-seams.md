@@ -202,6 +202,17 @@ fallback or cleanup.
     rule after the finite bytecode retirement inventory needed to separate
     class-definition payload execution from static-block body fallback
     ownership.
+30. When rebaselining the dynamic `ExecuteDynamic(...)` bridge, treat approved
+    source files and per-file call counts as part of the boundary contract.
+    Assert that every expected source file is scanned, that no unapproved file
+    calls `UnifiedBytecodeExpressionProgramExecutor.ExecuteDynamic(...)`, and
+    that each approved file still has the expected count and child-owner
+    classification. Function parameter defaults and variable initializers share
+    the same dynamic expression payload contract as legacy expression-node
+    payloads, while legacy statement and loop operands remain separately
+    classified dynamic residue. Issue #3377 / PR #3446 added this rule after an
+    E4 rebaseline needed to distinguish a finite dynamic expression boundary
+    from ordinary E4 closure work.
 
 ## Dynamic Boundary Classification (#1405 Retry)
 
@@ -468,6 +479,19 @@ ambiguous while the dynamic expression bridge still exists; without the absence
 ratchets, deleted runner/profiler/binding-target bridge names could return
 silently. Keep runner-internal expression evaluation in E5 rather than using it
 to reopen E4.
+
+Issue
+`planitem-planitem-planitem-gh3377-rebaseline-the-finite-bytecode-retirement-inven-56c919400f`
+/ PR #3446 strengthened the remaining E4 dynamic-expression boundary from a
+path allowlist into a finite source contract. The delivery recorded the current
+`ExecuteDynamic(...)` owners and counts in
+`docs/plans/bytecode-proof-manifest.json` and hardened the diagnostic source
+gate so it first proves the expected source files were scanned, then checks
+approved paths and exact per-surface counts. The durable lesson is that an
+approved dynamic-boundary file is not a blanket permission: adding one more call
+inside `ExpressionNodeExtensions`, `StatementNodeExtensions`, or another
+approved file changes the residue boundary and should fail the ratchet until
+the child owner and manifest classification are updated intentionally.
 
 Issue
 `planitem-planitem-planitem-gh3377-rebaseline-the-finite-bytecode-retirement-inven-1e1bc813d8`

@@ -444,7 +444,7 @@
           "claim": "open",
           "kind": "source-presence",
           "path": "src/Asynkron.JsEngine/Execution/UnifiedBytecode/UnifiedBytecodeProductionEligibility.cs",
-          "pattern": "Dynamic identifier assignment references are not eligible for production unified bytecode routing."
+          "pattern": "assignment references, updates, and deletes so catch-only mutations do not over-admit the whole body."
         }
       ]
     },

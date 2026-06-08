@@ -3517,12 +3517,9 @@ internal static class UnifiedBytecodeProductionEligibility
             }
 
             candidate = true;
-            if (field.IsStatic || field.IsComputed)
-            {
-                declineReason =
-                    "Class declaration private field is outside B36: private static or computed fields remain owned by later class-definition slices.";
-                return false;
-            }
+            declineReason =
+                "Class declaration private field is outside B36: private fields remain owned by later class-definition slices.";
+            return false;
         }
 
         foreach (var member in definition.Members)

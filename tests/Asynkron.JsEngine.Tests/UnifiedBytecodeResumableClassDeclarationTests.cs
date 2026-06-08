@@ -540,6 +540,39 @@ public sealed class UnifiedBytecodeResumableClassDeclarationTests(ITestOutputHel
     }
 
     [Fact]
+    public void EvaluateResumable_ClassDeclarationPrivateInstanceField_StillDeclines()
+    {
+        var plan = GetFunctionPlan("""
+            function* g() {
+                yield "ready";
+                class Box {
+                    #value = 1;
+
+                    read() {
+                        return this.#value;
+                    }
+                }
+                yield typeof Box;
+            }
+            """,
+            "g");
+
+        var result = UnifiedBytecodeProductionEligibility.EvaluateResumable(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor(IsGenerator: true));
+
+        Assert.False(result.IsEligible);
+        Assert.NotEqual(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(
+            "private field is outside B36",
+            result.Reason,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain(
+            result.Program.Instructions,
+            static instruction => instruction.OpCode == UnifiedBytecodeOpCode.DeclareClass);
+    }
+
+    [Fact]
     public void EvaluateResumable_ClassDeclarationPrivateInstanceMethodCapturesActivation_StillDeclines()
     {
         var plan = GetFunctionPlan("""
@@ -599,7 +632,7 @@ public sealed class UnifiedBytecodeResumableClassDeclarationTests(ITestOutputHel
         Assert.False(result.IsEligible);
         Assert.NotEqual(UnifiedBytecodeProductionDeclineCode.None, result.Code);
         Assert.Contains(
-            "private field initializer captures activation binding 'seed'",
+            "private field is outside B36",
             result.Reason,
             StringComparison.Ordinal);
         Assert.DoesNotContain(

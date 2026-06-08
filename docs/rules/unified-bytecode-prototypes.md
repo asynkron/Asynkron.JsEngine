@@ -180,12 +180,14 @@ all-or-nothing until a separate routing issue proves production readiness.
     completion-slot execution, and script-scope dynamic-target forms such as
     `var` destructuring through `EvaluateScript`, then pin public execution
     with a `unified-bytecode-production-fast-path script` route-hit. Keep
-    script-specific safety declines, such as top-level lexical destructuring
-    whose TDZ/lexical-environment semantics are not VM-owned, explicit in the
-    non-residue ratchet. Keep eval-injected script bindings in dynamic residue.
-    Do not silently close a script union gate by inheriting function/resumable
-    proof only, and do not broaden dynamic-residue exceptions into ordinary
-    script admission. WHY: Faktorial issue
+    script-specific safety declines explicit while they remain open, and remove
+    stale examples when a later executable proof row shows the script shape now
+    routes. Top-level lexical destructuring was originally a script-specific
+    safety decline in PR #3269, but PR #3517 later recorded it as
+    `E5-script-lexical-destructuring-routes`. Keep eval-injected script bindings
+    in dynamic residue. Do not silently close a script union gate by inheriting
+    function/resumable proof only, and do not broaden dynamic-residue exceptions
+    into ordinary script admission. WHY: Faktorial issue
     `planitem-planmanual1780639098493226000-full-unified-bytecode-execution-burndown-b-f1e9d4f56f`
     / PR #3269 closed C3 with representative script eligibility rows, a
     composed top-level runtime route test, and ratchet rows that distinguish the
@@ -234,6 +236,19 @@ all-or-nothing until a separate routing issue proves production readiness.
     direct-eval residue remains explicit without blurring current ordinary
     script fallback ownership. Related ADR:
     `docs/adrs/0346-keep-script-ir-fallback-classified-with-production-decline-details.md`.
+    Faktorial issue
+    `planitem-gh3495-shared-context-e5c-script-and-static-block-runner-retirement-reti-750e567f3d`
+    / PR #3517 found that the focused ordinary top-level lexical destructuring
+    script already routed on current `origin/main`; the correct action was to
+    record executable route proof in the manifest instead of adding runtime code
+    or hard-tombstoning `RunScriptViaClassifiedIrFallback`. Future E5c refreshes
+    must first run the existing route/no-route proofs, then update manifest rows
+    to distinguish admitted ordinary scripts, remaining ordinary wrapper-script
+    fallback, direct-eval terminal dynamic residue (`CallDependency` plus
+    `terminalDynamicResidue=True`), and separate static-block declined residue.
+    WHY: a broad tombstone can hide required ordinary wrapper fallback rows while
+    mixing static-block and dynamic-residue ownership into ordinary script
+    retirement.
 9f. Classify entrypoint and target rejects by builder provenance before
     treating them as active production residue. `Unsupported entrypoint.` and
     invalid-target integrity guards are A51a1 malformed-plan backstops when the

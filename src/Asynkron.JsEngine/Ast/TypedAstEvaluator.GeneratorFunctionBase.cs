@@ -275,13 +275,15 @@ public static partial class TypedAstEvaluator
 
         public void DisableConstruction()
         {
-            if (!_isConstructorEnabled)
+            if (_isConstructorEnabled)
             {
-                return;
+                _isConstructorEnabled = false;
             }
 
-            _isConstructorEnabled = false;
-            _properties.DeleteOwnProperty("prototype");
+            if (!_properties.DeleteOwnProperty("prototype"))
+            {
+                _properties.ForceDeleteOwnProperty("prototype");
+            }
         }
 
         public void SetHomeObject(IJsObjectLike homeObject)

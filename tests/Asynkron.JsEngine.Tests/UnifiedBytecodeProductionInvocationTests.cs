@@ -17,6 +17,7 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
         "simple-ir-parameter-number-binary-chain-fast-path";
     private const string SimpleIrActivationFastPathLog = "simple-ir-activation-fast-path";
     private const string SimpleIrReturnFastPathLog = "simple-ir-return-fast-path";
+    private const string ResumableGeneratorFastPathLog = "unified-bytecode-resumable-generator-fast-path";
 
     private static string DescribeRouteLogs(IEnumerable<TestLogger.LogRecord> logs)
     {
@@ -29,6 +30,95 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
                 message.Contains("classified", StringComparison.Ordinal));
 
         return string.Join(Environment.NewLine, relevant);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task DeclinedIrGeneratorClassMethod_KeepsPrivateNameScopeAndMethodShape()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            class C {
+                #value = 7;
+
+                *m(o, key) {
+                    yield o?.[key]();
+                    return this.#value;
+                }
+            }
+
+            const method = C.prototype.m;
+            const it = new C().m(null, "missing");
+            [
+                method.name,
+                Object.prototype.hasOwnProperty.call(method, "prototype"),
+                String(it.next().value),
+                String(it.next().value)
+            ].join("|");
+            """);
+
+        Assert.Equal("m|false|undefined|7", result);
+        Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(),
+            record => record.Message.Contains(ResumableGeneratorFastPathLog, StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task DeclinedIrGeneratorClassMethod_KeepsHomeObjectForSuper()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            class Base {
+                value() {
+                    return 11;
+                }
+            }
+
+            class Derived extends Base {
+                *m(o, key) {
+                    yield o?.[key]();
+                    return super.value();
+                }
+            }
+
+            const it = new Derived().m(null, "missing");
+            String(it.next().value) + "|" + it.next().value;
+            """);
+
+        Assert.Equal("undefined|11", result);
+        Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(),
+            record => record.Message.Contains(ResumableGeneratorFastPathLog, StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task DeclinedIrGeneratorObjectMethod_KeepsHomeObjectAndMethodShape()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            const base = {
+                value() {
+                    return 13;
+                }
+            };
+            const obj = {
+                __proto__: base,
+                *m(o, key) {
+                    yield o?.[key]();
+                    return super.value();
+                }
+            };
+
+            const method = obj.m;
+            const it = obj.m(null, "missing");
+            [
+                method.name,
+                Object.prototype.hasOwnProperty.call(method, "prototype"),
+                String(it.next().value),
+                String(it.next().value)
+            ].join("|");
+            """);
+
+        Assert.Equal("m|false|undefined|13", result);
+        Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(),
+            record => record.Message.Contains(ResumableGeneratorFastPathLog, StringComparison.Ordinal));
     }
 
     [Fact(Timeout = 5000)]

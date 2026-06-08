@@ -511,14 +511,6 @@ public static partial class TypedAstEvaluator
             case SyncFunctionInvoker typed:
                 typed.SetCapturedPrivateNameScopes(capturedPrivateScopes);
                 break;
-            case SyncGeneratorInvoker generatorFactory when context.CurrentPrivateNameScope is not null &&
-                                                            generatorFactory.PrivateNameScope is null:
-                generatorFactory.SetPrivateNameScope(context.CurrentPrivateNameScope);
-                generatorFactory.SetCapturedPrivateNameScopes(capturedPrivateScopes);
-                break;
-            case SyncGeneratorInvoker generatorFactory:
-                generatorFactory.SetCapturedPrivateNameScopes(capturedPrivateScopes);
-                break;
             case AsyncGeneratorFunctionInvoker asyncGeneratorFactory
                 when context.CurrentPrivateNameScope is not null &&
                      asyncGeneratorFactory.PrivateNameScope is null:
@@ -527,6 +519,14 @@ public static partial class TypedAstEvaluator
                 break;
             case AsyncGeneratorFunctionInvoker asyncGeneratorFactory:
                 asyncGeneratorFactory.SetCapturedPrivateNameScopes(capturedPrivateScopes);
+                break;
+            case GeneratorFunctionBase generatorFactory when context.CurrentPrivateNameScope is not null &&
+                                                             generatorFactory.PrivateNameScope is null:
+                generatorFactory.SetPrivateNameScope(context.CurrentPrivateNameScope);
+                generatorFactory.SetCapturedPrivateNameScopes(capturedPrivateScopes);
+                break;
+            case GeneratorFunctionBase generatorFactory:
+                generatorFactory.SetCapturedPrivateNameScopes(capturedPrivateScopes);
                 break;
         }
 

@@ -2558,15 +2558,15 @@ public static partial class TypedAstEvaluator
                             typed.SetHomeObject(obj);
                             typed.DisableConstruction();
                         }
-                        else if (callable is SyncGeneratorInvoker generatorFactory)
-                        {
-                            generatorFactory.SetHomeObject(obj);
-                            generatorFactory.DisableConstruction();
-                        }
                         else if (callable is AsyncGeneratorFunctionInvoker asyncGeneratorFactory)
                         {
                             asyncGeneratorFactory.SetHomeObject(obj);
                             asyncGeneratorFactory.DisableConstruction();
+                        }
+                        else if (callable is GeneratorFunctionBase generatorFactory)
+                        {
+                            generatorFactory.SetHomeObject(obj);
+                            generatorFactory.DisableConstruction();
                         }
 
                         var name = ResolveObjectMemberName(member, environment, context);

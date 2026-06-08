@@ -39,36 +39,54 @@ public static partial class TypedAstEvaluator
 
         public override JsValue Invoke(IReadOnlyList<JsValue> arguments, JsValue thisValue)
         {
-            if (TryCreateUnifiedBytecodeGenerator(arguments, thisValue, out var unifiedIterator))
+            if (TryCreateUnifiedBytecodeGenerator(
+                    arguments,
+                    thisValue,
+                    out var unifiedIterator,
+                    out var declineReason,
+                    out var isDeclinedResidue))
             {
                 return JsValue.FromJsObject(unifiedIterator);
             }
 
-            var runner = CreateClassifiedGeneratorDeclinedBodyRunner(arguments, thisValue);
-            runner.Initialize();
-            return (JsValue)runner.CreateGeneratorObject();
+            if (isDeclinedResidue)
+            {
+                var runner = CreateClassifiedSyncGeneratorDeclinedResidueRunner(arguments, thisValue);
+                runner.Initialize();
+                return (JsValue)runner.CreateGeneratorObject();
+            }
+
+            throw new NotSupportedException(
+                $"Sync-generator body '{_function.Name?.Name ?? "<anonymous>"}' is not eligible for unified bytecode execution: {declineReason}");
         }
 
         private bool TryCreateUnifiedBytecodeGenerator(
             IReadOnlyList<JsValue> arguments,
             JsValue thisValue,
-            out JsObject iterator)
+            out JsObject iterator,
+            out string declineReason,
+            out bool isDeclinedResidue)
         {
             iterator = null!;
+            isDeclinedResidue = false;
 
             // Non-simple parameter lists (destructuring patterns, defaults, rest) require
             // IteratorBindingInitialization during FunctionDeclarationInstantiation, which runs
             // eagerly at call time before the generator object is produced and can throw (e.g.
             // GetIterator(null) for `*m([[x]]){}` called with `[null]`). The resumable route copies
-            // arguments straight into positional slots and cannot model that, so it must decline and
-            // fall back to the runner path. See ADR 0283 / gh2675 resumable-route boundary.
+            // arguments straight into positional slots and cannot model that, so it must fail
+            // explicitly until the resumable route owns that eager setup. See ADR 0283 /
+            // gh2675 resumable-route boundary.
             if (!_function.HasOnlySimpleIdentifierParameters())
             {
+                declineReason =
+                    "Non-simple sync-generator parameter lists are not eligible until resumable invocation owns IteratorBindingInitialization.";
                 return false;
             }
 
             if (!TryGetExecutionPlan(out var plan))
             {
+                declineReason = _planSeed.Failure?.ToString() ?? "Execution plan is not available.";
                 return false;
             }
 
@@ -78,6 +96,8 @@ public static partial class TypedAstEvaluator
                     allowCapturedActivationSlots: true,
                     out var hoistedFunctionDeclarations))
             {
+                declineReason =
+                    "Root hoisted function declarations are not eligible for sync-generator resumable routing.";
                 return false;
             }
 
@@ -107,6 +127,12 @@ public static partial class TypedAstEvaluator
             var eligibility = UnifiedBytecodeProductionEligibility.EvaluateResumable(plan, activation);
             if (!eligibility.IsEligible)
             {
+                declineReason = eligibility.Reason;
+                isDeclinedResidue = true;
+                RealmState.Logger?.LogInformation(
+                    "classified-sync-generator-declined-residue reason=production-unified-bytecode-declined code={DeclineCode} detail={DeclineReason}",
+                    eligibility.Code,
+                    eligibility.Reason);
                 return false;
             }
 
@@ -118,6 +144,8 @@ public static partial class TypedAstEvaluator
             var requiresResumableSuperBinding = RequiresResumableSuperEnvironment(program);
             if (needsMaterializedBodyEnvironment && requiresResumableSuperBinding)
             {
+                declineReason =
+                    "Materialized sync-generator body environments with resumable super binding are not eligible.";
                 return false;
             }
 
@@ -135,6 +163,7 @@ public static partial class TypedAstEvaluator
                     arguments,
                     out var slots))
             {
+                declineReason = "Resumable slot initialization failed.";
                 return false;
             }
 
@@ -150,6 +179,7 @@ public static partial class TypedAstEvaluator
                         _function.Source,
                         out callingEnvironment))
                 {
+                    declineReason = "Materialized resumable body environment could not be created.";
                     return false;
                 }
             }
@@ -162,6 +192,7 @@ public static partial class TypedAstEvaluator
                     callingEnvironment,
                     context))
             {
+                declineReason = "Root hoisted function declarations could not be populated into resumable slots.";
                 return false;
             }
 
@@ -169,6 +200,7 @@ public static partial class TypedAstEvaluator
             if (requiresResumableSuperBinding &&
                 !TryCreateResumableSuperBinding(_closure, boundThis, _homeObject, out resumableSuperBinding))
             {
+                declineReason = "Resumable super binding could not be created.";
                 return false;
             }
 
@@ -210,6 +242,7 @@ public static partial class TypedAstEvaluator
                 JsValue.FromObjectUnsafe(new HostFunction((_, _) => JsValue.FromJsObject(createdIterator))));
             createdIterator.SetProperty(GeneratorBrandPropertyName, JsValue.FromObjectUnsafe(GeneratorBrandMarker));
             iterator = createdIterator;
+            declineReason = string.Empty;
             return true;
         }
 

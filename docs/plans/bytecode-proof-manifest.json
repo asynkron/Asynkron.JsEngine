@@ -2248,13 +2248,13 @@
           "pattern": "CreateClassifiedClassConstructorFallbackRunner"
         },
         {
-          "id": "E5-sync-generator-declined-body-runner-still-present",
-          "childOwner": "E5d-function-and-resumable-declined-body-runner-retirement",
-          "classification": "ordinary sync generator declined-body runner retirement anchor",
+          "id": "E5-sync-generator-declined-residue-runner-still-present",
+          "childOwner": "E5d-sync-generator-declined-residue",
+          "classification": "explicit sync generator declined-residue runner bridge after production resumable eligibility declines; pre-gate ordinary declines fail explicitly and no generic declined-body runner remains",
           "claim": "open",
           "kind": "source-presence",
           "path": "src/Asynkron.JsEngine/Ast/TypedAstEvaluator.SyncGeneratorInvoker.cs",
-          "pattern": "CreateClassifiedGeneratorDeclinedBodyRunner"
+          "pattern": "CreateClassifiedSyncGeneratorDeclinedResidueRunner"
         },
         {
           "id": "E5-async-function-ir-step-runner-still-present",

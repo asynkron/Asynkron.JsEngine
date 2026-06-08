@@ -1419,6 +1419,28 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     }
 
     [Fact(Timeout = 5000)]
+    public async Task SyncGeneratorDefaultParameter_DeclinesUnifiedRouteThenFailsExplicitly()
+    {
+        await using var engine = CreateEngine();
+        var exception = await Assert.ThrowsAsync<NotSupportedException>(() => engine.Evaluate("""
+            function* values(x = 7) {
+                yield x;
+            }
+
+            var iterator = values();
+            iterator.next().value;
+            """));
+
+        Assert.StartsWith(
+            "Sync-generator body 'values' is not eligible for unified bytecode execution:",
+            exception.Message,
+            StringComparison.Ordinal);
+        Assert.Contains("Non-simple sync-generator parameter lists", exception.Message, StringComparison.Ordinal);
+        Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains("classified-sync-generator-ir-fallback", StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task SimpleAsyncAwaitReturn_UsesResumableUnifiedBytecodeFastPath()
     {
         await using var engine = CreateEngine();
@@ -10291,6 +10313,49 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
         Assert.Contains("CreateExecutionPlanRunner();", helperSection, StringComparison.Ordinal);
         Assert.DoesNotContain("ExecuteAsyncStep(", helperSection, StringComparison.Ordinal);
         Assert.DoesNotContain("CreateClassifiedAsyncDeclinedBodyRunner();", source, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void SourceGate_SyncGeneratorInvoker_DoesNotKeepDeclinedBodyRunnerFallback()
+    {
+        var repositoryRoot = FindRepositoryRootForSourceGate();
+        var sourcePath = Path.Combine(
+            repositoryRoot.FullName,
+            "src",
+            "Asynkron.JsEngine",
+            "Ast",
+            "TypedAstEvaluator.SyncGeneratorInvoker.cs");
+        var generatorBasePath = Path.Combine(
+            repositoryRoot.FullName,
+            "src",
+            "Asynkron.JsEngine",
+            "Ast",
+            "TypedAstEvaluator.GeneratorFunctionBase.cs");
+
+        Assert.True(File.Exists(sourcePath), $"Expected sync generator source at '{sourcePath}'.");
+        Assert.True(File.Exists(generatorBasePath), $"Expected generator base source at '{generatorBasePath}'.");
+        var source = File.ReadAllText(sourcePath);
+        var generatorBaseSource = File.ReadAllText(generatorBasePath);
+        var forbiddenFallbackTokens = new[]
+        {
+            "CreateClassifiedGeneratorDeclinedBodyRunner",
+            "CreateClassifiedDeclinedBodyRunner",
+            "classified-sync-generator-ir-fallback"
+        };
+
+        foreach (var token in forbiddenFallbackTokens)
+        {
+            Assert.DoesNotContain(token, source, StringComparison.Ordinal);
+        }
+
+        Assert.DoesNotContain("CreateClassifiedGeneratorDeclinedBodyRunner", generatorBaseSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("CreateClassifiedDeclinedBodyRunner", generatorBaseSource, StringComparison.Ordinal);
+        Assert.Contains("CreateClassifiedSyncGeneratorDeclinedResidueRunner", source, StringComparison.Ordinal);
+        Assert.Contains("classified-sync-generator-declined-residue", source, StringComparison.Ordinal);
+        Assert.Contains("out string declineReason", source, StringComparison.Ordinal);
+        Assert.Contains("out bool isDeclinedResidue", source, StringComparison.Ordinal);
+        Assert.Contains("Sync-generator body", source, StringComparison.Ordinal);
+        Assert.Contains("is not eligible for unified bytecode execution", source, StringComparison.Ordinal);
     }
 
     private static DirectoryInfo FindRepositoryRootForSourceGate()

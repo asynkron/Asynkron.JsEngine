@@ -152,9 +152,11 @@ statement interpretation.
   environment-backed lexical declaration installation and class-value creation
   handled inside the unified VM. The resumable route now admits the direct root
   simple class-declaration subset and activation-safe computed public
-  class-declaration subset through the same opcode; `extends`, static blocks,
-  and computed/static neighbors outside the public B24h-compatible subset remain
-  declined before VM entry as later class-definition-state work. Static synchronous
+  class-declaration subset through the same opcode; B36's remaining
+  class-declaration-state declines are now split into exact manifest rows for
+  static-field shape guards, deferred class-definition environment bridging,
+  static-member shape guards, computed-member activation captures, and
+  computed-field activation captures. Static synchronous
   `BindingVariableDeclarationInstruction` shapes are now VM-owned through
   `ApplyDeclarationBindingTarget`; sync `using` declarations add an owned
   `RegisterDisposable` step before storage so resources are registered against
@@ -1018,10 +1020,11 @@ predicates and proof tests.
     route through the same production static-block path. Dynamic/eval helper
     activation declines, arguments eval helper declines, helper direct-eval
     cache declines, synthetic activation-capture declines, runtime-source
-    direct eval, or otherwise non-production static-block
-    plans, plus otherwise complex class declaration neighbors
-    (private/static/computed shapes outside the admitted public subsets)
-    are the remaining separate B36 declaration-instantiation work. Current
+    direct eval, or otherwise non-production static-block plans, plus exact
+    source-presence rows for static-field shape guards, deferred class-definition
+    environment bridging, static-member shape guards, computed-member activation
+    captures, and computed-field activation captures are the remaining separate
+    B36 declaration-instantiation work. Current
     class-declaration computed-name activation-call admission is an explicit B36
     proof lane; it must not be inherited by B24h or used to close the broader
     declaration binding, static-block declaration instantiation, or

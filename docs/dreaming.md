@@ -1,6 +1,6 @@
 # Asynkron.JsEngine Dreaming
 
-Date: 2026-06-08 (rev 14)
+Date: 2026-06-08 (rev 15)
 
 ## Why this document exists
 Architecture north star for Asynkron.JsEngine as a Node.js-competitive JavaScript runtime on .NET.
@@ -11,7 +11,7 @@ Architecture north star for Asynkron.JsEngine as a Node.js-competitive JavaScrip
 
 ## Critique of the current dream state (self-critique)
 
-Rev 6 replaced the stale greenfield/migration label conflict, added startup-cost, host-conversion, and host-error diagrams, grouped the proven-now table by phase, clarified capability-lifecycle back edges, and added the delivery decomposition flow. Rev 7 applied that flow to the current roadmap: optional computed delete chains were the next open property-family slice, and SLO proof remained a separate evidence packet rather than a side effect of route widening. Rev 8 tightened that packet into an acceptance/decline handoff so a future implementation starts from one owner, one receiving contract, and an explicit proof boundary. Rev 9 added the packet-selection control plane for the current open roadmap queue so maintainers can route one packet without converting landed evidence or any directional target into a current runtime claim. Rev 10 refreshed that selector with the async-generator/yield* queue, splitting gh3175 and gh3176 as separate resumable packets instead of folding them into gh2955 or the proven gh3135 async-generator route. Rev 11 removed gh3175 and gh3176 from the selectable queue now that the roadmap records both as landed, while keeping their evidence as adjacent boundary context for the still-open gh2955 lane. Rev 12 added a system-to-subcomponent ownership diagram so the greenfield fabric can be read from top-level product shape down to packet owner surfaces. Rev 13 rebaselined the selector after the A32 optional-chain delete route landed: gh2934 became evidence, and the active execution-fabric example moved to the still-open B36 declaration-hoisting packet tracked by gh3238. This rev 14 refreshes the selector after the June 8 proof-manifest and async-runner repair work: gh3490 and gh3491 become selectable proof-manifest residues, while gh3238 remains an open adjacent declaration-hoisting packet rather than the only concrete example.
+Rev 6 replaced the stale greenfield/migration label conflict, added startup-cost, host-conversion, and host-error diagrams, grouped the proven-now table by phase, clarified capability-lifecycle back edges, and added the delivery decomposition flow. Rev 7 applied that flow to the current roadmap: optional computed delete chains were the next open property-family slice, and SLO proof remained a separate evidence packet rather than a side effect of route widening. Rev 8 tightened that packet into an acceptance/decline handoff so a future implementation starts from one owner, one receiving contract, and an explicit proof boundary. Rev 9 added the packet-selection control plane for the current open roadmap queue so maintainers can route one packet without converting landed evidence or any directional target into a current runtime claim. Rev 10 refreshed that selector with the async-generator/yield* queue, splitting gh3175 and gh3176 as separate resumable packets instead of folding them into gh2955 or the proven gh3135 async-generator route. Rev 11 removed gh3175 and gh3176 from the selectable queue now that the roadmap records both as landed, while keeping their evidence as adjacent boundary context for the still-open gh2955 lane. Rev 12 added a system-to-subcomponent ownership diagram so the greenfield fabric can be read from top-level product shape down to packet owner surfaces. Rev 13 rebaselined the selector after the A32 optional-chain delete route landed: gh2934 became evidence, and the active execution-fabric example moved to the still-open B36 declaration-hoisting packet tracked by gh3238. Rev 14 refreshed the selector after the June 8 proof-manifest and async-runner repair work: gh3490 and gh3491 became selectable proof-manifest residues, while gh3238 remained an open adjacent declaration-hoisting packet rather than the only concrete example. This rev 15 makes those proof-manifest residues more implementable by adding a row-shaped receiving-contract map that starts at the JavaScript Runtime Fabric and narrows to owner fabric, module, component, subcomponent, proof, and explicit non-goals.
 
 1. **Delivery decomposition now needs a queue-level control plane.** The map below explains how to route one broad concern into one packet, and the current concrete queue now includes the proof-manifest residues gh3490 and gh3491 alongside the older gh3238 declaration-hoisting lane. The roadmap also carries open packets across concurrency, evidence, and performance fabrics, so the dream needs a selector that chooses the next packet without implying that all packets share an owner or proof shape.
 
@@ -22,6 +22,8 @@ Rev 6 replaced the stale greenfield/migration label conflict, added startup-cost
 4. **Roadmap links should point to owner surfaces, not broad themes.** A packet should name the exact owner module, receiving contract, focused proof pack, and documentation/evidence artifact. "Property-family widening", "async-generator seam", "decline cleanup", and "performance gap" are not precise enough for review.
 
 5. **Non-goals remain part of the architecture.** A packet can be valid while explicitly not claiming Node/CommonJS parity, async seam closure, full Tier 0 dominance, or SLO proof. The queue-level selector should keep those non-goals attached before a future implementation chooses a lane.
+
+6. **Proof-manifest residues need row receivers, not broad owners.** gh3490 and gh3491 are useful only if the next agent can choose one manifest row and see the exact receiving contract. The architecture now routes from top-level fabric to owner fabric, module, component, subcomponent, proof, and non-goal without turning either residue into broad bytecode or async parity.
 
 This revision therefore keeps the open roadmap queue aligned with landed evidence under the delivery decomposition flow. It is a routing aid only; it does not claim new runtime behavior.
 
@@ -121,7 +123,7 @@ flowchart TD
         ART[Program Artifacts]
     end
 
-    subgraph ENG[Execution Engine — 2 strata (greenfield target)]
+    subgraph ENG["Execution Engine — 2 strata (greenfield target)"]
         direction TB
         S0["Stratum 0\nCompiled VM\nall statically decidable shapes"]
         SF["Stratum F\nCorrectness fallback\neval / with / dynamic scope"]
@@ -1559,6 +1561,61 @@ Packet boundaries:
 - **Required proof:** positive route tests when a row is admitted, negative decline tests for neighboring unowned shapes, manifest/checklist update for the row state, and canonical quality evidence.
 - **Review artifact:** the packet should update the proof manifest and the nearby bytecode/expansion-contract row so reviewers can see exactly which residue moved and which boundary stayed declined.
 - **Non-goals:** no CommonJS/Node.js parity claim, no async seam closure, no full Tier 0 dominance claim, and no SLO status advancement. SLO movement belongs to gh2935 or another separate ProfileRunner matrix evidence packet.
+
+### Proof-manifest row receiving-contract map
+
+The proof-manifest residues are the smallest current Dreamer packets because
+they already name a manifest row boundary. A future implementation must select
+one row and carry it through this chain; stopping at "Execution" or
+"Concurrency" is too broad for review.
+
+```mermaid
+flowchart TD
+    FABRIC["JavaScript Runtime Fabric"]
+    SELECTOR["Roadmap packet selector\ngh3490 or gh3491"]
+
+    subgraph G3490["gh3490 row path"]
+        direction TB
+        O3490["Owner fabric\nExecution Engine"]
+        M3490["Module\nUnifiedBytecode route decision"]
+        C3490["Component\nclass-literal environment bridge"]
+        S3490["Subcomponent\none B24h manifest row"]
+        R3490["Receiving contract\nroute proof or retained decline"]
+    end
+
+    subgraph G3491["gh3491 row path"]
+        direction TB
+        O3491["Owner fabric\nExecution / Concurrency bridge"]
+        M3491["Module\nresumable async-function routing"]
+        C3491["Component\nclassified declined-runner anchor"]
+        S3491["Subcomponent\none E5 manifest row"]
+        R3491["Receiving contract\nexact route parity or fallback preserved"]
+    end
+
+    PROOF["Focused proof\npositive route + neighboring decline\nor focused no-route evidence"]
+    REVIEW["Review artifact\nmanifest row + expansion-contract status"]
+    NON["Attached non-goals\nno Node/CommonJS parity\nno async seam closure\nno Tier 0 dominance\nno SLO advancement"]
+
+    FABRIC --> SELECTOR
+    SELECTOR --> O3490 --> M3490 --> C3490 --> S3490 --> R3490
+    SELECTOR --> O3491 --> M3491 --> C3491 --> S3491 --> R3491
+    R3490 --> PROOF
+    R3491 --> PROOF
+    PROOF --> REVIEW --> NON
+
+    style FABRIC fill:#336,color:#fff
+    style SELECTOR fill:#555,color:#fff
+    style R3490 fill:#363,color:#fff
+    style R3491 fill:#363,color:#fff
+    style PROOF fill:#653,color:#fff
+    style NON fill:#333,color:#fff
+```
+
+Row receiver rules:
+- **Start at the manifest row, not the issue title.** gh3490 and gh3491 are scheduling buckets; the implementation packet is one B24h or E5 row.
+- **Name the receiving contract before editing code.** gh3490 receives a class-literal route/no-route decision; gh3491 receives exact async-function route parity only when the shape is owned by the resumable route, otherwise the classified fallback remains the contract.
+- **Keep proof local first.** Positive route proof and neighboring-decline proof are required before any manifest, expansion-contract, or roadmap wording can advance.
+- **Do not merge row cleanup with adjacent packets.** B36 declaration hoisting, async-generator delegation, map/set performance, SLO proof, Node/CommonJS parity, and broad Tier 0 coverage stay separate unless a future roadmap explicitly creates a new packet with its own evidence.
 
 Acceptance/decline handoff for gh3490 / gh3491:
 

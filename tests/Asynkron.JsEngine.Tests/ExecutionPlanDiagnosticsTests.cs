@@ -301,17 +301,51 @@ public sealed class ExecutionPlanDiagnosticsTests(ITestOutputHelper output) : In
             "Execution",
             "UnifiedBytecode",
             "UnifiedBytecodeExpressionProgramExecutor.cs");
-        var allowedCallSites = new HashSet<string>(StringComparer.Ordinal)
+        var expectedSurfaces = new[]
         {
-            "src/Asynkron.JsEngine/Ast/FunctionExpressionExtensions.cs",
-            "src/Asynkron.JsEngine/Ast/VariableKindExtensions.cs",
-            "src/Asynkron.JsEngine/Ast/Legacy/ExpressionNodeExtensions.cs",
-            "src/Asynkron.JsEngine/Ast/Legacy/LoopPlanExtensions.cs",
-            "src/Asynkron.JsEngine/Ast/Legacy/StatementNodeExtensions.cs"
+            new DynamicExecutorBoundarySurface(
+                "src/Asynkron.JsEngine/Ast/FunctionExpressionExtensions.cs",
+                1,
+                "E4-dynamic-function-parameter-defaults",
+                "function parameter default dynamic expression payload"),
+            new DynamicExecutorBoundarySurface(
+                "src/Asynkron.JsEngine/Ast/VariableKindExtensions.cs",
+                1,
+                "E4-dynamic-variable-initializers",
+                "variable initializer dynamic expression payload"),
+            new DynamicExecutorBoundarySurface(
+                "src/Asynkron.JsEngine/Ast/Legacy/ExpressionNodeExtensions.cs",
+                47,
+                "E4-legacy-expression-node-dynamic-payloads",
+                "legacy expression-node dynamic expression payloads"),
+            new DynamicExecutorBoundarySurface(
+                "src/Asynkron.JsEngine/Ast/Legacy/LoopPlanExtensions.cs",
+                2,
+                "E4-legacy-loop-operand-dynamic-payloads",
+                "legacy loop operand dynamic expression payloads"),
+            new DynamicExecutorBoundarySurface(
+                "src/Asynkron.JsEngine/Ast/Legacy/StatementNodeExtensions.cs",
+                10,
+                "E4-legacy-statement-operand-dynamic-payloads",
+                "legacy statement operand dynamic expression payloads")
         };
-
-        var matches = Directory
+        var expectedSurfacesByPath = expectedSurfaces.ToDictionary(
+            static surface => surface.RelativePath,
+            StringComparer.Ordinal);
+        var allowedCallSites = new HashSet<string>(
+            expectedSurfaces.Select(static surface => surface.RelativePath),
+            StringComparer.Ordinal);
+        var scannedFiles = Directory
             .EnumerateFiles(sourceRoot, "*.cs", SearchOption.AllDirectories)
+            .ToArray();
+        foreach (var surface in expectedSurfaces)
+        {
+            Assert.Contains(
+                scannedFiles,
+                file => NormalizeRelativePath(repositoryRoot, file) == surface.RelativePath);
+        }
+
+        var matches = scannedFiles
             .SelectMany(file =>
             {
                 var relativePath = Path.GetRelativePath(repositoryRoot.FullName, file).Replace('\\', '/');
@@ -339,6 +373,24 @@ public sealed class ExecutionPlanDiagnosticsTests(ITestOutputHelper output) : In
             disallowed.Length == 0,
             "UnifiedBytecodeExpressionProgramExecutor.ExecuteDynamic call-site drift detected:\n" +
             string.Join('\n', disallowed));
+
+        var actualSurfaces = matches
+            .Where(match => expectedSurfacesByPath.ContainsKey(match.relativePath))
+            .GroupBy(static match => match.relativePath)
+            .Select(group =>
+            {
+                var expected = expectedSurfacesByPath[group.Key];
+                return new DynamicExecutorBoundarySurface(
+                    group.Key,
+                    group.Count(),
+                    expected.ChildOwner,
+                    expected.Classification);
+            })
+            .ToArray();
+
+        Assert.Equal(
+            expectedSurfaces.OrderBy(static surface => surface.RelativePath),
+            actualSurfaces.OrderBy(static surface => surface.RelativePath));
     }
 
     [Fact]
@@ -1267,6 +1319,12 @@ public sealed class ExecutionPlanDiagnosticsTests(ITestOutputHelper output) : In
     private sealed record StandaloneExecutorCallSite(
         string RelativePath,
         string EnclosingMember,
+        string Classification);
+
+    private sealed record DynamicExecutorBoundarySurface(
+        string RelativePath,
+        int CallCount,
+        string ChildOwner,
         string Classification);
 
     private static void AssertProgramContains<TOp>(ExpressionProgram? program, Func<ExpressionOpView, bool>? predicate = null)

@@ -869,6 +869,19 @@ public sealed partial class BytecodeProofManifestTests(ITestOutputHelper output)
 
     private static string FindEnclosingMemberName(string[] lines, int callLineIndex, string[] expectedMemberNames)
     {
+        var containingMember = expectedMemberNames
+            .Select(expectedMemberName => (
+                Name: expectedMemberName,
+                DeclarationLineIndex: FindMemberDeclarationLineIndex(lines, expectedMemberName)))
+            .Where(static member => member.DeclarationLineIndex >= 0)
+            .Where(member => callLineIndex >= member.DeclarationLineIndex)
+            .OrderByDescending(static member => member.DeclarationLineIndex)
+            .FirstOrDefault();
+        if (!string.IsNullOrEmpty(containingMember.Name))
+        {
+            return containingMember.Name;
+        }
+
         for (var i = callLineIndex; i >= 0; i--)
         {
             var line = lines[i].Trim();
@@ -885,6 +898,21 @@ public sealed partial class BytecodeProofManifestTests(ITestOutputHelper output)
         }
 
         return "<unknown>";
+    }
+
+    private static int FindMemberDeclarationLineIndex(string[] lines, string expectedMemberName)
+    {
+        var declarationPattern = $@"^(?:[A-Za-z_][A-Za-z0-9_<>,\[\].?]*\s+)+{Regex.Escape(expectedMemberName)}(?:<[^>]+>)?\(";
+        for (var i = 0; i < lines.Length; i++)
+        {
+            var line = lines[i].TrimStart();
+            if (Regex.IsMatch(line, declarationPattern, RegexOptions.CultureInvariant))
+            {
+                return i;
+            }
+        }
+
+        return -1;
     }
 
     private static string FindDynamicExecutorLabel(string[] lines, int callLineIndex)

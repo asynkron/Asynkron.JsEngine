@@ -2214,9 +2214,9 @@
           "classifiedCallSites": [
             {
               "childOwner": "E5d-function-and-constructor-runner-fallback",
-              "classification": "remaining ordinary sync declined-body fallback runner execution after zero-depth dynamic identifier delete retired to production unified bytecode",
+              "classification": "remaining ordinary sync declined-body fallback runner execution in the outer slow path after TryInvokeIrFast declines and zero-depth dynamic identifier delete retired to production unified bytecode",
               "path": "src/Asynkron.JsEngine/Ast/TypedAstEvaluator.SyncFunctionInvoker.cs",
-              "enclosingMember": "TryInvokeIrFast"
+              "enclosingMember": "InvokeWithContextSlow"
             },
             {
               "childOwner": "E5d-class-constructor-initialization-residue",

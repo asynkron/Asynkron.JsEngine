@@ -1,6 +1,6 @@
 # Asynkron.JsEngine Dreaming
 
-Date: 2026-06-05 (rev 12)
+Date: 2026-06-06 (rev 13)
 
 ## Why this document exists
 Architecture north star for Asynkron.JsEngine as a Node.js-competitive JavaScript runtime on .NET.
@@ -11,11 +11,11 @@ Architecture north star for Asynkron.JsEngine as a Node.js-competitive JavaScrip
 
 ## Critique of the current dream state (self-critique)
 
-Rev 6 replaced the stale greenfield/migration label conflict, added startup-cost, host-conversion, and host-error diagrams, grouped the proven-now table by phase, clarified capability-lifecycle back edges, and added the delivery decomposition flow. Rev 7 applied that flow to the current roadmap: optional computed delete chains are the next open property-family slice, and SLO proof remains a separate evidence packet rather than a side effect of route widening. Rev 8 tightened that packet into an acceptance/decline handoff so a future implementation starts from one owner, one receiving contract, and an explicit proof boundary. Rev 9 added the packet-selection control plane for the current open roadmap queue so maintainers can route gh2934, gh2935, gh2954, and gh2955 without converting landed gh3134/gh3135 evidence or any directional target into a current runtime claim. Rev 10 refreshed that selector with the async-generator/yield* queue, splitting gh3175 and gh3176 as separate resumable packets instead of folding them into gh2955 or the proven gh3135 async-generator route. Rev 11 removed gh3175 and gh3176 from the selectable queue now that the roadmap records both as landed, while keeping their evidence as adjacent boundary context for the still-open gh2955 lane. This rev 12 adds a system-to-subcomponent ownership diagram so the greenfield fabric can be read from top-level product shape down to packet owner surfaces without changing the current roadmap queue or proof status.
+Rev 6 replaced the stale greenfield/migration label conflict, added startup-cost, host-conversion, and host-error diagrams, grouped the proven-now table by phase, clarified capability-lifecycle back edges, and added the delivery decomposition flow. Rev 7 applied that flow to the current roadmap: optional computed delete chains were the next open property-family slice, and SLO proof remained a separate evidence packet rather than a side effect of route widening. Rev 8 tightened that packet into an acceptance/decline handoff so a future implementation starts from one owner, one receiving contract, and an explicit proof boundary. Rev 9 added the packet-selection control plane for the current open roadmap queue so maintainers can route one packet without converting landed evidence or any directional target into a current runtime claim. Rev 10 refreshed that selector with the async-generator/yield* queue, splitting gh3175 and gh3176 as separate resumable packets instead of folding them into gh2955 or the proven gh3135 async-generator route. Rev 11 removed gh3175 and gh3176 from the selectable queue now that the roadmap records both as landed, while keeping their evidence as adjacent boundary context for the still-open gh2955 lane. Rev 12 added a system-to-subcomponent ownership diagram so the greenfield fabric can be read from top-level product shape down to packet owner surfaces. This rev 13 rebaselines the selector after the A32 optional-chain delete route landed: gh2934 becomes evidence, and the active execution-fabric example moves to the still-open B36 declaration-hoisting packet tracked by gh3238.
 
-1. **Delivery decomposition now needs a queue-level control plane.** The map below explains how to route one broad concern into one packet, and gh2934 remains the concrete property-family example. The roadmap now also carries multiple open packets across execution, concurrency, evidence, and performance fabrics, so the dream needs a selector that chooses the next packet without implying that all packets share an owner or proof shape.
+1. **Delivery decomposition now needs a queue-level control plane.** The map below explains how to route one broad concern into one packet, and gh3238 is now the concrete execution-fabric example. The roadmap also carries open packets across concurrency, evidence, and performance fabrics, so the dream needs a selector that chooses the next packet without implying that all packets share an owner or proof shape.
 
-2. **Optional computed delete can still be overclaimed easily.** Ordinary named/computed property delete and nested named receiver computed delete are proven, but optional computed delete chains still need selector, compiler, VM/opcode, expansion-contract, positive-route, and negative-decline proof together. The packet-selection view must keep gh2934 as an execution packet, not as broad optional-chain or Tier 0 dominance proof.
+2. **Optional-chain delete is evidence, not the active selector.** The A32 proof recorded in `docs/bytecode-progress.md` and `docs/unified-bytecode-expansion-contract.md` admits terminal optional named deletes, non-terminal optional named deletes, terminal optional computed deletes, and optional computed-read receiver plus terminal computed delete. That narrows the remaining Dreamer queue instead of promoting broad optional-chain or Tier 0 dominance proof.
 
 3. **SLO evidence must stay separate from route coverage.** Recent tooling records committed startup and microtask baselines, but p95 and same-run comparison output remain non-failing evidence until a dedicated proof packet advances an SLO. Route widening, decline taxonomy, async-generator routing, and map/set profile work must not move SLO rows to ProvenScoped.
 
@@ -285,7 +285,7 @@ Decomposition rules:
 - Each module owns one reviewable surface: compiler artifacts, execution routes, async resume state, host integration, runtime values, or evidence gates.
 - Subcomponents are the smallest durable routing units for recurring packets. A packet may cross fabrics only by naming the sending surface, the receiving contract, and the evidence gate before implementation.
 - Directional leaves such as Shape/IC, capability grants, Worker Fabric, artifact cache, and speculative optimization remain future architecture until focused proof and quality evidence exist.
-- The current selectable queue remains unchanged: gh2934, gh2935, gh2954, and gh2955 are the open packets; gh3175 and gh3176 remain landed adjacent evidence only.
+- The current selectable queue is gh3238, gh2935, gh2954, and gh2955; gh2934, gh3175, and gh3176 remain landed adjacent evidence only.
 
 ## System lifecycle
 
@@ -1455,7 +1455,7 @@ Decomposition invariants:
 
 ### Roadmap packet-selection control plane
 
-The current roadmap has more than one open packet candidate. The selector below keeps the queue reviewable: choose one lane, name the owner fabric and receiving contract, then carry only that packet to implementation and proof. Landed adjacent packets such as gh3134, gh3135, gh3175, gh3176, and the June 2026 B24a follow-up stay as roadmap evidence, not selectable queue items. It is a scheduling aid, not a capability claim.
+The current roadmap has more than one open packet candidate. The selector below keeps the queue reviewable: choose one lane, name the owner fabric and receiving contract, then carry only that packet to implementation and proof. Landed adjacent packets such as gh2934, gh3134, gh3135, gh3175, gh3176, and the June 2026 B24a follow-up stay as roadmap evidence, not selectable queue items. It is a scheduling aid, not a capability claim.
 
 ```mermaid
 flowchart TD
@@ -1464,7 +1464,7 @@ flowchart TD
     PICK["Pick one bounded packet\nsmallest proofable owner surface"]
 
     subgraph Execution["Execution fabric candidates"]
-        G2934["gh2934\noptional computed delete chains"]
+        G3238["gh3238\nB36 resumable declaration-hoisting residue"]
     end
 
     subgraph Concurrency["Concurrency fabric candidates"]
@@ -1502,29 +1502,30 @@ flowchart TD
 ```
 
 Packet-selection rules:
-- **gh2934 optional computed delete chains:** Execution Engine owns the selector/opcode route. The receiving contract is a descriptor-aware computed delete after nullish short-circuit has proven it may evaluate the key. It does not advance SLO status or broad optional-chain coverage.
+- **gh3238 B36 resumable declaration-hoisting residue:** Execution Engine owns the declaration instruction route, with Concurrency consuming only the explicit resumable state contract. The packet must preserve the direct-root helper/class-declaration boundary and keep dynamic/eval helpers, complex class declarations, and unproven closure graphs declined unless their focused proof lands in the same slice.
 - **gh2955 async-generator yield* delegated resume lane:** Concurrency Runtime owns delegated resume state; Execution Engine owns any yielded/awaited value opcode consumed by the lane. The packet must preserve no-mixed-execution and adjacent declines before any route wording advances.
 - **gh2935 SLO target-status proof:** Evidence owns the packet. The receiving contract is a ProfileRunner row with the matching measurement shape: p95 for p95 targets and same-run comparison for parity wording. A green baseline-regression gate alone is not SLO proof.
 - **gh2954 residual mapset gap:** Performance work starts from the documented identity-guarded fast path and must keep method identity and receiver-family guards intact. Any claim stronger than "one measured gap reduced" requires before/after profile or benchmark evidence.
 
 Landed adjacent evidence:
+- **gh2934 A32 optional-chain delete:** The bytecode progress table records terminal optional named deletes, non-terminal optional named deletes, terminal optional computed deletes, and optional computed-read receiver plus terminal computed delete as admitted through production unified bytecode. It is property-family evidence, not the active execution packet.
 - **gh3175 B39 async-generator yield* delegated resume:** The roadmap records async-generator `yield*` delegated resume through `ExecuteResumable` as landed for both direct delegated sources and awaited delegated sources. `yield* await ...` routes as `<awaited source> -> AwaitValue -> YieldStar`, while the still-open gh2955 lane remains scoped to broader adjacent async-generator delegation gaps.
 - **gh3176 B47a resumable-only yield* layout:** The roadmap records the resumable-only state-slot and synthetic resume-target layout as landed. It is evidence for the delegated resume boundary, not a selectable layout packet.
 
-The selector deliberately preserves gh2934 as the active concrete packet example below. Future Dreamer revisions may replace the concrete example only when the roadmap has a newer open packet with clearer owner, receiving contract, and proof obligations.
+The selector deliberately preserves gh3238 as the active concrete packet example below. Future Dreamer revisions may replace the concrete example only when the roadmap has a newer open packet with clearer owner, receiving contract, and proof obligations.
 
-### Current roadmap packet: optional computed delete chains
+### Current roadmap packet: B36 resumable declaration-hoisting residue
 
-Roadmap item gh2934 is the active property-family packet candidate. It should be treated as a one-owner execution packet, not as a broad optional-chain or property-delete claim.
+Roadmap item gh3238 is the active execution-fabric packet candidate. It should be treated as a one-owner resumable declaration packet, not as broad async seam closure or full declaration parity.
 
 ```mermaid
 flowchart TD
-    ROADMAP["gh2934\noptional computed delete chains"]
+    ROADMAP["gh3238\nB36 declaration-hoisting residue"]
     OWNER["Primary owner\nExecution Engine"]
-    SELECTOR["Compiler selector\nrecognize optional receiver + computed delete"]
-    OPCODE["VM/opcode contract\nshort-circuit before key evaluation\nthen descriptor-aware computed delete"]
+    SELECTOR["Compiler selector\nrecognize safe root declarations"]
+    OPCODE["VM/opcode contract\nDeclareFunction / DeclareClass\nplus slot-environment sync"]
     PROOF["Focused proof pack\npositive route + negative decline cases"]
-    CONTRACT["Expansion contract\nupdate accepted/declined property-family rows"]
+    CONTRACT["Expansion contract\nupdate B36 accepted/declined rows"]
     EVIDENCE["Evidence gate\ncanonical quality\nprofile only if performance language changes"]
     DOCS["Docs status\nproven-now only after proof lands"]
     SLO["Separate SLO packet\ngh2935 / ProfileRunner matrix"]
@@ -1532,7 +1533,7 @@ flowchart TD
     ROADMAP --> OWNER --> SELECTOR --> OPCODE --> PROOF --> CONTRACT --> EVIDENCE --> DOCS
     OPCODE -. preserves .-> PROOF
     EVIDENCE -. keeps separate .-> DOCS
-    SLO -. not implied by gh2934 .-> DOCS
+    SLO -. not implied by gh3238 .-> DOCS
 
     style ROADMAP fill:#555,color:#fff
     style OWNER fill:#336,color:#fff
@@ -1543,25 +1544,25 @@ flowchart TD
 ```
 
 Packet boundaries:
-- **Primary owner:** Execution Engine, with compiler selector support. The Standard Library descriptor system is a consumed contract, not the owner of route admission.
-- **Currently proven adjacent surface:** ordinary named/computed property delete and nested named receiver computed delete are VM-owned; optional receiver chains for delete remain outside the proven route.
-- **Directional next:** optional computed delete chains such as `delete box?.items[key]` and `delete box?.items?.[key]`, preserving nullish short-circuit order before computed-key evaluation and strict/sloppy delete semantics after a non-nullish receiver is established.
-- **Receiving contract:** the selector may admit only shapes whose receiver nullish check, computed-key evaluation, and descriptor-aware delete can be represented by the existing execution-engine opcode contract. Unsupported key payloads or receiver forms must stay declined instead of falling through to a mixed AST/VM path.
-- **Required proof:** positive route tests for short-circuit and non-short-circuit paths; negative decline tests for private names, `super`, dynamic lookup, unowned computed-key payloads, and unsupported receiver shapes; expansion-contract update that lists both accepted and declined forms.
-- **Review artifact:** the packet should update the route/decline matrix next to the owning proof pack so reviewers can see which optional computed delete forms became accepted and which stayed declined without reading the whole property-family roadmap.
+- **Primary owner:** Execution Engine, with compiler selector and resumable invoker support. Concurrency consumes the resume-state contract; it is not the owner of declaration admission.
+- **Currently proven adjacent surface:** direct root non-capturing helpers, sync-generator captured helpers, async/async-generator captured helpers, direct root simple class declarations, recursive/sibling helper graphs, and nested literal inner declarations have focused rows in `docs/bytecode-progress.md`.
+- **Directional next:** the remaining B36 residues such as dynamic/eval helpers and complex class declarations. Each candidate must prove that declaration instantiation, slot/environment synchronization, and resume behavior stay VM-owned.
+- **Receiving contract:** the selector may admit only declarations whose helper/class value, activation proof, and environment synchronization can be represented by the existing `DeclareFunction` / `DeclareClass` and resumable slot-state contracts. Dynamic/eval-sensitive or class-definition shapes that need unowned context must stay declined.
+- **Required proof:** positive route tests for one admitted declaration residue; negative decline tests for neighboring dynamic/eval or complex class shapes; expansion-contract update that lists both accepted and retained declined forms.
+- **Review artifact:** the packet should update the B36 route/decline matrix next to the owning proof pack so reviewers can see which declaration forms became accepted and which stayed declined without reading the whole bytecode progress log.
 - **Non-goals:** no CommonJS/Node.js parity claim, no async seam closure, no full Tier 0 dominance claim, and no SLO status advancement. SLO movement belongs to gh2935 or another separate ProfileRunner matrix evidence packet.
 
-Acceptance/decline handoff for gh2934:
+Acceptance/decline handoff for gh3238:
 
 | Shape | Packet status before implementation | Owner / proof obligation |
 |---|---|---|
-| `delete box?.items[key]` | Candidate accept | Execution Engine selector and VM prove nullish short-circuit before key evaluation, then descriptor-aware computed delete on the non-nullish receiver |
-| `delete box?.items?.[key]` | Candidate accept | Same owner; proof must show every optional hop shares the correct chain-end target and does not evaluate the computed key after a nullish hop |
-| `delete box.child?.[key]` where `box.child` is a proven named receiver chain | Candidate accept only if the receiver chain is already activation-resolved and non-dynamic | Compiler selector must reject mixed dynamic receiver lookup while still allowing the existing nested named receiver contract |
-| Optional computed delete with complex key payload requiring unowned calls, `eval`, or dynamic lookup | Decline | Keep as a pre-VM decline until the key payload has its own owner and proof pack |
-| Super property delete, private names, dynamic identifier delete, or proxy-sensitive scope lookup | Decline | Preserve current fallback/correctness lanes; do not route through the property-family packet |
+| Dynamic/eval-free direct root helper or simple class-declaration residue not yet represented in the B36 matrix | Candidate accept only with activation proof | Execution Engine selector and VM prove the helper/class value is created on the resumable route and synchronized through the materialized body environment when needed |
+| Recursive or sibling helper graph already covered by the current progress rows | Landed adjacent evidence | Keep as evidence; do not reopen unless a new shape extends the graph contract |
+| Nested literal inner declarations already covered by the current progress rows | Landed adjacent evidence | Keep as evidence; do not reopen unless the nested literal crosses a new capture or private-context boundary |
+| Dynamic/eval helpers or declarations whose lookup can be changed by direct eval / `with` | Decline | Preserve the correctness fallback until the dynamic-scope contract has its own focused proof |
+| Complex class declarations with computed names, static blocks, private contexts, activation-capturing member bodies, or unproven `extends` behavior | Decline unless this exact shape is the packet | Keep as a pre-VM decline until the class-definition state has a single-owner proof pack |
 
-The matrix is intentionally pre-implementation. A future gh2934 delivery may move rows only after focused route tests, negative decline tests, expansion-contract updates, and canonical quality evidence land together.
+The matrix is intentionally pre-implementation for the next B36 residue. A future gh3238 delivery may move rows only after focused route tests, negative decline tests, expansion-contract updates, and canonical quality evidence land together.
 
 ## Proven-now vs directional-next
 
@@ -1571,7 +1572,7 @@ The rows below are grouped by phase so a maintainer can tell what is foundationa
 
 | Area | Proven now | Directional next (needs new proof) |
 |---|---|---|
-| Tier 0 (UnifiedBytecodeVM) | Direct named/computed reads/writes/deletes, compound writes, updates, synchronous spread calls, named/computed member calls (including optional member calls), synchronous non-spread construct calls, nested named receiver computed delete, label-dependent control flow, and resumable state (Yield/Await opcodes) | Optional computed delete chains (gh2934), remaining declined call families (direct eval, construct/super, spread-onto-optional calls, and complex receiver/key shapes), and profile-verified broader route coverage |
+| Tier 0 (UnifiedBytecodeVM) | Direct named/computed reads/writes/deletes, optional-chain delete shapes recorded by A32, compound writes, updates, synchronous spread calls, named/computed member calls (including optional member calls), synchronous non-spread construct calls, nested named receiver computed delete, label-dependent control flow, and resumable state (Yield/Await opcodes) | Remaining B36 declaration-hoisting residues (gh3238), remaining declined call families (direct eval, construct/super, spread-onto-optional calls, and complex receiver/key shapes), and profile-verified broader route coverage |
 | Realm isolation | Cross-realm error creation realm-owned (ADR 0137, 0270); brand validation JsValue-native (ADR 0196) | Broader realm-sensitivity checks in fast paths |
 | Standard Library | JsValue-native hot paths on most Array/String helpers; descriptor semantics proven | Full removal of object-overload compat tripwires |
 | Async scheduling | Microtask queue ownership proven; await/resume contract explicit; resumable Tier 0 state model (ADR 0277) | Dedicated async-generator Tier 0 executor (Milestone C) |

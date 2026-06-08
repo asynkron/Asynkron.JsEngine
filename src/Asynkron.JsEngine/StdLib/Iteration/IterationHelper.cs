@@ -25,8 +25,11 @@ public static partial class IterationHelper
             throw new InvalidOperationException("__getAsyncIterator requires an iterable");
         }
 
-        var iterable = args[0];
+        return GetAsyncIteratorCore(args[0], engine);
+    }
 
+    internal static JsValue GetAsyncIteratorCore(JsValue iterable, JsEngineInstance engine)
+    {
         if (iterable.TryGetObject(out var jsObject))
         {
             if (HasCallableNext(jsObject))
@@ -189,7 +192,17 @@ public static partial class IterationHelper
     internal static JsValue IteratorNextCore(IReadOnlyList<JsValue> args, JsEngineInstance engine)
     {
         // args[0] should be the iterator object
-        if (args.Count == 0 || !args[0].TryGetObject(out var iterator))
+        if (args.Count == 0)
+        {
+            throw new InvalidOperationException("__iteratorNext requires an iterator object");
+        }
+
+        return IteratorNextCore(args[0], engine);
+    }
+
+    internal static JsValue IteratorNextCore(JsValue iteratorValue, JsEngineInstance engine)
+    {
+        if (!iteratorValue.TryGetObject(out var iterator))
         {
             throw new InvalidOperationException("__iteratorNext requires an iterator object");
         }

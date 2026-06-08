@@ -7148,14 +7148,14 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
                 {
                     try
                     {
-                        var iteratorValue = IterationHelper.GetAsyncIteratorCore([resolved], _engine);
+                        var iteratorValue = IterationHelper.GetAsyncIteratorCore(resolved, _engine);
                         if (!iteratorValue.TryGetObject<IJsObjectLike>(out var iterator))
                         {
                             throw StandardLibrary.ThrowTypeError("for await iterator must be an object",
                                 realm: _engine.RealmState);
                         }
 
-                        var nextResult = IterationHelper.IteratorNextCore([iteratorValue], _engine);
+                        var nextResult = IterationHelper.IteratorNextCore(iteratorValue, _engine);
                         var onNextFulfilled = new HostFunction(args =>
                         {
                             if (_completion.Task.IsCompleted)

@@ -205,8 +205,9 @@ The remaining non-retirement work is concentrated in:
   need runtime-source direct eval or otherwise non-production static-block plan
   ownership and broader class-definition environment bridging.
 - B36 resumable declarations: exact open manifest rows now keep dynamic eval
-  helpers, arguments eval helpers, runtime-source direct eval, non-production
-  static-block plans, static-block IR fallback, and private/static/computed
+  helpers, arguments eval helpers, helper direct-eval cache declines,
+  synthetic activation-capture declines, runtime-source direct eval,
+  non-production static-block plans, static-block IR fallback, and private/static/computed
   class declaration neighbors outside the admitted public method/computed/super/static
   subsets visible while direct root helpers,
   recursive/sibling helper graphs, block/Annex B declarations, simple class

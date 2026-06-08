@@ -7325,6 +7325,81 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
+    public void ContainsOrdinaryDynamicIdentifierDependency_ZeroDepthCatchFreeCompoundWrite_DoesNotEnableOrdinaryDynamicNamePath()
+    {
+        var plan = GetFunctionPlan("""
+            function compoundFromCatch() {
+                try {
+                    throw 1;
+                } catch (e) {
+                    externalValue += e;
+                    return e;
+                }
+            }
+            """,
+            "compoundFromCatch");
+
+        Assert.False(UnifiedBytecodeProductionEligibility.ContainsOrdinaryDynamicIdentifierDependency(plan));
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.False(result.IsEligible);
+        Assert.NotEqual(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+    }
+
+    [Fact]
+    public void ContainsOrdinaryDynamicIdentifierDependency_ZeroDepthCatchFreeLogicalWrite_DoesNotEnableOrdinaryDynamicNamePath()
+    {
+        var plan = GetFunctionPlan("""
+            function logicalFromCatch() {
+                try {
+                    throw 1;
+                } catch (e) {
+                    externalValue ||= e;
+                    return e;
+                }
+            }
+            """,
+            "logicalFromCatch");
+
+        Assert.False(UnifiedBytecodeProductionEligibility.ContainsOrdinaryDynamicIdentifierDependency(plan));
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.False(result.IsEligible);
+        Assert.NotEqual(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+    }
+
+    [Fact]
+    public void ContainsOrdinaryDynamicIdentifierDependency_ZeroDepthCatchFreeDelete_DoesNotEnableOrdinaryDynamicNamePath()
+    {
+        var plan = GetFunctionPlan("""
+            function deleteFromCatch() {
+                try {
+                    throw 1;
+                } catch (e) {
+                    delete externalValue;
+                    return e;
+                }
+            }
+            """,
+            "deleteFromCatch");
+
+        Assert.False(UnifiedBytecodeProductionEligibility.ContainsOrdinaryDynamicIdentifierDependency(plan));
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.False(result.IsEligible);
+        Assert.NotEqual(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+    }
+
+    [Fact]
     public void Evaluate_DynamicIdentifierAssignmentExpression_AcceptsEnvironmentReferenceOpcodes()
     {
         var plan = GetFunctionPlan("""

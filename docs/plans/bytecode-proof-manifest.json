@@ -664,6 +664,51 @@
           ]
         },
         {
+          "id": "A51f3-zero-depth-catch-consumed-free-store-stays-open",
+          "claim": "open",
+          "kind": "eligibility",
+          "subject": "function",
+          "functionName": "writeFromCatch",
+          "source": "function writeFromCatch() {\n  try {\n    throw 1;\n  } catch (e) {\n    return externalValue = e;\n  }\n}",
+          "expectedEligible": false
+        },
+        {
+          "id": "A51f3-zero-depth-catch-free-update-stays-open",
+          "claim": "open",
+          "kind": "eligibility",
+          "subject": "function",
+          "functionName": "updateFromCatch",
+          "source": "function updateFromCatch() {\n  try {\n    throw 1;\n  } catch (e) {\n    externalValue++;\n    return e;\n  }\n}",
+          "expectedEligible": false
+        },
+        {
+          "id": "A51f3-zero-depth-catch-free-compound-write-stays-open",
+          "claim": "open",
+          "kind": "eligibility",
+          "subject": "function",
+          "functionName": "compoundFromCatch",
+          "source": "function compoundFromCatch() {\n  try {\n    throw 1;\n  } catch (e) {\n    externalValue += e;\n    return e;\n  }\n}",
+          "expectedEligible": false
+        },
+        {
+          "id": "A51f3-zero-depth-catch-free-logical-write-stays-open",
+          "claim": "open",
+          "kind": "eligibility",
+          "subject": "function",
+          "functionName": "logicalFromCatch",
+          "source": "function logicalFromCatch() {\n  try {\n    throw 1;\n  } catch (e) {\n    externalValue ||= e;\n    return e;\n  }\n}",
+          "expectedEligible": false
+        },
+        {
+          "id": "A51f3-zero-depth-catch-free-delete-stays-open",
+          "claim": "open",
+          "kind": "eligibility",
+          "subject": "function",
+          "functionName": "deleteFromCatch",
+          "source": "function deleteFromCatch() {\n  try {\n    throw 1;\n  } catch (e) {\n    delete externalValue;\n    return e;\n  }\n}",
+          "expectedEligible": false
+        },
+        {
           "id": "A51f3-dynamic-assignment-reference-gate-stays-open",
           "claim": "open",
           "kind": "source-presence",

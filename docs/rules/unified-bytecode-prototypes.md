@@ -685,6 +685,19 @@ all-or-nothing until a separate routing issue proves production readiness.
      class-definition environment route. Pair each positive route with
      `unified-bytecode-production-fast-path static-block` and no
      `classified-static-block-ir-fallback` proof.
+     Issue
+     `planitem-planitem-planitem-gh3377-rebaseline-the-finite-bytecode-retirement-inven-7a98df1ce7`
+     / PR #3417 corrected a B24h false-positive inventory row: public computed
+     member bodies and field initializers can use the materialized
+     body-environment route, but constructor bodies that capture resumable
+     activation slots still require the broader class-definition environment
+     bridge because construction can happen after the binding mutates. Future
+     B24h rebaselines must keep
+     `B24h-computed-member-constructor-captures-activation-declines` separate
+     from admitted member-body and field-initializer capture rows until a
+     focused route-widening slice proves construction-time closure state end to
+     end. Related ADR:
+     `docs/adrs/0367-keep-b24h-constructor-body-activation-captures-open.md`.
 10g. When admitting iterator init driver shapes, keep source-payload shape and
      iterator driver kind as separate concepts. An iterator driver must carry
      exactly one source payload (`IterableProgram` or `AwaitedProgram`), and a

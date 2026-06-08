@@ -245,10 +245,12 @@ fallback or cleanup.
     constructor, script/static-block, and resumable fallback construction into
     named owner helpers before updating the proof manifest, so one remaining
     family cannot keep another family's retirement row open by sharing the same
-    raw construction site. Issue #3377 / PR #3452 added this rule after the E5
-    rebaseline had to classify ordinary sync function runner residue through
-    `CreateOrdinarySyncFunctionFallbackRunner(...)` while keeping class
-    constructor residue separately owned. WHY: source-presence gates that match
+    raw construction site. Issue #3377 / PRs #3451 and #3454 added this rule
+    after the E5 rebaseline had to classify ordinary sync function runner
+    residue through `CreateClassifiedOrdinarySyncFunctionFallbackRunner(...)`
+    while keeping class constructor residue separately owned through
+    `CreateClassifiedClassConstructorFallbackRunner(...)`. WHY:
+    source-presence gates that match
     raw construction tokens can stay technically true while losing the semantic
     ownership boundary future retirement work depends on.
 

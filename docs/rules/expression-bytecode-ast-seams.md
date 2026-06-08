@@ -281,6 +281,18 @@ fallback or cleanup.
     and lets stale fallback-success tests survive beside an explicit-decline
     runtime contract. Related ADR:
     `docs/adrs/0371-keep-e5b-runner-entry-anchors-as-classified-allowlists.md`.
+36. When an E5 proof-manifest row is an exclusion boundary for terminal dynamic
+    residue, pin the full excluded family inventory in `patterns`, not a single
+    representative phrase. The row should enumerate runtime-source, multi-arg,
+    spread, or declaration-injecting direct eval; awaited-with object
+    evaluation; retained live `with` scopes outside the VM current-environment
+    lane; eval-injected runtime bindings; and `Function(...)`-produced bodies,
+    while explicitly naming the A2/D1/D2/D3/D4 quarantine boundary outside
+    ordinary E5 runner retirement. Issue #3377 / PR #3476 added this rule after
+    the E5e manifest proof was strengthened from one direct-eval phrase to a
+    seven-pattern exact exclusion contract. WHY: a representative phrase can
+    stay green while the exclusion boundary silently narrows, letting future
+    agents misclassify terminal dynamic residue as ordinary E5 runner work.
 
 ## Dynamic Boundary Classification (#1405 Retry)
 

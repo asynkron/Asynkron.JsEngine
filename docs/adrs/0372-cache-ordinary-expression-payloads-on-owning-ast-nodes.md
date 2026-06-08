@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted.
+Accepted, amended by the E4 dynamic executor retirement.
 
 ## Context
 
@@ -26,11 +26,20 @@ variable initializers are owned by `VariableDeclarator`; each node can cache
 the lowered `ExpressionProgram` once and let its ordinary caller execute that
 program without pretending the payload is dynamic.
 
+Faktorial issue
+`planitem-gh3495-shared-context-e4-expression-payload-retirement-retire-the-live-u-ad82fa8e92`
+and PR #3513 generalized that ownership model to `ExpressionNode` itself. The
+remaining legacy expression-node, statement, and loop operands had the same
+value-only shape: they start from AST-owned expression operands, but when the
+operand lowers successfully they should execute the cached lowered program
+through standalone unified bytecode instead of a separate dynamic executor
+cache.
+
 ## Decision
 
-Ordinary AST-owned expression payloads that can be lowered once should cache the
-lowered `ExpressionProgram` on the owning AST node and execute through
-standalone unified bytecode.
+AST-owned expression payloads that can be lowered once should cache the lowered
+`ExpressionProgram` on the owning AST node and execute through standalone
+unified bytecode.
 
 For parameter defaults and variable initializers, the accepted shape is:
 
@@ -47,10 +56,12 @@ For parameter defaults and variable initializers, the accepted shape is:
 
 Do not reintroduce dynamic execution for ordinary parameter defaults or
 variable initializers just because those payloads are syntactically stored on
-AST nodes. If a future ordinary expression payload is already lowerable, prefer
-the same owning-node cache plus standalone executor path. Keep
-`ExecuteDynamic(...)` for quarantined legacy or dynamic residue where the
-payload must still be lowered from a dynamic AST boundary.
+AST nodes. After PR #3513, `ExpressionNode` itself owns the reusable lowered
+program cache via `IAstCacheable<LoweredExpressionProgramCache>`, and
+`LoweredExpressionProgramCache.ExecuteCached(...)` is the accepted value-only
+legacy operand helper. Do not reintroduce
+`UnifiedBytecodeExpressionProgramExecutor.ExecuteDynamic(...)`; it is a
+tombstoned E4 bridge.
 
 ## Consequences
 
@@ -62,8 +73,9 @@ payload must still be lowered from a dynamic AST boundary.
 - Source gates now protect both sides of the move: dynamic callers cannot
   reappear in the retired ordinary files, and standalone execution remains
   classified under the shared cache helper.
-- Remaining `ExecuteDynamic(...)` work stays visible as legacy expression,
-  statement, and loop operand residue rather than generic ordinary closure work.
+- The old legacy expression-node, statement, and loop operand residue now stays
+  visible as `ExecuteDynamic(...)` source-absence ratchets rather than as an
+  allowed open bridge.
 
 ## Evidence
 
@@ -87,6 +99,14 @@ payload must still be lowered from a dynamic AST boundary.
     `ProfileEvaluateExpression(` hits;
   - `rtk ./tools/profile forloop --memory` completed with total allocated
     968.34 MB.
+- PR #3513 merged as commit `901ee8a809485e5383dbd464267ca6df5047bbfc` and
+  redirected the remaining 59 legacy dynamic executor call sites to
+  `LoweredExpressionProgramCache.ExecuteCached(...)`, then deleted
+  `UnifiedBytecodeExpressionProgramExecutor.ExecuteDynamic(...)` and its
+  executor-owned dynamic cache. Build-stage verification passed
+  `rtk dotnet build src/Asynkron.JsEngine/Asynkron.JsEngine.csproj`, focused
+  diagnostics/manifest tests, `AstFreeExecutionAssertionTests`,
+  `rtk git diff --check`, and production source scans for the deleted bridge.
 
 ## Related
 

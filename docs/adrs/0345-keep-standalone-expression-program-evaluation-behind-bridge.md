@@ -2,7 +2,8 @@
 
 ## Status
 
-Accepted, amended by the E4 lowered-expression bridge retirement.
+Accepted, amended by the E4 lowered-expression bridge retirement and dynamic
+executor tombstone.
 
 ## Context
 
@@ -65,6 +66,17 @@ execution is standalone"; it was "external lowered binding-target callers may
 use standalone unified bytecode, while runner-internal binding-target execution
 remains E5-owned until the runner tier is retired."
 
+Faktorial issue
+`planitem-gh3495-shared-context-e4-expression-payload-retirement-retire-the-live-u-ad82fa8e92`
+and delivery PR #3513 completed the E4 dynamic expression executor lifecycle.
+The remaining legacy expression-node, statement, and loop operands no longer
+call `UnifiedBytecodeExpressionProgramExecutor.ExecuteDynamic(...)`; they cache
+lowered `ExpressionProgram` payloads on the owning `ExpressionNode` and execute
+through `LoweredExpressionProgramCache.ExecuteCached(...)` plus standalone
+unified bytecode. The executor-owned dynamic `ConditionalWeakTable` cache and
+`ExecuteDynamic(...)` definition were deleted, so E4 now treats that bridge as
+a source-absence ratchet rather than an open dynamic boundary.
+
 ## Decision
 
 Keep standalone `ExpressionProgram` execution centralized in
@@ -72,10 +84,12 @@ Keep standalone `ExpressionProgram` execution centralized in
 bytecode rather than the AST evaluator or IR runner.
 
 - Normal already-lowered callers should use
-  `UnifiedBytecodeExpressionProgramExecutor.ExecuteStandalone(...)`.
-  Quarantined legacy AST expression callers still use
-  `UnifiedBytecodeExpressionProgramExecutor.ExecuteDynamic(...)` until that
-  dynamic expression-program tier is retired. Direct calls to
+  `UnifiedBytecodeExpressionProgramExecutor.ExecuteStandalone(...)`. Legacy
+  AST expression operands that only need a value should use
+  `LoweredExpressionProgramCache.ExecuteCached(...)`, which caches the lowered
+  program on the owning `ExpressionNode` and then delegates to standalone
+  unified bytecode. `UnifiedBytecodeExpressionProgramExecutor.ExecuteDynamic(...)`
+  is tombstoned. Direct calls to
   `ExecutionPlanRunner.EvaluateStandaloneExpressionProgram(...)` are
   tombstoned.
 - `UnifiedBytecodeExpressionProgramExecutor.ExecuteStandalone(...)` owns compiling standalone expression
@@ -92,9 +106,12 @@ bytecode rather than the AST evaluator or IR runner.
 - `ExecutionPlanRunner.ProfileEvaluateExpressionProgramLoop(...)` is
   tombstoned and must not be reintroduced; profiler cases that can compile
   standalone should execute through `UnifiedBytecodeVirtualMachine`.
-- Remaining dynamic expression-program call sites must stay source-gated and
-  owner-classified. Already-lowered call sites should call the unified executor
-  directly, not revive an AST-evaluator helper.
+- Remaining source gates must treat
+  `UnifiedBytecodeExpressionProgramExecutor.ExecuteDynamic(...)` call sites and
+  its definition as absent. Already-lowered call sites should call the unified
+  executor directly, and value-only legacy AST operands should use the
+  `ExpressionNode` cache helper instead of reviving an AST-evaluator or dynamic
+  executor helper.
 - The simple-IR return expression path in `SyncFunctionInvoker` remains
   fallback-only. Production-accepted routes are considered first and return
   through `UnifiedBytecodeVirtualMachine` before this simple-IR fallback is
@@ -113,18 +130,19 @@ bytecode rather than the AST evaluator or IR runner.
   through standalone unified bytecode.
 - Proof-manifest source gates should cover both engine and profiling-tool
   owners when the retired bridge previously had tool-visible call sites.
-- Future expression-bytecode refactors must use the unified executor or update
-  the dynamic executor source gate when adding a new dynamic expression-program
-  caller.
+- Future expression-bytecode refactors must use the unified executor for
+  already-lowered payloads or the owning-node cache helper for value-only legacy
+  operands. Adding a new `ExecuteDynamic(...)` caller or definition must fail
+  the source gate.
 - If a future slice deletes the simple-IR fallback call, the guardrail should be
   moved from "fallback-only classified" to "tombstoned" rather than silently
   leaving an allowlist entry.
 - If a future slice deletes any other quarantined helper, add or update the
   matching tombstone source gate in the same commit.
 - Future E4 rebaselines should preserve the finite-inventory shape: deleted
-  bridge names stay as absence ratchets, `ExecuteDynamic(...)` stays explicitly
-  source-present while open, and runner-internal expression-program evaluation
-  stays classified under E5 until that runner-retirement lane is owned.
+  bridge names, including `ExecuteDynamic(...)`, stay as absence ratchets, and
+  runner-internal expression-program evaluation stays classified under E5 until
+  that runner-retirement lane is owned.
 - Future binding-target bridge work must preserve the E4/E5 split: eliminating a
   runner helper for external lowered callers is not permission to reroute
   runner-internal binding-target evaluation through standalone execution in the
@@ -192,6 +210,19 @@ bytecode rather than the AST evaluator or IR runner.
   proof-manifest/checklist rows. The issue acceptance boundary preserved
   runner-internal binding-target expression execution as E5-owned while routing
   external lowered binding-target payloads through standalone unified bytecode.
+- PR #3513, from Faktorial issue
+  `planitem-gh3495-shared-context-e4-expression-payload-retirement-retire-the-live-u-ad82fa8e92`,
+  merged as commit `901ee8a809485e5383dbd464267ca6df5047bbfc` after delivery
+  commit `1bf9c3eca`. The delivery moved cached lowered-expression ownership to
+  `ExpressionNode` / `LoweredExpressionProgramCache.ExecuteCached(...)`,
+  redirected all 59 legacy expression-node/statement/loop call sites, deleted
+  `UnifiedBytecodeExpressionProgramExecutor.ExecuteDynamic(...)` and its dynamic
+  cache, and changed the E4 manifest/checklist plus diagnostic source gates to
+  source absence. Focused verification recorded by the build stage passed:
+  `rtk dotnet build src/Asynkron.JsEngine/Asynkron.JsEngine.csproj`, focused
+  diagnostics/manifest tests (256 tests), `AstFreeExecutionAssertionTests` (116
+  tests), `rtk git diff --check`, and production source scans for the deleted
+  call and definition.
 
 ## Related
 

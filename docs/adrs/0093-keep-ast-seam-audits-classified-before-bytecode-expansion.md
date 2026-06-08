@@ -97,8 +97,8 @@ For dynamic boundaries, use this finer classification:
 - Follow-up migration work should target module-body dispatch first; this ADR
   explicitly does not authorize runtime behavior changes for eval/with/generated
   constructor paths that are already dynamic-but-lowered.
-- This ADR is caused by issues #1391, #1405, and #1414 and complements the root
-  `.claude/rules/expression-bytecode-ast-seams.md` rule.
+- This ADR is caused by issues #1391, #1405, and #1414 and complements
+  `docs/rules/expression-bytecode-ast-seams.md`.
 
 ## Issue #1435 Classification Refresh (2026-05-21)
 
@@ -163,11 +163,21 @@ that already hold lowered payloads now use
 `UnifiedBytecodeExpressionProgramExecutor.ExecuteStandalone`; the older
 `EvaluateLoweredExpressionProgram` helper has been retired.
 
-The follow-up guardrail is
-`SourceGate_DynamicExpressionExecutor_StaysInsideApprovedBoundarySurface`.
-Future AST-seam work should preserve the split between dynamic bridge callers
-and already-lowered expression-program callers, and should update the source
-gate before expanding the approved boundary surface.
+Issue
+`planitem-gh3495-shared-context-e4-expression-payload-retirement-retire-the-live-u-ad82fa8e92`
+/ PR #3513 later tombstoned
+`UnifiedBytecodeExpressionProgramExecutor.ExecuteDynamic(...)` too. Value-only
+legacy expression operands now use
+`LoweredExpressionProgramCache.ExecuteCached(...)`, which caches the lowered
+program on the owning `ExpressionNode` before delegating to standalone unified
+bytecode.
+
+The follow-up guardrail is now
+`SourceGate_DynamicExpressionExecutor_IsCompletelyRemoved`. Future AST-seam
+work should preserve the split between value-only legacy operands and
+already-lowered expression-program callers, and should keep the dynamic executor
+call site and definition tombstoned instead of expanding an approved boundary
+surface.
 
 ## Issue #1447 Dynamic Return Boundary (2026-05-21)
 
@@ -175,14 +185,16 @@ Issue #1447 implemented the first narrow dynamic-operand migration slice after
 the boundary audit. The selected seam was the legacy dynamic return-expression
 path in `StatementNodeExtensions.EvaluateReturnJsValue`.
 
-The architectural decision is to route dynamic return operands through the
-dynamic `ExpressionProgram` bridge instead of the generic
+The architectural decision at that stage was to route dynamic return operands
+through the dynamic `ExpressionProgram` bridge instead of the generic
 `EvaluateDynamicExpressionOperand(...)` helper. A return operand only needs a
-value before setting the return completion signal, so the path can use
+value before setting the return completion signal, so the path could use
 expression bytecode directly through the dynamic expression-program bridge and
-keep unsupported shapes on the precise expression-program failure path. That
-bridge is now `UnifiedBytecodeExpressionProgramExecutor.ExecuteDynamic(...)`;
-the old `EvaluateDynamicExpressionProgram(...)` helper has been retired.
+keep unsupported shapes on the precise expression-program failure path. After PR
+#3513, the same value-only shape routes through
+`LoweredExpressionProgramCache.ExecuteCached(...)`; both
+`EvaluateDynamicExpressionProgram(...)` and
+`UnifiedBytecodeExpressionProgramExecutor.ExecuteDynamic(...)` are retired.
 
 This does not generalize automatically to every dynamic operand. `await` and
 `yield` operands have suspension/resume behavior, assignment operands may carry
@@ -192,9 +204,9 @@ its own evaluation-order proof and focused regression coverage.
 
 The proof shape for future similar slices is:
 
-1. convert one operand family to
-   `UnifiedBytecodeExpressionProgramExecutor.ExecuteDynamic(...)` or an
-   equivalent dynamic expression-bytecode bridge;
+1. convert one value-only operand family to
+   `LoweredExpressionProgramCache.ExecuteCached(...)` or an equivalent
+   owning-node lowered expression-bytecode cache path;
 2. keep unsupported-bytecode failures explicit rather than silently falling
    back to AST evaluation;
 3. add focused DEBUG coverage with `EvaluationContext.AssertNoAstEvaluation`;
@@ -202,8 +214,8 @@ The proof shape for future similar slices is:
 5. recheck `./tools/profile forloop --memory` when the slice touches hot
    expression execution.
 
-This section is caused by issue #1447 / PR #1457 and complements the root
-`.claude/rules/expression-bytecode-ast-seams.md` rule.
+This section is caused by issue #1447 / PR #1457 and complements
+`docs/rules/expression-bytecode-ast-seams.md`.
 
 ## Issue #1479 Seam Baseline Refresh (2026-05-22)
 
@@ -257,8 +269,8 @@ The proof shape for similar slices is:
 5. rerun the runner AST-seam scan and memory-profile gate required for
    expression bytecode work.
 
-This section is caused by issue #1487 / PR #1495 and complements the root
-`.claude/rules/expression-bytecode-ast-seams.md` rule.
+This section is caused by issue #1487 / PR #1495 and complements
+`docs/rules/expression-bytecode-ast-seams.md`.
 
 ## Issue #1509 Dynamic Boundary Audit Refresh (2026-05-22)
 

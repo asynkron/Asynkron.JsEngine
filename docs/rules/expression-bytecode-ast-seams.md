@@ -190,6 +190,18 @@ fallback or cleanup.
     `ExecutionPlanRunner` retirement work in their A/B/E owner rows. Pair
     admitted vs open claims with exact proof-manifest rows, and split sync and
     resumable proofs when the runtime entry point differs.
+29. When rebaselining standalone `ExpressionProgram` executor call sites for
+    class definitions, classify each `ExecuteStandalone(...)` occurrence by the
+    semantic payload owner instead of treating the whole file as one generic
+    allowance. Class `extends`, computed class member names, computed class
+    field names, and class field initializers are E4 class-definition standalone
+    payloads when their caches expose lowered `ExpressionProgram` values.
+    Preserve the adjacent static-block `ExecutionPlanRunner.RunScript(...)`
+    fallback as E5/static-block runner-retirement residue unless a separate
+    proof shows that body routing has moved. Issue #3377 / PR #3438 added this
+    rule after the finite bytecode retirement inventory needed to separate
+    class-definition payload execution from static-block body fallback
+    ownership.
 
 ## Dynamic Boundary Classification (#1405 Retry)
 

@@ -366,6 +366,28 @@ public sealed class UnifiedBytecodeResumableDynamicIdentifierTests(ITestOutputHe
     }
 
     [Fact(Timeout = 5000)]
+    public async Task AsyncDirectEvalArgumentsParameter_StaysOnIrPathAndResolvesParameter()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.EvaluateAndAwait("""
+            var asyncResult = undefined;
+            async function run(arguments) {
+                await 0;
+                return eval("arguments[0]");
+            }
+
+            run([42]).then(value => asyncResult = value);
+            asyncResult;
+            """);
+
+        Assert.Equal(42d, result);
+        Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-resumable-async-fast-path func=run argc=1",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task AsyncGeneratorDirectEvalArgumentsRead_RoutesResumableAndSettles()
     {
         await using var engine = CreateEngine();

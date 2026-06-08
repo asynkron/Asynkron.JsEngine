@@ -93,6 +93,7 @@ public static partial class TypedAstEvaluator
         bool allowDeclarationFreeDirectEval) =>
         closure.HasWithObjectInChain() ||
         DynamicScopeDetector.ContainsDirectEvalInParameters(function.Parameters) ||
+        HasResumableDirectEvalExplicitArgumentsBindingDependency(function) ||
         (allowDeclarationFreeDirectEval
             ? ResumableDirectEvalActivationDetector.ContainsDynamicActivationDependency(function.Body)
             : DynamicScopeDetector.ContainsDirectEval(function.Body));
@@ -110,14 +111,37 @@ public static partial class TypedAstEvaluator
 
     private static bool HasResumableDirectEvalImplicitArgumentsAccess(FunctionExpression function) =>
         !function.IsArrow &&
-        !HasArgumentsParameter(function) &&
+        !HasArgumentsBindingDeclaration(function) &&
         ResumableDirectEvalActivationDetector.ContainsImplicitArgumentsAccess(function.Body);
+
+    private static bool HasResumableDirectEvalExplicitArgumentsBindingDependency(FunctionExpression function) =>
+        !function.IsArrow &&
+        HasArgumentsBindingDeclaration(function) &&
+        ResumableDirectEvalActivationDetector.ContainsImplicitArgumentsAccess(function.Body);
+
+    private static bool HasArgumentsBindingDeclaration(FunctionExpression function) =>
+        HasArgumentsParameter(function) ||
+        HasArgumentsBodyLexicalDeclaration(function);
 
     private static bool HasArgumentsParameter(FunctionExpression function)
     {
         foreach (var parameter in function.Parameters)
         {
-            if (ReferenceEquals(parameter.Name, Symbol.Arguments))
+            if (parameter.Name is { Name: "arguments" })
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool HasArgumentsBodyLexicalDeclaration(FunctionExpression function)
+    {
+        var hoistPlan = ((IAstCacheable<HoistPlan>)function.Body).GetOrCreateCache();
+        foreach (var name in hoistPlan.BodyLexicalTemplate)
+        {
+            if (name.Name == "arguments")
             {
                 return true;
             }

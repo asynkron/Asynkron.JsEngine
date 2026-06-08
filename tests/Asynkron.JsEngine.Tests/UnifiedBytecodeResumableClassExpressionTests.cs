@@ -1481,6 +1481,56 @@ public sealed class UnifiedBytecodeResumableClassExpressionTests(ITestOutputHelp
     }
 
     [Fact]
+    public void EvaluateResumable_ClassExpressionComputedFieldNameDirectActivationCall_AdmitLoadClassLiteral()
+    {
+        var plan = GetFunctionPlan("""
+            function* g(read) {
+                yield 1;
+                var C = class {
+                    [read()] = 42;
+                };
+                return C;
+            }
+            """,
+            "g");
+
+        var result = UnifiedBytecodeProductionEligibility.EvaluateResumable(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor(IsGenerator: true));
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(
+            result.Program.Instructions,
+            static instruction => instruction.OpCode == UnifiedBytecodeOpCode.LoadClassLiteral);
+    }
+
+    [Fact]
+    public void EvaluateResumable_ClassExpressionComputedFieldNameActivationIife_AdmitLoadClassLiteral()
+    {
+        var plan = GetFunctionPlan("""
+            function* g(key) {
+                yield 1;
+                var C = class {
+                    [(() => key)()] = 42;
+                };
+                return C;
+            }
+            """,
+            "g");
+
+        var result = UnifiedBytecodeProductionEligibility.EvaluateResumable(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor(IsGenerator: true));
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(
+            result.Program.Instructions,
+            static instruction => instruction.OpCode == UnifiedBytecodeOpCode.LoadClassLiteral);
+    }
+
+    [Fact]
     public void EvaluateResumable_ClassExpressionComputedNameSpreadCall_AdmitsLoadClassLiteral()
     {
         var plan = GetFunctionPlan("""
@@ -1506,7 +1556,7 @@ public sealed class UnifiedBytecodeResumableClassExpressionTests(ITestOutputHelp
     }
 
     [Fact]
-    public void EvaluateResumable_ClassExpressionComputedNameActivationConstruct_AdmitsLoadClassLiteral()
+    public void EvaluateResumable_ClassExpressionComputedNameActivationConstruct_DeclinesLoadClassLiteral()
     {
         var plan = GetFunctionPlan("""
             function* g(MakeName) {
@@ -1519,19 +1569,11 @@ public sealed class UnifiedBytecodeResumableClassExpressionTests(ITestOutputHelp
             """,
             "g");
 
-        var result = UnifiedBytecodeProductionEligibility.EvaluateResumable(
-            plan,
-            new UnifiedBytecodeProductionActivationDescriptor(IsGenerator: true));
-
-        Assert.True(result.IsEligible, result.Reason);
-        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
-        Assert.Contains(
-            result.Program.Instructions,
-            static instruction => instruction.OpCode == UnifiedBytecodeOpCode.LoadClassLiteral);
+        AssertB24hClassLiteralNoRoute(plan, "activation-dependent call or construct");
     }
 
     [Fact(Timeout = 5000)]
-    public async Task GeneratorComputedNameActivationConstruct_RoutesResumable()
+    public async Task GeneratorComputedNameActivationConstruct_FallsBackAndResolvesName()
     {
         await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
@@ -1558,11 +1600,11 @@ public sealed class UnifiedBytecodeResumableClassExpressionTests(ITestOutputHelp
             """);
 
         Assert.Equal("ready:false|42:true", result);
-        AssertGeneratorFastPath("g", argc: 1);
+        AssertNoGeneratorFastPath("g");
     }
 
     [Fact]
-    public void EvaluateResumable_ClassExpressionComputedNameActivationConstructArgument_AdmitsLoadClassLiteral()
+    public void EvaluateResumable_ClassExpressionComputedNameActivationConstructArgument_DeclinesLoadClassLiteral()
     {
         var plan = GetFunctionPlan("""
             function* g(MakeName, key) {
@@ -1575,19 +1617,11 @@ public sealed class UnifiedBytecodeResumableClassExpressionTests(ITestOutputHelp
             """,
             "g");
 
-        var result = UnifiedBytecodeProductionEligibility.EvaluateResumable(
-            plan,
-            new UnifiedBytecodeProductionActivationDescriptor(IsGenerator: true));
-
-        Assert.True(result.IsEligible, result.Reason);
-        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
-        Assert.Contains(
-            result.Program.Instructions,
-            static instruction => instruction.OpCode == UnifiedBytecodeOpCode.LoadClassLiteral);
+        AssertB24hClassLiteralNoRoute(plan, "activation-dependent call or construct");
     }
 
     [Fact(Timeout = 5000)]
-    public async Task GeneratorComputedNameActivationConstructArgument_RoutesResumable()
+    public async Task GeneratorComputedNameActivationConstructArgument_FallsBackAndResolvesName()
     {
         await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
@@ -1615,11 +1649,11 @@ public sealed class UnifiedBytecodeResumableClassExpressionTests(ITestOutputHelp
             """);
 
         Assert.Equal("ready:false|42:true", result);
-        AssertGeneratorFastPath("g", argc: 2);
+        AssertNoGeneratorFastPath("g");
     }
 
     [Fact]
-    public void EvaluateResumable_ClassExpressionComputedNameActivationConstructSpread_AdmitsLoadClassLiteral()
+    public void EvaluateResumable_ClassExpressionComputedNameActivationConstructSpread_DeclinesLoadClassLiteral()
     {
         var plan = GetFunctionPlan("""
             function* g(MakeName, args) {
@@ -1632,25 +1666,11 @@ public sealed class UnifiedBytecodeResumableClassExpressionTests(ITestOutputHelp
             """,
             "g");
 
-        var result = UnifiedBytecodeProductionEligibility.EvaluateResumable(
-            plan,
-            new UnifiedBytecodeProductionActivationDescriptor(IsGenerator: true));
-
-        Assert.True(result.IsEligible, result.Reason);
-        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
-        Assert.Contains(
-            result.Program.Instructions,
-            static instruction => instruction.OpCode == UnifiedBytecodeOpCode.LoadClassLiteral);
-        var classLiteral = Assert.Single(result.Program.ClassLiteralConstants);
-        var classCache = ((IAstCacheable<ClassDefinitionProgramCache>)classLiteral.ClassExpression.Definition).GetOrCreateCache();
-        Assert.True(classCache.Succeeded, classCache.FailureReason);
-        var computedNameProgram = Assert.Single(classCache.MemberNamePrograms);
-        Assert.NotNull(computedNameProgram);
-        Assert.NotEmpty(computedNameProgram.Value.SpreadMaskConstants);
+        AssertB24hClassLiteralNoRoute(plan, "activation-dependent call or construct");
     }
 
     [Fact(Timeout = 5000)]
-    public async Task GeneratorComputedNameActivationConstructSpread_RoutesResumableAndSpreadsArguments()
+    public async Task GeneratorComputedNameActivationConstructSpread_FallsBackAndSpreadsArguments()
     {
         await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
@@ -1678,7 +1698,7 @@ public sealed class UnifiedBytecodeResumableClassExpressionTests(ITestOutputHelp
             """);
 
         Assert.Equal("ready:false|42:true", result);
-        AssertGeneratorFastPath("g", argc: 2);
+        AssertNoGeneratorFastPath("g");
     }
 
     [Fact(Timeout = 5000)]
@@ -1708,7 +1728,7 @@ public sealed class UnifiedBytecodeResumableClassExpressionTests(ITestOutputHelp
     }
 
     [Fact]
-    public void EvaluateResumable_ClassExpressionComputedNameActivationDelete_AdmitLoadClassLiteral()
+    public void EvaluateResumable_ClassExpressionComputedNameActivationDelete_DeclinesLoadClassLiteral()
     {
         var plan = GetFunctionPlan("""
             function* g(key) {
@@ -1721,15 +1741,92 @@ public sealed class UnifiedBytecodeResumableClassExpressionTests(ITestOutputHelp
             """,
             "g");
 
-        var result = UnifiedBytecodeProductionEligibility.EvaluateResumable(
-            plan,
-            new UnifiedBytecodeProductionActivationDescriptor(IsGenerator: true));
+        AssertB24hClassLiteralNoRoute(plan, "activation binding delete");
+    }
 
-        Assert.True(result.IsEligible, result.Reason);
-        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
-        Assert.Contains(
-            result.Program.Instructions,
-            static instruction => instruction.OpCode == UnifiedBytecodeOpCode.LoadClassLiteral);
+    [Fact]
+    public void EvaluateResumable_ClassExpressionComputedFieldNameActivationDelete_DeclinesLoadClassLiteral()
+    {
+        var plan = GetFunctionPlan("""
+            function* g(key) {
+                yield 1;
+                var C = class {
+                    [delete key] = 42;
+                };
+                return C;
+            }
+            """,
+            "g");
+
+        AssertB24hClassLiteralNoRoute(plan, "activation binding delete");
+    }
+
+    [Fact]
+    public void EvaluateResumable_ClassExpressionComputedFieldNameActivationConstruct_DeclinesLoadClassLiteral()
+    {
+        var plan = GetFunctionPlan("""
+            function* g(MakeName) {
+                yield 1;
+                var C = class {
+                    [new MakeName()] = 42;
+                };
+                return C;
+            }
+            """,
+            "g");
+
+        AssertB24hClassLiteralNoRoute(plan, "activation-dependent call or construct");
+    }
+
+    [Fact]
+    public void EvaluateResumable_ClassExpressionComputedNameRuntimeSourceDirectEval_DeclinesLoadClassLiteral()
+    {
+        var plan = GetFunctionPlan("""
+            function* g(source) {
+                yield 1;
+                var C = class {
+                    [eval(source)]() { return 42; }
+                };
+                return C;
+            }
+            """,
+            "g");
+
+        AssertB24hClassLiteralNoRoute(plan, "activation-dependent call or construct");
+    }
+
+    [Fact]
+    public void EvaluateResumable_ClassExpressionComputedNameNestedClassLiteral_DeclinesClassDefinitionEnvironmentRoute()
+    {
+        var plan = GetFunctionPlan("""
+            function* g(key) {
+                yield 1;
+                var C = class {
+                    [class { [key]() { return 42; } }]() { return 1; }
+                };
+                return C;
+            }
+            """,
+            "g");
+
+        AssertB24hClassLiteralNoRoute(plan, "nested class literal activation capture");
+    }
+
+    [Fact]
+    public void EvaluateResumable_ClassExpressionComputedNameNestedSuperConstruct_DeclinesClassDefinitionEnvironmentRoute()
+    {
+        var plan = GetFunctionPlan("""
+            function* g(Base, seed) {
+                yield 1;
+                var C = class {
+                    [class extends Base { constructor() { super(seed); } }]() { return 1; }
+                };
+                return C;
+            }
+            """,
+            "g");
+
+        AssertB24hClassLiteralNoRoute(plan, "nested class literal activation capture");
     }
 
     [Fact]
@@ -3499,6 +3596,12 @@ public sealed class UnifiedBytecodeResumableClassExpressionTests(ITestOutputHelp
                         ProductionFastPathLog,
                         StringComparison.Ordinal))));
 
+    private void AssertNoGeneratorFastPath(string functionName) =>
+        Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(),
+            record => record.Message.Contains(
+                $"{ResumableGeneratorFastPathLog} func={functionName}",
+                StringComparison.Ordinal));
+
     private void AssertStaticBlockFastPath() =>
         Assert.Contains(CurrentLogger!.Collector.Snapshot(),
             static record => record.Message.Contains(
@@ -3603,5 +3706,19 @@ public sealed class UnifiedBytecodeResumableClassExpressionTests(ITestOutputHelp
         var cache = ((IAstCacheable<ExecutionPlanCache>)declaration.Function).GetOrCreateCache();
         Assert.True(cache.Succeeded, cache.FailureReason);
         return Assert.IsType<ExecutionPlan>(cache.Plan);
+    }
+
+    private static void AssertB24hClassLiteralNoRoute(ExecutionPlan plan, string reasonFragment)
+    {
+        var result = UnifiedBytecodeProductionEligibility.EvaluateResumable(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor(IsGenerator: true));
+
+        Assert.False(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.UnsupportedPlanShape, result.Code);
+        Assert.Contains(reasonFragment, result.Reason, StringComparison.Ordinal);
+        Assert.DoesNotContain(
+            result.Program.Instructions,
+            static instruction => instruction.OpCode == UnifiedBytecodeOpCode.LoadClassLiteral);
     }
 }

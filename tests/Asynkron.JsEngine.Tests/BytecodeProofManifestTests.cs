@@ -195,6 +195,37 @@ public sealed partial class BytecodeProofManifestTests(ITestOutputHelper output)
     }
 
     [Fact]
+    public void Manifest_E5eProof_IsExactTerminalDynamicResidueExclusion()
+    {
+        var proof = LoadManifest()
+            .Items
+            .Single(static item => item.Id == "E5e")
+            .Proofs
+            .Single(static proof => proof.Id == "E5-terminal-dynamic-residue-excluded-from-ordinary-runner-retirement");
+
+        Assert.Equal("E5e-residue-exclusion-boundary", proof.ChildOwner);
+        Assert.Equal("hard-quarantined", proof.Claim);
+        Assert.Equal("source-presence", proof.Kind);
+        Assert.Contains("A2/D1/D2/D3/D4-style quarantine rows", proof.Classification, StringComparison.Ordinal);
+        Assert.Contains("not ordinary E5 runner retirement", proof.Classification, StringComparison.Ordinal);
+        Assert.DoesNotContain("E5b", proof.Classification, StringComparison.Ordinal);
+        Assert.DoesNotContain("E5c", proof.Classification, StringComparison.Ordinal);
+        Assert.DoesNotContain("E5d", proof.Classification, StringComparison.Ordinal);
+
+        Assert.Equal(
+            [
+                "Terminal dynamic residue remains excluded from ordinary runner retirement",
+                "direct eval with runtime-source, multi-arg, spread, or declaration-injecting",
+                "awaited-with object evaluation",
+                "retained live `with` scopes outside the VM current-environment lane",
+                "eval-injected runtime bindings",
+                "`Function(...)`-produced bodies",
+                "A2/D1/D2/D3/D4-style quarantine boundaries outside ordinary E5 runner retirement"
+            ],
+            proof.Patterns);
+    }
+
+    [Fact]
     public void Manifest_B36OpenRowsKeepDynamicEvalHelpersSeparateFromClassDeclarationResidue()
     {
         var b36 = LoadManifest().Items.Single(static item => item.Id == "B36");
@@ -364,8 +395,15 @@ public sealed partial class BytecodeProofManifestTests(ITestOutputHelper output)
         Assert.True(File.Exists(path), $"{proof.Id}: expected source file '{path}'.");
 
         var source = File.ReadAllText(path);
-        var contains = source.Contains(Require(proof.Pattern, proof.Id, nameof(proof.Pattern)), StringComparison.Ordinal);
-        Assert.Equal(shouldExist, contains);
+        var patterns = proof.Patterns.Count > 0
+            ? proof.Patterns
+            : [Require(proof.Pattern, proof.Id, nameof(proof.Pattern))];
+
+        foreach (var pattern in patterns)
+        {
+            var contains = source.Contains(pattern, StringComparison.Ordinal);
+            Assert.Equal(shouldExist, contains);
+        }
     }
 
     private static void VerifySourceAllowlist(ProofManifestProof proof)
@@ -670,6 +708,8 @@ public sealed partial class BytecodeProofManifestTests(ITestOutputHelper output)
         public string? Path { get; set; }
 
         public string? Pattern { get; set; }
+
+        public List<string> Patterns { get; set; } = [];
 
         public List<string> Paths { get; set; } = [];
 

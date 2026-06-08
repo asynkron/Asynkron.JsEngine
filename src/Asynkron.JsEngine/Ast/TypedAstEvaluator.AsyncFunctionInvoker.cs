@@ -56,13 +56,13 @@ public static partial class TypedAstEvaluator
 
                 try
                 {
-                    if (TryExecuteUnifiedBytecode(resolve, reject))
+                    if (TryExecuteUnifiedBytecode(resolve, reject, out var declineCode, out var declineReason))
                     {
                         return JsValue.Undefined;
                     }
 
                     // Initialize generator inside Promise to capture any early errors.
-                    _inner = CreateClassifiedAsyncDeclinedBodyRunner();
+                    _inner = CreateClassifiedAsyncDeclinedBodyRunner(declineCode, declineReason);
                     _inner.Initialize();
 
                     // Start execution - async functions don't receive an argument on first call
@@ -90,10 +90,16 @@ public static partial class TypedAstEvaluator
             return promiseCtor.Invoke(new SingleValueArgs((JsValue)executor), JsValue.Undefined);
         }
 
-        private bool TryExecuteUnifiedBytecode(IJsCallable resolve, IJsCallable reject)
+        private bool TryExecuteUnifiedBytecode(
+            IJsCallable resolve,
+            IJsCallable reject,
+            out UnifiedBytecodeProductionDeclineCode declineCode,
+            out string declineReason)
         {
             if (!TryGetExecutionPlan(out var plan))
             {
+                declineCode = UnifiedBytecodeProductionDeclineCode.UnsupportedPlanShape;
+                declineReason = _planSeed.Failure?.ToString() ?? "Execution plan is not available.";
                 return false;
             }
 
@@ -103,6 +109,9 @@ public static partial class TypedAstEvaluator
                     allowCapturedActivationSlots: true,
                     out var hoistedFunctionDeclarations))
             {
+                declineCode = UnifiedBytecodeProductionDeclineCode.UnsupportedPlanShape;
+                declineReason =
+                    "Root hoisted function declarations are not eligible for async-function resumable routing.";
                 return false;
             }
 
@@ -132,6 +141,8 @@ public static partial class TypedAstEvaluator
             var eligibility = UnifiedBytecodeProductionEligibility.EvaluateResumable(plan, activation);
             if (!eligibility.IsEligible)
             {
+                declineCode = eligibility.Code;
+                declineReason = eligibility.Reason;
                 return false;
             }
 
@@ -154,6 +165,8 @@ public static partial class TypedAstEvaluator
                     arguments,
                     out var slots))
             {
+                declineCode = UnifiedBytecodeProductionDeclineCode.UnsupportedPlanShape;
+                declineReason = "Resumable slot initialization failed.";
                 return false;
             }
 
@@ -169,12 +182,17 @@ public static partial class TypedAstEvaluator
             var requiresResumableSuperBinding = RequiresResumableSuperEnvironment(program);
             if (needsMaterializedBodyEnvironment && requiresResumableSuperBinding)
             {
+                declineCode = UnifiedBytecodeProductionDeclineCode.UnsupportedPlanShape;
+                declineReason =
+                    "Materialized async-function body environments with resumable super binding are not eligible.";
                 return false;
             }
 
             if (requiresResumableSuperBinding &&
                 !TryCreateResumableSuperBinding(closure, boundThis, homeObject, out resumableSuperBinding))
             {
+                declineCode = UnifiedBytecodeProductionDeclineCode.UnsupportedPlanShape;
+                declineReason = "Resumable super binding could not be created.";
                 return false;
             }
 
@@ -189,6 +207,8 @@ public static partial class TypedAstEvaluator
                         function.Source,
                         out callingEnvironment))
                 {
+                    declineCode = UnifiedBytecodeProductionDeclineCode.UnsupportedPlanShape;
+                    declineReason = "Materialized resumable body environment could not be created.";
                     return false;
                 }
             }
@@ -201,6 +221,8 @@ public static partial class TypedAstEvaluator
                     callingEnvironment,
                     context))
             {
+                declineCode = UnifiedBytecodeProductionDeclineCode.UnsupportedPlanShape;
+                declineReason = "Root hoisted function declarations could not be populated into resumable slots.";
                 return false;
             }
 
@@ -226,6 +248,8 @@ public static partial class TypedAstEvaluator
                 JsValue.Undefined,
                 resolve,
                 reject);
+            declineCode = UnifiedBytecodeProductionDeclineCode.None;
+            declineReason = string.Empty;
             return true;
         }
 
@@ -248,8 +272,15 @@ public static partial class TypedAstEvaluator
             return false;
         }
 
-        private ExecutionPlanRunner CreateClassifiedAsyncDeclinedBodyRunner()
+        private ExecutionPlanRunner CreateClassifiedAsyncDeclinedBodyRunner(
+            UnifiedBytecodeProductionDeclineCode declineCode,
+            string declineReason)
         {
+            _realmState.Logger?.LogInformation(
+                "classified-async-function-declined-body-runner-residue reason=production-unified-bytecode-declined code={DeclineCode} detail={DeclineReason}",
+                declineCode,
+                declineReason);
+
             return CreateExecutionPlanRunner();
         }
 

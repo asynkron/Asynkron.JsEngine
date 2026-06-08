@@ -857,22 +857,28 @@ all-or-nothing until a separate routing issue proves production readiness.
      `docs/adrs/0347-keep-resumable-runner-construction-classified-by-route-boundary.md`
      and
      `docs/adrs/0348-keep-resumable-super-binding-vm-owned-without-runner-bridges.md`.
-     Async functions follow the same accepted-route ordering discipline even
-     though route-ineligible async bodies may still settle through a classified
-     declined-body runner. The promise executor must attempt
-     `TryExecuteUnifiedBytecode(...)` before constructing
-     `CreateClassifiedAsyncDeclinedBodyRunner()`, accepted async bodies must
-     prove the resumable fast-path log, and adjacent route-ineligible async
-     bodies such as observable `arguments` dependencies must complete without
-     the resumable fast-path log. Source gates should strip/classify only the
-     named fallback helper and runner-construction helper before forbidding
-     unclassified `ExecutionPlanRunner` construction elsewhere in
-     `TypedAstEvaluator.AsyncFunctionInvoker`. WHY: Faktorial issue
+     Async functions follow the same accepted-route ordering discipline, and
+     the declined-body runner bridge is now retired. The promise executor must
+     attempt `TryExecuteUnifiedBytecode(...)`; accepted async bodies must prove
+     the resumable fast-path log; adjacent route-ineligible async bodies should
+     reject their returned promise with the production decline code and detail
+     instead of settling through `ExecutionPlanRunner`. Source gates should
+     treat `CreateClassifiedAsyncDeclinedBodyRunner` and the async-function
+     `.ExecuteAsyncStep(` call site as tombstones while continuing to classify
+     unrelated ordinary sync, class-constructor, and sync-generator runner
+     owners separately. WHY: Faktorial issue
      `planitem-planitem-planmanual1780730299657353000-unified-bytecode-remaining-burndo-a8ee7eeeac`
      / delivery commit `6e7d7f0e7` pinned E5 after a rebase onto current
      `main`: accepted async functions needed to enter the resumable VM before
      the declined-body fallback was constructed, while arguments-dependent
      async bodies still needed the classified fallback to preserve behavior.
+     Faktorial issue
+     `planitem-gh3377-rebaseline-the-finite-bytecode-retirement-inventory-retire-fallba-db1bb485e8`
+     / PR #3480 later retired that fallback after the async-function route
+     boundary was rebaselined, converting the proof-manifest rows to
+     source-absence tombstones and aligning declined async-body tests with
+     explicit promise rejection. Related ADR:
+     `docs/adrs/0373-retire-async-function-declined-runner-bridge-with-explicit-rejection.md`.
 10k. When retiring ordinary sync runner residue, convert the source gate from
      a classified fallback allowance to a tombstone. `TryInvokeIrFast<TArgs>(...)`
      must not construct `ExecutionPlanRunner`, call `.RunSync(`, or silently

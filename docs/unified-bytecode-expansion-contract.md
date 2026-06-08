@@ -2273,21 +2273,25 @@ rtk ./tools/profile forloop --memory
 
 ## Current Final-Proof Evidence
 
-2026-06-06 local proof run:
+2026-06-08 local proof run on `c42166d7c`:
 
-- Contract and unified proof packs: `ExpressionProgramCoverageMapTests` 14/14,
-  `UnifiedBytecodeProductionEligibilityTests` 586/586,
-  `UnifiedBytecodePrototypeTests` 73/73, and
-  `UnifiedBytecodeProductionInvocationTests` 557/557 passed. The runner seam
+- Contract and unified proof packs:
+  `BytecodeProofManifestTests`, `ExpressionProgramCoverageMapTests`,
+  `UnifiedBytecodeProductionEligibilityTests`,
+  `UnifiedBytecodePrototypeTests`, and
+  `UnifiedBytecodeProductionInvocationTests` passed together as 1,549/1,549.
+  The runner seam
   scan
   `rtk rg "EvaluateExpression\\(|ProfileEvaluateExpression\\(" src/Asynkron.JsEngine/Ast/TypedAstEvaluator.ExecutionPlanRunner*`
   returned no matches.
 - Route-hit probes confirmed current production VM entry:
   `forloop` 40, `propertyaccess` 20, `functioncalls-lite` 1,600,002,
-  `activation-noargs-lite` 600,002, and `forofiteration` 2,000
+  `activation-noargs-lite` 600,002, and `forofiteration` 4,000
   `unified-bytecode-production-fast-path` hits.
-- `rtk ./tools/profile forloop --memory` reported `Total allocated 6.93 MB`.
-- `rtk ./tools/run-test262-regressions.sh --list` reported
+- `rtk ./tools/profile forloop --memory` reported
+  `Total allocated 968.36 MB`.
+- Previous 2026-06-06 Test262 regression inventory:
+  `rtk ./tools/run-test262-regressions.sh --list` reported
   `full (523 entries)`, `annexb (15 entries)`, `array-prototype (31 entries)`,
   `gh1832-private-accessor-logical-assignment (7 entries)`, `intl (82 entries)`,
   `language (76 entries)`, `proxy (3 entries)`, `regexp (115 entries)`, and

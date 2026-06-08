@@ -1950,6 +1950,24 @@
           "pattern": "EvaluateDynamicExpressionProgram("
         },
         {
+          "id": "E4-function-parameter-defaults-execute-dynamic-removed",
+          "childOwner": "E4-dynamic-function-parameter-defaults",
+          "classification": "function parameter default payloads cache a lowered ExpressionProgram on FunctionParameter and execute it through standalone unified bytecode",
+          "claim": "retired-fallback",
+          "kind": "source-absence",
+          "path": "src/Asynkron.JsEngine/Ast/FunctionExpressionExtensions.cs",
+          "pattern": "UnifiedBytecodeExpressionProgramExecutor.ExecuteDynamic("
+        },
+        {
+          "id": "E4-variable-initializers-execute-dynamic-removed",
+          "childOwner": "E4-dynamic-variable-initializers",
+          "classification": "variable initializer payloads cache a lowered ExpressionProgram on VariableDeclarator and execute it through standalone unified bytecode",
+          "claim": "retired-fallback",
+          "kind": "source-absence",
+          "path": "src/Asynkron.JsEngine/Ast/VariableKindExtensions.cs",
+          "pattern": "UnifiedBytecodeExpressionProgramExecutor.ExecuteDynamic("
+        },
+        {
           "id": "E4-binding-target-runner-bridge-removed-from-callers",
           "claim": "retired-fallback",
           "kind": "source-absence",
@@ -1991,6 +2009,7 @@
             "src/Asynkron.JsEngine/Ast/ClassDefinitionExtensions.cs",
             "src/Asynkron.JsEngine/Ast/ClassFieldInitializer.cs",
             "src/Asynkron.JsEngine/Ast/ClassPropertyNameResolver.cs",
+            "src/Asynkron.JsEngine/Ast/LoweredExpressionProgramCache.cs",
             "src/Asynkron.JsEngine/Ast/TypedAstEvaluator.ExecutionPlanRunner.BindingPrograms.cs",
             "src/Asynkron.JsEngine/Ast/TypedAstEvaluator.SyncFunctionInvoker.cs"
           ],
@@ -2014,6 +2033,12 @@
               "enclosingMember": "TryResolveNameCore"
             },
             {
+              "childOwner": "E4-cached-ordinary-expression-payloads",
+              "classification": "cached function parameter default and variable initializer standalone payload",
+              "path": "src/Asynkron.JsEngine/Ast/LoweredExpressionProgramCache.cs",
+              "enclosingMember": "Execute"
+            },
+            {
               "childOwner": "E4-binding-program-standalone-payloads",
               "classification": "external lowered binding-target expression payload",
               "path": "src/Asynkron.JsEngine/Ast/TypedAstEvaluator.ExecutionPlanRunner.BindingPrograms.cs",
@@ -2030,33 +2055,19 @@
         {
           "id": "E4-dynamic-expression-executor-call-sites-stay-boundary-owned",
           "childOwner": "E4-dynamic-expression-executor-residue",
-          "classification": "finite dynamic expression payload boundary; ExpressionNodeExtensions is the primary child owner, FunctionExpressionExtensions and VariableKindExtensions share the same dynamic expression payload contract, and statement/loop legacy operands remain separately classified dynamic residue",
+          "classification": "finite dynamic expression payload boundary; ExpressionNodeExtensions is the primary child owner, while ordinary function parameter defaults and variable initializers have retired to cached lowered ExpressionProgram payloads and statement/loop legacy operands remain separately classified dynamic residue",
           "claim": "source-ratchet",
           "kind": "source-allowlist",
           "paths": [
             "src/Asynkron.JsEngine"
           ],
           "allowedPaths": [
-            "src/Asynkron.JsEngine/Ast/FunctionExpressionExtensions.cs",
-            "src/Asynkron.JsEngine/Ast/VariableKindExtensions.cs",
             "src/Asynkron.JsEngine/Ast/Legacy/ExpressionNodeExtensions.cs",
             "src/Asynkron.JsEngine/Ast/Legacy/LoopPlanExtensions.cs",
             "src/Asynkron.JsEngine/Ast/Legacy/StatementNodeExtensions.cs"
           ],
           "pattern": "UnifiedBytecodeExpressionProgramExecutor.ExecuteDynamic(",
           "classifiedCallSites": [
-            {
-              "childOwner": "E4-dynamic-function-parameter-defaults",
-              "classification": "function parameter default dynamic expression payload",
-              "path": "src/Asynkron.JsEngine/Ast/FunctionExpressionExtensions.cs",
-              "callCount": 1
-            },
-            {
-              "childOwner": "E4-dynamic-variable-initializers",
-              "classification": "variable initializer dynamic expression payload",
-              "path": "src/Asynkron.JsEngine/Ast/VariableKindExtensions.cs",
-              "callCount": 1
-            },
             {
               "childOwner": "E4-legacy-expression-node-dynamic-payloads",
               "classification": "legacy expression-node dynamic expression payloads",
@@ -2095,8 +2106,6 @@
           ],
           "pattern": "UnifiedBytecodeExpressionProgramExecutor.ExecuteDynamic(",
           "allowedPaths": [
-            "src/Asynkron.JsEngine/Ast/FunctionExpressionExtensions.cs",
-            "src/Asynkron.JsEngine/Ast/VariableKindExtensions.cs",
             "src/Asynkron.JsEngine/Ast/Legacy/ExpressionNodeExtensions.cs",
             "src/Asynkron.JsEngine/Ast/Legacy/LoopPlanExtensions.cs",
             "src/Asynkron.JsEngine/Ast/Legacy/StatementNodeExtensions.cs"

@@ -304,16 +304,6 @@ public sealed class ExecutionPlanDiagnosticsTests(ITestOutputHelper output) : In
         var expectedSurfaces = new[]
         {
             new DynamicExecutorBoundarySurface(
-                "src/Asynkron.JsEngine/Ast/FunctionExpressionExtensions.cs",
-                1,
-                "E4-dynamic-function-parameter-defaults",
-                "function parameter default dynamic expression payload"),
-            new DynamicExecutorBoundarySurface(
-                "src/Asynkron.JsEngine/Ast/VariableKindExtensions.cs",
-                1,
-                "E4-dynamic-variable-initializers",
-                "variable initializer dynamic expression payload"),
-            new DynamicExecutorBoundarySurface(
                 "src/Asynkron.JsEngine/Ast/Legacy/ExpressionNodeExtensions.cs",
                 47,
                 "E4-legacy-expression-node-dynamic-payloads",
@@ -513,6 +503,10 @@ public sealed class ExecutionPlanDiagnosticsTests(ITestOutputHelper output) : In
                 "src/Asynkron.JsEngine/Ast/ClassPropertyNameResolver.cs",
                 "TryResolveNameCore",
                 "computed class property-name standalone payload"),
+            new StandaloneExecutorCallSite(
+                "src/Asynkron.JsEngine/Ast/LoweredExpressionProgramCache.cs",
+                "Execute",
+                "cached function parameter default and variable initializer standalone payload"),
             new StandaloneExecutorCallSite(
                 "src/Asynkron.JsEngine/Ast/TypedAstEvaluator.ExecutionPlanRunner.BindingPrograms.cs",
                 "EvaluateBindingExpressionProgram",

@@ -397,6 +397,83 @@
       ]
     },
     {
+      "id": "A51h",
+      "title": "Literal/span compiler diagnostics stay open",
+      "status": "open",
+      "proofs": [
+        {
+          "id": "A51h-array-literal-span-boundary-stays-open",
+          "claim": "open",
+          "kind": "source-presence",
+          "path": "src/Asynkron.JsEngine/Execution/UnifiedBytecode/UnifiedBytecodeCompiler.cs",
+          "pattern": "Expected ArrayPush or ArraySpread after array element operand."
+        },
+        {
+          "id": "A51h-object-literal-computed-key-boundary-stays-open",
+          "claim": "open",
+          "kind": "source-presence",
+          "path": "src/Asynkron.JsEngine/Execution/UnifiedBytecode/UnifiedBytecodeCompiler.cs",
+          "pattern": "Complex computed keys and name-inferred computed properties are not admitted in simple object literals."
+        },
+        {
+          "id": "A51h-object-literal-method-accessor-boundary-stays-open",
+          "claim": "open",
+          "kind": "source-presence",
+          "path": "src/Asynkron.JsEngine/Execution/UnifiedBytecode/UnifiedBytecodeCompiler.cs",
+          "pattern": "Object methods, object accessors, private names, and name inference are not admitted in simple object literals."
+        },
+        {
+          "id": "A51h-literal-span-control-expression-boundary-stays-open",
+          "claim": "open",
+          "kind": "source-presence",
+          "path": "src/Asynkron.JsEngine/Execution/UnifiedBytecode/UnifiedBytecodeCompiler.cs",
+          "pattern": "Unsupported logical control-expression operand in simple literal span."
+        },
+        {
+          "id": "A51h-template-literal-span-boundary-stays-open",
+          "claim": "open",
+          "kind": "source-presence",
+          "path": "src/Asynkron.JsEngine/Execution/UnifiedBytecode/UnifiedBytecodeCompiler.cs",
+          "pattern": "Template literal RHS span does not match expected boundary."
+        }
+      ]
+    },
+    {
+      "id": "A51k",
+      "title": "Operand-span compiler diagnostics stay open",
+      "status": "open",
+      "proofs": [
+        {
+          "id": "A51k-simple-binary-operator-boundary-stays-open",
+          "claim": "open",
+          "kind": "source-presence",
+          "path": "src/Asynkron.JsEngine/Execution/UnifiedBytecode/UnifiedBytecodeCompiler.cs",
+          "pattern": "Only supported simple binary operators are admitted in this boundary."
+        },
+        {
+          "id": "A51k-simple-operand-helper-boundary-stays-open",
+          "claim": "open",
+          "kind": "source-presence",
+          "path": "src/Asynkron.JsEngine/Execution/UnifiedBytecode/UnifiedBytecodeCompiler.cs",
+          "pattern": "Unsupported simple operand op '{operation.Kind}'."
+        },
+        {
+          "id": "A51k-conditional-consequent-boundary-stays-open",
+          "claim": "open",
+          "kind": "source-presence",
+          "path": "src/Asynkron.JsEngine/Execution/UnifiedBytecode/UnifiedBytecodeCompiler.cs",
+          "pattern": "Unsupported conditional consequent in simple literal span."
+        },
+        {
+          "id": "A51k-conditional-alternate-boundary-stays-open",
+          "claim": "open",
+          "kind": "source-presence",
+          "path": "src/Asynkron.JsEngine/Execution/UnifiedBytecode/UnifiedBytecodeCompiler.cs",
+          "pattern": "Unsupported conditional alternate in simple literal span."
+        }
+      ]
+    },
+    {
       "id": "A51f1",
       "title": "General expression loop covers every declared ExpressionOpKind",
       "status": "done",

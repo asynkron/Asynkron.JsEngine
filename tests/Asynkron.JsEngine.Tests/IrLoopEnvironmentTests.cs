@@ -210,13 +210,13 @@ public sealed class IrLoopEnvironmentTests(ITestOutputHelper output) : InternalT
     }
 
     [Fact(Timeout = 5000)]
-    public async Task AsyncFunction_ForLoop_ClosuresCaptureCorrectValues()
+    public async Task AsyncFunction_ForLoop_ClosuresRejectExplicitUnifiedBytecodeDecline()
     {
-        // This tests the resumable async-function route.
-        // Closures should capture 0, 1, 2 - sum should be 3
+        // The plan still proves the loop/closure lowering shape below; runtime now rejects
+        // unsupported async-function resumable bodies instead of falling back to the runner.
         await using var engine = CreateEngine();
-        await engine.Evaluate("""
-            let result = 0;
+        var result = await engine.EvaluateAndAwait("""
+            let result = undefined;
             async function foo() {
                 const funcs = [];
                 for (let i = 0; i < 3; i++) {
@@ -225,21 +225,21 @@ public sealed class IrLoopEnvironmentTests(ITestOutputHelper output) : InternalT
                 }
                 result = funcs[0]() + funcs[1]() + funcs[2]();
             }
-            foo();
+            foo().then(
+                value => result = 'fulfilled:' + value,
+                error => result = String(error));
+            result;
             """);
 
-        // 0 + 1 + 2 = 3
-        var result = await engine.Evaluate("result;");
-        Assert.Equal(3.0, result);
+        AssertAsyncFunctionDeclined(result, "foo");
     }
 
     [Fact(Timeout = 5000)]
-    public async Task AsyncFunction_ForLoop_SimpleIteration()
+    public async Task AsyncFunction_ForLoop_SimpleIterationRejectsExplicitUnifiedBytecodeDecline()
     {
-        // Simpler test - just verify values are summed correctly during iteration
         await using var engine = CreateEngine();
-        await engine.Evaluate("""
-            let result = 0;
+        var result = await engine.EvaluateAndAwait("""
+            let result = undefined;
             async function foo() {
                 let sum = 0;
                 for (let x = 0; x < 5; x++) {
@@ -248,12 +248,13 @@ public sealed class IrLoopEnvironmentTests(ITestOutputHelper output) : InternalT
                 }
                 result = sum;
             }
-            foo();
+            foo().then(
+                value => result = 'fulfilled:' + value,
+                error => result = String(error));
+            result;
             """);
 
-        // 0 + 1 + 2 + 3 + 4 = 10
-        var result = await engine.Evaluate("result;");
-        Assert.Equal(10.0, result);
+        AssertAsyncFunctionDeclined(result, "foo");
     }
 
     [Fact(Timeout = 5000)]
@@ -341,7 +342,7 @@ public sealed class IrLoopEnvironmentTests(ITestOutputHelper output) : InternalT
         output.WriteLine("");
 
         // Define and call the async function, then get the result
-        await engine.EvaluateAndAwait("""
+        var result = await engine.EvaluateAndAwait("""
             let result;
             (async function testLoop() {
                 const funcs = [];
@@ -350,30 +351,30 @@ public sealed class IrLoopEnvironmentTests(ITestOutputHelper output) : InternalT
                     await Promise.resolve();
                 }
                 result = funcs[0]() + funcs[1]();
-            })();
+            })().then(
+                () => result = 'fulfilled:' + result,
+                error => result = String(error));
+            result;
             """);
 
-        var result = await engine.Evaluate("result");
-
         output.WriteLine("");
-        output.WriteLine($"=== Result: {result} (expected: 1 = 0 + 1) ===");
+        output.WriteLine($"=== Result: {result} ===");
 
-        // 0 + 1 = 1
-        Assert.Equal(1.0, result);
+        AssertAsyncFunctionDeclined(result, "testLoop");
     }
 
     [Fact(Timeout = 5000)]
-    public async Task TraceIrExecution_PASSING_SingleForWithForAwaitOf()
+    public async Task AsyncFunction_SingleForWithForAwaitOfRejectsExplicitUnifiedBytecodeDecline()
     {
-        // PASSING CASE: 1 for loop + 1 for-await-of (sum = 6)
-        var logger = new TestLogger(output, "PASS");
+        var logger = new TestLogger(output, "DECLINE");
 
         await using var engine = new JsEngine(new JsEngineOptions { Logger = logger });
 
-        output.WriteLine("=== PASSING: 1 for + 1 for-await-of (expected: 6) ===");
+        output.WriteLine("=== explicit decline: 1 for + 1 for-await-of ===");
 
         var result = await engine.EvaluateAndAwait("""
             let sum = 0;
+            let result = undefined;
             (async function() {
                 const arr = [1, 2];
                 for (let i = 0; i < 2; i++) {
@@ -381,12 +382,14 @@ public sealed class IrLoopEnvironmentTests(ITestOutputHelper output) : InternalT
                         sum += n;
                     }
                 }
-            })();
-            sum;
+            })().then(
+                () => result = 'fulfilled:' + sum,
+                error => result = String(error));
+            result;
             """);
 
-        output.WriteLine($"=== Result: {result} (expected: 6) ===");
-        Assert.Equal(6.0, result);
+        output.WriteLine($"=== Result: {result} ===");
+        AssertAsyncFunctionDeclined(result, "<anonymous>");
     }
 
     [Fact(Timeout = 5000)]
@@ -452,14 +455,13 @@ public sealed class IrLoopEnvironmentTests(ITestOutputHelper output) : InternalT
     }
 
     [Fact(Timeout = 10000)]
-    public async Task SingleForLoop_WithForAwaitOf_ReturnsCorrectSum()
+    public async Task AsyncFunction_SingleForLoopWithForAwaitOfRejectsExplicitUnifiedBytecodeDecline()
     {
-        // Simpler test: just j + for-await-of (no outer i loop)
-        // No logger to avoid initialization noise
         await using var engine = CreateEngine();
 
         var result = await engine.EvaluateAndAwait("""
             let sum = 0;
+            let result = undefined;
             (async function() {
                 const arr = [1, 2];
                 for (let j = 0; j < 2; j++) {
@@ -467,23 +469,24 @@ public sealed class IrLoopEnvironmentTests(ITestOutputHelper output) : InternalT
                         sum += n;
                     }
                 }
-            })();
-            sum;
+            })().then(
+                () => result = 'fulfilled:' + sum,
+                error => result = String(error));
+            result;
             """);
 
-        Output.WriteLine($"Result: {result} (expected: 6)");
-        // 2 j-iterations × (1+2) = 2 × 3 = 6
-        Assert.Equal(6.0, result);
+        Output.WriteLine($"Result: {result}");
+        AssertAsyncFunctionDeclined(result, "<anonymous>");
     }
 
     [Fact(Timeout = 10000)]
-    public async Task NestedForLoops_WithForAwaitOf_ReturnsCorrectSum()
+    public async Task AsyncFunction_NestedForLoopsWithForAwaitOfRejectsExplicitUnifiedBytecodeDecline()
     {
-        // No logger to avoid initialization noise and hangs
         await using var engine = CreateEngine();
 
         var result = await engine.EvaluateAndAwait("""
             let sum = 0;
+            let result = undefined;
             (async function() {
                 const arr = [1, 2];
                 for (let i = 0; i < 2; i++) {
@@ -493,13 +496,14 @@ public sealed class IrLoopEnvironmentTests(ITestOutputHelper output) : InternalT
                         }
                     }
                 }
-            })();
-            sum;
+            })().then(
+                () => result = 'fulfilled:' + sum,
+                error => result = String(error));
+            result;
             """);
 
-        output.WriteLine($"Result: {result} (expected: 12)");
-        // 2 i-iterations × 2 j-iterations × (1+2) = 4 × 3 = 12
-        Assert.Equal(12.0, result);
+        output.WriteLine($"Result: {result}");
+        AssertAsyncFunctionDeclined(result, "<anonymous>");
     }
 
     [Fact(Timeout = 5000)]
@@ -852,10 +856,12 @@ public sealed class IrLoopEnvironmentTests(ITestOutputHelper output) : InternalT
         await engine.Evaluate(program);
         var result = await engine.EvaluateAndAwait("""
             let asyncAssignmentResult = undefined;
-            testAsyncAssignmentInstruction().then(value => asyncAssignmentResult = value);
+            testAsyncAssignmentInstruction().then(
+                value => asyncAssignmentResult = 'fulfilled:' + value,
+                error => asyncAssignmentResult = String(error));
             asyncAssignmentResult;
             """);
-        Assert.Equal(7.0, result);
+        AssertAsyncFunctionDeclined(result, "testAsyncAssignmentInstruction");
 
         var funcDecl = program.Body[0] as FunctionDeclaration;
         Assert.NotNull(funcDecl);
@@ -931,10 +937,12 @@ public sealed class IrLoopEnvironmentTests(ITestOutputHelper output) : InternalT
         await engine.Evaluate(program);
         var result = await engine.EvaluateAndAwait("""
             let asyncThrowResult = undefined;
-            testAsyncThrowInstruction().then(value => asyncThrowResult = value);
+            testAsyncThrowInstruction().then(
+                value => asyncThrowResult = 'fulfilled:' + value,
+                error => asyncThrowResult = String(error));
             asyncThrowResult;
             """);
-        Assert.Equal(7.0, result);
+        AssertAsyncFunctionDeclined(result, "testAsyncThrowInstruction");
 
         var funcDecl = program.Body[0] as FunctionDeclaration;
         Assert.NotNull(funcDecl);
@@ -1051,10 +1059,12 @@ public sealed class IrLoopEnvironmentTests(ITestOutputHelper output) : InternalT
         await engine.Evaluate(program);
         var result = await engine.EvaluateAndAwait("""
             let asyncLogicalCompoundResult = undefined;
-            testAsyncLogicalCompoundInstruction().then(value => asyncLogicalCompoundResult = value);
+            testAsyncLogicalCompoundInstruction().then(
+                value => asyncLogicalCompoundResult = 'fulfilled:' + value,
+                error => asyncLogicalCompoundResult = String(error));
             asyncLogicalCompoundResult;
             """);
-        Assert.Equal(7.0, result);
+        AssertAsyncFunctionDeclined(result, "testAsyncLogicalCompoundInstruction");
 
         var funcDecl = program.Body[0] as FunctionDeclaration;
         Assert.NotNull(funcDecl);
@@ -1175,11 +1185,13 @@ public sealed class IrLoopEnvironmentTests(ITestOutputHelper output) : InternalT
             }
 
             let computedAwaitedIterablePropertyResult = undefined;
-            testComputedAwaitedIterableProperty().then(value => computedAwaitedIterablePropertyResult = value);
+            testComputedAwaitedIterableProperty().then(
+                value => computedAwaitedIterablePropertyResult = 'fulfilled:' + value,
+                error => computedAwaitedIterablePropertyResult = String(error));
             computedAwaitedIterablePropertyResult;
             """);
 
-        Assert.Equal("target,await:7", result.ToString());
+        AssertAsyncFunctionDeclined(result, "testComputedAwaitedIterableProperty");
     }
 
     [Fact(Timeout = 5000)]
@@ -1409,5 +1421,16 @@ public sealed class IrLoopEnvironmentTests(ITestOutputHelper output) : InternalT
             "Async conditional alternate legs should reuse AssignmentSlotInstruction");
         Assert.False(hasEvaluateAndDiscardInstruction,
             "Async conditional expression statements should no longer stay on EvaluateAndDiscardInstruction");
+    }
+
+    private static void AssertAsyncFunctionDeclined(object? result, string functionName)
+    {
+        var message = Assert.IsType<string>(result);
+        Assert.StartsWith(
+            $"Async-function body '{functionName}' is not eligible for unified bytecode execution:",
+            message,
+            StringComparison.Ordinal);
+        Assert.Contains(" - ", message, StringComparison.Ordinal);
+        Assert.DoesNotContain("fulfilled:", message, StringComparison.Ordinal);
     }
 }

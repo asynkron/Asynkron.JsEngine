@@ -193,8 +193,9 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     public async Task AwaitUsingDeclaration_DoesNotUseUnifiedBytecodeProductionFastPath()
     {
         await using var engine = CreateEngine();
-        await engine.Evaluate("""
+        var result = await engine.EvaluateAndAwait("""
             var log = [];
+            var result = "";
             async function disposeAsyncLater(resource) {
                 await using value = resource;
                 log.push('body');
@@ -202,12 +203,18 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
             }
 
             disposeAsyncLater({ async [Symbol.asyncDispose]() { log.push('disposed'); } })
-                .then(value => log.push('return:' + value));
+                .then(
+                    value => result = 'fulfilled:' + value,
+                    error => result = String(error));
+            result;
             """);
 
-        var result = await engine.Evaluate("log.join(',');");
-
-        Assert.Equal("body,disposed,return:7", result);
+        var message = Assert.IsType<string>(result);
+        Assert.StartsWith(
+            "Async-function body 'disposeAsyncLater' is not eligible for unified bytecode execution:",
+            message,
+            StringComparison.Ordinal);
+        Assert.Contains(" - ", message, StringComparison.Ordinal);
         Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(),
             static record => record.Message.Contains(
                 "unified-bytecode-production-fast-path func=disposeAsyncLater",
@@ -10203,7 +10210,7 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
             (
                 Path.Combine("src", "Asynkron.JsEngine", "Ast", "TypedAstEvaluator.AsyncFunctionInvoker.cs"),
                 "private void DriveUnifiedBytecodeToCompletion(",
-                "private void DriveToCompletion(",
+                "private void HandlePendingPromise(",
                 "async-function resumable accepted path",
                 []),
             (

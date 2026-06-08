@@ -444,6 +444,19 @@ A51, B24h, B36, E4, or E5 retirement work there. Future rebaselines should keep
 those ordinary rows visible, use manifest rows for executable claims, and name
 sync vs resumable proof rows separately when their entry points differ.
 
+Issue
+`planitem-planitem-planitem-gh3377-rebaseline-the-finite-bytecode-retirement-inven-78b3cfcd1a`
+/ PR #3434 rebaselined the E4 retirement row after most old
+`ExpressionProgram` bridge names were already deleted. The durable lesson is
+that a finite retirement inventory still needs two kinds of source gate:
+absence ratchets for deleted bridge names and a presence ratchet for the one
+open bridge (`UnifiedBytecodeExpressionProgramExecutor.ExecuteDynamic(...)`).
+Without the presence ratchet, a future rebaseline could make E4 look closed or
+ambiguous while the dynamic expression bridge still exists; without the absence
+ratchets, deleted runner/profiler/binding-target bridge names could return
+silently. Keep runner-internal expression evaluation in E5 rather than using it
+to reopen E4.
+
 PR #2729 completed full deletion of `EvaluateLegacyAstExpression` and its
 sibling methods from `Ast/Legacy/ExpressionNodeExtensions.cs`. The build-stage
 quality gate failed because the quarantine guard test

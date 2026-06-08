@@ -7,7 +7,7 @@ public sealed class UnifiedBytecodeProductionScriptFallbackTests(ITestOutputHelp
     : InternalTestBase(output)
 {
     private const string ClassifiedScriptIrFallbackLog =
-        "classified-terminal-dynamic-script-ir-fallback reason=production-unified-bytecode-declined";
+        "classified-script-ir-fallback reason=production-unified-bytecode-declined";
     private const string ProductionScriptFastPathLog = "unified-bytecode-production-fast-path script";
 
     [Fact(Timeout = 5000)]
@@ -30,6 +30,7 @@ public sealed class UnifiedBytecodeProductionScriptFallbackTests(ITestOutputHelp
             static record =>
                 record.Message.Contains(ClassifiedScriptIrFallbackLog, StringComparison.Ordinal) &&
                 record.Message.Contains("code=CallDependency", StringComparison.Ordinal) &&
+                record.Message.Contains("terminalDynamicResidue=True", StringComparison.Ordinal) &&
                 record.Message.Contains("eval", StringComparison.OrdinalIgnoreCase));
     }
 }

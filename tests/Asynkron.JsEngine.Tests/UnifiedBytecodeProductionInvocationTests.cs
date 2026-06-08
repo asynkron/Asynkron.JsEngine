@@ -75,7 +75,7 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
                 StringComparison.Ordinal));
         Assert.DoesNotContain(snapshot,
             static record => record.Message.Contains(
-                "classified-terminal-dynamic-script-ir-fallback reason=production-unified-bytecode-declined",
+                "classified-script-ir-fallback reason=production-unified-bytecode-declined",
                 StringComparison.Ordinal));
     }
 
@@ -10103,7 +10103,7 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     }
 
     [Fact]
-    public void SourceGate_TopLevelScriptIrFallback_IsQuarantinedToTerminalDynamicResidue()
+    public void SourceGate_TopLevelScriptIrFallback_IsClassifiedOutsideAcceptedPath()
     {
         var repositoryRoot = FindRepositoryRootForSourceGate();
         var sourcePath = Path.Combine(
@@ -10125,30 +10125,22 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
         var scriptRouteSection = ExtractRequiredSourceSection(
             source,
             "if (executionKind == ExecutionKind.Script)",
-            "if (executionKind == ExecutionKind.Eval)",
-            "ordinary script route");
-        var evalResidueSection = ExtractRequiredSourceSection(
-            source,
-            "if (executionKind == ExecutionKind.Eval)",
             "private static JsValue RunScriptViaClassifiedIrFallback(",
-            "eval script terminal dynamic residue route");
+            "ordinary script route");
 
         Assert.Contains("return RunScriptViaClassifiedIrFallback(", scriptRouteSection, StringComparison.Ordinal);
         Assert.DoesNotContain("return ExecutionPlanRunner.RunScript(", sourceOutsideHelper, StringComparison.Ordinal);
         Assert.DoesNotContain("ExecutionPlanRunner.RunScript(", scriptRouteSection, StringComparison.Ordinal);
-        Assert.Contains("UnifiedBytecodeProductionDeclineCode.CallDependency", evalResidueSection, StringComparison.Ordinal);
-        Assert.Contains("Direct eval invocation semantics are terminal dynamic script residue.", evalResidueSection, StringComparison.Ordinal);
         Assert.Contains("IsTerminalDynamicScriptResidue(eligibility)", helperSection, StringComparison.Ordinal);
-        Assert.Contains("CreateOrdinaryScriptUnifiedBytecodeDeclineException(eligibility)", helperSection, StringComparison.Ordinal);
         Assert.Contains(
-            "classified-terminal-dynamic-script-ir-fallback reason=production-unified-bytecode-declined",
+            "classified-script-ir-fallback reason=production-unified-bytecode-declined",
             helperSection,
             StringComparison.Ordinal);
         Assert.Contains("code={DeclineCode}", helperSection, StringComparison.Ordinal);
         Assert.Contains("detail={DeclineReason}", helperSection, StringComparison.Ordinal);
+        Assert.Contains("terminalDynamicResidue={TerminalDynamicResidue}", helperSection, StringComparison.Ordinal);
         Assert.Contains("eligibility.Code", helperSection, StringComparison.Ordinal);
         Assert.Contains("eligibility.Reason", helperSection, StringComparison.Ordinal);
-        Assert.Contains("Direct eval invocation semantics", source, StringComparison.Ordinal);
         Assert.Contains("ExecutionPlanRunner.RunScript(", helperSection, StringComparison.Ordinal);
     }
 

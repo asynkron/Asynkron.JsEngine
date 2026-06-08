@@ -2571,21 +2571,13 @@ public static partial class TypedAstEvaluator
                 context);
         }
 
-        if (executionKind == ExecutionKind.Eval)
-        {
-            return RunScriptViaClassifiedIrFallback(
-                scriptPlan,
-                UnifiedBytecodeProductionEligibilityResult.Decline(
-                    UnifiedBytecodeProductionDeclineCode.CallDependency,
-                    "Direct eval invocation semantics are terminal dynamic script residue."),
-                executionEnvironment,
-                context);
-        }
-
-        throw CreateOrdinaryScriptUnifiedBytecodeDeclineException(
+        return RunScriptViaClassifiedIrFallback(
+            scriptPlan,
             UnifiedBytecodeProductionEligibilityResult.Decline(
                 UnifiedBytecodeProductionDeclineCode.UnsupportedPlanShape,
-                "Script execution kind is outside production unified bytecode routing."));
+                "Script execution kind is outside production unified bytecode routing."),
+            executionEnvironment,
+            context);
     }
 
     private static JsValue RunScriptViaClassifiedIrFallback(
@@ -2594,17 +2586,13 @@ public static partial class TypedAstEvaluator
         JsEnvironment executionEnvironment,
         EvaluationContext context)
     {
-        if (!IsTerminalDynamicScriptResidue(eligibility))
-        {
-            throw CreateOrdinaryScriptUnifiedBytecodeDeclineException(eligibility);
-        }
-
         // Script-level var declarations are marked with IsScriptLevel=true in the IR
         // so they correctly update the global object.
         context.RealmState.Logger?.LogInformation(
-            "classified-terminal-dynamic-script-ir-fallback reason=production-unified-bytecode-declined code={DeclineCode} detail={DeclineReason} instructions={InstructionCount}",
+            "classified-script-ir-fallback reason=production-unified-bytecode-declined code={DeclineCode} detail={DeclineReason} terminalDynamicResidue={TerminalDynamicResidue} instructions={InstructionCount}",
             eligibility.Code,
             eligibility.Reason,
+            IsTerminalDynamicScriptResidue(eligibility),
             scriptPlan.Instructions.Length);
         return ExecutionPlanRunner.RunScript(
             scriptPlan,
@@ -2615,12 +2603,6 @@ public static partial class TypedAstEvaluator
     private static bool IsTerminalDynamicScriptResidue(UnifiedBytecodeProductionEligibilityResult eligibility) =>
         eligibility.Code == UnifiedBytecodeProductionDeclineCode.CallDependency &&
         eligibility.Reason.Contains("Direct eval invocation semantics", StringComparison.Ordinal);
-
-    private static NotSupportedException CreateOrdinaryScriptUnifiedBytecodeDeclineException(
-        UnifiedBytecodeProductionEligibilityResult eligibility) =>
-        new(
-            "Ordinary script production unified bytecode declined outside terminal dynamic residue: " +
-            $"{eligibility.Code} {eligibility.Reason}");
 
     private static bool TryRunScriptViaProductionUnifiedBytecode(
         ExecutionPlan scriptPlan,

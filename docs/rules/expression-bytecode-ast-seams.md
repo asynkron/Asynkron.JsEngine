@@ -286,10 +286,16 @@ fallback or cleanup.
     after the E5b rebaseline changed the four runner-entry proof rows from
     broad source-presence anchors into source-allowlist gates and the
     quality-gate repair aligned four stale sync-generator tests with explicit
-    pre-gate decline failures. WHY: broad runner-entry scans can stay green
-    while ownership has already moved, which hides the actual retirement owner
-    and lets stale fallback-success tests survive beside an explicit-decline
-    runtime contract. Related ADR:
+    pre-gate decline failures. Counted classified rows must reconcile to every
+    matched approved path, not only to paths that already have a row, so a
+    same-file unclassified constructor or runner call cannot pass behind an
+    existing file allowance. Issue #3377 / PR #3486 added this count-total
+    refinement after the final gate initially allowed
+    `TypedAstEvaluator.AsyncFunctionInvoker.cs` as an approved path without
+    a matching async declined-body runner construction classification. WHY:
+    broad runner-entry scans can stay green while ownership has already moved,
+    which hides the actual retirement owner and lets stale fallback-success
+    tests survive beside an explicit-decline runtime contract. Related ADR:
     `docs/adrs/0371-keep-e5b-runner-entry-anchors-as-classified-allowlists.md`.
 36. When an E5 proof-manifest row is an exclusion boundary for terminal dynamic
     residue, pin the full excluded family inventory in `patterns`, not a single

@@ -698,6 +698,17 @@ all-or-nothing until a separate routing issue proves production readiness.
      focused route-widening slice proves construction-time closure state end to
      end. Related ADR:
      `docs/adrs/0367-keep-b24h-constructor-body-activation-captures-open.md`.
+     Issue
+     `planitem-planitem-planitem-gh3377-rebaseline-the-finite-bytecode-retirement-inven-02ad521859`
+     / PR #3418 corrected the same B24h proof-manifest discipline for
+     activation delete and construct computed-name rows. `DeleteIdentifier`
+     must not appear in the owned B24h computed-name activation operation list,
+     and activation-dependent `Construct`/`SuperConstruct` dependencies must
+     stay open until the broader class-definition environment route owns those
+     semantics. Future rebaselines must encode these rows as open eligibility
+     no-route proof, not admitted runtime proof, even when the fallback computes
+     the expected JavaScript result. Related ADR:
+     `docs/adrs/0368-keep-b24h-activation-delete-and-construct-computed-names-open.md`.
 10g. When admitting iterator init driver shapes, keep source-payload shape and
      iterator driver kind as separate concepts. An iterator driver must carry
      exactly one source payload (`IterableProgram` or `AwaitedProgram`), and a

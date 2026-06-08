@@ -87,11 +87,10 @@ activation-call widening.
   the then-current activation-call-argument decline proof, later superseded by
   `EvaluateResumable_ClassExpressionComputedNameActivationCallArgument_AdmitLoadClassLiteral`
   when the bounded argument region became admitted.
-- Existing nearby proof was later superseded by
-  `EvaluateResumable_ClassExpressionComputedNameActivationDelete_AdmitLoadClassLiteral`
-  once activation-delete computed names were admitted; the remaining nearby
-  decline proof is
-  `EvaluateResumable_ClassExpressionComputedNameNestedActivationCapture_DeclinesBeforeVm`.
+- Later rebaseline work corrected the activation-delete neighbor back to an
+  open no-route boundary; see ADR 0368. The remaining nearby decline proof
+  includes activation delete, activation-dependent construct, and
+  nested-capture class-definition environment rows.
 - Build-stage verification recorded focused
   `UnifiedBytecodeResumableClassExpressionTests` with 50 passed,
   `rtk git diff --check` clean, no runner AST-eval seam matches, and
@@ -109,3 +108,5 @@ activation-call widening.
 - `docs/plans/bytecode-burndown-checklist.md`
 - ADR 0359:
   `docs/adrs/0359-admit-nested-simple-operand-spans-through-bounded-recursive-walkers.md`
+- ADR 0368:
+  `docs/adrs/0368-keep-b24h-activation-delete-and-construct-computed-names-open.md`

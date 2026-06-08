@@ -329,6 +329,75 @@ public sealed class ExecutionPlanDiagnosticsTests(ITestOutputHelper output) : In
                 "E4-legacy-statement-operand-dynamic-payloads",
                 "legacy statement operand dynamic expression payloads")
         };
+        var expectedStatementLoopCallSites = new[]
+        {
+            new DynamicExecutorCallSite(
+                "src/Asynkron.JsEngine/Ast/Legacy/LoopPlanExtensions.cs",
+                "ExecuteCondition",
+                "Dynamic loop condition",
+                "loop condition expression payload"),
+            new DynamicExecutorCallSite(
+                "src/Asynkron.JsEngine/Ast/Legacy/LoopPlanExtensions.cs",
+                "ExecutePostIteration",
+                "Dynamic loop post-iteration expression",
+                "loop post-iteration expression payload"),
+            new DynamicExecutorCallSite(
+                "src/Asynkron.JsEngine/Ast/Legacy/StatementNodeExtensions.cs",
+                "EvaluateForAwaitOfJsValue",
+                "Dynamic for-await-of iterable",
+                "for-await-of iterable expression payload"),
+            new DynamicExecutorCallSite(
+                "src/Asynkron.JsEngine/Ast/Legacy/StatementNodeExtensions.cs",
+                "EvaluateForEachJsValue",
+                "Dynamic foreach iterable",
+                "for-of/for-in iterable expression payload"),
+            new DynamicExecutorCallSite(
+                "src/Asynkron.JsEngine/Ast/Legacy/StatementNodeExtensions.cs",
+                "EvaluateIfJsValue",
+                "Dynamic if condition",
+                "if condition expression payload"),
+            new DynamicExecutorCallSite(
+                "src/Asynkron.JsEngine/Ast/Legacy/StatementNodeExtensions.cs",
+                "EvaluateReturnJsValue",
+                "Dynamic return expression",
+                "return expression payload"),
+            new DynamicExecutorCallSite(
+                "src/Asynkron.JsEngine/Ast/Legacy/StatementNodeExtensions.cs",
+                "EvaluateReturnJsValue",
+                "Dynamic tail-call argument",
+                "tail-call argument expression payload"),
+            new DynamicExecutorCallSite(
+                "src/Asynkron.JsEngine/Ast/Legacy/StatementNodeExtensions.cs",
+                "EvaluateStatementJsValue",
+                "Dynamic expression statement",
+                "expression statement payload"),
+            new DynamicExecutorCallSite(
+                "src/Asynkron.JsEngine/Ast/Legacy/StatementNodeExtensions.cs",
+                "EvaluateSwitchJsValue",
+                "Dynamic switch case test",
+                "switch case-test expression payload"),
+            new DynamicExecutorCallSite(
+                "src/Asynkron.JsEngine/Ast/Legacy/StatementNodeExtensions.cs",
+                "EvaluateSwitchJsValue",
+                "Dynamic switch discriminant",
+                "switch discriminant expression payload"),
+            new DynamicExecutorCallSite(
+                "src/Asynkron.JsEngine/Ast/Legacy/StatementNodeExtensions.cs",
+                "EvaluateThrowJsValue",
+                "Dynamic throw expression",
+                "throw expression payload"),
+            new DynamicExecutorCallSite(
+                "src/Asynkron.JsEngine/Ast/Legacy/StatementNodeExtensions.cs",
+                "EvaluateWithJsValue",
+                "Dynamic with object",
+                "with object expression payload")
+        };
+        var expectedMembersByPath = expectedStatementLoopCallSites
+            .GroupBy(static callSite => callSite.RelativePath)
+            .ToDictionary(
+                static group => group.Key,
+                static group => group.Select(static callSite => callSite.EnclosingMember).Distinct().ToArray(),
+                StringComparer.Ordinal);
         var expectedSurfacesByPath = expectedSurfaces.ToDictionary(
             static surface => surface.RelativePath,
             StringComparer.Ordinal);
@@ -349,13 +418,22 @@ public sealed class ExecutionPlanDiagnosticsTests(ITestOutputHelper output) : In
             .SelectMany(file =>
             {
                 var relativePath = Path.GetRelativePath(repositoryRoot.FullName, file).Replace('\\', '/');
-                return File.ReadAllLines(file)
+                var lines = File.ReadAllLines(file);
+                return lines
                     .Select((line, index) => new { line, index })
                     .Where(entry =>
                         entry.line.Contains(
                             "UnifiedBytecodeExpressionProgramExecutor.ExecuteDynamic(",
                             StringComparison.Ordinal))
-                    .Select(entry => (relativePath, entry.index + 1, entry.line.Trim()));
+                    .Select(entry => (
+                        relativePath,
+                        LineNumber: entry.index + 1,
+                        Text: entry.line.Trim(),
+                        EnclosingMember: FindEnclosingMemberName(
+                            lines,
+                            entry.index,
+                            expectedMembersByPath.GetValueOrDefault(relativePath, [])),
+                        DynamicLabel: FindDynamicExecutorLabel(lines, entry.index)));
             })
             .ToArray();
 
@@ -391,6 +469,28 @@ public sealed class ExecutionPlanDiagnosticsTests(ITestOutputHelper output) : In
         Assert.Equal(
             expectedSurfaces.OrderBy(static surface => surface.RelativePath),
             actualSurfaces.OrderBy(static surface => surface.RelativePath));
+
+        var classifiedStatementLoopCallSites = matches
+            .Where(match => expectedMembersByPath.ContainsKey(match.relativePath))
+            .Select(match => new DynamicExecutorCallSite(
+                match.relativePath,
+                match.EnclosingMember,
+                match.DynamicLabel,
+                expectedStatementLoopCallSites
+                    .SingleOrDefault(callSite =>
+                        callSite.RelativePath == match.relativePath &&
+                        callSite.EnclosingMember == match.EnclosingMember &&
+                        callSite.DynamicLabel == match.DynamicLabel)
+                    ?.Classification ?? "unclassified dynamic expression payload"))
+            .ToArray();
+
+        Assert.Equal(
+            expectedStatementLoopCallSites.OrderBy(static callSite => callSite.RelativePath)
+                .ThenBy(static callSite => callSite.EnclosingMember)
+                .ThenBy(static callSite => callSite.DynamicLabel),
+            classifiedStatementLoopCallSites.OrderBy(static callSite => callSite.RelativePath)
+                .ThenBy(static callSite => callSite.EnclosingMember)
+                .ThenBy(static callSite => callSite.DynamicLabel));
     }
 
     [Fact]
@@ -1306,7 +1406,10 @@ public sealed class ExecutionPlanDiagnosticsTests(ITestOutputHelper output) : In
             var line = lines[i].Trim();
             foreach (var expectedMemberName in expectedMemberNames)
             {
-                if (line.Contains(expectedMemberName + "(", StringComparison.Ordinal))
+                if (Regex.IsMatch(
+                        line,
+                        $@"(?<![A-Za-z0-9_.]){Regex.Escape(expectedMemberName)}\(",
+                        RegexOptions.CultureInvariant))
                 {
                     return expectedMemberName;
                 }
@@ -1315,6 +1418,33 @@ public sealed class ExecutionPlanDiagnosticsTests(ITestOutputHelper output) : In
 
         return "<unknown>";
     }
+
+    private static string FindDynamicExecutorLabel(string[] lines, int callLineIndex)
+    {
+        for (var i = callLineIndex; i < Math.Min(lines.Length, callLineIndex + 8); i++)
+        {
+            var line = lines[i];
+            var labelStart = line.IndexOf("\"Dynamic ", StringComparison.Ordinal);
+            if (labelStart < 0)
+            {
+                continue;
+            }
+
+            var labelEnd = line.IndexOf('"', labelStart + 1);
+            if (labelEnd > labelStart)
+            {
+                return line.Substring(labelStart + 1, labelEnd - labelStart - 1);
+            }
+        }
+
+        return "<unknown>";
+    }
+
+    private sealed record DynamicExecutorCallSite(
+        string RelativePath,
+        string EnclosingMember,
+        string DynamicLabel,
+        string Classification);
 
     private sealed record StandaloneExecutorCallSite(
         string RelativePath,

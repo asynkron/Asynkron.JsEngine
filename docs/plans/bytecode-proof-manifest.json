@@ -2029,6 +2029,110 @@
           "kind": "source-presence",
           "path": "src/Asynkron.JsEngine/Execution/UnifiedBytecode/UnifiedBytecodeExpressionProgramExecutor.cs",
           "pattern": "internal static JsValue ExecuteDynamic("
+        },
+        {
+          "id": "E4-dynamic-statement-loop-executor-call-sites-stay-classified",
+          "claim": "source-ratchet",
+          "kind": "source-allowlist",
+          "paths": [
+            "src/Asynkron.JsEngine"
+          ],
+          "pattern": "UnifiedBytecodeExpressionProgramExecutor.ExecuteDynamic(",
+          "allowedPaths": [
+            "src/Asynkron.JsEngine/Ast/FunctionExpressionExtensions.cs",
+            "src/Asynkron.JsEngine/Ast/VariableKindExtensions.cs",
+            "src/Asynkron.JsEngine/Ast/Legacy/ExpressionNodeExtensions.cs",
+            "src/Asynkron.JsEngine/Ast/Legacy/LoopPlanExtensions.cs",
+            "src/Asynkron.JsEngine/Ast/Legacy/StatementNodeExtensions.cs"
+          ],
+          "childOwner": "E4-dynamic-statement-loop-expression-payloads",
+          "classification": "Statement and loop legacy dynamic expression payloads route through ExecuteDynamic as one bounded E4 child slice; non-expression statement IR fallback, static-block/script runner fallback, and resumable runner fallback stay owned by E5.",
+          "classifiedCallSites": [
+            {
+              "childOwner": "E4-dynamic-statement-loop-expression-payloads",
+              "classification": "loop condition expression payload",
+              "path": "src/Asynkron.JsEngine/Ast/Legacy/LoopPlanExtensions.cs",
+              "enclosingMember": "ExecuteCondition",
+              "dynamicLabel": "Dynamic loop condition"
+            },
+            {
+              "childOwner": "E4-dynamic-statement-loop-expression-payloads",
+              "classification": "loop post-iteration expression payload",
+              "path": "src/Asynkron.JsEngine/Ast/Legacy/LoopPlanExtensions.cs",
+              "enclosingMember": "ExecutePostIteration",
+              "dynamicLabel": "Dynamic loop post-iteration expression"
+            },
+            {
+              "childOwner": "E4-dynamic-statement-loop-expression-payloads",
+              "classification": "for-await-of iterable expression payload",
+              "path": "src/Asynkron.JsEngine/Ast/Legacy/StatementNodeExtensions.cs",
+              "enclosingMember": "EvaluateForAwaitOfJsValue",
+              "dynamicLabel": "Dynamic for-await-of iterable"
+            },
+            {
+              "childOwner": "E4-dynamic-statement-loop-expression-payloads",
+              "classification": "for-of/for-in iterable expression payload",
+              "path": "src/Asynkron.JsEngine/Ast/Legacy/StatementNodeExtensions.cs",
+              "enclosingMember": "EvaluateForEachJsValue",
+              "dynamicLabel": "Dynamic foreach iterable"
+            },
+            {
+              "childOwner": "E4-dynamic-statement-loop-expression-payloads",
+              "classification": "if condition expression payload",
+              "path": "src/Asynkron.JsEngine/Ast/Legacy/StatementNodeExtensions.cs",
+              "enclosingMember": "EvaluateIfJsValue",
+              "dynamicLabel": "Dynamic if condition"
+            },
+            {
+              "childOwner": "E4-dynamic-statement-loop-expression-payloads",
+              "classification": "return expression payload",
+              "path": "src/Asynkron.JsEngine/Ast/Legacy/StatementNodeExtensions.cs",
+              "enclosingMember": "EvaluateReturnJsValue",
+              "dynamicLabel": "Dynamic return expression"
+            },
+            {
+              "childOwner": "E4-dynamic-statement-loop-expression-payloads",
+              "classification": "tail-call argument expression payload",
+              "path": "src/Asynkron.JsEngine/Ast/Legacy/StatementNodeExtensions.cs",
+              "enclosingMember": "EvaluateReturnJsValue",
+              "dynamicLabel": "Dynamic tail-call argument"
+            },
+            {
+              "childOwner": "E4-dynamic-statement-loop-expression-payloads",
+              "classification": "expression statement payload",
+              "path": "src/Asynkron.JsEngine/Ast/Legacy/StatementNodeExtensions.cs",
+              "enclosingMember": "EvaluateStatementJsValue",
+              "dynamicLabel": "Dynamic expression statement"
+            },
+            {
+              "childOwner": "E4-dynamic-statement-loop-expression-payloads",
+              "classification": "switch case-test expression payload",
+              "path": "src/Asynkron.JsEngine/Ast/Legacy/StatementNodeExtensions.cs",
+              "enclosingMember": "EvaluateSwitchJsValue",
+              "dynamicLabel": "Dynamic switch case test"
+            },
+            {
+              "childOwner": "E4-dynamic-statement-loop-expression-payloads",
+              "classification": "switch discriminant expression payload",
+              "path": "src/Asynkron.JsEngine/Ast/Legacy/StatementNodeExtensions.cs",
+              "enclosingMember": "EvaluateSwitchJsValue",
+              "dynamicLabel": "Dynamic switch discriminant"
+            },
+            {
+              "childOwner": "E4-dynamic-statement-loop-expression-payloads",
+              "classification": "throw expression payload",
+              "path": "src/Asynkron.JsEngine/Ast/Legacy/StatementNodeExtensions.cs",
+              "enclosingMember": "EvaluateThrowJsValue",
+              "dynamicLabel": "Dynamic throw expression"
+            },
+            {
+              "childOwner": "E4-dynamic-statement-loop-expression-payloads",
+              "classification": "with object expression payload",
+              "path": "src/Asynkron.JsEngine/Ast/Legacy/StatementNodeExtensions.cs",
+              "enclosingMember": "EvaluateWithJsValue",
+              "dynamicLabel": "Dynamic with object"
+            }
+          ]
         }
       ]
     },

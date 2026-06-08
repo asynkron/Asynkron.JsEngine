@@ -396,6 +396,46 @@ public sealed class UnifiedBytecodeResumableNestedFunctionTests(ITestOutputHelpe
         AssertAsyncGeneratorRouted();
     }
 
+    [Fact(Timeout = 5000)]
+    public async Task GeneratorHoistedFunctionDeclarationWithRuntimeSourceEval_DeclinesResumable()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function* g(source){
+                function helper(){ return 5; }
+                yield eval(source);
+                yield helper();
+            }
+            var it = g('1 + 41');
+            var first = it.next().value;
+            var second = it.next().value;
+            first + "|" + second;
+            """);
+
+        Assert.Equal("42|5", result);
+        AssertGeneratorNotRouted();
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task GeneratorHoistedFunctionDeclarationWithArgumentsEval_DeclinesResumable()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function* g(first, second){
+                function helper(){ return 5; }
+                yield eval('arguments.length + ":" + first + ":" + second');
+                yield helper();
+            }
+            var it = g(7, 9);
+            var first = it.next().value;
+            var second = it.next().value;
+            first + "|" + second;
+            """);
+
+        Assert.Equal("2:7:9|5", result);
+        AssertGeneratorNotRouted();
+    }
+
     // B23 async variant: an async function materializes and name-infers a non-capturing nested function
     // literal after an await and routes through the resumable fast path. Calling that literal inside a larger
     // return expression remains a separate call-boundary gate.

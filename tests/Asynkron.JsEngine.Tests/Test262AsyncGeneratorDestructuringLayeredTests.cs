@@ -29,10 +29,10 @@ public sealed class Test262AsyncGeneratorDestructuringLayeredTests(ITestOutputHe
     }
 
     [Fact(Timeout = 5000)]
-    public async Task Layer2_SyncGeneratorClassDestructuringMethod_RuntimeStillBindsParameters()
+    public async Task Layer2_SyncGeneratorClassDestructuringMethod_DeclinesExplicitly()
     {
         await using var engine = CreateEngine();
-        var result = await engine.Evaluate("""
+        var exception = await Assert.ThrowsAsync<NotSupportedException>(() => engine.Evaluate("""
             var callCount = 0;
             class C {
                 *method([x = 23] = []) {
@@ -42,11 +42,13 @@ public sealed class Test262AsyncGeneratorDestructuringLayeredTests(ITestOutputHe
 
             var step = new C().method().next();
             ({ callCount, done: step.done });
-            """);
+            """));
 
-        var summary = Assert.IsType<JsObject>(result);
-        Assert.Equal(23d, summary["callCount"]);
-        Assert.Equal(true, summary["done"]);
+        Assert.StartsWith(
+            "Sync-generator body '<anonymous>' is not eligible for unified bytecode execution:",
+            exception.Message,
+            StringComparison.Ordinal);
+        Assert.Contains("Non-simple sync-generator parameter lists", exception.Message, StringComparison.Ordinal);
     }
 
     [Fact(Timeout = 5000)]

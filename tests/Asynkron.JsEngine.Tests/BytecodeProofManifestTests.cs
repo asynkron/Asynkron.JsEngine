@@ -126,6 +126,38 @@ public sealed partial class BytecodeProofManifestTests(ITestOutputHelper output)
         Assert.Contains("no generic declined-body runner remains", proof.Classification, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void Manifest_ExecutionPlanRunnerEntryAnchors_AreClassifiedAllowlists()
+    {
+        var proofs = LoadManifest()
+            .Items
+            .SelectMany(static item => item.Proofs)
+            .Where(static proof => proof.Id.StartsWith("E5-ir-runner-", StringComparison.Ordinal))
+            .ToDictionary(static proof => proof.Id, StringComparer.Ordinal);
+
+        Assert.Equal(
+            [
+                "E5-ir-runner-async-step-entry-still-present",
+                "E5-ir-runner-script-entry-still-present",
+                "E5-ir-runner-sync-entry-still-present",
+                "E5-ir-runner-type-still-present"
+            ],
+            proofs.Keys.Order(StringComparer.Ordinal).ToArray());
+
+        foreach (var proof in proofs.Values)
+        {
+            Assert.Equal("source-allowlist", proof.Kind);
+            Assert.Equal("open", proof.Claim);
+            Assert.NotEmpty(proof.Paths);
+            Assert.NotEmpty(proof.AllowedPaths);
+            Assert.Contains("not a broad E5b", proof.Classification, StringComparison.Ordinal);
+        }
+
+        Assert.Equal("E5c-script-and-static-block-runner-fallback", proofs["E5-ir-runner-script-entry-still-present"].ChildOwner);
+        Assert.Equal("E5d-function-and-constructor-runner-fallback", proofs["E5-ir-runner-sync-entry-still-present"].ChildOwner);
+        Assert.Equal("E5d-async-function-declined-body-runner-residue", proofs["E5-ir-runner-async-step-entry-still-present"].ChildOwner);
+    }
+
     [Theory]
     [MemberData(nameof(ProofIds))]
     public async Task ProofRows_Hold(string proofId)

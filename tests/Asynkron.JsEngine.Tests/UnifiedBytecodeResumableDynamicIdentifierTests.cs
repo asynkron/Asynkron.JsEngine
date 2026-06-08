@@ -28,6 +28,8 @@ public sealed class UnifiedBytecodeResumableDynamicIdentifierTests(ITestOutputHe
 {
     private const string ResumableGeneratorFastPathLog = "unified-bytecode-resumable-generator-fast-path";
     private const string ResumableAsyncFastPathLog = "unified-bytecode-resumable-async-fast-path";
+    private const string ResumableAsyncGeneratorFastPathLog =
+        "unified-bytecode-resumable-async-generator-fast-path";
 
     // The gate: a generator that READS a free variable and CALLS a free function between yields is now
     // admitted, and the admitted program actually carries the dynamic-identifier opcodes (proving the
@@ -84,6 +86,24 @@ public sealed class UnifiedBytecodeResumableDynamicIdentifierTests(ITestOutputHe
             """);
 
         Assert.Equal("42:41", result);
+        AssertGeneratorFastPath("run", argc: 1);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task GeneratorDirectEvalArgumentsRead_RoutesResumableAndProducesValue()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function* run(value) {
+                yield eval("arguments[0]");
+                yield eval("arguments.length");
+            }
+
+            var iterator = run(42);
+            iterator.next().value + ":" + iterator.next().value;
+            """);
+
+        Assert.Equal("42:1", result);
         AssertGeneratorFastPath("run", argc: 1);
     }
 
@@ -327,16 +347,36 @@ public sealed class UnifiedBytecodeResumableDynamicIdentifierTests(ITestOutputHe
     }
 
     [Fact(Timeout = 5000)]
-    public async Task AsyncDirectEvalArgumentsRead_StaysOnIrPath()
+    public async Task AsyncDirectEvalArgumentsRead_RoutesResumableAndResolves()
     {
         await using var engine = CreateEngine();
         var result = await engine.EvaluateAndAwait("""
             var asyncResult = undefined;
-            async function run(value) {
-                return eval("arguments[0]");
+            async function run(value, extra) {
+                await 0;
+                return eval("arguments[0] + ':' + arguments.length + ':' + extra");
             }
 
             run(42).then(value => asyncResult = value);
+            asyncResult;
+            """);
+
+        Assert.Equal("42:1:undefined", result);
+        AssertAsyncFastPath("run", argc: 1);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task AsyncDirectEvalArgumentsParameter_StaysOnIrPathAndResolvesParameter()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.EvaluateAndAwait("""
+            var asyncResult = undefined;
+            async function run(arguments) {
+                await 0;
+                return eval("arguments[0]");
+            }
+
+            run([42]).then(value => asyncResult = value);
             asyncResult;
             """);
 
@@ -345,6 +385,31 @@ public sealed class UnifiedBytecodeResumableDynamicIdentifierTests(ITestOutputHe
             static record => record.Message.Contains(
                 "unified-bytecode-resumable-async-fast-path func=run argc=1",
                 StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task AsyncGeneratorDirectEvalArgumentsRead_RoutesResumableAndSettles()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.EvaluateAndAwait("""
+            var output = undefined;
+            async function* values(value) {
+                await 0;
+                yield eval("arguments[0] + ':' + arguments.length");
+            }
+
+            async function run() {
+                var iterator = values(42);
+                var first = await iterator.next();
+                return first.value + ":" + first.done;
+            }
+
+            run().then(value => output = value);
+            output;
+            """);
+
+        Assert.Equal("42:1:false", result);
+        AssertAsyncGeneratorFastPath("values", argc: 1);
     }
 
     private void AssertGeneratorFastPath(string functionName, int argc) =>
@@ -357,6 +422,12 @@ public sealed class UnifiedBytecodeResumableDynamicIdentifierTests(ITestOutputHe
         Assert.Contains(CurrentLogger!.Collector.Snapshot(),
             record => record.Message.Contains(
                 $"{ResumableAsyncFastPathLog} func={functionName} argc={argc}",
+                StringComparison.Ordinal));
+
+    private void AssertAsyncGeneratorFastPath(string functionName, int argc) =>
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            record => record.Message.Contains(
+                $"{ResumableAsyncGeneratorFastPathLog} func={functionName} argc={argc}",
                 StringComparison.Ordinal));
 
     private static ExecutionPlan GetFunctionPlan(string source, string functionName)

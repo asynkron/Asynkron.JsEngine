@@ -216,8 +216,13 @@ fallback or cleanup.
     while legacy statement and loop operands remain separately classified
     dynamic residue. Issue #3377 / PR #3446 added this rule after an E4
     rebaseline needed to distinguish a finite dynamic expression boundary from
-    ordinary E4 closure work; issue #3377 later retired the ordinary
-    parameter-default and variable-initializer callers.
+    ordinary E4 closure work; issue #3377 / PR #3479 later retired the ordinary
+    parameter-default and variable-initializer callers through cached owning-node
+    `ExpressionProgram` payloads and the standalone executor. WHY: ordinary
+    AST-owned payloads that are already lowerable should not remain parked on
+    the dynamic bridge, because that hides real legacy dynamic residue and makes
+    the finite retirement inventory less precise. Related ADR:
+    `docs/adrs/0372-cache-ordinary-expression-payloads-on-owning-ast-nodes.md`.
 31. When rebaselining legacy statement or loop `ExecuteDynamic(...)` operands,
     classify each call site by enclosing member and stable diagnostic label,
     not only by file-level call count. Statement and loop operands can share the

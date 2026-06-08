@@ -1447,6 +1447,38 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     }
 
     [Fact(Timeout = 5000)]
+    public async Task SyncGeneratorProductionResumableDecline_UsesCreationTimeIrRouteWithoutResidueRunner()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function* values(o, k) {
+                yield 1;
+                yield o?.[k]();
+            }
+
+            var iterator = values({ m() { return 2; } }, "m");
+            var first = iterator.next();
+            var second = iterator.next();
+            [first.value, first.done, second.value, second.done];
+            """);
+
+        var steps = Assert.IsType<JsTypes.JsArray>(result);
+        Assert.Equal(1d, steps.Items[0].AsDouble());
+        Assert.False(steps.Items[1].AsBoolean());
+        Assert.Equal(2d, steps.Items[2].AsDouble());
+        Assert.False(steps.Items[3].AsBoolean());
+        var snapshot = CurrentLogger!.Collector.Snapshot();
+        Assert.DoesNotContain(snapshot,
+            static record => record.Message.Contains("classified-sync-generator-ir-fallback", StringComparison.Ordinal));
+        Assert.DoesNotContain(snapshot,
+            static record => record.Message.Contains("classified-sync-generator-declined-residue", StringComparison.Ordinal));
+        Assert.DoesNotContain(snapshot,
+            static record => record.Message.Contains(
+                "unified-bytecode-resumable-generator-fast-path func=values",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task SimpleAsyncAwaitReturn_UsesResumableUnifiedBytecodeFastPath()
     {
         await using var engine = CreateEngine();
@@ -10350,7 +10382,7 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     }
 
     [Fact]
-    public void SourceGate_SyncGeneratorInvoker_DoesNotKeepDeclinedBodyRunnerFallback()
+    public void SourceGate_SyncGeneratorInvoker_RetiresDeclinedResidueRunnerBridge()
     {
         var repositoryRoot = FindRepositoryRootForSourceGate();
         var sourcePath = Path.Combine(
@@ -10374,7 +10406,11 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
         {
             "CreateClassifiedGeneratorDeclinedBodyRunner",
             "CreateClassifiedDeclinedBodyRunner",
-            "classified-sync-generator-ir-fallback"
+            "CreateClassifiedSyncGeneratorDeclinedResidueRunner",
+            "CreateSyncGeneratorDeclinedResidueRunner",
+            "classified-sync-generator-ir-fallback",
+            "classified-sync-generator-declined-residue",
+            "out bool isDeclinedResidue"
         };
 
         foreach (var token in forbiddenFallbackTokens)
@@ -10384,10 +10420,10 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
 
         Assert.DoesNotContain("CreateClassifiedGeneratorDeclinedBodyRunner", generatorBaseSource, StringComparison.Ordinal);
         Assert.DoesNotContain("CreateClassifiedDeclinedBodyRunner", generatorBaseSource, StringComparison.Ordinal);
-        Assert.Contains("CreateClassifiedSyncGeneratorDeclinedResidueRunner", source, StringComparison.Ordinal);
-        Assert.Contains("classified-sync-generator-declined-residue", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("CreateClassifiedSyncGeneratorDeclinedResidueRunner", generatorBaseSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("CreateSyncGeneratorDeclinedResidueRunner", generatorBaseSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("new ExecutionPlanRunner(", generatorBaseSource, StringComparison.Ordinal);
         Assert.Contains("out string declineReason", source, StringComparison.Ordinal);
-        Assert.Contains("out bool isDeclinedResidue", source, StringComparison.Ordinal);
         Assert.Contains("Sync-generator body", source, StringComparison.Ordinal);
         Assert.Contains("is not eligible for unified bytecode execution", source, StringComparison.Ordinal);
     }

@@ -110,20 +110,20 @@ public sealed partial class BytecodeProofManifestTests(ITestOutputHelper output)
     }
 
     [Fact]
-    public void Manifest_SyncGeneratorDeclinedBodyRunner_IsResidueSpecific()
+    public void Manifest_SyncGeneratorDeclinedResidueRunner_IsRetired()
     {
         var proof = LoadManifest()
             .Items
             .SelectMany(static item => item.Proofs)
             .Single(static proof => proof.Id == "E5-sync-generator-declined-residue-runner-still-present");
 
-        Assert.Equal("source-presence", proof.Kind);
-        Assert.Equal("open", proof.Claim);
+        Assert.Equal("source-absence", proof.Kind);
+        Assert.Equal("retired-fallback", proof.Claim);
         Assert.Equal("E5d-sync-generator-declined-residue", proof.ChildOwner);
         Assert.Equal("CreateClassifiedSyncGeneratorDeclinedResidueRunner", proof.Pattern);
-        Assert.Contains("explicit sync generator declined-residue runner bridge", proof.Classification, StringComparison.Ordinal);
-        Assert.Contains("pre-gate ordinary declines fail explicitly", proof.Classification, StringComparison.Ordinal);
-        Assert.Contains("no generic declined-body runner remains", proof.Classification, StringComparison.Ordinal);
+        Assert.Contains("sync generator declined-residue runner bridge is retired", proof.Classification, StringComparison.Ordinal);
+        Assert.Contains("creation-time IR route", proof.Classification, StringComparison.Ordinal);
+        Assert.Contains("non-simple parameter declines still fail explicitly", proof.Classification, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -450,7 +450,13 @@ public sealed partial class BytecodeProofManifestTests(ITestOutputHelper output)
     {
         await using var engine = CreateEngine();
 
-        if (!string.IsNullOrWhiteSpace(proof.ExpectedThrowContains))
+        if (!string.IsNullOrWhiteSpace(proof.ExpectedNotSupportedContains))
+        {
+            var exception = await Assert.ThrowsAsync<NotSupportedException>(async () =>
+                await engine.Evaluate(Require(proof.Source, proof.Id, nameof(proof.Source))));
+            Assert.Contains(proof.ExpectedNotSupportedContains, exception.Message, StringComparison.Ordinal);
+        }
+        else if (!string.IsNullOrWhiteSpace(proof.ExpectedThrowContains))
         {
             var exception = await Assert.ThrowsAsync<ThrowSignal>(async () =>
                 await engine.Evaluate(Require(proof.Source, proof.Id, nameof(proof.Source))));
@@ -989,6 +995,8 @@ public sealed partial class BytecodeProofManifestTests(ITestOutputHelper output)
         public string? ExpectedResult { get; set; }
 
         public string? ExpectedThrowContains { get; set; }
+
+        public string? ExpectedNotSupportedContains { get; set; }
 
         public List<string> RequiredLogs { get; set; } = [];
 

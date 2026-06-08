@@ -43,17 +43,9 @@ public static partial class TypedAstEvaluator
                     arguments,
                     thisValue,
                     out var unifiedIterator,
-                    out var declineReason,
-                    out var isDeclinedResidue))
+                    out var declineReason))
             {
                 return JsValue.FromJsObject(unifiedIterator);
-            }
-
-            if (isDeclinedResidue)
-            {
-                var runner = CreateClassifiedSyncGeneratorDeclinedResidueRunner(arguments, thisValue);
-                runner.Initialize();
-                return (JsValue)runner.CreateGeneratorObject();
             }
 
             throw new NotSupportedException(
@@ -64,11 +56,9 @@ public static partial class TypedAstEvaluator
             IReadOnlyList<JsValue> arguments,
             JsValue thisValue,
             out JsObject iterator,
-            out string declineReason,
-            out bool isDeclinedResidue)
+            out string declineReason)
         {
             iterator = null!;
-            isDeclinedResidue = false;
 
             // Non-simple parameter lists (destructuring patterns, defaults, rest) require
             // IteratorBindingInitialization during FunctionDeclarationInstantiation, which runs
@@ -131,11 +121,6 @@ public static partial class TypedAstEvaluator
             if (!eligibility.IsEligible)
             {
                 declineReason = eligibility.Reason;
-                isDeclinedResidue = true;
-                RealmState.Logger?.LogInformation(
-                    "classified-sync-generator-declined-residue reason=production-unified-bytecode-declined code={DeclineCode} detail={DeclineReason}",
-                    eligibility.Code,
-                    eligibility.Reason);
                 return false;
             }
 

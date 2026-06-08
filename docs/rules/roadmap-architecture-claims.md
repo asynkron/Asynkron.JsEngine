@@ -82,7 +82,7 @@ boundary-explicit.
 15. When a roadmap, dream, ADR, or PR text cites a PR number or commit SHA as
     evidence for a landed capability or perf slice, verify each citation against
     real git history before writing it. Re-derive the owner of every reference
-    with `git log --grep="(#NNNN)"` (or `git show <sha> --stat`) and confirm the
+    with `rtk git log --grep="(#NNNN)"` (or `rtk git show <sha> --stat`) and confirm the
     referenced change actually did what the bullet claims. Do not cite a PR
     number that does not resolve to a commit, do not cite an empty agent commit
     (one whose diff is empty versus its parent) as a feature delivery, and do
@@ -249,8 +249,8 @@ cited PR numbers that do not exist in git history (`#2654`, `#2656`, `#2652`),
 cited an empty agent commit (`#2658`) as a feature delivery, and reattributed
 several real PRs to the wrong work (`#2646`, `#2644`, `#2650`, `#2651`,
 `#2659`, `#2660`). The "Roadmap fidelity" quality gate caught it, and the fix
-re-derived every citation from `git log --grep="(#NNNN)"` against the worktree's
-actual history. WHY: an automated roadmap refresh that pattern-matches recent
+re-derived every citation from the worktree's actual history with
+`rtk git log --grep="(#NNNN)"`. WHY: an automated roadmap refresh that pattern-matches recent
 `#NNNN`-looking numbers near HEAD will fabricate or misattribute provenance,
 which then reads as proof. Rule 15 forces each PR/commit citation to be resolved
 to a real commit and its diff before it can be written as evidence — the same

@@ -728,6 +728,19 @@ all-or-nothing until a separate routing issue proves production readiness.
      no-route proof, not admitted runtime proof, even when the fallback computes
      the expected JavaScript result. Related ADR:
      `docs/adrs/0368-keep-b24h-activation-delete-and-construct-computed-names-open.md`.
+     Issue
+     `planitem-planitem-gh3377-rebaseline-the-finite-bytecode-retirement-inventory-conv-f62b329733`
+     / PR #3432 corrected B36 private class-declaration proof rows after the
+     finite bytecode inventory needed a narrower private-member boundary.
+     Direct root private instance methods/accessors route only when they avoid
+     `extends`, fields, static members, computed neighbors, and activation-slot
+     captures in private bodies. Private fields, private static members,
+     private/computed mixes, and activation-capturing private bodies must stay
+     as explicit B36 eligibility no-route rows until a focused slice owns each
+     class-definition state family. Future B36 rebaselines must not use fallback
+     runtime correctness as admitted-route proof for those neighbors. Related
+     ADR:
+     `docs/adrs/0369-keep-b36-private-class-declaration-proof-split-by-member-state.md`.
 10g. When admitting iterator init driver shapes, keep source-payload shape and
      iterator driver kind as separate concepts. An iterator driver must carry
      exactly one source payload (`IterableProgram` or `AwaitedProgram`), and a

@@ -1180,6 +1180,20 @@
           ]
         },
         {
+          "id": "B24h-computed-static-block-super-property-routes",
+          "claim": "admitted",
+          "kind": "runtime",
+          "source": "class Base {\n  static get value() { return 40; }\n}\nfunction* g(seed) {\n  yield 'ready';\n  var C = class extends Base {\n    ['read']() { return 1; }\n    static {\n      this.observed = super.value + seed;\n    }\n  };\n  var instance = new C();\n  yield C.observed + instance.read();\n}\nvar iterator = g(2);\nvar first = iterator.next();\nvar second = iterator.next();\nfirst.value + ':' + first.done + '|' + second.value + ':' + second.done;",
+          "expectedResult": "ready:false|43:false",
+          "requiredLogs": [
+            "unified-bytecode-resumable-generator-fast-path func=g",
+            "unified-bytecode-production-fast-path static-block"
+          ],
+          "forbiddenLogs": [
+            "classified-static-block-ir-fallback"
+          ]
+        },
+        {
           "id": "B24h-computed-name-spread-call-routes",
           "claim": "admitted",
           "kind": "runtime",
@@ -1776,6 +1790,20 @@
             "unified-bytecode-resumable-generator-fast-path func=g",
             "unified-bytecode-production-fast-path static-block",
             "unified-bytecode-production-fast-path func=<anonymous>"
+          ],
+          "forbiddenLogs": [
+            "classified-static-block-ir-fallback"
+          ]
+        },
+        {
+          "id": "B36-class-declaration-static-block-super-property-routes",
+          "claim": "admitted",
+          "kind": "runtime",
+          "source": "class Base {\n  static get value() { return 40; }\n}\nfunction* g(seed) {\n  yield 'ready';\n  class Box extends Base {\n    static {\n      this.observed = super.value + seed;\n    }\n  }\n  yield Box.observed;\n}\nvar iterator = g(2);\nvar first = iterator.next();\nvar second = iterator.next();\nfirst.value + ':' + first.done + '|' + second.value + ':' + second.done;",
+          "expectedResult": "ready:false|42:false",
+          "requiredLogs": [
+            "unified-bytecode-resumable-generator-fast-path func=g",
+            "unified-bytecode-production-fast-path static-block"
           ],
           "forbiddenLogs": [
             "classified-static-block-ir-fallback"

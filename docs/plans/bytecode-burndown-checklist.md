@@ -60,7 +60,7 @@ work.
 
 ---
 
-## Phase A — Synchronous admission surface (80 row-accounted items, by decline code / promoted compiler leaf)
+## Phase A — Synchronous admission surface (81 row-accounted items, by decline code / promoted compiler leaf)
 
 Status: ☐ declined · ◐ partial · ☑ admitted (parity work remains on other engine)
 
@@ -247,14 +247,14 @@ these allowlists — mechanical extensions against existing sync VM handlers.
 | Phase | Items | Notes |
 |---|---:|---|
 | 0 — Make list finite | 5 | 5 complete / 0 open; Phase 0 inventory closure is complete |
-| A — Sync admission | 80 | 63 complete / 17 open; row-accounted decline code / promoted compiler leaf inventory |
+| A — Sync admission | 81 | 64 complete / 17 open; row-accounted decline code / promoted compiler leaf inventory |
 | B — Resumable parity + suspension | 57 | 55 complete / 2 open; class-expression decomposition added B24a-B24i |
 | C — Script route | 3 | 3 complete / 0 open; closes mostly via A/B |
 | D — Dynamic quarantine | 5 | 5 complete / 0 open; D1-D5 now pin terminal dynamic-residue boundaries |
 | E — Retire tiers | 10 | 5 complete / 5 open; E1 is counted through P0.5, E2/E3 = P0.2/P0.3, E5a is admitted static-block routing, and E4/E5b-E5e remain active retirement/exclusion gaps |
-| **Total** | **160** | row-accounted finite current burn-down list after Phase 0 decomposition; future source drift must update audited inventories |
+| **Total** | **161** | row-accounted finite current burn-down list after Phase 0 decomposition; future source drift must update audited inventories |
 
-**Status (145 row-accounted A+B+C+D checklist items):** 126 complete / 19 open. **The remaining non-retirement work is now concentrated in activation/dynamic residue boundaries (A1/A2), remaining A51 compiler leaves, class-expression non-production static-block/class-definition work (B24h), and B36 nested declaration/class contexts.** The remaining retirement work is E4 (remove `ExpressionProgram` from the hot path) plus E5b-E5d (remove `ExecutionPlanRunner` entrypoints and fallbacks after A/B/C parity); E5e preserves the terminal dynamic-residue exclusion boundary, and E1 is an alias for P0.5 rather than a second Phase E retirement closure.
+**Status (146 row-accounted A+B+C+D checklist items):** 127 complete / 19 open. **The remaining non-retirement work is now concentrated in activation/dynamic residue boundaries (A1/A2), remaining A51 compiler leaves, class-expression non-production static-block/class-definition work (B24h), and B36 nested declaration/class contexts.** The remaining retirement work is E4 (remove `ExpressionProgram` from the hot path) plus E5b-E5d (remove `ExecutionPlanRunner` entrypoints and fallbacks after A/B/C parity); E5e preserves the terminal dynamic-residue exclusion boundary, and E1 is an alias for P0.5 rather than a second Phase E retirement closure.
 
 Latest proof evidence (2026-06-06, E5 eligible static-block body VM route):
 `TryInvokeIrFast` no longer executes a generic `SimpleReturnProgram` through

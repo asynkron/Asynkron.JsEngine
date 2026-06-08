@@ -842,6 +842,7 @@ above in the same slice.
 - `Unsupported computed property key op '{operation.Kind}'.`
 - `Unsupported computed property key span.`
 - `Unsupported computed property read in complex call argument.`
+- `Unsupported named super property read in complex call argument.`
 - `Unsupported conditional alternate in simple literal span.`
 - `Unsupported conditional consequent in simple literal span.`
 - `Unsupported declaration target '{declaration.TargetSymbol?.Name}'.`

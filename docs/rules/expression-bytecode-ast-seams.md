@@ -227,6 +227,17 @@ fallback or cleanup.
     expression payload residue from broader runner-retirement residue. WHY:
     file-count-only allowlists can stay green while ownership silently drifts
     between different legacy operand families.
+32. For finite-retirement batch retrospectives, do not close a batch from child
+    issue state alone. Reconcile every linked child with the current
+    proof-manifest rows and the diagnostic source gate that enforces them.
+    The retrospective should confirm that closed child slices are represented
+    by manifest claims, approved source files, exact counts or call-site
+    classifications, and source-presence checks for any still-open bridge.
+    Issue #3377 / PR #3447 added this rule after the Batch 3 `ExecuteDynamic`
+    retrospective needed to prove that both dynamic-expression and
+    statement/loop children were present in the current E4 manifest and source
+    gate before closing the batch. WHY: a closed child issue can be stale
+    evidence if the manifest or guard test has drifted on current `main`.
 
 ## Dynamic Boundary Classification (#1405 Retry)
 

@@ -238,6 +238,19 @@ fallback or cleanup.
     statement/loop children were present in the current E4 manifest and source
     gate before closing the batch. WHY: a closed child issue can be stale
     evidence if the manifest or guard test has drifted on current `main`.
+33. When a finite-retirement source-presence proof covers runner fallback
+    residue, anchor the manifest row on the semantic fallback helper that owns
+    the residue, not on a broad constructor token such as
+    `new ExecutionPlanRunner(`. Split ordinary sync function, class
+    constructor, script/static-block, and resumable fallback construction into
+    named owner helpers before updating the proof manifest, so one remaining
+    family cannot keep another family's retirement row open by sharing the same
+    raw construction site. Issue #3377 / PR #3452 added this rule after the E5
+    rebaseline had to classify ordinary sync function runner residue through
+    `CreateOrdinarySyncFunctionFallbackRunner(...)` while keeping class
+    constructor residue separately owned. WHY: source-presence gates that match
+    raw construction tokens can stay technically true while losing the semantic
+    ownership boundary future retirement work depends on.
 
 ## Dynamic Boundary Classification (#1405 Retry)
 

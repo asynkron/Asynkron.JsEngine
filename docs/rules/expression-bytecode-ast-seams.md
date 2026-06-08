@@ -467,6 +467,18 @@ does not make runner-internal binding-target execution part of E4. Keep that
 runner-owned path classified in E5 until the runner tier is retired, and do not
 use a binding-target bridge cleanup to blur the E4 standalone executor boundary.
 
+Issue
+`planitem-planitem-planitem-gh3377-rebaseline-the-finite-bytecode-retirement-inven-7c09e17423`
+/ PR #3437 rebaselined the E5 runner-retirement inventory after eligible
+static-block bodies had gained a production bytecode route while
+`ExecutionPlanRunner` entrypoints and fallback calls still remained. The durable
+lesson is that admitted proof, open source-presence retirement anchors, and
+terminal dynamic-residue exclusions must not share one manifest row. Keep
+eligible static-block routing in an admitted child row, keep runner type,
+script, sync, async-step entrypoints, and fallback construction in ordinary E5
+children, and keep dynamic residue as an exclusion boundary instead of a
+closure blocker for ordinary runner retirement.
+
 PR #2729 completed full deletion of `EvaluateLegacyAstExpression` and its
 sibling methods from `Ast/Legacy/ExpressionNodeExtensions.cs`. The build-stage
 quality gate failed because the quarantine guard test

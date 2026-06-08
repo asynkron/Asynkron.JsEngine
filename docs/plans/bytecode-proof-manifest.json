@@ -533,6 +533,27 @@
           "kind": "source-presence",
           "path": "src/Asynkron.JsEngine/Execution/UnifiedBytecode/UnifiedBytecodeCompiler.cs",
           "pattern": "Unsupported simple operand op '{operation.Kind}'."
+        },
+        {
+          "id": "A51k-call-target-neighbor-boundary-stays-open",
+          "claim": "open",
+          "kind": "source-presence",
+          "path": "src/Asynkron.JsEngine/Execution/UnifiedBytecode/UnifiedBytecodeProductionEligibility.cs",
+          "pattern": "Identifier call-target preparation is outside the first production invocation boundary."
+        },
+        {
+          "id": "A51k-private-name-neighbor-boundary-stays-open",
+          "claim": "open",
+          "kind": "source-presence",
+          "path": "src/Asynkron.JsEngine/Execution/UnifiedBytecode/UnifiedBytecodeCompiler.cs",
+          "pattern": "Private named member call targets are outside the call-target preparation boundary."
+        },
+        {
+          "id": "A51k-dynamic-name-neighbor-boundary-stays-open",
+          "claim": "open",
+          "kind": "source-presence",
+          "path": "src/Asynkron.JsEngine/Execution/UnifiedBytecode/UnifiedBytecodeProductionEligibility.cs",
+          "pattern": "Identifier call target '{callIdentifier.Name.Name}' requires dynamic lookup and is not eligible for production unified bytecode routing."
         }
       ]
     },

@@ -303,6 +303,19 @@ fallback or cleanup.
     seven-pattern exact exclusion contract. WHY: a representative phrase can
     stay green while the exclusion boundary silently narrows, letting future
     agents misclassify terminal dynamic residue as ordinary E5 runner work.
+37. When retiring script `ExecutionPlanRunner.RunScript(...)` fallback, prove
+    ordinary script declines are gone before changing the classified helper into
+    a terminal-dynamic-only quarantine. The E5c manifest row should stay open
+    while non-admitted ordinary scripts still need
+    `RunScriptViaClassifiedIrFallback(...)`, and the helper log should expose
+    `terminalDynamicResidue={TerminalDynamicResidue}` instead of using terminal
+    residue as the only allowed path. Issue
+    `planitem-gh3377-rebaseline-the-finite-bytecode-retirement-inventory-retire-fallba-22f4b88ddd`
+    / PR #3477 added this rule after a hard tombstone made current ordinary
+    non-dynamic script declines throw before the existing classified runner
+    fallback. WHY: proof-manifest wording can be ahead of actual routing
+    retirement; forcing the tombstone before executable route/no-route proof
+    breaks valid current behavior and hides the true E5c owner.
 
 ## Dynamic Boundary Classification (#1405 Retry)
 

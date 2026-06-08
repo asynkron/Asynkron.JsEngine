@@ -26,6 +26,15 @@ tests need, such as top-level lexical destructuring remaining outside the
 accepted script route until its TDZ and lexical-environment semantics are
 VM-owned.
 
+Issue
+`planitem-gh3377-rebaseline-the-finite-bytecode-retirement-inventory-retire-fallba-22f4b88ddd`
+and delivery PR #3477 later tried to hard-tombstone ordinary script fallback
+while leaving only terminal dynamic direct-eval residue classified. The quality
+repair proved that was premature: current ordinary non-dynamic scripts can
+still decline production routing for explicit safety reasons, so forcing those
+declines to throw before `ExecutionPlanRunner.RunScript` would break valid
+current execution rather than retire an unreachable seam.
+
 ## Decision
 
 Keep the remaining top-level script IR fallback centralized behind
@@ -41,6 +50,13 @@ declines.
 - The helper log must include the stable decline code and detail from the
   production eligibility result: `code={DeclineCode}` and
   `detail={DeclineReason}`.
+- While ordinary non-dynamic script declines still exist, keep them behind the
+  same classified helper. Do not recast the helper as terminal-dynamic-only
+  until the proof manifest has executable route-hit and no-route evidence that
+  those ordinary declines are gone.
+- The helper log must include `terminalDynamicResidue={TerminalDynamicResidue}`
+  so terminal dynamic residue remains explicit without hiding ordinary E5c
+  runner-retirement work.
 - A non-script execution kind that reuses the script runner must synthesize an
   explicit unsupported-plan decline instead of appearing as an ordinary
   production script decline.
@@ -60,6 +76,9 @@ declines.
 - The docs should continue calling this classification-only E5 progress, not a
   retirement claim; `RunScriptViaClassifiedIrFallback` still delegates to the
   tier-2 IR runner.
+- The proof manifest should keep E5c open while the script fallback is needed
+  for non-admitted ordinary scripts, even when terminal dynamic residue is
+  separately excluded from ordinary E5 retirement.
 
 ## Evidence
 
@@ -72,15 +91,25 @@ declines.
 - Review repair commit
   `f0588fdd10cd4f4d537c4a4113795472d0ba338e` preserved the script fallback
   decline code and reason through `RunScriptViaClassifiedIrFallback`.
+- Delivery PR #3477 merged as commit
+  `a96727577f4c3159447c21cdd3b5885698ab5722`.
+- Build repair commit `bcf7c2062` restored the classified helper for current
+  ordinary script declines and added the `terminalDynamicResidue` log field.
 - The delivery changed:
   - `src/Asynkron.JsEngine/Ast/Legacy/StatementNodeExtensions.cs`
   - `tests/Asynkron.JsEngine.Tests/UnifiedBytecodeProductionInvocationTests.cs`
   - `docs/bytecode-progress.md`
   - `docs/plans/bytecode-burndown-checklist.md`
+  - `docs/plans/bytecode-proof-manifest.json`
 - Build-stage proof recorded:
   - `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionInvocationTests"` passed 557 tests.
   - `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~BytecodeNonResidueDeclineRatchetTests"` passed 20 tests.
   - `rtk git diff --check` passed.
+- PR #3477 build-stage proof recorded:
+  - focused E5/runtime proof pack went from 0 passing tests to 9 passing tests
+    after the repair.
+  - `rtk git diff --check` passed.
+  - the AST-eval seam scan had no hits.
 
 ## Related
 

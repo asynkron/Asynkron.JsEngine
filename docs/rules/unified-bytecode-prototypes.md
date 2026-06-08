@@ -223,6 +223,17 @@ all-or-nothing until a separate routing issue proves production readiness.
     `RunScriptViaClassifiedIrFallback(...)`, with no direct
     `ExecutionPlanRunner.RunScript(...)` call before the helper; this keeps
     accepted script routes from being hidden by the classified fallback bridge.
+    Faktorial issue
+    `planitem-gh3377-rebaseline-the-finite-bytecode-retirement-inventory-retire-fallba-22f4b88ddd`
+    / PR #3477 proved that this helper is still an ordinary E5c
+    runner-retirement anchor while non-admitted ordinary scripts can decline production
+    routing. Do not hard-tombstone ordinary script fallback or make the helper
+    terminal-dynamic-only until the proof manifest closes the ordinary decline
+    rows with executable route-hit/no-route evidence. Keep
+    `terminalDynamicResidue={TerminalDynamicResidue}` in the helper log so
+    direct-eval residue remains explicit without blurring current ordinary
+    script fallback ownership. Related ADR:
+    `docs/adrs/0346-keep-script-ir-fallback-classified-with-production-decline-details.md`.
 9f. Classify entrypoint and target rejects by builder provenance before
     treating them as active production residue. `Unsupported entrypoint.` and
     invalid-target integrity guards are A51a1 malformed-plan backstops when the

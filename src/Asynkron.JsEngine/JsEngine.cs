@@ -3946,14 +3946,15 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
                Equals(left.BindingName, right.BindingName);
     }
 
-    private static object CreateLiveBinding(ExportResolution resolution)
+    private static JsValue CreateLiveBinding(ExportResolution resolution)
     {
         if (resolution.DirectValue is { } directValue)
         {
             return directValue;
         }
 
-        return new LiveExportBinding(() => resolution.Module!.Environment.GetJsValue(resolution.BindingName!));
+        return JsValue.FromObjectUnsafe(new LiveExportBinding(() =>
+            resolution.Module!.Environment.GetJsValue(resolution.BindingName!)));
     }
 
     /// <summary>
@@ -4554,7 +4555,7 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
         }
     }
 
-    private object? EvaluateExportDefault(ExportDefaultStatement statement, JsEnvironment moduleEnv, bool isStrict)
+    private JsValue EvaluateExportDefault(ExportDefaultStatement statement, JsEnvironment moduleEnv, bool isStrict)
     {
         var defaultBindingName = Symbol.Intern("*default*");
 
@@ -4566,7 +4567,8 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
                 Expression: FunctionExpression { Name: null, IsHoistableDefaultExport: true }
             })
         {
-            return new LiveExportBinding(() => moduleEnv.GetJsValue(defaultBindingName));
+            return JsValue.FromObjectUnsafe(new LiveExportBinding(() =>
+                moduleEnv.GetJsValue(defaultBindingName)));
         }
 
         // For ExportDefaultDeclaration (named function/class declarations), delegate to specialized handler
@@ -4596,13 +4598,14 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
             // Initialize the *default* binding (it was created in TDZ during PredeclareExportNames)
             moduleEnv.AssignJsValue(defaultBindingName, value);
 
-            return new LiveExportBinding(() => moduleEnv.GetJsValue(defaultBindingName));
+            return JsValue.FromObjectUnsafe(new LiveExportBinding(() =>
+                moduleEnv.GetJsValue(defaultBindingName)));
         }
 
-        return Symbol.Undefined;
+        return JsValue.Undefined;
     }
 
-    private object? EvaluateExportDefaultDeclaration(ExportDefaultDeclaration declaration, JsEnvironment moduleEnv,
+    private JsValue EvaluateExportDefaultDeclaration(ExportDefaultDeclaration declaration, JsEnvironment moduleEnv,
         bool isStrict)
     {
         // For function declarations, they were already hoisted during module instantiation
@@ -4612,21 +4615,22 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
             var bindingName = functionDeclaration.Name.Name?.Length == 0
                 ? Symbol.Intern("*default*")
                 : functionDeclaration.Name;
-            return new LiveExportBinding(() => moduleEnv.GetJsValue(bindingName));
+            return JsValue.FromObjectUnsafe(new LiveExportBinding(() =>
+                moduleEnv.GetJsValue(bindingName)));
         }
 
         // Classes need to be evaluated (they aren't hoisted like functions)
         _ = ExecuteTypedStatementJsValue(declaration.Declaration, moduleEnv, isStrict, false);
         return declaration.Declaration switch
         {
-            ClassDeclaration classDeclaration => new LiveExportBinding(() =>
+            ClassDeclaration classDeclaration => JsValue.FromObjectUnsafe(new LiveExportBinding(() =>
             {
                 var bindingName = classDeclaration.Name.Name.Length == 0
                     ? Symbol.Intern("*default*")
                     : classDeclaration.Name;
                 return moduleEnv.GetJsValue(bindingName);
-            }),
-            _ => Symbol.Undefined
+            })),
+            _ => JsValue.Undefined
         };
     }
 

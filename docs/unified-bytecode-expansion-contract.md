@@ -152,11 +152,14 @@ statement interpretation.
   environment-backed lexical declaration installation and class-value creation
   handled inside the unified VM. The resumable route now admits the direct root
   simple class-declaration subset and activation-safe computed public
-  class-declaration subset through the same opcode; B36's remaining
-  class-declaration-state declines are now split into exact manifest rows for
-  static-field shape guards, deferred class-definition environment bridging,
-  static-member shape guards, computed-member activation captures, and
-  computed-field activation captures. Static synchronous
+  class-declaration subset through the same opcode. B36 private class
+  declarations now have explicit manifest proof for noncapturing private
+  instance methods/accessors and exact no-route proof for private fields,
+  private static members, computed neighbors, and activation-capturing private
+  bodies. B36's remaining class-declaration-state declines are split into exact
+  manifest rows for static-field shape guards, deferred class-definition
+  environment bridging, static-member shape guards, computed-member activation
+  captures, and computed-field activation captures. Static synchronous
   `BindingVariableDeclarationInstruction` shapes are now VM-owned through
   `ApplyDeclarationBindingTarget`; sync `using` declarations add an owned
   `RegisterDisposable` step before storage so resources are registered against
@@ -1000,7 +1003,12 @@ predicates and proof tests.
     now route when the member set is ordinary public instance methods, getters,
     or setters without `super`; this proves the outer `DeclareClass` route,
     superclass behavior, and accessor descriptor behavior, not broad member-body
-    production routing. Public instance super-member and public static super-member
+    production routing. Direct root private instance method/accessor declarations
+    without `extends`, static members, fields, or computed neighbors also route
+    when their private bodies do not capture resumable activation slots; private
+    fields, private static members, private/computed mixes, and activation-capturing
+    private bodies stay as explicit B36 no-route rows. Public instance super-member
+    and public static super-member
     `extends` declarations now route even when their member bodies capture
     resumable activation slots, public instance super-field declarations route
     even when field initializers capture resumable activation slots, and public

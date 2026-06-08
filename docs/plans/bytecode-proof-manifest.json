@@ -1464,6 +1464,68 @@
           ]
         },
         {
+          "id": "B36-class-declaration-private-instance-method-routes",
+          "claim": "admitted",
+          "kind": "runtime",
+          "source": "function* g(seed) {\n  yield 'ready';\n  class Box {\n    constructor(value) {\n      this.value = this.#double(value);\n    }\n    #double(value) {\n      return value * 2;\n    }\n  }\n  yield new Box(seed).value;\n}\nvar iterator = g(6);\nvar first = iterator.next();\nvar second = iterator.next();\nfirst.value + ':' + first.done + '|' + second.value + ':' + second.done;",
+          "expectedResult": "ready:false|12:false",
+          "requiredLogs": [
+            "unified-bytecode-resumable-generator-fast-path func=g"
+          ]
+        },
+        {
+          "id": "B36-class-declaration-private-instance-accessor-routes",
+          "claim": "admitted",
+          "kind": "runtime",
+          "source": "function* g(seed) {\n  yield 'ready';\n  class Box {\n    constructor(value) {\n      this.#stored = value;\n    }\n    get #stored() {\n      return this.value + 1;\n    }\n    set #stored(value) {\n      this.value = value * 2;\n    }\n    read() {\n      return this.#stored;\n    }\n  }\n  var box = new Box(seed);\n  yield box.read() + ':' + box.value;\n}\nvar iterator = g(6);\nvar first = iterator.next();\nvar second = iterator.next();\nfirst.value + ':' + first.done + '|' + second.value + ':' + second.done;",
+          "expectedResult": "ready:false|13:12:false",
+          "requiredLogs": [
+            "unified-bytecode-resumable-generator-fast-path func=g"
+          ]
+        },
+        {
+          "id": "B36-class-declaration-private-instance-field-declines",
+          "claim": "open",
+          "kind": "eligibility",
+          "subject": "resumable-generator",
+          "functionName": "g",
+          "source": "function* g() {\n  yield 'ready';\n  class Box {\n    #value = 1;\n    read() {\n      return this.#value;\n    }\n  }\n  yield typeof Box;\n}",
+          "expectedEligible": false,
+          "declineCode": "UnsupportedPlanShape",
+          "reasonContains": "private field is outside B36"
+        },
+        {
+          "id": "B36-class-declaration-private-instance-method-captures-activation-declines",
+          "claim": "open",
+          "kind": "eligibility",
+          "subject": "resumable-generator",
+          "functionName": "g",
+          "source": "function* g(seed) {\n  yield 'ready';\n  class Box {\n    #value() {\n      return seed;\n    }\n    read() {\n      return this.#value();\n    }\n  }\n  yield typeof Box;\n}",
+          "expectedEligible": false,
+          "declineCode": "UnsupportedPlanShape",
+          "reasonContains": "private member body captures activation binding 'seed'"
+        },
+        {
+          "id": "B36-class-declaration-private-static-method-declines",
+          "claim": "open",
+          "kind": "eligibility",
+          "subject": "resumable-generator",
+          "functionName": "g",
+          "source": "function* g() {\n  yield 'ready';\n  class Box {\n    static #value() {\n      return 1;\n    }\n    static read() {\n      return this.#value();\n    }\n  }\n  yield Box.read();\n}",
+          "expectedEligible": false,
+          "declineCode": "UnsupportedPlanShape"
+        },
+        {
+          "id": "B36-class-declaration-private-instance-method-computed-neighbor-declines",
+          "claim": "open",
+          "kind": "eligibility",
+          "subject": "resumable-generator",
+          "functionName": "g",
+          "source": "function* g(key) {\n  yield 'ready';\n  class Box {\n    #value() {\n      return 1;\n    }\n    [key]() {\n      return this.#value();\n    }\n  }\n  yield new Box().value();\n}",
+          "expectedEligible": false,
+          "declineCode": "CallDependency"
+        },
+        {
           "id": "B36-class-declaration-extends-public-super-method-routes",
           "claim": "admitted",
           "kind": "runtime",

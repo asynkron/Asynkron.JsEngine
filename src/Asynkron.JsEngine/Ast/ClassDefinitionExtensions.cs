@@ -211,6 +211,7 @@ public static partial class TypedAstEvaluator
             new UnifiedBytecodeProductionActivationDescriptor(
                 AllowsOrdinaryDynamicIdentifierEnvironmentOperations: true,
                 AllowsMaterializedBodyEnvironmentFunctionLiterals: true,
+                AllowsThisPropertyWrites: true,
                 IsStrict: true));
         if (!eligibility.IsEligible)
         {

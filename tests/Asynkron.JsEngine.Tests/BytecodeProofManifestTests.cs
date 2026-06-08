@@ -296,6 +296,41 @@ public sealed partial class BytecodeProofManifestTests(ITestOutputHelper output)
             StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void Manifest_StaticBlockSuperPropertyRowsAreAdmittedWithoutClosingRuntimeSourceDirectEvalResidue()
+    {
+        var proofs = LoadManifest()
+            .Items
+            .Where(static item => item.Id is "B24h" or "B36")
+            .SelectMany(static item => item.Proofs)
+            .ToDictionary(static proof => proof.Id, StringComparer.Ordinal);
+
+        Assert.Equal("admitted", proofs["B24h-computed-static-block-super-property-routes"].Claim);
+        Assert.Equal("runtime", proofs["B24h-computed-static-block-super-property-routes"].Kind);
+        Assert.Contains(
+            "unified-bytecode-production-fast-path static-block",
+            proofs["B24h-computed-static-block-super-property-routes"].RequiredLogs,
+            StringComparer.Ordinal);
+        Assert.Contains(
+            "classified-static-block-ir-fallback",
+            proofs["B24h-computed-static-block-super-property-routes"].ForbiddenLogs,
+            StringComparer.Ordinal);
+
+        Assert.Equal("admitted", proofs["B36-class-declaration-static-block-super-property-routes"].Claim);
+        Assert.Equal("runtime", proofs["B36-class-declaration-static-block-super-property-routes"].Kind);
+        Assert.Contains(
+            "unified-bytecode-production-fast-path static-block",
+            proofs["B36-class-declaration-static-block-super-property-routes"].RequiredLogs,
+            StringComparer.Ordinal);
+        Assert.Contains(
+            "classified-static-block-ir-fallback",
+            proofs["B36-class-declaration-static-block-super-property-routes"].ForbiddenLogs,
+            StringComparer.Ordinal);
+
+        Assert.Equal("open", proofs["B24h-computed-static-block-runtime-source-direct-eval-declines"].Claim);
+        Assert.Equal("open", proofs["B36-class-declaration-static-block-runtime-source-direct-eval-declines"].Claim);
+    }
+
     [Theory]
     [MemberData(nameof(ProofIds))]
     public async Task ProofRows_Hold(string proofId)

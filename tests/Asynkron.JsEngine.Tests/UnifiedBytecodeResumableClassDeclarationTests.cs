@@ -1218,6 +1218,37 @@ public sealed class UnifiedBytecodeResumableClassDeclarationTests(ITestOutputHel
     }
 
     [Fact]
+    public void EvaluateResumable_DerivedClassDeclarationStaticBlockSuperProperty_AdmitsDeclareClass()
+    {
+        var plan = GetFunctionPlan("""
+            class Base {
+                static get value() { return 40; }
+            }
+
+            function* g(seed) {
+                yield "ready";
+                class Box extends Base {
+                    static {
+                        this.observed = super.value + seed;
+                    }
+                }
+                yield Box.observed;
+            }
+            """,
+            "g");
+
+        var result = UnifiedBytecodeProductionEligibility.EvaluateResumable(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor(IsGenerator: true));
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(
+            result.Program.Instructions,
+            static instruction => instruction.OpCode == UnifiedBytecodeOpCode.DeclareClass);
+    }
+
+    [Fact]
     public void EvaluateResumable_ClassDeclarationStaticBlockClosure_AdmitsDeclareClass()
     {
         var plan = GetFunctionPlan("""
@@ -2215,6 +2246,46 @@ public sealed class UnifiedBytecodeResumableClassDeclarationTests(ITestOutputHel
             """);
 
         Assert.Equal("ready:false|41|42|true:false", result);
+        AssertGeneratorFastPath("g", argc: 1);
+        var logs = CurrentLogger!.Collector.Snapshot();
+        Assert.Contains(
+            logs,
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path static-block",
+                StringComparison.Ordinal));
+        Assert.DoesNotContain(
+            logs,
+            static record => record.Message.Contains(
+                "classified-static-block-ir-fallback",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task GeneratorDerivedClassDeclarationStaticBlockSuperProperty_RoutesResumableAndStaticBlockFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            class Base {
+                static get value() { return 40; }
+            }
+
+            function* g(seed) {
+                yield "ready";
+                class Box extends Base {
+                    static {
+                        this.observed = super.value + seed;
+                    }
+                }
+                yield Box.observed;
+            }
+
+            var iterator = g(2);
+            var first = iterator.next();
+            var second = iterator.next();
+            first.value + ":" + first.done + "|" + second.value + ":" + second.done;
+            """);
+
+        Assert.Equal("ready:false|42:false", result);
         AssertGeneratorFastPath("g", argc: 1);
         var logs = CurrentLogger!.Collector.Snapshot();
         Assert.Contains(

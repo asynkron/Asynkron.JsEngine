@@ -8437,6 +8437,27 @@ internal static class UnifiedBytecodeCompiler
                     unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.EnsureSuperReference));
                     break;
 
+                case ExpressionOpKind.GetNamedSuperProperty:
+                {
+                    var namedSuperPropertyName = op.GetString(expressionStringConstants);
+                    if (namedSuperPropertyName.IsPrivateName() ||
+                        op.IsOptional ||
+                        op.ShortCircuitOnNullishTarget)
+                    {
+                        RollBack();
+                        reason = "Unsupported named super property read in complex call argument.";
+                        return false;
+                    }
+
+                    var namedSuperPropertyNameIndex = stringConstants.Count;
+                    stringConstants.Add(namedSuperPropertyName);
+                    unified.Add(new UnifiedBytecodeInstruction(
+                        UnifiedBytecodeOpCode.GetNamedSuperProperty,
+                        namedSuperPropertyNameIndex));
+                    depth++;
+                    break;
+                }
+
                 case ExpressionOpKind.LoadNamedSuperCallTarget:
                 {
                     var namedSuperCtName = op.GetString(expressionStringConstants);

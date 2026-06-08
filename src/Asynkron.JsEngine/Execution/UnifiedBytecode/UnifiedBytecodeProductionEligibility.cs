@@ -42,6 +42,7 @@ internal readonly record struct UnifiedBytecodeProductionActivationDescriptor(
     bool AllowsRootFunctionDeclarationInstructions = false,
     bool AllowsMaterializedBodyEnvironmentFunctionLiterals = false,
     bool AllowsNestedFunctionLiteralLexicalThisOrPrivateNameContext = false,
+    bool AllowsThisPropertyWrites = false,
     bool IsStrict = false);
 
 internal readonly record struct UnifiedBytecodeProductionEligibilityResult(
@@ -350,6 +351,7 @@ internal static class UnifiedBytecodeProductionEligibility
                 activation.AllowsOrdinaryDynamicIdentifierEnvironmentOperations,
                 activation.AllowsImplicitArgumentsObjectPropertyReadOperands,
                 activation.AllowsMaterializedBodyEnvironmentFunctionLiterals,
+                activation.AllowsThisPropertyWrites,
                 activation.IsStrict,
                 out var declineCode,
                 out var declineReason))
@@ -552,6 +554,7 @@ internal static class UnifiedBytecodeProductionEligibility
         bool allowsOrdinaryDynamicIdentifiers,
         bool allowImplicitArgumentsObjectPropertyReadOperands,
         bool allowsMaterializedBodyEnvironmentFunctionLiterals,
+        bool allowsThisPropertyWrites,
         bool isStrict,
         out UnifiedBytecodeProductionDeclineCode declineCode,
         out string declineReason)
@@ -725,6 +728,7 @@ internal static class UnifiedBytecodeProductionEligibility
                     allowsDynamicIdentifiers,
                     allowImplicitArgumentsObjectPropertyReadOperands &&
                     allowsDynamicIdentifiers,
+                    allowsThisPropertyWrites,
                     out declineCode,
                     out declineReason,
                     // Sync production route only — A30 optional-computed-start member calls.
@@ -1306,6 +1310,7 @@ internal static class UnifiedBytecodeProductionEligibility
                         activationSlots,
                         allowsDynamicIdentifiers,
                         allowImplicitArgumentsObjectPropertyReadOperands: false,
+                        allowsThisPropertyWrites: false,
                         out declineCode,
                         out declineReason))
                 {
@@ -5935,6 +5940,7 @@ internal static class UnifiedBytecodeProductionEligibility
         ActivationSlotShape activationSlots,
         bool allowsDynamicIdentifiers,
         bool allowImplicitArgumentsObjectPropertyReadOperands,
+        bool allowsThisPropertyWrites,
         out UnifiedBytecodeProductionDeclineCode declineCode,
         out string declineReason,
         // A30: optional-computed-START member calls (o?.[k](), a?.b?.[k]()) are admitted only on the
@@ -5947,7 +5953,12 @@ internal static class UnifiedBytecodeProductionEligibility
         var identifierConstants = program.IdentifierConstants.AsSpan();
         var stringConstants = program.StringConstants.AsSpan();
         var isFirstBoundaryPropertyWriteCandidate =
-            TryIsFirstBoundaryPropertyWriteCandidate(program, identifierConstants, activationSlots, allowsDynamicIdentifiers);
+            TryIsFirstBoundaryPropertyWriteCandidate(
+                program,
+                identifierConstants,
+                activationSlots,
+                allowsDynamicIdentifiers,
+                allowsThisPropertyWrites);
         var isFirstBoundaryPropertyUpdateCandidate =
             TryIsFirstBoundaryPropertyUpdateCandidate(program, identifierConstants, activationSlots, allowsDynamicIdentifiers);
         var isFirstBoundaryNamedCompoundPropertyWriteCandidate =
@@ -6044,7 +6055,12 @@ internal static class UnifiedBytecodeProductionEligibility
         var lastOperationKind = program.GetOperation(operationCount - 1).Kind;
         var isComplexRhsPropertyWriteCandidate =
             lastOperationKind is ExpressionOpKind.SetNamedProperty or ExpressionOpKind.SetComputedProperty &&
-            TryIsFirstBoundaryPropertyWriteCandidate(program, identifierConstants, activationSlots, allowsDynamicIdentifiers);
+            TryIsFirstBoundaryPropertyWriteCandidate(
+                program,
+                identifierConstants,
+                activationSlots,
+                allowsDynamicIdentifiers,
+                allowsThisPropertyWrites);
 
         // COMPOUND-WRITE complex RHS: when the program is an admitted compound-property-write
         // candidate (`o.x += <complex>`, `o[k] -= <complex>`, `this.x *= <complex>`), any
@@ -6994,7 +7010,12 @@ internal static class UnifiedBytecodeProductionEligibility
 
                 case ExpressionOpKind.SetNamedProperty:
                 case ExpressionOpKind.SetComputedProperty:
-                    if (TryIsFirstBoundaryPropertyWriteCandidate(program, identifierConstants, activationSlots, allowsDynamicIdentifiers) ||
+                    if (TryIsFirstBoundaryPropertyWriteCandidate(
+                            program,
+                            identifierConstants,
+                            activationSlots,
+                            allowsDynamicIdentifiers,
+                            allowsThisPropertyWrites) ||
                         TryIsFirstBoundaryNestedNamedComputedPropertyWriteCandidate(program, identifierConstants, activationSlots, allowsDynamicIdentifiers) ||
                         TryIsFirstBoundaryComputedPrefixNamedPropertyWriteCandidate(program, identifierConstants, activationSlots, allowsDynamicIdentifiers) ||
                         TryIsFirstBoundaryComputedPrefixComputedPropertyWriteCandidate(program, identifierConstants, activationSlots, allowsDynamicIdentifiers) ||
@@ -11370,6 +11391,18 @@ internal static class UnifiedBytecodeProductionEligibility
                 depthAfter = depthBefore - 1;
                 return true;
 
+            case ExpressionOpKind.GetNamedSuperProperty:
+                // super.name -> value. Reject private/optional/short-circuit reads.
+                if (op.IsOptional ||
+                    op.ShortCircuitOnNullishTarget ||
+                    op.GetString(stringConstants).IsPrivateName())
+                {
+                    return false;
+                }
+
+                depthAfter = depthBefore + 1;
+                return true;
+
             case ExpressionOpKind.ResolvePropertyKey:
                 // key -> coerced key, in place: net 0.
                 return depthBefore >= 1;
@@ -14561,7 +14594,8 @@ internal static class UnifiedBytecodeProductionEligibility
         ExpressionProgram program,
         ReadOnlySpan<IdentifierOperand> identifierConstants,
         ActivationSlotShape activationSlots,
-        bool allowsDynamicIdentifiers)
+        bool allowsDynamicIdentifiers,
+        bool allowsThisPropertyWrites = false)
     {
         if (program.OperationCount < 3)
         {
@@ -14573,11 +14607,12 @@ internal static class UnifiedBytecodeProductionEligibility
 
         // Named property write: [base, rhs..., SetNamedProperty]
         if (lastOp.Kind == ExpressionOpKind.SetNamedProperty &&
-            TryGetActivationOrPlainDynamicIdentifierReadValue(
+            TryGetPropertyWriteBaseValue(
                 program.GetOperation(0),
                 identifierConstants,
                 activationSlots,
-                allowsDynamicIdentifiers))
+                allowsDynamicIdentifiers,
+                allowsThisPropertyWrites))
         {
             var rhsStart = 1;
             var rhsEnd = program.OperationCount - 2;
@@ -14690,6 +14725,21 @@ internal static class UnifiedBytecodeProductionEligibility
         return TryGetActivationResolvedValue(operation, identifierConstants, activationSlots) ||
                allowsDynamicIdentifiers &&
                TryGetPlainDynamicIdentifierReadValue(operation, identifierConstants, activationSlots);
+    }
+
+    private static bool TryGetPropertyWriteBaseValue(
+        PackedExpressionOp operation,
+        ReadOnlySpan<IdentifierOperand> identifierConstants,
+        ActivationSlotShape activationSlots,
+        bool allowsDynamicIdentifiers,
+        bool allowsThisPropertyWrites)
+    {
+        return TryGetActivationOrPlainDynamicIdentifierReadValue(
+                   operation,
+                   identifierConstants,
+                   activationSlots,
+                   allowsDynamicIdentifiers) ||
+               allowsThisPropertyWrites && operation.Kind == ExpressionOpKind.LoadThis;
     }
 
     private static bool TryIsFirstBoundaryNestedNamedPropertyWriteCandidate(

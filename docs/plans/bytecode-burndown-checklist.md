@@ -36,10 +36,11 @@ plus an adversarial grammar-completeness audit. Authoritative gate:
 
 ## Dynamic Residue — terminal, NOT work (the only permanent fallbacks)
 
-`eval(arg)` direct / multi-arg / spread · eval-injected runtime bindings ·
-awaited `with` object evaluation and live `with` scopes outside the VM-owned
-current-environment lane (**sync and resumable non-awaited `with` are admitted,
-not residue**) · `Function(...)`-produced body.
+direct eval with runtime-source, multi-arg, spread, or declaration-injecting
+bodies · eval-injected runtime bindings · awaited `with` object evaluation and
+retained live `with` scopes outside the VM-owned current-environment lane
+(**sync and resumable non-awaited `with` are admitted, not residue**) ·
+`Function(...)`-produced body.
 **NOT residue** (real work, do not mis-park): indirect eval `(0,eval)(s)`, free
 *global* identifier reads/calls (admitted via materialized activation), sync
 non-awaited `with`, the `Function` call boundary itself. D1/D2/D3 are terminal

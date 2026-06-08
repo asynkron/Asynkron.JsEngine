@@ -491,6 +491,16 @@ script, sync, async-step entrypoints, and fallback construction in ordinary E5
 children, and keep dynamic residue as an exclusion boundary instead of a
 closure blocker for ordinary runner retirement.
 
+Issue
+`planitem-planitem-planitem-gh3377-rebaseline-the-finite-bytecode-retirement-inven-8e82fd27c3`
+/ PR #3442 refined the same E5 split after the static-block fallback anchor was
+still grouped with ordinary script fallback retirement. The durable lesson is
+that a classified static-block `ExecutionPlanRunner.RunScript(...)` fallback
+after production eligibility declines is explicit declined static-block residue,
+not ordinary E5c script fallback retirement. Keep the manifest child owner and
+classification text executable-tested so future checklist refreshes cannot hide
+that static-block residue by merging it back into the script fallback owner.
+
 PR #2729 completed full deletion of `EvaluateLegacyAstExpression` and its
 sibling methods from `Ast/Legacy/ExpressionNodeExtensions.cs`. The build-stage
 quality gate failed because the quarantine guard test

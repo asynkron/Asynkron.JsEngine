@@ -194,6 +194,60 @@ public sealed partial class BytecodeProofManifestTests(ITestOutputHelper output)
         Assert.Single(items["E5e"].Proofs, static proof => proof.Claim == "hard-quarantined");
     }
 
+    [Fact]
+    public void Manifest_B36OpenRowsKeepDynamicEvalHelpersSeparateFromClassDeclarationResidue()
+    {
+        var b36 = LoadManifest().Items.Single(static item => item.Id == "B36");
+        var openProofIds = b36.Proofs
+            .Where(static proof => string.Equals(proof.Claim, "open", StringComparison.Ordinal))
+            .Select(static proof => proof.Id)
+            .Order(StringComparer.Ordinal)
+            .ToArray();
+
+        Assert.Equal("open", b36.Status);
+        Assert.Equal(
+            [
+                "B36-class-declaration-computed-field-activation-capture-stays-open",
+                "B36-class-declaration-computed-member-activation-capture-stays-open",
+                "B36-class-declaration-non-production-static-block-stays-open",
+                "B36-class-declaration-private-instance-field-declines",
+                "B36-class-declaration-private-instance-method-captures-activation-declines",
+                "B36-class-declaration-private-instance-method-computed-neighbor-declines",
+                "B36-class-declaration-private-static-method-declines",
+                "B36-class-declaration-static-block-ir-fallback-stays-open",
+                "B36-class-declaration-static-block-runtime-source-direct-eval-declines",
+                "B36-class-declaration-static-field-shape-guard-stays-open",
+                "B36-class-declaration-static-member-shape-guard-stays-open",
+                "B36-deferred-class-definition-environment-bridge-stays-open",
+                "B36-resumable-arguments-eval-helper-decline-stays-open",
+                "B36-resumable-dynamic-eval-helper-activation-decline-stays-open",
+                "B36-resumable-helper-direct-eval-cache-decline-anchor-stays-open",
+                "B36-resumable-helper-synthetic-activation-capture-decline-anchor-stays-open"
+            ],
+            openProofIds);
+
+        var helperProofs = b36.Proofs
+            .Where(static proof => proof.Id.StartsWith("B36-resumable-", StringComparison.Ordinal))
+            .ToArray();
+        Assert.Equal(4, helperProofs.Length);
+        Assert.All(helperProofs, static proof =>
+        {
+            Assert.Equal("source-presence", proof.Kind);
+            Assert.Equal("src/Asynkron.JsEngine/Ast/TypedAstEvaluator.UnifiedBytecodeResumableActivation.cs", proof.Path);
+        });
+
+        var runtimeSourceStaticBlockProof = b36.Proofs.Single(static proof =>
+            proof.Id == "B36-class-declaration-static-block-runtime-source-direct-eval-declines");
+        Assert.Equal("eligibility", runtimeSourceStaticBlockProof.Kind);
+        Assert.Equal("open", runtimeSourceStaticBlockProof.Claim);
+        Assert.Equal("resumable-generator", runtimeSourceStaticBlockProof.Subject);
+        Assert.Equal("UnsupportedPlanShape", runtimeSourceStaticBlockProof.DeclineCode);
+        Assert.Contains(
+            "Direct eval invocation semantics",
+            runtimeSourceStaticBlockProof.ReasonContains,
+            StringComparison.Ordinal);
+    }
+
     [Theory]
     [MemberData(nameof(ProofIds))]
     public async Task ProofRows_Hold(string proofId)

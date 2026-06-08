@@ -1949,9 +1949,9 @@
       ]
     },
     {
-      "id": "E5",
-      "title": "ExecutionPlanRunner tier-2 IR evaluation remains reachable from classified fallback paths",
-      "status": "open",
+      "id": "E5a",
+      "title": "Eligible static-block bodies route before runner fallback",
+      "status": "done",
       "proofs": [
         {
           "id": "E5-static-block-body-routes-when-eligible",
@@ -1965,7 +1965,14 @@
             "unified-bytecode-production-fast-path func=create argc=1",
             "unified-bytecode-production-fast-path static-block"
           ]
-        },
+        }
+      ]
+    },
+    {
+      "id": "E5b",
+      "title": "ExecutionPlanRunner entrypoints remain finite retirement anchors",
+      "status": "open",
+      "proofs": [
         {
           "id": "E5-ir-runner-type-still-present",
           "childOwner": "E5b-runner-entrypoint-retirement",
@@ -2001,7 +2008,14 @@
           "kind": "source-presence",
           "path": "src/Asynkron.JsEngine/Ast/TypedAstEvaluator.ExecutionPlanRunner.Core.cs",
           "pattern": "ExecuteAsyncStep("
-        },
+        }
+      ]
+    },
+    {
+      "id": "E5c",
+      "title": "Script and static-block fallback calls remain finite runner-retirement anchors",
+      "status": "open",
+      "proofs": [
         {
           "id": "E5-script-ir-fallback-still-runs-execution-plan-runner",
           "childOwner": "E5c-script-and-static-block-fallback-retirement",
@@ -2019,7 +2033,14 @@
           "kind": "source-presence",
           "path": "src/Asynkron.JsEngine/Ast/ClassDefinitionExtensions.cs",
           "pattern": "ExecutionPlanRunner.RunScript("
-        },
+        }
+      ]
+    },
+    {
+      "id": "E5d",
+      "title": "Function and resumable declined-body runner fallbacks remain finite retirement anchors",
+      "status": "open",
+      "proofs": [
         {
           "id": "E5-function-runner-fallback-still-constructs-runner",
           "childOwner": "E5d-function-and-resumable-declined-body-runner-retirement",
@@ -2046,10 +2067,17 @@
           "kind": "source-presence",
           "path": "src/Asynkron.JsEngine/Ast/TypedAstEvaluator.AsyncFunctionInvoker.cs",
           "pattern": "ExecuteAsyncStep("
-        },
+        }
+      ]
+    },
+    {
+      "id": "E5e",
+      "title": "Terminal dynamic residue remains excluded from ordinary runner retirement",
+      "status": "open",
+      "proofs": [
         {
           "id": "E5-terminal-dynamic-residue-excluded-from-ordinary-runner-retirement",
-          "childOwner": "E5-residue-exclusion-boundary",
+          "childOwner": "E5e-residue-exclusion-boundary",
           "classification": "terminal dynamic residue includes runtime-source/multi-arg/spread/declaration direct eval, eval-injected bindings, awaited with-object evaluation, retained live with scopes, and Function-produced bodies; it belongs to A2/D1/D2/D3/D4-style quarantine rows, not ordinary E5 runner retirement",
           "claim": "hard-quarantined",
           "kind": "source-presence",

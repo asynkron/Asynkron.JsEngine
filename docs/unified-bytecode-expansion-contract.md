@@ -664,8 +664,11 @@ diagnostics are gone.
   plain statement free stores now enable the ordinary dynamic-name route
   through `LoadDynamicIdentifier`, `TypeOfDynamicIdentifier`,
   `ResolveDynamicIdentifierReference`, and `StoreDynamicIdentifierReference`,
-  matching the existing free-call-target exception-region scan. Consumed
-  assignment references, updates, compound/logical writes, deletes, lexical
+  matching the existing free-call-target exception-region scan. The ordinary
+  expression loop already owns dynamic assignment references, updates,
+  compound/logical writes, and deletes once that route is enabled; A51f3 keeps
+  consumed assignment references, updates, compound/logical writes, and deletes
+  gated only as zero-depth catch/finally route-enabling evidence. Lexical
   dynamic declarations, active-with-only shapes, and materialized-activation
   dynamic-name ownership remain gated.
 - `A51f4:ImplicitArgumentsExpressionLoop` - closed. Implicit `arguments`

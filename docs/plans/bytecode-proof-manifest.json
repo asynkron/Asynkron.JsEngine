@@ -430,6 +430,20 @@
           "pattern": "Unsupported logical control-expression operand in simple literal span."
         },
         {
+          "id": "A51h-conditional-consequent-boundary-stays-open",
+          "claim": "open",
+          "kind": "source-presence",
+          "path": "src/Asynkron.JsEngine/Execution/UnifiedBytecode/UnifiedBytecodeCompiler.cs",
+          "pattern": "Unsupported conditional consequent in simple literal span."
+        },
+        {
+          "id": "A51h-conditional-alternate-boundary-stays-open",
+          "claim": "open",
+          "kind": "source-presence",
+          "path": "src/Asynkron.JsEngine/Execution/UnifiedBytecode/UnifiedBytecodeCompiler.cs",
+          "pattern": "Unsupported conditional alternate in simple literal span."
+        },
+        {
           "id": "A51h-template-literal-span-boundary-stays-open",
           "claim": "open",
           "kind": "source-presence",
@@ -456,20 +470,6 @@
           "kind": "source-presence",
           "path": "src/Asynkron.JsEngine/Execution/UnifiedBytecode/UnifiedBytecodeCompiler.cs",
           "pattern": "Unsupported simple operand op '{operation.Kind}'."
-        },
-        {
-          "id": "A51k-conditional-consequent-boundary-stays-open",
-          "claim": "open",
-          "kind": "source-presence",
-          "path": "src/Asynkron.JsEngine/Execution/UnifiedBytecode/UnifiedBytecodeCompiler.cs",
-          "pattern": "Unsupported conditional consequent in simple literal span."
-        },
-        {
-          "id": "A51k-conditional-alternate-boundary-stays-open",
-          "claim": "open",
-          "kind": "source-presence",
-          "path": "src/Asynkron.JsEngine/Execution/UnifiedBytecode/UnifiedBytecodeCompiler.cs",
-          "pattern": "Unsupported conditional alternate in simple literal span."
         }
       ]
     },

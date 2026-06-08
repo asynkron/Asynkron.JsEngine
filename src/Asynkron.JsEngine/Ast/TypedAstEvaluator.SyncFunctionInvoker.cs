@@ -23,6 +23,7 @@ public static partial class TypedAstEvaluator
     {
         private static readonly ObjectPool<HashSet<Symbol>> SymbolSetPool = new(32,
             static () => new HashSet<Symbol>(ReferenceEqualityComparer<Symbol>.Instance));
+        private const int MaxCachedProductionUnifiedBytecodeSlotCount = 64;
         private const byte UnifiedBytecodeEligibilityUnknown = 0;
         private const byte UnifiedBytecodeEligibilityRejected = 1;
         private const byte UnifiedBytecodeEligibilityAccepted = 2;
@@ -120,6 +121,8 @@ public static partial class TypedAstEvaluator
         private ExecutionPlan? _unifiedBytecodeProductionEligibilityPlan;
         private byte _unifiedBytecodeProductionEligibility;
         private UnifiedBytecodeProgram? _unifiedBytecodeProductionProgram;
+        private JsValue[]? _productionUnifiedBytecodeSlotStorage;
+        private int _productionUnifiedBytecodeSlotStorageInUse;
         private ImmutableArray<PrivateNameScope> _capturedPrivateNameScopes = ImmutableArray<PrivateNameScope>.Empty;
         private IJsObjectLike? _homeObject;
         private ImmutableArray<ResolvedClassField> _instanceFields = ImmutableArray<ResolvedClassField>.Empty;
@@ -3070,7 +3073,7 @@ TryCreateSimpleNumericSelfRecursionFastPath(
                 return false;
             }
 
-            var slotStorage = ArrayPool<JsValue>.Shared.Rent(program.SlotCount);
+            var slotStorage = RentProductionUnifiedBytecodeSlots(program.SlotCount, out var returnToPool);
             JsEnvironment? executionEnvironment = null;
             var hasPendingFieldInitialization = false;
             try
@@ -3203,8 +3206,44 @@ TryCreateSimpleNumericSelfRecursionFastPath(
                 }
 
                 ReturnSimpleIrActivationEnvironment(executionEnvironment);
-                ArrayPool<JsValue>.Shared.Return(slotStorage, clearArray: true);
+                ReturnProductionUnifiedBytecodeSlots(slotStorage, program.SlotCount, returnToPool);
             }
+        }
+
+        private JsValue[] RentProductionUnifiedBytecodeSlots(int slotCount, out bool returnToPool)
+        {
+            if (IsClassConstructor &&
+                slotCount <= MaxCachedProductionUnifiedBytecodeSlotCount &&
+                Interlocked.Exchange(ref _productionUnifiedBytecodeSlotStorageInUse, 1) == 0)
+            {
+                var slotStorage = _productionUnifiedBytecodeSlotStorage;
+                if (slotStorage is null || slotStorage.Length < slotCount)
+                {
+                    slotStorage = new JsValue[slotCount];
+                    _productionUnifiedBytecodeSlotStorage = slotStorage;
+                }
+
+                returnToPool = false;
+                return slotStorage;
+            }
+
+            returnToPool = true;
+            return ArrayPool<JsValue>.Shared.Rent(slotCount);
+        }
+
+        private void ReturnProductionUnifiedBytecodeSlots(
+            JsValue[] slotStorage,
+            int slotCount,
+            bool returnToPool)
+        {
+            if (returnToPool)
+            {
+                ArrayPool<JsValue>.Shared.Return(slotStorage, clearArray: true);
+                return;
+            }
+
+            slotStorage.AsSpan(0, slotCount).Clear();
+            Volatile.Write(ref _productionUnifiedBytecodeSlotStorageInUse, 0);
         }
 
         private void CompleteProductionUnifiedBytecodeClassConstructorResult(

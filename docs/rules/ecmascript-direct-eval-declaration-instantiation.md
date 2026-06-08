@@ -77,9 +77,13 @@ and keep `arguments` handling path-specific.
     do not turn the guard into a blanket direct-eval decline. In resumable
     unified-bytecode activation, keep the declaration-free optimization
     route-family scoped: sync generators, async functions, and async generators
-    may admit the literal declaration-free/no-`arguments` subset only when each
-    route family has explicit proof. Arguments-dependent or dynamic-activation
-    direct eval remains open residue until the owning route-family proof exists.
+    may admit the literal declaration-free subset only when each route family
+    has explicit proof. Bounded implicit `arguments` reads are a separate
+    admitted sublane only when the route materializes the arguments object for
+    direct eval and proves the exact family. Explicit `arguments` parameter or
+    body lexical bindings must decline until the VM owns the shadowing semantics.
+    Other dynamic-activation direct eval remains open residue until the owning
+    route-family proof exists.
     Prove the boundary with both eligibility no-route tests for
     declaration-bearing literals and invocation tests that strict direct eval
     declarations stay isolated from the caller while logging no
@@ -98,10 +102,22 @@ and keep `arguments` handling path-specific.
     route-family-specific rows for every admitted resumable declaration-free
     direct-eval family being claimed. Sync admission, sync-generator admission,
     async-function admission, and async-generator settlement are separate proof
-    lanes. Keep arguments-dependent direct eval and dynamic-activation-chain
-    direct eval as open A2 residue unless the slice proves those exact families,
-    and keep declaration-bearing, runtime-source, multi-arg, and spread eval on
-    their existing declined/quarantined rows.
+    lanes. Split bounded implicit-`arguments` direct eval from explicit
+    `arguments` bindings: the implicit lane may be counted admitted only where
+    generator, async, or async-generator proof rows exist, while parameter or
+    body lexical `arguments` shadowing stays open/declined. Keep remaining
+    dynamic-activation-chain direct eval as open A2 residue unless the slice
+    proves those exact families, and keep declaration-bearing, runtime-source,
+    multi-arg, and spread eval on their existing declined/quarantined rows.
+13. When widening resumable direct-eval `arguments` admission, classify the
+    identifier binding owner before routing. A direct eval that reads the
+    implicit function arguments object may route only after the invoker creates
+    the resumable arguments object in the materialized body environment. A
+    direct eval that resolves `arguments` to an explicit parameter or body
+    lexical declaration must decline to IR, because the VM route would otherwise
+    bind the implicit arguments object and shadow the user binding. Prove both
+    the positive implicit route and the negative explicit-binding no-route
+    neighbor.
 
 ## Why
 
@@ -192,6 +208,16 @@ lesson is that route-family proof rows must move with the checklist wording:
 async-generator settlement can be admitted for the declaration-free subset, but
 arguments-dependent and dynamic-activation-chain direct eval remain open A2
 residue until separately proven.
+
+Faktorial issue
+`planitem-gh3377-rebaseline-the-finite-bytecode-retirement-inventory-close-remaini-6ca27edacc`
+/ PR #3474 then proved the bounded implicit-`arguments` sublane for sync
+generators, async functions, and async generators, but review-back caught that
+the same direct-eval source was unsafe when `arguments` was an explicit
+parameter or body lexical binding. The durable lesson is that "contains
+`arguments`" is not enough taxonomy: the route must distinguish implicit
+arguments-object reads from explicit user bindings and keep the shadowing
+neighbor on the IR path.
 
 Related ADRs:
 

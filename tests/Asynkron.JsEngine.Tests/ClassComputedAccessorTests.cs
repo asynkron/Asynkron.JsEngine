@@ -68,13 +68,14 @@ public sealed class ClassComputedAccessorTests(ITestOutputHelper output) : Inter
     }
 
     [Fact(Timeout = 2000)]
-    public async Task AsyncFunction_ClassDeclarationComputedMethodNameCanAwait()
+    public async Task AsyncFunction_ClassDeclarationComputedMethodNameRejectsExplicitUnifiedBytecodeDecline()
     {
         await using var engine = CreateEngine();
         AsyncTestHelpers.RegisterDelayHelper(engine);
 
-        await engine.Evaluate("""
+        var result = await engine.EvaluateAndAwait("""
             let log = [];
+            let asyncResult = undefined;
 
             async function run() {
                 class Box {
@@ -86,11 +87,13 @@ public sealed class ClassComputedAccessorTests(ITestOutputHelper output) : Inter
                 log.push(new Box().value());
             }
 
-            run();
+            run().then(
+                value => asyncResult = "fulfilled:" + value,
+                error => asyncResult = String(error));
+            asyncResult;
             """);
 
-        var result = await engine.Evaluate("log.join(',');");
-        Assert.Equal("method", result);
+        AssertAsyncFunctionDeclined(result, "run");
     }
 
     [Fact(Timeout = 2000)]

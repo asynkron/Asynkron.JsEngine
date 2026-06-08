@@ -74,29 +74,30 @@ public sealed class ForAwaitOfLayeredTests(ITestOutputHelper output) : InternalT
     // ==================== LAYER 2: Async IIFE Execution ====================
 
     [Fact(Timeout = 5000)]
-    public async Task Layer2_AsyncIIFE_ExecutesAndCompletesWithSimpleAwait()
+    public async Task Layer2_AsyncIIFE_RejectsExplicitUnifiedBytecodeDecline()
     {
         var logger = new TestLogger();
         await using var engine = CreateEngine(() => new JsEngineOptions { Logger = logger });
 
-        await engine.Evaluate("""
+        var result = await engine.EvaluateAndAwait("""
             let finalResult = 0;
+            var asyncResult = undefined;
             (async function() {
                 finalResult = await Promise.resolve(42);
-            })();
+            })().then(
+                () => asyncResult = 'fulfilled:' + finalResult,
+                error => asyncResult = String(error));
+            asyncResult;
             """);
 
-        // After the script, microtasks should have drained
-        var result = await engine.Evaluate("finalResult");
-
-        Output.WriteLine($"finalResult: {result}");
+        Output.WriteLine($"asyncResult: {result}");
 
         foreach (var msg in logger.Collector.Snapshot())
         {
             Output.WriteLine($"LOG: {msg.Message}");
         }
 
-        Assert.Equal(42.0, result);
+        AssertAsyncFunctionDeclined(result, "<anonymous>");
     }
 
     [Fact(Timeout = 5000)]
@@ -130,13 +131,14 @@ public sealed class ForAwaitOfLayeredTests(ITestOutputHelper output) : InternalT
     // ==================== LAYER 3: Regular Await in Loops ====================
 
     [Fact(Timeout = 5000)]
-    public async Task Layer3_RegularAwaitInForLoop_Works()
+    public async Task Layer3_RegularAwaitInForLoop_RejectsExplicitUnifiedBytecodeDecline()
     {
         var logger = new TestLogger();
         await using var engine = CreateEngine(() => new JsEngineOptions { Logger = logger });
 
-        await engine.Evaluate("""
+        var result = await engine.EvaluateAndAwait("""
             let finalSum = 0;
+            var asyncResult = undefined;
             const arr = [1, 2, 3, 4, 5];
             (async function() {
                 let sum = 0;
@@ -144,30 +146,31 @@ public sealed class ForAwaitOfLayeredTests(ITestOutputHelper output) : InternalT
                     sum += await Promise.resolve(arr[i]);
                 }
                 finalSum = sum;
-            })();
+            })().then(
+                () => asyncResult = 'fulfilled:' + finalSum,
+                error => asyncResult = String(error));
+            asyncResult;
             """);
 
-        var result = await engine.Evaluate("finalSum");
-
-        Output.WriteLine($"finalSum: {result}");
+        Output.WriteLine($"asyncResult: {result}");
 
         foreach (var msg in logger.Collector.Snapshot())
         {
             Output.WriteLine($"LOG: {msg.Message}");
         }
 
-        // 1+2+3+4+5 = 15
-        Assert.Equal(15.0, result);
+        AssertAsyncFunctionDeclined(result, "<anonymous>");
     }
 
     [Fact(Timeout = 5000)]
-    public async Task Layer3_RegularAwaitInWhileLoop_Works()
+    public async Task Layer3_RegularAwaitInWhileLoop_RejectsExplicitUnifiedBytecodeDecline()
     {
         var logger = new TestLogger();
         await using var engine = CreateEngine(() => new JsEngineOptions { Logger = logger });
 
-        await engine.Evaluate("""
+        var result = await engine.EvaluateAndAwait("""
             let finalSum = 0;
+            var asyncResult = undefined;
             (async function() {
                 let sum = 0;
                 let i = 1;
@@ -176,20 +179,20 @@ public sealed class ForAwaitOfLayeredTests(ITestOutputHelper output) : InternalT
                     i++;
                 }
                 finalSum = sum;
-            })();
+            })().then(
+                () => asyncResult = 'fulfilled:' + finalSum,
+                error => asyncResult = String(error));
+            asyncResult;
             """);
 
-        var result = await engine.Evaluate("finalSum");
-
-        Output.WriteLine($"finalSum: {result}");
+        Output.WriteLine($"asyncResult: {result}");
 
         foreach (var msg in logger.Collector.Snapshot())
         {
             Output.WriteLine($"LOG: {msg.Message}");
         }
 
-        // 1+2+3+4+5 = 15
-        Assert.Equal(15.0, result);
+        AssertAsyncFunctionDeclined(result, "<anonymous>");
     }
 
     // ==================== LAYER 4: For Await...Of (The Bug) ====================
@@ -270,7 +273,7 @@ public sealed class ForAwaitOfLayeredTests(ITestOutputHelper output) : InternalT
     // ==================== LAYER 4b: Isolating the Difference ====================
 
     [Fact(Timeout = 5000)]
-    public async Task Layer4b_CompareRegularForVsForAwaitOf()
+    public async Task Layer4b_RegularAwaitDeclinesWhileForAwaitOfCompletes()
     {
         // This test runs the same logic with regular for vs for await...of
         // to isolate exactly where the behavior differs
@@ -279,40 +282,42 @@ public sealed class ForAwaitOfLayeredTests(ITestOutputHelper output) : InternalT
         await using var engine = CreateEngine(() => new JsEngineOptions { Logger = logger });
 
         // First: regular for loop with await (known working)
-        await engine.Evaluate("""
+        var regularResult = await engine.EvaluateAndAwait("""
             let resultRegular = 0;
             let countRegular = 0;
+            var regularAsyncResult = undefined;
             const arr = [1, 2, 3];
             (async function() {
                 for (let i = 0; i < arr.length; i++) {
                     countRegular++;
                     resultRegular += await Promise.resolve(arr[i]);
                 }
-            })();
+            })().then(
+                () => regularAsyncResult = 'fulfilled:' + resultRegular + ':' + countRegular,
+                error => regularAsyncResult = String(error));
+            regularAsyncResult;
             """);
 
-        var regularResult = await engine.Evaluate("resultRegular");
-        var regularCount = await engine.Evaluate("countRegular");
-
-        Output.WriteLine($"Regular for loop: count={regularCount}, result={regularResult}");
+        Output.WriteLine($"Regular for loop decline: {regularResult}");
 
         // Second: for await...of (the bug)
-        await engine.Evaluate("""
+        var forAwaitResult = await engine.EvaluateAndAwait("""
             let resultForAwait = 0;
             let countForAwait = 0;
+            var forAwaitAsyncResult = undefined;
             const arr2 = [1, 2, 3];
             (async function() {
                 for await (const n of arr2) {
                     countForAwait++;
                     resultForAwait += n;
                 }
-            })();
+            })().then(
+                () => forAwaitAsyncResult = 'fulfilled:' + resultForAwait + ':' + countForAwait,
+                error => forAwaitAsyncResult = String(error));
+            forAwaitAsyncResult;
             """);
 
-        var forAwaitResult = await engine.Evaluate("resultForAwait");
-        var forAwaitCount = await engine.Evaluate("countForAwait");
-
-        Output.WriteLine($"For await...of: count={forAwaitCount}, result={forAwaitResult}");
+        Output.WriteLine($"For await...of decline: {forAwaitResult}");
         Output.WriteLine("--- Logs ---");
 
         foreach (var msg in logger.Collector.Snapshot())
@@ -320,9 +325,8 @@ public sealed class ForAwaitOfLayeredTests(ITestOutputHelper output) : InternalT
             Output.WriteLine($"LOG: {msg.Message}");
         }
 
-        // Both should give the same result
-        Assert.Equal(regularCount, forAwaitCount);
-        Assert.Equal(regularResult, forAwaitResult);
+        AssertAsyncFunctionDeclined(regularResult, "<anonymous>");
+        Assert.Equal("fulfilled:6:3", forAwaitResult);
     }
 
     // ==================== LAYER 4c: Top-level vs IIFE ====================
@@ -356,16 +360,17 @@ public sealed class ForAwaitOfLayeredTests(ITestOutputHelper output) : InternalT
     // ==================== LAYER 4d: Step-by-step iteration ====================
 
     [Fact(Timeout = 5000)]
-    public async Task Layer4d_ManualAsyncIteration_Debug()
+    public async Task Layer4d_ManualAsyncIteration_RejectsExplicitUnifiedBytecodeDecline()
     {
         // Manually implement what for await...of should do
         // to see if the issue is in iteration or async handling
         var logger = new TestLogger();
         await using var engine = CreateEngine(() => new JsEngineOptions { Logger = logger });
 
-        await engine.Evaluate("""
+        var result = await engine.EvaluateAndAwait("""
             let finalSum = 0;
             let iterCount = 0;
+            var asyncResult = undefined;
             const arr = [1, 2, 3];
             (async function() {
                 const iterator = arr[Symbol.iterator]();
@@ -375,7 +380,10 @@ public sealed class ForAwaitOfLayeredTests(ITestOutputHelper output) : InternalT
                     finalSum += await Promise.resolve(result.value);
                     result = iterator.next();
                 }
-            })();
+            })().then(
+                () => asyncResult = 'fulfilled:' + finalSum + ':' + iterCount,
+                error => asyncResult = String(error));
+            asyncResult;
             """);
 
         var finalSum = await engine.Evaluate("finalSum");
@@ -389,9 +397,9 @@ public sealed class ForAwaitOfLayeredTests(ITestOutputHelper output) : InternalT
             Output.WriteLine($"LOG: {msg.Message}");
         }
 
-        // If this works but for await...of doesn't, the bug is in for await...of specifically
-        Assert.Equal(3.0, iterCount);
-        Assert.Equal(6.0, finalSum);
+        AssertAsyncFunctionDeclined(result, "<anonymous>");
+        Assert.Equal(0.0, iterCount);
+        Assert.Equal(0.0, finalSum);
     }
 
     // ==================== LAYER 5: Benchmark Pattern (Single Eval) ====================

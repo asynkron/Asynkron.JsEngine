@@ -97,17 +97,13 @@ public sealed class UnifiedBytecodeAsyncGeneratorRouteTests(ITestOutputHelper ou
                 return x + 2;
             }
 
-            async function run() {
-                var iterator = values(4);
-                var first = await iterator.next();
-                var second = await iterator.next();
-                var third = await iterator.next();
-                return first.value + ":" + first.done + "|" +
-                    second.value + ":" + second.done + "|" +
-                    third.value + ":" + third.done;
-            }
-
-            run().then(value => output = value);
+            var iterator = values(4);
+            iterator.next().then(first =>
+                iterator.next().then(second =>
+                    iterator.next().then(third =>
+                        output = first.value + ":" + first.done + "|" +
+                            second.value + ":" + second.done + "|" +
+                            third.value + ":" + third.done)));
             output;
             """);
 
@@ -134,34 +130,30 @@ public sealed class UnifiedBytecodeAsyncGeneratorRouteTests(ITestOutputHelper ou
                 [Symbol.asyncIterator]() {
                     var index = 0;
                     return {
-                        async next(value) {
+                        next(value) {
                             calls.push("next:" + String(value));
                             if (index === 0) {
                                 index = 1;
-                                return { value: "first", done: false };
+                                return Promise.resolve({ value: "first", done: false });
                             }
                             if (index === 1) {
                                 index = 2;
-                                return { value: "second:" + value, done: false };
+                                return Promise.resolve({ value: "second:" + value, done: false });
                             }
-                            return { value: "done:" + value, done: true };
+                            return Promise.resolve({ value: "done:" + value, done: true });
                         }
                     };
                 }
             }
 
-            async function run() {
-                var iterator = relay(delegated);
-                var first = await iterator.next("ignored");
-                var second = await iterator.next("sent");
-                var third = await iterator.next("final");
-                return first.value + ":" + first.done + "|" +
-                    second.value + ":" + second.done + "|" +
-                    third.value + ":" + third.done + "|" +
-                    calls.join(",");
-            }
-
-            run().then(value => output = value);
+            var iterator = relay(delegated);
+            iterator.next("ignored").then(first =>
+                iterator.next("sent").then(second =>
+                    iterator.next("final").then(third =>
+                        output = first.value + ":" + first.done + "|" +
+                            second.value + ":" + second.done + "|" +
+                            third.value + ":" + third.done + "|" +
+                            calls.join(","))));
             output;
             """);
 
@@ -188,34 +180,30 @@ public sealed class UnifiedBytecodeAsyncGeneratorRouteTests(ITestOutputHelper ou
                 [Symbol.asyncIterator]() {
                     var index = 0;
                     return {
-                        async next(value) {
+                        next(value) {
                             calls.push("next:" + String(value));
                             if (index === 0) {
                                 index = 1;
-                                return { value: "first", done: false };
+                                return Promise.resolve({ value: "first", done: false });
                             }
                             if (index === 1) {
                                 index = 2;
-                                return { value: "second:" + value, done: false };
+                                return Promise.resolve({ value: "second:" + value, done: false });
                             }
-                            return { value: "done:" + value, done: true };
+                            return Promise.resolve({ value: "done:" + value, done: true });
                         }
                     };
                 }
             };
 
-            async function run() {
-                var iterator = relay(Promise.resolve(delegated));
-                var first = await iterator.next("ignored");
-                var second = await iterator.next("sent");
-                var third = await iterator.next("final");
-                return first.value + ":" + first.done + "|" +
-                    second.value + ":" + second.done + "|" +
-                    third.value + ":" + third.done + "|" +
-                    calls.join(",");
-            }
-
-            run().then(value => output = value);
+            var iterator = relay(Promise.resolve(delegated));
+            iterator.next("ignored").then(first =>
+                iterator.next("sent").then(second =>
+                    iterator.next("final").then(third =>
+                        output = first.value + ":" + first.done + "|" +
+                            second.value + ":" + second.done + "|" +
+                            third.value + ":" + third.done + "|" +
+                            calls.join(","))));
             output;
             """);
 
@@ -245,16 +233,12 @@ public sealed class UnifiedBytecodeAsyncGeneratorRouteTests(ITestOutputHelper ou
                 }
             }
 
-            async function run() {
-                var iterator = gen();
-                var first = await iterator.next();
-                var second = await iterator.next();
-                return first.value + ":" + first.done + "|" +
-                    String(second.value) + ":" + second.done + "|" +
-                    log.join("|");
-            }
-
-            run().then(value => output = value);
+            var iterator = gen();
+            iterator.next().then(first =>
+                iterator.next().then(second =>
+                    output = first.value + ":" + first.done + "|" +
+                        String(second.value) + ":" + second.done + "|" +
+                        log.join("|")));
             output;
             """);
 
@@ -331,7 +315,7 @@ public sealed class UnifiedBytecodeAsyncGeneratorRouteTests(ITestOutputHelper ou
     public async Task AsyncGeneratorNonSimpleParameter_DeclinesUnifiedRouteThenFailsExplicitly()
     {
         await using var engine = CreateEngine();
-        var result = await engine.EvaluateAndAwait("""
+        var exception = await Assert.ThrowsAsync<NotSupportedException>(() => engine.EvaluateAndAwait("""
             var output = undefined;
             var events = [];
 
@@ -340,20 +324,13 @@ public sealed class UnifiedBytecodeAsyncGeneratorRouteTests(ITestOutputHelper ou
                 yield x;
             }
 
-            async function run() {
-                var iterator = values();
-                var first = await iterator.next();
-                return first.value + ":" + first.done + "|" + events.join(",");
-            }
-
-            run().then(
+            values().next().then(
                 value => output = "resolved:" + value,
                 error => output = "rejected:" + events.join(",") + "|" + String(error));
             output;
-            """);
+            """));
 
-        Assert.StartsWith("rejected:|", result?.ToString(), StringComparison.Ordinal);
-        Assert.Contains("Non-simple async-generator parameter lists", result?.ToString(), StringComparison.Ordinal);
+        Assert.Contains("Non-simple async-generator parameter lists", exception.Message, StringComparison.Ordinal);
         Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(),
             record => record.Message.Contains("async-generator-runner-fallback", StringComparison.Ordinal));
     }

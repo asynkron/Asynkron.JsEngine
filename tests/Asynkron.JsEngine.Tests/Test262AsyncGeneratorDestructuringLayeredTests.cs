@@ -55,7 +55,7 @@ public sealed class Test262AsyncGeneratorDestructuringLayeredTests(ITestOutputHe
     public async Task Layer3_AsyncGeneratorClassDestructuringMethod_DeclinesUnifiedRouteThenFailsExplicitly()
     {
         await using var engine = CreateEngine();
-        var result = await engine.EvaluateAndAwait("""
+        var exception = await Assert.ThrowsAsync<NotSupportedException>(() => engine.EvaluateAndAwait("""
             var callCount = 0;
             var output = undefined;
             class C {
@@ -64,20 +64,13 @@ public sealed class Test262AsyncGeneratorDestructuringLayeredTests(ITestOutputHe
                 }
             }
 
-            async function run() {
-                var iterator = new C().method();
-                await iterator.next();
-                return callCount;
-            }
-
-            run().then(
-                value => output = "resolved:" + value,
+            new C().method().next().then(
+                value => output = "resolved:" + callCount,
                 error => output = "rejected:" + String(error));
             output;
-            """);
+            """));
 
-        Assert.StartsWith("rejected:", result?.ToString(), StringComparison.Ordinal);
-        Assert.Contains("Non-simple async-generator parameter lists", result?.ToString(), StringComparison.Ordinal);
+        Assert.Contains("Non-simple async-generator parameter lists", exception.Message, StringComparison.Ordinal);
         Assert.DoesNotContain(
             CurrentLogger!.Collector.Snapshot(),
             record => record.Message.Contains("async-generator-runner-fallback", StringComparison.Ordinal));
@@ -108,7 +101,7 @@ public sealed class Test262AsyncGeneratorDestructuringLayeredTests(ITestOutputHe
     }
 
     [Fact(Timeout = 5000)]
-    public async Task Layer5_AsyncFunctionForAwaitDestructuringBody_RuntimeStillPasses()
+    public async Task Layer5_AsyncFunctionForAwaitDestructuringBody_RejectsExplicitUnifiedBytecodeDecline()
     {
         await using var engine = CreateEngine();
         var result = await engine.EvaluateAndAwait("""
@@ -126,11 +119,13 @@ public sealed class Test262AsyncGeneratorDestructuringLayeredTests(ITestOutputHe
                 return iterCount;
             }
 
-            run().then(value => output = value);
+            run().then(
+                value => output = 'fulfilled:' + value,
+                error => output = String(error));
             output;
             """);
 
-        Assert.Equal(1d, result);
+        AssertAsyncFunctionDeclined(result, "run");
     }
 
     private static ExecutionPlan GetFunctionPlan(string source, string functionName)

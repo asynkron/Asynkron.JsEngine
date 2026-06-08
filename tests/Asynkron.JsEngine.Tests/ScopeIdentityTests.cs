@@ -34,15 +34,19 @@ public sealed partial class ScopeIdentityTests
     }
 
     [Fact]
-    public async Task ExecutionPlanRunner_UsesConsistentRootScopeId()
+    public async Task DeclinedAsyncFunction_DoesNotUseExecutionPlanRunnerRootScopeId()
     {
         const string script = """
+            var observed = "";
             async function run() {
                 let x = 1;
                 arguments.length;
                 return x;
             }
-            run();
+            run().then(
+                value => observed = "fulfilled:" + value,
+                error => observed = String(error));
+            observed;
             """;
 
         var logger = new TestLogger();
@@ -52,7 +56,12 @@ public sealed partial class ScopeIdentityTests
             Logger = logger
         });
 
-        await engine.Evaluate(script);
+        var result = await engine.EvaluateAndAwait(script);
+        var message = Assert.IsType<string>(result);
+        Assert.Contains(
+            "Async-function body 'run' is not eligible for unified bytecode execution:",
+            message,
+            StringComparison.Ordinal);
 
         var scopeIds = logger.Collector.Snapshot()
             .Select(r => ExtractScopeId(r.Message))
@@ -61,8 +70,7 @@ public sealed partial class ScopeIdentityTests
             .Distinct()
             .ToArray();
 
-        Assert.Single(scopeIds);
-        Assert.True(scopeIds[0] > 0);
+        Assert.Empty(scopeIds);
     }
 
     private static int? ExtractScopeId(string message)

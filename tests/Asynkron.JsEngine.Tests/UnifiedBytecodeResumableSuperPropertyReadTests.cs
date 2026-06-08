@@ -210,15 +210,11 @@ public sealed class UnifiedBytecodeResumableSuperPropertyReadTests(ITestOutputHe
                 }
             }
 
-            async function run() {
-                var iterator = new Derived("ag:").read("other", Promise.resolve(0));
-                var first = await iterator.next();
-                var second = await iterator.next();
-                return first.value + ":" + first.done + "|" +
-                    String(second.value) + ":" + second.done;
-            }
-
-            run().then(value => asyncResult = value);
+            var iterator = new Derived("ag:").read("other", Promise.resolve(0));
+            iterator.next().then(first =>
+                iterator.next().then(second =>
+                    asyncResult = first.value + ":" + first.done + "|" +
+                        String(second.value) + ":" + second.done));
             asyncResult;
             """);
 

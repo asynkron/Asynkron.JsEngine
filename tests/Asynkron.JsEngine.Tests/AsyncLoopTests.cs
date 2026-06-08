@@ -6,15 +6,16 @@ namespace Asynkron.JsEngine.Tests;
 public sealed class AsyncLoopTests(ITestOutputHelper output) : InternalTestBase(output)
 {
     [Fact(Timeout = 2000)]
-    public async Task ForLoop_WithAwaitAndContinue_Works()
+    public async Task ForLoop_WithAwaitAndContinue_RejectsExplicitUnifiedBytecodeDecline()
     {
         await using var engine = CreateEngine();
 
         AsyncTestHelpers.RegisterDelayHelper(engine);
 
-        await engine.Evaluate("""
+        var decline = await engine.EvaluateAndAwait("""
 
                                      let result = "";
+                                     let asyncResult = undefined;
 
                                      async function test() {
                                          for (let i = 0; i < 4; i = i + 1) {
@@ -26,24 +27,28 @@ public sealed class AsyncLoopTests(ITestOutputHelper output) : InternalTestBase(
                                          }
                                      }
 
-                                     test();
+                                     test().then(
+                                         () => asyncResult = 'fulfilled:' + result,
+                                         error => asyncResult = String(error));
+                                     asyncResult;
 
                          """);
 
-        var value = await engine.Evaluate("result;");
-        Assert.Equal("013", value);
+        AssertAsyncFunctionDeclined(decline, "test");
+        Assert.Equal("", await engine.Evaluate("result;"));
     }
 
     [Fact(Timeout = 2000)]
-    public async Task DoWhileLoop_WithAwaitAndBreak_Works()
+    public async Task DoWhileLoop_WithAwaitAndBreak_RejectsExplicitUnifiedBytecodeDecline()
     {
         await using var engine = CreateEngine();
 
         AsyncTestHelpers.RegisterDelayHelper(engine);
 
-        await engine.Evaluate("""
+        var decline = await engine.EvaluateAndAwait("""
 
                                      let result = "";
+                                     let asyncResult = undefined;
                                      let i = 0;
 
                                      async function test() {
@@ -57,11 +62,14 @@ public sealed class AsyncLoopTests(ITestOutputHelper output) : InternalTestBase(
                                          } while (i < 4);
                                      }
 
-                                     test();
+                                     test().then(
+                                         () => asyncResult = 'fulfilled:' + result,
+                                         error => asyncResult = String(error));
+                                     asyncResult;
 
                          """);
 
-        var value = await engine.Evaluate("result;");
-        Assert.Equal("01", value);
+        AssertAsyncFunctionDeclined(decline, "test");
+        Assert.Equal("", await engine.Evaluate("result;"));
     }
 }

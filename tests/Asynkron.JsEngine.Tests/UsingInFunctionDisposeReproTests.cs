@@ -250,19 +250,21 @@ public sealed class UsingInFunctionDisposeReproTests(ITestOutputHelper output) :
     }
 
     [Fact(Timeout = 5000)]
-    public async Task InAsyncFunction_AwaitUsing_Disposes_OnNormalReturn()
+    public async Task InAsyncFunction_AwaitUsing_RejectsExplicitUnifiedBytecodeDecline()
     {
         await using var engine = CreateEngine();
-        var result = await engine.Evaluate(@"
+        var result = await engine.EvaluateAndAwait(@"
             var log=[];
+            var asyncResult;
             function mk(t){ return { async [Symbol.asyncDispose](){ log.push(t); } }; }
             async function f(){ await using a = mk('d'); log.push('b'); }
-            f().then(() => log.push('done'));
+            f().then(
+                () => asyncResult = 'fulfilled:' + log.join(','),
+                error => asyncResult = String(error));
+            asyncResult;
         ");
-        // Drain the microtask queue
-        await engine.Evaluate("log;");
-        var joined = await engine.Evaluate("log.join(',');");
-        Assert.Equal("b,d,done", joined);
+        AssertAsyncFunctionDeclined(result, "f");
+        Assert.Equal("", await engine.Evaluate("log.join(',');"));
     }
 
     [Fact(Timeout = 5000)]

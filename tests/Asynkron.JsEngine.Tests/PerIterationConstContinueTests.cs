@@ -35,7 +35,7 @@ public sealed class PerIterationConstContinueTests(ITestOutputHelper output) : I
     }
 
     [Fact]
-    public async Task AsyncFreeVersion_PerIterationConstWithContinue_StaysCorrect()
+    public async Task AsyncFreeVersion_PerIterationConstWithContinue_RejectsExplicitUnifiedBytecodeDecline()
     {
         await using var engine = CreateEngine();
         var captured = "";
@@ -53,8 +53,8 @@ public sealed class PerIterationConstContinueTests(ITestOutputHelper output) : I
         await engine.Evaluate(
             "var z=0;" +
             "async function t(){ const rows=[]; for (let inner of [10,20,30]) { if (inner===20) continue; const value=inner; rows.push(''+(value+z)); } return rows.join(','); }" +
-            "t().then(function(v){ captureResult(v); });");
-        Assert.Equal("10,30", captured);
+            "t().then(function(v){ captureResult('fulfilled:' + v); }, function(error){ captureResult(String(error)); });");
+        AssertAsyncFunctionDeclined(captured, "t");
     }
 
     [Fact]

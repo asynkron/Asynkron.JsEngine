@@ -2532,17 +2532,13 @@ public sealed class UnifiedBytecodeResumableClassDeclarationTests(ITestOutputHel
                 yield box.value;
             }
 
-            async function run() {
-                var iterator = values(8);
-                var first = await iterator.next();
-                var second = await iterator.next();
-                var third = await iterator.next();
-                return first.value + ":" + first.done + "|" +
-                    second.value + ":" + second.done + "|" +
-                    String(third.value) + ":" + third.done;
-            }
-
-            run().then(value => output = value);
+            var iterator = values(8);
+            iterator.next().then(first =>
+                iterator.next().then(second =>
+                    iterator.next().then(third =>
+                        output = first.value + ":" + first.done + "|" +
+                            second.value + ":" + second.done + "|" +
+                            String(third.value) + ":" + third.done)));
             output;
             """);
 

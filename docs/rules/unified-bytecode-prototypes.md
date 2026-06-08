@@ -831,6 +831,23 @@ all-or-nothing until a separate routing issue proves production readiness.
      `ExpressionProgramCoverageMapTests` audits on current main changed several
      documented rows and corrected the A/B/C checklist counts without changing
      runtime behavior.
+11d. When rebaselining A51 compiler-decline proof-manifest rows, preserve the
+     semantic owner split even when multiple rows point at the same compiler
+     file or a similar diagnostic template. A source-presence row is evidence
+     that a named boundary is still intentionally open; it is not permission to
+     collapse literal/span helper diagnostics into operand-span helper
+     diagnostics, or to treat call/private/dynamic-neighbor operand residue as
+     covered by a broad literal/span bucket. Keep each proof row named for the
+     helper family and owner leaf it actually guards, mirror that wording in
+     `docs/unified-bytecode-expansion-contract.md` and
+     `docs/plans/bytecode-burndown-checklist.md`, and leave the row open until
+     a later delivery replaces the source anchor with executable admitted or
+     retired-fallback proof. WHY: Faktorial issue
+     `planitem-planitem-planitem-gh3377-rebaseline-the-finite-bytecode-retirement-inven-6da9185587`
+     / PR #3403 rechecked the A51h/A51k batch closeout and added current
+     source-presence manifest rows for literal/span boundaries separately from
+     operand-span boundaries, preventing future agents from flattening the
+     remaining open diagnostics during finite inventory rebaselines.
 12. When defining property-read production eligibility, keep candidate
     recognition separate from VM acceptance until the same slice adds compiler
     opcodes, VM semantics, route-priority proof, and negative no-route tests.

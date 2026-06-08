@@ -2360,7 +2360,15 @@
           "claim": "hard-quarantined",
           "kind": "source-presence",
           "path": "docs/plans/bytecode-burndown-checklist.md",
-          "pattern": "direct eval with runtime-source, multi-arg, spread, or declaration-injecting"
+          "patterns": [
+            "Terminal dynamic residue remains excluded from ordinary runner retirement",
+            "direct eval with runtime-source, multi-arg, spread, or declaration-injecting",
+            "awaited-with object evaluation",
+            "retained live `with` scopes outside the VM current-environment lane",
+            "eval-injected runtime bindings",
+            "`Function(...)`-produced bodies",
+            "A2/D1/D2/D3/D4-style quarantine boundaries outside ordinary E5 runner retirement"
+          ]
         }
       ]
     },

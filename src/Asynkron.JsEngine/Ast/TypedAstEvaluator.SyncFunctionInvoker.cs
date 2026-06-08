@@ -1958,14 +1958,14 @@ TryCreateSimpleNumericSelfRecursionFastPath(
                         }
 
                         var runner = IsClassConstructor
-                            ? CreateClassConstructorFallbackRunner(
+                            ? CreateClassifiedClassConstructorFallbackRunner(
                                 arguments,
                                 constructorThisValue,
                                 effectiveNewTarget,
                                 plan,
                                 context,
                                 constructErrorRealm)
-                            : CreateOrdinarySyncFunctionFallbackRunner(
+                            : CreateClassifiedOrdinarySyncFunctionFallbackRunner(
                                 arguments,
                                 constructorThisValue,
                                 effectiveNewTarget,
@@ -2871,27 +2871,14 @@ TryCreateSimpleNumericSelfRecursionFastPath(
                     newTarget,
                     plan);
 
-                var runner = new ExecutionPlanRunner(
-                    _function,
-                    _closure,
+                var runner = CreateClassifiedClassConstructorFallbackRunner(
                     Array.Empty<JsValue>(),
                     thisValue,
-                    this,
-                    RealmState,
-                    _isStrict,
-                    _hasFunctionNameEnvironment,
-                    _homeObject,
-                    PrivateNameScope,
-                    _capturedPrivateNameScopes,
                     newTarget,
-                    _lexicalThisEnvironment,
-                    _superConstructor,
-                    _superPrototype,
+                    plan,
                     context,
-                    derivedClassErrorRealm: constructErrorRealm,
-                    planOverride: plan,
-                    planFailureOverride: _planSeed.Failure,
-                    executionEnvironmentOverride: executionEnvironment);
+                    constructErrorRealm,
+                    executionEnvironment);
 
                 result = runner.RunSync();
                 return true;
@@ -2979,27 +2966,14 @@ TryCreateSimpleNumericSelfRecursionFastPath(
                     }
                 }
 
-                var runner = new ExecutionPlanRunner(
-                    _function,
-                    _closure,
+                var runner = CreateClassifiedClassConstructorFallbackRunner(
                     Array.Empty<JsValue>(),
                     constructorThisValue,
-                    this,
-                    RealmState,
-                    _isStrict,
-                    _hasFunctionNameEnvironment,
-                    _homeObject,
-                    PrivateNameScope,
-                    _capturedPrivateNameScopes,
                     newTarget,
-                    _lexicalThisEnvironment,
-                    _superConstructor,
-                    _superPrototype,
+                    plan,
                     context,
-                    derivedClassErrorRealm: constructErrorRealm,
-                    planOverride: plan,
-                    planFailureOverride: _planSeed.Failure,
-                    executionEnvironmentOverride: executionEnvironment);
+                    constructErrorRealm,
+                    executionEnvironment);
 
                 result = runner.RunSync();
                 return true;
@@ -3016,7 +2990,7 @@ TryCreateSimpleNumericSelfRecursionFastPath(
             }
         }
 
-        private ExecutionPlanRunner CreateOrdinarySyncFunctionFallbackRunner<TArgs>(
+        private ExecutionPlanRunner CreateClassifiedOrdinarySyncFunctionFallbackRunner<TArgs>(
             TArgs arguments,
             JsValue thisValue,
             JsValue newTarget,
@@ -3047,13 +3021,14 @@ TryCreateSimpleNumericSelfRecursionFastPath(
                 planFailureOverride: _planSeed.Failure);
         }
 
-        private ExecutionPlanRunner CreateClassConstructorFallbackRunner<TArgs>(
+        private ExecutionPlanRunner CreateClassifiedClassConstructorFallbackRunner<TArgs>(
             TArgs arguments,
             JsValue thisValue,
             JsValue newTarget,
             ExecutionPlan plan,
             EvaluationContext context,
-            RealmState constructErrorRealm)
+            RealmState constructErrorRealm,
+            JsEnvironment? executionEnvironmentOverride = null)
             where TArgs : IReadOnlyList<JsValue>
         {
             return new ExecutionPlanRunner(
@@ -3075,7 +3050,8 @@ TryCreateSimpleNumericSelfRecursionFastPath(
                 context,
                 derivedClassErrorRealm: constructErrorRealm,
                 planOverride: plan,
-                planFailureOverride: _planSeed.Failure);
+                planFailureOverride: _planSeed.Failure,
+                executionEnvironmentOverride: executionEnvironmentOverride);
         }
 
         private bool TryInvokeProductionUnifiedBytecode<TArgs>(

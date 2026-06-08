@@ -85,6 +85,30 @@ public sealed partial class BytecodeProofManifestTests(ITestOutputHelper output)
         Assert.Contains("not ordinary E5c script fallback retirement", proof.Classification, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void Manifest_ClassConstructorFallback_IsSplitFromOrdinarySyncFunctionFallback()
+    {
+        var proofs = LoadManifest()
+            .Items
+            .SelectMany(static item => item.Proofs)
+            .ToDictionary(static proof => proof.Id, StringComparer.Ordinal);
+
+        var ordinaryProof = proofs["E5-function-runner-fallback-still-constructs-runner"];
+        var classConstructorProof = proofs["E5-class-constructor-runner-fallback-still-constructs-runner"];
+
+        Assert.Equal(
+            "CreateClassifiedOrdinarySyncFunctionFallbackRunner",
+            ordinaryProof.Pattern);
+        Assert.Contains("not class-constructor initialization residue", ordinaryProof.Classification, StringComparison.Ordinal);
+
+        Assert.Equal("E5d-class-constructor-initialization-residue", classConstructorProof.ChildOwner);
+        Assert.Equal(
+            "CreateClassifiedClassConstructorFallbackRunner",
+            classConstructorProof.Pattern);
+        Assert.Contains("explicit class-constructor fallback runner construction residue", classConstructorProof.Classification, StringComparison.Ordinal);
+        Assert.Contains("not ordinary sync function fallback retirement", classConstructorProof.Classification, StringComparison.Ordinal);
+    }
+
     [Theory]
     [MemberData(nameof(ProofIds))]
     public async Task ProofRows_Hold(string proofId)

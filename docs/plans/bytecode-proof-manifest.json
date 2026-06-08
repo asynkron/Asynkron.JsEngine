@@ -2226,17 +2226,26 @@
     },
     {
       "id": "E5d",
-      "title": "Function and resumable declined-body runner fallbacks remain finite retirement anchors",
+      "title": "Function, class-constructor, and resumable declined-body runner fallbacks remain finite retirement anchors",
       "status": "open",
       "proofs": [
         {
           "id": "E5-function-runner-fallback-still-constructs-runner",
           "childOwner": "E5d-function-and-resumable-declined-body-runner-retirement",
-          "classification": "classified ordinary sync function fallback runner construction anchor, excluding class constructor residue",
+          "classification": "ordinary sync function fallback runner construction anchor; not class-constructor initialization residue",
           "claim": "open",
           "kind": "source-presence",
           "path": "src/Asynkron.JsEngine/Ast/TypedAstEvaluator.SyncFunctionInvoker.cs",
-          "pattern": "CreateOrdinarySyncFunctionFallbackRunner("
+          "pattern": "CreateClassifiedOrdinarySyncFunctionFallbackRunner"
+        },
+        {
+          "id": "E5-class-constructor-runner-fallback-still-constructs-runner",
+          "childOwner": "E5d-class-constructor-initialization-residue",
+          "classification": "explicit class-constructor fallback runner construction residue preserving base/derived this, new.target, private brand, and instance-field initialization; not ordinary sync function fallback retirement",
+          "claim": "open",
+          "kind": "source-presence",
+          "path": "src/Asynkron.JsEngine/Ast/TypedAstEvaluator.SyncFunctionInvoker.cs",
+          "pattern": "CreateClassifiedClassConstructorFallbackRunner"
         },
         {
           "id": "E5-sync-generator-declined-body-runner-still-present",

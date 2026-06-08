@@ -313,16 +313,26 @@ all-or-nothing until a separate routing issue proves production readiness.
     or AST delegation. Runtime-source direct eval and otherwise
     non-production-eligible static-block plans stay B24h/B36 residue until the
     broader class-definition environment route owns their eval environment and
-    declaration semantics. Future widening must pair a static-block route hit
-    with nearby classified fallback/no-route proof; do not replace the precise
-    decline with a generic runner edge or a VM-side fallback. WHY: Faktorial
-    issue
+    declaration semantics. Keep the proof manifest split by source owner:
+    B24h computed-member class expressions and B36 direct class declarations
+    both need exact open rows for non-production static-block plans and the
+    shared classified static-block IR fallback instead of one broad
+    static-block residue bucket. Future widening must pair a static-block route
+    hit with nearby classified fallback/no-route proof; do not replace the
+    precise decline with a generic runner edge or a VM-side fallback. WHY:
+    Faktorial issue
     `planitem-planitem-planmanual1780730299657353000-unified-bytecode-remaining-burndo-bbaf44ae93`
     / PR #3372 ratcheted the E5 class static-block bridge by proving eligible
     static blocks attempt production unified bytecode first, while
     runtime-source direct eval remains declined and auditable through the
     classified fallback. Related ADR:
     `docs/adrs/0364-keep-class-static-block-ir-fallback-classified-by-production-decline.md`.
+    Faktorial issue
+    `planitem-planitem-planitem-gh3377-rebaseline-the-finite-bytecode-retirement-inven-3412348f73`
+    / PR #3424 split the B24h static-block residue rows while preserving the
+    adjacent B36 open-row discipline, because the same fallback mechanism does
+    not make computed class expressions and direct class declarations the same
+    checklist owner.
 9k. Treat E4/E5 owner inventories as classification evidence, not closure
     claims. When docs, issue summaries, ADRs, or PR text describe remaining
     `ExpressionProgram` or `ExecutionPlanRunner` reachability, keep the

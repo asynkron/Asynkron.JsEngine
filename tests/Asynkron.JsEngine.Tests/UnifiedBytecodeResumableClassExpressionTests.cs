@@ -2709,6 +2709,28 @@ public sealed class UnifiedBytecodeResumableClassExpressionTests(ITestOutputHelp
             static instruction => instruction.OpCode == UnifiedBytecodeOpCode.LoadClassLiteral);
     }
 
+    [Fact]
+    public void EvaluateResumable_ClassExpressionComputedMemberWithStaticBlockRuntimeSourceDirectEval_DeclinesLoadClassLiteral()
+    {
+        var plan = GetFunctionPlan("""
+            function* g(source) {
+                yield "ready";
+                var C = class {
+                    ["read"]() { return 42; }
+                    static {
+                        eval(source);
+                    }
+                };
+                return C;
+            }
+            """,
+            "g");
+
+        AssertB24hClassLiteralNoRoute(
+            plan,
+            "Class literal static block is outside B24h production routing: Direct eval invocation semantics");
+    }
+
     [Fact(Timeout = 5000)]
     public async Task GeneratorClassExpressionComputedMemberWithStaticBlockDirectEvalLiteral_RoutesResumable()
     {

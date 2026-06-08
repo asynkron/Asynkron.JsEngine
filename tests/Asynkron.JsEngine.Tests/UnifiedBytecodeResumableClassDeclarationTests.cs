@@ -469,6 +469,308 @@ public sealed class UnifiedBytecodeResumableClassDeclarationTests(ITestOutputHel
     }
 
     [Fact]
+    public void EvaluateResumable_ClassDeclarationPrivateInstanceMethod_AdmitsDeclareClass()
+    {
+        var plan = GetFunctionPlan("""
+            function* g() {
+                yield "ready";
+                class Box {
+                    constructor(value) {
+                        this.value = this.#double(value);
+                    }
+
+                    #double(value) {
+                        return value * 2;
+                    }
+                }
+                yield new Box(6).value;
+            }
+            """,
+            "g");
+
+        var result = UnifiedBytecodeProductionEligibility.EvaluateResumable(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor(IsGenerator: true));
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(
+            result.Program.Instructions,
+            static instruction => instruction.OpCode == UnifiedBytecodeOpCode.DeclareClass);
+        Assert.True(UnifiedBytecodeProductionEligibility.PlanNeedsMaterializedResumableClassDeclarationEnvironment(plan));
+    }
+
+    [Fact]
+    public void EvaluateResumable_ClassDeclarationPrivateInstanceAccessor_AdmitsDeclareClass()
+    {
+        var plan = GetFunctionPlan("""
+            function* g() {
+                yield "ready";
+                class Box {
+                    constructor(value) {
+                        this.#stored = value;
+                    }
+
+                    get #stored() {
+                        return this.value + 1;
+                    }
+
+                    set #stored(value) {
+                        this.value = value * 2;
+                    }
+
+                    read() {
+                        return this.#stored;
+                    }
+                }
+                yield new Box(5).value;
+            }
+            """,
+            "g");
+
+        var result = UnifiedBytecodeProductionEligibility.EvaluateResumable(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor(IsGenerator: true));
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(
+            result.Program.Instructions,
+            static instruction => instruction.OpCode == UnifiedBytecodeOpCode.DeclareClass);
+    }
+
+    [Fact]
+    public void EvaluateResumable_ClassDeclarationPrivateInstanceField_StillDeclines()
+    {
+        var plan = GetFunctionPlan("""
+            function* g() {
+                yield "ready";
+                class Box {
+                    #value = 1;
+
+                    read() {
+                        return this.#value;
+                    }
+                }
+                yield typeof Box;
+            }
+            """,
+            "g");
+
+        var result = UnifiedBytecodeProductionEligibility.EvaluateResumable(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor(IsGenerator: true));
+
+        Assert.False(result.IsEligible);
+        Assert.NotEqual(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(
+            "private field is outside B36",
+            result.Reason,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain(
+            result.Program.Instructions,
+            static instruction => instruction.OpCode == UnifiedBytecodeOpCode.DeclareClass);
+    }
+
+    [Fact]
+    public void EvaluateResumable_ClassDeclarationPrivateInstanceMethodCapturesActivation_StillDeclines()
+    {
+        var plan = GetFunctionPlan("""
+            function* g(seed) {
+                yield "ready";
+                class Box {
+                    #value() {
+                        return seed;
+                    }
+
+                    read() {
+                        return this.#value();
+                    }
+                }
+                yield typeof Box;
+            }
+            """,
+            "g");
+
+        var result = UnifiedBytecodeProductionEligibility.EvaluateResumable(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor(IsGenerator: true));
+
+        Assert.False(result.IsEligible);
+        Assert.NotEqual(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(
+            "private member body captures activation binding 'seed'",
+            result.Reason,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain(
+            result.Program.Instructions,
+            static instruction => instruction.OpCode == UnifiedBytecodeOpCode.DeclareClass);
+    }
+
+    [Fact]
+    public void EvaluateResumable_ClassDeclarationPrivateInstanceFieldCapturesActivation_StillDeclines()
+    {
+        var plan = GetFunctionPlan("""
+            function* g(seed) {
+                yield "ready";
+                class Box {
+                    #value = seed;
+
+                    read() {
+                        return this.#value;
+                    }
+                }
+                yield typeof Box;
+            }
+            """,
+            "g");
+
+        var result = UnifiedBytecodeProductionEligibility.EvaluateResumable(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor(IsGenerator: true));
+
+        Assert.False(result.IsEligible);
+        Assert.NotEqual(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(
+            "private field is outside B36",
+            result.Reason,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain(
+            result.Program.Instructions,
+            static instruction => instruction.OpCode == UnifiedBytecodeOpCode.DeclareClass);
+    }
+
+    [Fact]
+    public void EvaluateResumable_ClassDeclarationPrivateStaticMethod_StillDeclines()
+    {
+        var plan = GetFunctionPlan("""
+            function* g() {
+                yield "ready";
+                class Box {
+                    static #value() {
+                        return 1;
+                    }
+
+                    static read() {
+                        return this.#value();
+                    }
+                }
+                yield Box.read();
+            }
+            """,
+            "g");
+
+        var result = UnifiedBytecodeProductionEligibility.EvaluateResumable(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor(IsGenerator: true));
+
+        Assert.False(result.IsEligible);
+        Assert.NotEqual(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.DoesNotContain(
+            result.Program.Instructions,
+            static instruction => instruction.OpCode == UnifiedBytecodeOpCode.DeclareClass);
+    }
+
+    [Fact]
+    public void EvaluateResumable_ClassDeclarationPrivateInstanceMethodWithComputedNeighbor_StillDeclines()
+    {
+        var plan = GetFunctionPlan("""
+            function* g(key) {
+                yield "ready";
+                class Box {
+                    #value() {
+                        return 1;
+                    }
+
+                    [key]() {
+                        return this.#value();
+                    }
+                }
+                yield new Box().value();
+            }
+            """,
+            "g");
+
+        var result = UnifiedBytecodeProductionEligibility.EvaluateResumable(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor(IsGenerator: true));
+
+        Assert.False(result.IsEligible);
+        Assert.NotEqual(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.DoesNotContain(
+            result.Program.Instructions,
+            static instruction => instruction.OpCode == UnifiedBytecodeOpCode.DeclareClass);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task GeneratorPrivateInstanceMemberClassDeclaration_RoutesResumableAndCallsPrivateMethod()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function* g(seed) {
+                yield "ready";
+                class Box {
+                    constructor(value) {
+                        this.value = this.#double(value);
+                    }
+
+                    #double(value) {
+                        return value * 2;
+                    }
+                }
+                yield new Box(seed).value;
+            }
+
+            var iterator = g(6);
+            var first = iterator.next();
+            var second = iterator.next();
+            first.value + ":" + first.done + "|" + second.value + ":" + second.done;
+            """);
+
+        Assert.Equal("ready:false|12:false", result);
+        AssertGeneratorFastPath("g", argc: 1);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task GeneratorPrivateInstanceAccessorClassDeclaration_RoutesResumableAndCallsGetterSetter()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function* g(seed) {
+                yield "ready";
+                class Box {
+                    constructor(value) {
+                        this.#stored = value;
+                    }
+
+                    get #stored() {
+                        return this.value + 1;
+                    }
+
+                    set #stored(value) {
+                        this.value = value * 2;
+                    }
+
+                    read() {
+                        return this.#stored;
+                    }
+                }
+
+                var box = new Box(seed);
+                yield box.read() + ":" + box.value;
+            }
+
+            var iterator = g(6);
+            var first = iterator.next();
+            var second = iterator.next();
+            first.value + ":" + first.done + "|" + second.value + ":" + second.done;
+            """);
+
+        Assert.Equal("ready:false|13:12:false", result);
+        AssertGeneratorFastPath("g", argc: 1);
+    }
+
+    [Fact]
     public void EvaluateResumable_ClassDeclarationExtendsPublicFieldWithSuper_AdmitsDeclareClass()
     {
         var plan = GetFunctionPlan("""

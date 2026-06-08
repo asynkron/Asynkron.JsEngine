@@ -72,6 +72,19 @@ public sealed partial class BytecodeProofManifestTests(ITestOutputHelper output)
         }
     }
 
+    [Fact]
+    public void Manifest_StaticBlockFallback_IsClassifiedDeclinedResidue()
+    {
+        var proof = LoadManifest()
+            .Items
+            .SelectMany(static item => item.Proofs)
+            .Single(static proof => proof.Id == "E5-static-block-ir-fallback-still-runs-execution-plan-runner");
+
+        Assert.Equal("E5-static-block-declined-residue", proof.ChildOwner);
+        Assert.Contains("explicit declined static-block residue", proof.Classification, StringComparison.Ordinal);
+        Assert.Contains("not ordinary E5c script fallback retirement", proof.Classification, StringComparison.Ordinal);
+    }
+
     [Theory]
     [MemberData(nameof(ProofIds))]
     public async Task ProofRows_Hold(string proofId)
@@ -454,6 +467,10 @@ public sealed partial class BytecodeProofManifestTests(ITestOutputHelper output)
     private sealed class ProofManifestProof
     {
         public string Id { get; set; } = string.Empty;
+
+        public string ChildOwner { get; set; } = string.Empty;
+
+        public string Classification { get; set; } = string.Empty;
 
         public string Claim { get; set; } = string.Empty;
 

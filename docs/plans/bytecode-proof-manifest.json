@@ -2033,12 +2033,12 @@
     },
     {
       "id": "E5c",
-      "title": "Script and static-block fallback calls remain finite runner-retirement anchors",
+      "title": "Script fallback remains ordinary runner-retirement while static-block fallback is classified declined residue",
       "status": "open",
       "proofs": [
         {
           "id": "E5-script-ir-fallback-still-runs-execution-plan-runner",
-          "childOwner": "E5c-script-and-static-block-fallback-retirement",
+          "childOwner": "E5c-script-fallback-retirement",
           "classification": "ordinary script IR fallback retirement anchor",
           "claim": "open",
           "kind": "source-presence",
@@ -2047,8 +2047,8 @@
         },
         {
           "id": "E5-static-block-ir-fallback-still-runs-execution-plan-runner",
-          "childOwner": "E5c-script-and-static-block-fallback-retirement",
-          "classification": "classified static-block IR fallback retirement anchor; kept separate from admitted static-block routing",
+          "childOwner": "E5-static-block-declined-residue",
+          "classification": "explicit declined static-block residue after production eligibility declines; not ordinary E5c script fallback retirement",
           "claim": "open",
           "kind": "source-presence",
           "path": "src/Asynkron.JsEngine/Ast/ClassDefinitionExtensions.cs",

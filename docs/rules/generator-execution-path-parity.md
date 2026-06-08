@@ -35,18 +35,29 @@ The JsEngine has two separate generator execution paths:
    Before introducing a new `JsObject`-based path for iterator results in any
    generator execution path, verify that `IteratorResultObject` does not already
    apply. Related ADR: `docs/adrs/0299-reduce-iterator-result-allocation-resumable-generator.md`.
-4. When a sync generator falls back from the resumable unified-bytecode route,
+4. When a sync generator declines the resumable unified-bytecode route,
    distinguish explicit `EvaluateResumable(...)` declines from earlier pre-gate
-   declines. Log classified fallback details only when
-   `EvaluateResumable(...)` produced a `UnifiedBytecodeProductionDeclineCode`;
-   do not manufacture decline codes for non-simple parameters, missing plans, or
-   other pre-gates that did not reach the production-resumable classifier.
+   declines. Only `EvaluateResumable(...)` declines may continue through a
+   residue-specific runner bridge, and that bridge must preserve the production
+   decline code/reason in classified logging. Non-simple parameters, missing
+   plans, root-hoist collection gaps, slot/environment setup failures, and other
+   pre-gates that did not reach the production-resumable classifier must fail
+   explicitly instead of reusing a generic declined-body runner fallback.
    WHY: issue
    `planitem-planitem-planmanual1780730299657353000-unified-bytecode-remaining-burndo-f6a1994d6c`
    added the `classified-sync-generator-ir-fallback` log for
    `OptionalChainDependency` on `o?.[k]()` while keeping non-simple parameter
    fallback unclassified. That preserves the distinction between a classified
    production-resumable boundary and an invocation-shape pre-gate.
+   Issue
+   `planitem-planitem-planitem-gh3377-rebaseline-the-finite-bytecode-retirement-inven-fb95233c60`
+   / PR #3457 then removed the generic sync-generator declined-body runner
+   fallback, renamed the remaining bridge to
+   `CreateClassifiedSyncGeneratorDeclinedResidueRunner(...)`, and updated stale
+   non-simple-parameter tests to expect an explicit `NotSupportedException`.
+   Future sync-generator fallback-retirement slices must source-gate absence of
+   generic runner names and fallback log markers so pre-gate declines cannot
+   quietly regain runner execution.
 5. When an async-generator fallback bridge is retired, update the stale tests in
    the same slice to assert explicit decline failure instead of fallback
    success. Rename affected tests away from `FallsBack...`, assert that the
@@ -82,6 +93,18 @@ The durable decision is to expose the real production-resumable decline code for
 diagnostics, while leaving earlier invocation pre-gates unclassified so future
 burndown work does not confuse missing classifier evidence with an
 `EvaluateResumable` result.
+
+Issue
+`planitem-planitem-planitem-gh3377-rebaseline-the-finite-bytecode-retirement-inven-fb95233c60`
+/ PR #3457 tightened that boundary by removing the generic sync-generator
+declined-body runner fallback. The remaining runner bridge is explicitly
+residue-owned by production eligibility declines; non-simple parameters and
+other pre-gates now fail before a generator object is created. The related proof
+manifest row anchors on
+`CreateClassifiedSyncGeneratorDeclinedResidueRunner(...)`, while source gates
+reject the old `CreateClassifiedGeneratorDeclinedBodyRunner`,
+`CreateClassifiedDeclinedBodyRunner`, and `classified-sync-generator-ir-fallback`
+tokens.
 
 Issue
 `planitem-planmanual1780730299657353000-unified-bytecode-remaining-burndown-05-fal-4aeda4866f`

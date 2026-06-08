@@ -745,6 +745,69 @@
       ]
     },
     {
+      "id": "A51f5",
+      "title": "Private-neighbor expression-loop gaps remain partial",
+      "status": "open",
+      "proofs": [
+        {
+          "id": "A51f5-private-read-operand-eligibility-anchor-present",
+          "claim": "admitted",
+          "kind": "source-presence",
+          "path": "tests/Asynkron.JsEngine.Tests/UnifiedBytecodeProductionEligibilityTests.cs",
+          "pattern": "public void Evaluate_PrivateNamedPropertyReadAsBinaryOperand_AcceptsNamedPropertyOpcode()"
+        },
+        {
+          "id": "A51f5-optional-private-read-eligibility-anchor-present",
+          "claim": "admitted",
+          "kind": "source-presence",
+          "path": "tests/Asynkron.JsEngine.Tests/UnifiedBytecodeProductionEligibilityTests.cs",
+          "pattern": "public void Evaluate_OptionalPrivateNamedPropertyRead_AcceptsOptionalNamedPropertyOpcode()"
+        },
+        {
+          "id": "A51f5-private-receiver-prefix-call-anchor-present",
+          "claim": "admitted",
+          "kind": "source-presence",
+          "path": "tests/Asynkron.JsEngine.Tests/UnifiedBytecodeProductionEligibilityTests.cs",
+          "pattern": "public void Evaluate_PrivateReceiverPrefixNamedCall_AcceptsCallTargetPreparation()"
+        },
+        {
+          "id": "A51f5-private-receiver-prefix-write-anchor-present",
+          "claim": "admitted",
+          "kind": "source-presence",
+          "path": "tests/Asynkron.JsEngine.Tests/UnifiedBytecodeProductionEligibilityTests.cs",
+          "pattern": "public void Evaluate_PrivateReceiverPrefixComputedWrite_AcceptsOwnedPropertyOpcodes()"
+        },
+        {
+          "id": "A51f5-private-receiver-prefix-update-anchor-present",
+          "claim": "admitted",
+          "kind": "source-presence",
+          "path": "tests/Asynkron.JsEngine.Tests/UnifiedBytecodeProductionEligibilityTests.cs",
+          "pattern": "public void Evaluate_PrivateReceiverPrefixComputedUpdate_AcceptsOwnedPropertyOpcodes()"
+        },
+        {
+          "id": "A51f5-private-receiver-prefix-mutation-neighbors-stay-open",
+          "claim": "open",
+          "kind": "source-presence",
+          "path": "tests/Asynkron.JsEngine.Tests/UnifiedBytecodeProductionEligibilityTests.cs",
+          "pattern": "public void Evaluate_PrivateReceiverPrefixCompoundWrite_StillDeclines()"
+        },
+        {
+          "id": "A51f5-private-terminal-write-neighbor-stays-open",
+          "claim": "open",
+          "kind": "source-presence",
+          "path": "tests/Asynkron.JsEngine.Tests/UnifiedBytecodeProductionEligibilityTests.cs",
+          "pattern": "public void Evaluate_PrivateReceiverPrefixPrivateTerminalWrite_StillDeclines()"
+        },
+        {
+          "id": "A51f5-deeper-private-prefix-update-neighbor-stays-open",
+          "claim": "open",
+          "kind": "source-presence",
+          "path": "tests/Asynkron.JsEngine.Tests/UnifiedBytecodeProductionEligibilityTests.cs",
+          "pattern": "public void Evaluate_PrivateReceiverPrefixDeepNamedUpdate_StillDeclines()"
+        }
+      ]
+    },
+    {
       "id": "B24c",
       "title": "Public non-computed static-field class expressions route through LoadClassLiteral",
       "status": "done",

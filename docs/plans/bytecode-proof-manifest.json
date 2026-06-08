@@ -2214,7 +2214,7 @@
           "classifiedCallSites": [
             {
               "childOwner": "E5d-function-and-constructor-runner-fallback",
-              "classification": "ordinary sync declined-body fallback runner execution",
+              "classification": "remaining ordinary sync declined-body fallback runner execution after zero-depth dynamic identifier delete retired to production unified bytecode",
               "path": "src/Asynkron.JsEngine/Ast/TypedAstEvaluator.SyncFunctionInvoker.cs",
               "enclosingMember": "TryInvokeIrFast"
             },
@@ -2307,9 +2307,25 @@
       "status": "open",
       "proofs": [
         {
+          "id": "E5-ordinary-sync-zero-depth-dynamic-identifier-delete-routes",
+          "childOwner": "E5d-function-and-resumable-declined-body-runner-retirement",
+          "classification": "executable zero-depth dynamic identifier delete ordinary sync function body routes through production unified bytecode and no longer reaches the classified ordinary sync fallback runner",
+          "claim": "admitted",
+          "kind": "runtime",
+          "source": "implicitGlobalForDelete = 1;\nfunction deleteImplicitGlobal() {\n  return delete implicitGlobalForDelete;\n}\nvar deleted = deleteImplicitGlobal();\ndeleted + ':' + typeof implicitGlobalForDelete;",
+          "expectedResult": "true:undefined",
+          "requiredLogs": [
+            "unified-bytecode-production-fast-path func=deleteImplicitGlobal argc=0"
+          ],
+          "forbiddenLogs": [
+            "classified-ordinary-sync-function-fallback reason=production-unified-bytecode-declined func=deleteImplicitGlobal",
+            "simple-ir-activation-runner-declined func=deleteImplicitGlobal"
+          ]
+        },
+        {
           "id": "E5-function-runner-fallback-still-constructs-runner",
           "childOwner": "E5d-function-and-resumable-declined-body-runner-retirement",
-          "classification": "ordinary sync function fallback runner construction anchor; not class-constructor initialization residue",
+          "classification": "remaining ordinary sync function fallback runner construction anchor after zero-depth dynamic identifier delete routes through production unified bytecode; not class-constructor initialization residue",
           "claim": "open",
           "kind": "source-presence",
           "path": "src/Asynkron.JsEngine/Ast/TypedAstEvaluator.SyncFunctionInvoker.cs",

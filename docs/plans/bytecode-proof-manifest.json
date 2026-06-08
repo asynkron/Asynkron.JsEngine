@@ -2258,12 +2258,12 @@
         },
         {
           "id": "E5-async-function-ir-step-runner-still-present",
-          "childOwner": "E5d-function-and-resumable-declined-body-runner-retirement",
-          "classification": "ordinary async function IR-step runner retirement anchor",
+          "childOwner": "E5d-async-function-declined-body-runner-residue",
+          "classification": "explicit async-function declined-body runner residue after production eligibility declines; not a generic unnamed ExecuteAsyncStep fallback",
           "claim": "open",
           "kind": "source-presence",
           "path": "src/Asynkron.JsEngine/Ast/TypedAstEvaluator.AsyncFunctionInvoker.cs",
-          "pattern": "ExecuteAsyncStep("
+          "pattern": "CreateClassifiedAsyncDeclinedBodyRunner"
         }
       ]
     },

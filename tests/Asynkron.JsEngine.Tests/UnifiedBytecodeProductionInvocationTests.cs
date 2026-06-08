@@ -1441,6 +1441,33 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     }
 
     [Fact(Timeout = 5000)]
+    public async Task AsyncFunctionDirectEvalDeclaration_LogsClassifiedDeclinedBodyRunnerResidue()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.EvaluateAndAwait("""
+            var asyncResult = undefined;
+            async function run() {
+                eval("var injected = 41;");
+                return injected + 1;
+            }
+
+            run().then(value => asyncResult = value);
+            asyncResult;
+            """);
+
+        Assert.Equal(42d, result);
+        var logs = CurrentLogger!.Collector.Snapshot();
+        Assert.Contains(logs,
+            static record => record.Message.Contains(
+                "classified-async-function-declined-body-runner-residue reason=production-unified-bytecode-declined",
+                StringComparison.Ordinal));
+        Assert.DoesNotContain(logs,
+            static record => record.Message.Contains(
+                "unified-bytecode-resumable-async-fast-path func=run",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task SimpleGeneratorYieldStar_UsesResumableUnifiedBytecodeFastPath()
     {
         await using var engine = CreateEngine();
@@ -10178,7 +10205,9 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
         {
             (
                 Path.Combine("src", "Asynkron.JsEngine", "Ast", "TypedAstEvaluator.AsyncFunctionInvoker.cs"),
-                "private bool TryExecuteUnifiedBytecode(IJsCallable resolve, IJsCallable reject)",
+                "private bool TryExecuteUnifiedBytecode(\n" +
+                "            IJsCallable resolve,\n" +
+                "            IJsCallable reject,",
                 "private bool TryGetExecutionPlan(out ExecutionPlan plan)",
                 "async-function resumable setup accepted path",
                 [
@@ -10230,6 +10259,38 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
             AssertUnifiedBytecodeAcceptedSectionDoesNotDelegate(sectionWithoutRequiredSetup, sectionName);
         }
 
+    }
+
+    [Fact]
+    public void SourceGate_AsyncFunctionDeclinedBodyRunnerResidue_IsExplicitlyClassified()
+    {
+        var repositoryRoot = FindRepositoryRootForSourceGate();
+        var sourcePath = Path.Combine(
+            repositoryRoot.FullName,
+            "src",
+            "Asynkron.JsEngine",
+            "Ast",
+            "TypedAstEvaluator.AsyncFunctionInvoker.cs");
+
+        Assert.True(File.Exists(sourcePath), $"Expected async-function source at '{sourcePath}'.");
+        var source = File.ReadAllText(sourcePath);
+        var helperSection = ExtractRequiredSourceSection(
+            source,
+            "private ExecutionPlanRunner CreateClassifiedAsyncDeclinedBodyRunner(",
+            "private ExecutionPlanRunner CreateExecutionPlanRunner(",
+            "async-function declined-body classified runner residue");
+
+        Assert.Contains("UnifiedBytecodeProductionDeclineCode declineCode", helperSection, StringComparison.Ordinal);
+        Assert.Contains("string declineReason", helperSection, StringComparison.Ordinal);
+        Assert.Contains(
+            "classified-async-function-declined-body-runner-residue reason=production-unified-bytecode-declined",
+            helperSection,
+            StringComparison.Ordinal);
+        Assert.Contains("code={DeclineCode}", helperSection, StringComparison.Ordinal);
+        Assert.Contains("detail={DeclineReason}", helperSection, StringComparison.Ordinal);
+        Assert.Contains("CreateExecutionPlanRunner();", helperSection, StringComparison.Ordinal);
+        Assert.DoesNotContain("ExecuteAsyncStep(", helperSection, StringComparison.Ordinal);
+        Assert.DoesNotContain("CreateClassifiedAsyncDeclinedBodyRunner();", source, StringComparison.Ordinal);
     }
 
     private static DirectoryInfo FindRepositoryRootForSourceGate()

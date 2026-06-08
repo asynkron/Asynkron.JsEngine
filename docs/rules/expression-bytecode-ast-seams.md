@@ -213,6 +213,20 @@ fallback or cleanup.
     classified dynamic residue. Issue #3377 / PR #3446 added this rule after an
     E4 rebaseline needed to distinguish a finite dynamic expression boundary
     from ordinary E4 closure work.
+31. When rebaselining legacy statement or loop `ExecuteDynamic(...)` operands,
+    classify each call site by enclosing member and stable diagnostic label,
+    not only by file-level call count. Statement and loop operands can share the
+    same approved files while representing different semantic payloads such as
+    loop conditions, iterable expressions, return or tail-call operands, switch
+    operands, throw operands, and `with` object operands. Future source gates
+    should compare the full call-site inventory and should keep non-expression
+    statement IR fallback, static-block/script runner fallback, and resumable
+    runner fallback in the E5 owner rows unless a separate proof changes those
+    boundaries. Issue #3377 / PR #3447 added this rule after the finite
+    bytecode retirement inventory needed to separate statement/loop dynamic
+    expression payload residue from broader runner-retirement residue. WHY:
+    file-count-only allowlists can stay green while ownership silently drifts
+    between different legacy operand families.
 
 ## Dynamic Boundary Classification (#1405 Retry)
 

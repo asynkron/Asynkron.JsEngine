@@ -164,13 +164,16 @@ maintenance pass, keep the run small, repo-local, and directly reviewable.
   an ADR is required but `faktorial-api adr-next` is unavailable, record that
   environment limitation in the evidence and follow current runtime allocator
   guidance instead of widening into `gh` auth workarounds or host-daemon reads.
-- For persistent ADR/rule compaction children, verify overlap against the
-  current semantic home first and update that existing document when guidance
-  is already covered. Do not create duplicate ADRs, rules, or durable notes
-  for guidance that already has an owned home.
-- For persistent ADR/rule compaction children, keep the overlap proof and
-  final handoff evidence anchored to the same semantic-home boundary used in
-  the rule above; do not duplicate the marker-based classification here.
+- For persistent ADR/rule compaction children, verify the requested guidance
+  against the current semantic home before editing. When the semantic home
+  already covers the marker classification, sibling/evidence shape, or
+  compaction boundary, keep the run evidence-only instead of creating duplicate
+  ADRs, rules, durable notes, or mechanical wording churn.
+- When the semantic home is missing a persistent compaction boundary, update
+  that existing document and anchor both the overlap proof and final handoff
+  evidence to the same boundary. Keep marker-based classification normalized in
+  the top-level recurring-child rule instead of duplicating it in every
+  compaction note.
 - When overlap spans a cross-cutting rule and accepted helper-specific ADRs,
   keep the detailed decisions in the ADRs and add a short ownership note to the
   rule instead of copying every helper boundary into the rule body.
@@ -179,7 +182,7 @@ maintenance pass, keep the run small, repo-local, and directly reviewable.
   (for example a targeted `rg` over the owned rule file) so review can confirm
   both non-duplication and the exact wording delta without reopening broad
   history.
-- If that overlap check shows the semantic home already covers the selected
+- If the overlap check shows the semantic home already covers the selected
   slice, treat the run as evidence-only: keep the issue update evidence
   complete, explain why no wording delta was needed, and do not invent a
   mechanical docs change just to produce file churn.

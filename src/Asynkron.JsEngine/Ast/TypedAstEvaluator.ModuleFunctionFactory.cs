@@ -42,7 +42,9 @@ public static partial class TypedAstEvaluator
             }
             else
             {
-                var gen = new SyncGeneratorInvoker(funcExpr, moduleEnv, realmState, isStrict, hasNameInEnvironment);
+                GeneratorFunctionBase gen = ShouldCreateIrSyncGeneratorInvoker(funcExpr, moduleEnv, default)
+                    ? new IrSyncGeneratorInvoker(funcExpr, moduleEnv, realmState, isStrict, hasNameInEnvironment)
+                    : new SyncGeneratorInvoker(funcExpr, moduleEnv, realmState, isStrict, hasNameInEnvironment);
                 if (functionName != null)
                 {
                     gen.EnsureHasName(functionName, true);

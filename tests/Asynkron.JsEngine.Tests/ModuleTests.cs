@@ -1016,6 +1016,30 @@ export default function() { return 23; };
         Assert.Equal(23.0, result);
     }
 
+    [Fact(Timeout = 5000)]
+    public async Task ModuleSyncGeneratorProductionResumableDecline_UsesCreationTimeIrRoute()
+    {
+        await using var engine = CreateEngine();
+
+        var result = await engine.EvaluateModule("""
+                                                 function* values(o, k) {
+                                                     yield 1;
+                                                     yield o?.[k]();
+                                                 }
+
+                                                 var iterator = values({ m() { return 2; } }, "m");
+                                                 var first = iterator.next();
+                                                 var second = iterator.next();
+                                                 [first.value, first.done, second.value, second.done];
+                                                 """);
+
+        var arr = Assert.IsType<JsTypes.JsArray>(result);
+        Assert.Equal(1d, arr.Items[0].AsDouble());
+        Assert.False(arr.Items[1].AsBoolean());
+        Assert.Equal(2d, arr.Items[2].AsDouble());
+        Assert.False(arr.Items[3].AsBoolean());
+    }
+
     [Fact(Timeout = 2000)]
     public async Task ExportDefaultFunctionCanReassignSelf()
     {

@@ -191,7 +191,9 @@ public sealed partial class BytecodeProofManifestTests(ITestOutputHelper output)
         Assert.Equal(
             [
                 "E5-static-block-declined-residue",
-                "E5c-script-fallback-retirement"
+                "E5c-script-fallback-retirement",
+                "E5c-script-route-admission",
+                "E5c-terminal-dynamic-script-residue"
             ],
             items["E5c"].Proofs.Select(static proof => proof.ChildOwner).Order(StringComparer.Ordinal).ToArray());
         Assert.Equal(

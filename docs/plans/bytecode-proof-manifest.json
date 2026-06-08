@@ -2222,9 +2222,41 @@
       "status": "open",
       "proofs": [
         {
+          "id": "E5-script-lexical-destructuring-routes",
+          "childOwner": "E5c-script-route-admission",
+          "classification": "executable admitted ordinary top-level script body routes through production unified bytecode and avoids classified script IR fallback",
+          "claim": "admitted",
+          "kind": "runtime",
+          "source": "const source = { value: 7 };\nconst { value } = source;\nString(value);",
+          "expectedResult": "7",
+          "requiredLogs": [
+            "unified-bytecode-production-fast-path script"
+          ],
+          "forbiddenLogs": [
+            "classified-script-ir-fallback reason=production-unified-bytecode-declined"
+          ]
+        },
+        {
+          "id": "E5-script-eval-injected-binding-stays-terminal-dynamic-residue",
+          "childOwner": "E5c-terminal-dynamic-script-residue",
+          "classification": "executable terminal dynamic direct-eval injected binding no-route proof; computes through classified script fallback with explicit terminalDynamicResidue evidence",
+          "claim": "open",
+          "kind": "runtime",
+          "source": "eval('var injected = 1');\nString(injected);",
+          "expectedResult": "1",
+          "forbiddenLogs": [
+            "unified-bytecode-production-fast-path script"
+          ],
+          "requiredLogs": [
+            "classified-script-ir-fallback reason=production-unified-bytecode-declined",
+            "code=CallDependency",
+            "terminalDynamicResidue=True"
+          ]
+        },
+        {
           "id": "E5-script-ir-fallback-still-runs-execution-plan-runner",
           "childOwner": "E5c-script-fallback-retirement",
-          "classification": "classified script IR fallback anchor for non-admitted ordinary scripts plus terminal dynamic residue; terminal dynamic residue is logged explicitly but current ordinary non-dynamic declines still keep this row open",
+          "classification": "classified script IR fallback anchor for non-admitted ordinary scripts plus terminal dynamic residue; terminal dynamic residue is logged explicitly but current ordinary wrapper script declines still keep this row open",
           "claim": "open",
           "kind": "source-presence",
           "path": "src/Asynkron.JsEngine/Ast/Legacy/StatementNodeExtensions.cs",

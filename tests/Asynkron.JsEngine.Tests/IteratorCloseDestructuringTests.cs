@@ -283,10 +283,10 @@ public sealed class IteratorCloseDestructuringTests(ITestOutputHelper output) : 
     /// This is the pattern found in Test262 Statements_class_dstr tests.
     /// </summary>
     [Fact(Timeout = 5000)]
-    public async Task GeneratorParameterDestructuring_Elision_DoesNotHang()
+    public async Task GeneratorParameterDestructuring_Elision_FailsExplicitly()
     {
         await using var engine = CreateEngine();
-        var result = await engine.Evaluate(
+        var exception = await Assert.ThrowsAsync<NotSupportedException>(() => engine.Evaluate(
             """
             var first = 0;
             var second = 0;
@@ -305,9 +305,13 @@ public sealed class IteratorCloseDestructuringTests(ITestOutputHelper output) : 
 
             new C().method(g()).next();
             ({ callCount, first, second });
-            """);
+            """));
 
-        Output.WriteLine($"Result: {result}");
+        Assert.StartsWith(
+            "Sync-generator body '<anonymous>' is not eligible for unified bytecode execution:",
+            exception.Message,
+            StringComparison.Ordinal);
+        Assert.Contains("Non-simple sync-generator parameter lists", exception.Message, StringComparison.Ordinal);
     }
 
     /// <summary>

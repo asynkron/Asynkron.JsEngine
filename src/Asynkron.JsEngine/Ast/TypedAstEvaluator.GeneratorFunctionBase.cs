@@ -603,14 +603,6 @@ public static partial class TypedAstEvaluator
             return false;
         }
 
-        protected ExecutionPlanRunner CreateClassifiedGeneratorDeclinedBodyRunner(
-            IReadOnlyList<JsValue> arguments,
-            JsValue thisValue)
-        {
-            var context = CreateInvocationContext(arguments, thisValue);
-            return context.CreateClassifiedDeclinedBodyRunner();
-        }
-
         protected GeneratorInvocationContext CreateInvocationContext(IReadOnlyList<JsValue> arguments, JsValue thisValue)
         {
             return new GeneratorInvocationContext(
@@ -626,6 +618,14 @@ public static partial class TypedAstEvaluator
                 PrivateNameScope,
                 _capturedPrivateNameScopes,
                 _planSeed);
+        }
+
+        protected ExecutionPlanRunner CreateClassifiedSyncGeneratorDeclinedResidueRunner(
+            IReadOnlyList<JsValue> arguments,
+            JsValue thisValue)
+        {
+            var context = CreateInvocationContext(arguments, thisValue);
+            return context.CreateSyncGeneratorDeclinedResidueRunner();
         }
     }
 
@@ -690,7 +690,7 @@ public static partial class TypedAstEvaluator
                 planFailureOverride: _planSeed.Failure);
         }
 
-        public ExecutionPlanRunner CreateClassifiedDeclinedBodyRunner()
+        public ExecutionPlanRunner CreateSyncGeneratorDeclinedResidueRunner()
         {
             return CreateRunner();
         }

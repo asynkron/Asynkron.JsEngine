@@ -109,6 +109,23 @@ public sealed partial class BytecodeProofManifestTests(ITestOutputHelper output)
         Assert.Contains("not ordinary sync function fallback retirement", classConstructorProof.Classification, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void Manifest_SyncGeneratorDeclinedBodyRunner_IsResidueSpecific()
+    {
+        var proof = LoadManifest()
+            .Items
+            .SelectMany(static item => item.Proofs)
+            .Single(static proof => proof.Id == "E5-sync-generator-declined-residue-runner-still-present");
+
+        Assert.Equal("source-presence", proof.Kind);
+        Assert.Equal("open", proof.Claim);
+        Assert.Equal("E5d-sync-generator-declined-residue", proof.ChildOwner);
+        Assert.Equal("CreateClassifiedSyncGeneratorDeclinedResidueRunner", proof.Pattern);
+        Assert.Contains("explicit sync generator declined-residue runner bridge", proof.Classification, StringComparison.Ordinal);
+        Assert.Contains("pre-gate ordinary declines fail explicitly", proof.Classification, StringComparison.Ordinal);
+        Assert.Contains("no generic declined-body runner remains", proof.Classification, StringComparison.Ordinal);
+    }
+
     [Theory]
     [MemberData(nameof(ProofIds))]
     public async Task ProofRows_Hold(string proofId)

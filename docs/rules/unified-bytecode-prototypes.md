@@ -129,6 +129,13 @@ all-or-nothing until a separate routing issue proves production readiness.
     route-enabling evidence, while consumed assignment references, updates,
     compound/logical writes, deletes, and broader scope/environment shapes
     remain negative evidence.
+    Faktorial issue
+    `planitem-gh3377-rebaseline-the-finite-bytecode-retirement-inventory-close-remaini-310ebabf71`
+    / PR #3471 later pinned each still-open zero-depth catch/finally consumed
+    store, update, compound write, logical write, and delete family as an
+    explicit proof-manifest eligibility row, so future rebaselines must update
+    the per-family manifest evidence instead of relying on one broad open
+    source-presence anchor.
     Related ADR:
     `docs/adrs/0341-keep-with-depth-and-zero-depth-dynamic-name-scans-separate.md`.
 9b. When admitting sync `using` declarations to production unified bytecode,

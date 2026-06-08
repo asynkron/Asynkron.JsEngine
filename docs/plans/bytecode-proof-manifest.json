@@ -1523,7 +1523,7 @@
           "functionName": "g",
           "source": "function* g(key) {\n  yield 'ready';\n  class Box {\n    #value() {\n      return 1;\n    }\n    [key]() {\n      return this.#value();\n    }\n  }\n  yield new Box().value();\n}",
           "expectedEligible": false,
-          "declineCode": "UnsupportedPlanShape"
+          "declineCode": "CallDependency"
         },
         {
           "id": "B36-class-declaration-extends-public-super-method-routes",

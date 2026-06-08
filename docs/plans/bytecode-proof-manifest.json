@@ -2163,38 +2163,63 @@
       "proofs": [
         {
           "id": "E5-ir-runner-type-still-present",
-          "childOwner": "E5b-runner-entrypoint-retirement",
-          "classification": "ordinary ExecutionPlanRunner retirement source-presence anchor",
+          "childOwner": "E5b-runner-construction-allowlist",
+          "classification": "classified ExecutionPlanRunner construction allowlist for script runners plus E5d function/resumable declined-body owners; not a broad E5b hot-path type-presence blocker",
           "claim": "open",
-          "kind": "source-presence",
-          "path": "src/Asynkron.JsEngine/Ast/TypedAstEvaluator.ExecutionPlanRunner.Core.cs",
-          "pattern": "private sealed partial class ExecutionPlanRunner"
+          "kind": "source-allowlist",
+          "paths": [
+            "src/Asynkron.JsEngine/Ast"
+          ],
+          "allowedPaths": [
+            "src/Asynkron.JsEngine/Ast/TypedAstEvaluator.AsyncFunctionInvoker.cs",
+            "src/Asynkron.JsEngine/Ast/TypedAstEvaluator.ExecutionPlanRunner.Core.cs",
+            "src/Asynkron.JsEngine/Ast/TypedAstEvaluator.GeneratorFunctionBase.cs",
+            "src/Asynkron.JsEngine/Ast/TypedAstEvaluator.SyncFunctionInvoker.cs"
+          ],
+          "pattern": "new ExecutionPlanRunner("
         },
         {
           "id": "E5-ir-runner-script-entry-still-present",
-          "childOwner": "E5b-runner-entrypoint-retirement",
-          "classification": "classified script-runner source-presence anchor for non-admitted ordinary scripts plus terminal dynamic residue",
+          "childOwner": "E5c-script-and-static-block-runner-fallback",
+          "classification": "classified RunScript call-site allowlist for non-admitted ordinary scripts, terminal dynamic residue, and declined static-block residue; not a broad E5b entry-presence blocker",
           "claim": "open",
-          "kind": "source-presence",
-          "path": "src/Asynkron.JsEngine/Ast/TypedAstEvaluator.ExecutionPlanRunner.Core.cs",
-          "pattern": "public static JsValue RunScript("
+          "kind": "source-allowlist",
+          "paths": [
+            "src/Asynkron.JsEngine/Ast"
+          ],
+          "allowedPaths": [
+            "src/Asynkron.JsEngine/Ast/ClassDefinitionExtensions.cs",
+            "src/Asynkron.JsEngine/Ast/Legacy/StatementNodeExtensions.cs"
+          ],
+          "pattern": "ExecutionPlanRunner.RunScript("
         },
         {
           "id": "E5-ir-runner-sync-entry-still-present",
-          "childOwner": "E5b-runner-entrypoint-retirement",
-          "classification": "ordinary sync runner retirement source-presence anchor",
+          "childOwner": "E5d-function-and-constructor-runner-fallback",
+          "classification": "classified RunSync call-site allowlist for ordinary sync function and class-constructor declined-body fallbacks; not a broad E5b entry-presence blocker",
           "claim": "open",
-          "kind": "source-presence",
-          "path": "src/Asynkron.JsEngine/Ast/TypedAstEvaluator.ExecutionPlanRunner.Core.cs",
-          "pattern": "public JsValue RunSync("
+          "kind": "source-allowlist",
+          "paths": [
+            "src/Asynkron.JsEngine/Ast"
+          ],
+          "allowedPaths": [
+            "src/Asynkron.JsEngine/Ast/TypedAstEvaluator.SyncFunctionInvoker.cs"
+          ],
+          "pattern": "runner.RunSync();"
         },
         {
           "id": "E5-ir-runner-async-step-entry-still-present",
-          "childOwner": "E5b-runner-entrypoint-retirement",
-          "classification": "ordinary async-step runner retirement source-presence anchor",
+          "childOwner": "E5d-async-function-declined-body-runner-residue",
+          "classification": "classified async-step allowlist for the async-function declined-body runner bridge plus the runner implementation method; not a broad E5b entry-presence blocker",
           "claim": "open",
-          "kind": "source-presence",
-          "path": "src/Asynkron.JsEngine/Ast/TypedAstEvaluator.ExecutionPlanRunner.Core.cs",
+          "kind": "source-allowlist",
+          "paths": [
+            "src/Asynkron.JsEngine/Ast"
+          ],
+          "allowedPaths": [
+            "src/Asynkron.JsEngine/Ast/TypedAstEvaluator.AsyncFunctionInvoker.cs",
+            "src/Asynkron.JsEngine/Ast/TypedAstEvaluator.ExecutionPlanRunner.Core.cs"
+          ],
           "pattern": "ExecuteAsyncStep("
         }
       ]

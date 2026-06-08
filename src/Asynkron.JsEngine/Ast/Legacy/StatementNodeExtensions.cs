@@ -2589,15 +2589,20 @@ public static partial class TypedAstEvaluator
         // Script-level var declarations are marked with IsScriptLevel=true in the IR
         // so they correctly update the global object.
         context.RealmState.Logger?.LogInformation(
-            "classified-script-ir-fallback reason=production-unified-bytecode-declined code={DeclineCode} detail={DeclineReason} instructions={InstructionCount}",
+            "classified-script-ir-fallback reason=production-unified-bytecode-declined code={DeclineCode} detail={DeclineReason} terminalDynamicResidue={TerminalDynamicResidue} instructions={InstructionCount}",
             eligibility.Code,
             eligibility.Reason,
+            IsTerminalDynamicScriptResidue(eligibility),
             scriptPlan.Instructions.Length);
         return ExecutionPlanRunner.RunScript(
             scriptPlan,
             executionEnvironment,
             context);
     }
+
+    private static bool IsTerminalDynamicScriptResidue(UnifiedBytecodeProductionEligibilityResult eligibility) =>
+        eligibility.Code == UnifiedBytecodeProductionDeclineCode.CallDependency &&
+        eligibility.Reason.Contains("Direct eval invocation semantics", StringComparison.Ordinal);
 
     private static bool TryRunScriptViaProductionUnifiedBytecode(
         ExecutionPlan scriptPlan,

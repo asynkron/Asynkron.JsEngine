@@ -30,6 +30,7 @@ public sealed class UnifiedBytecodeProductionScriptFallbackTests(ITestOutputHelp
             static record =>
                 record.Message.Contains(ClassifiedScriptIrFallbackLog, StringComparison.Ordinal) &&
                 record.Message.Contains("code=CallDependency", StringComparison.Ordinal) &&
+                record.Message.Contains("terminalDynamicResidue=True", StringComparison.Ordinal) &&
                 record.Message.Contains("eval", StringComparison.OrdinalIgnoreCase));
     }
 }

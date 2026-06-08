@@ -2297,11 +2297,11 @@
         {
           "id": "E5-script-ir-fallback-still-runs-execution-plan-runner",
           "childOwner": "E5c-script-fallback-retirement",
-          "classification": "classified script IR fallback anchor for non-admitted ordinary scripts plus terminal dynamic residue",
+          "classification": "classified script IR fallback anchor for non-admitted ordinary scripts plus terminal dynamic residue; terminal dynamic residue is logged explicitly but current ordinary non-dynamic declines still keep this row open",
           "claim": "open",
           "kind": "source-presence",
           "path": "src/Asynkron.JsEngine/Ast/Legacy/StatementNodeExtensions.cs",
-          "pattern": "ExecutionPlanRunner.RunScript("
+          "pattern": "classified-script-ir-fallback reason=production-unified-bytecode-declined"
         },
         {
           "id": "E5-static-block-ir-fallback-still-runs-execution-plan-runner",

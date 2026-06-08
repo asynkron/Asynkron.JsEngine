@@ -10125,19 +10125,20 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
         var scriptRouteSection = ExtractRequiredSourceSection(
             source,
             "if (executionKind == ExecutionKind.Script)",
-            "return RunScriptViaClassifiedIrFallback(\n            scriptPlan,\n            UnifiedBytecodeProductionEligibilityResult.Decline(",
+            "private static JsValue RunScriptViaClassifiedIrFallback(",
             "ordinary script route");
 
         Assert.Contains("return RunScriptViaClassifiedIrFallback(", scriptRouteSection, StringComparison.Ordinal);
         Assert.DoesNotContain("return ExecutionPlanRunner.RunScript(", sourceOutsideHelper, StringComparison.Ordinal);
         Assert.DoesNotContain("ExecutionPlanRunner.RunScript(", scriptRouteSection, StringComparison.Ordinal);
-        Assert.DoesNotContain("CreateOrdinaryScriptUnifiedBytecodeDeclineException(", source, StringComparison.Ordinal);
+        Assert.Contains("IsTerminalDynamicScriptResidue(eligibility)", helperSection, StringComparison.Ordinal);
         Assert.Contains(
             "classified-script-ir-fallback reason=production-unified-bytecode-declined",
             helperSection,
             StringComparison.Ordinal);
         Assert.Contains("code={DeclineCode}", helperSection, StringComparison.Ordinal);
         Assert.Contains("detail={DeclineReason}", helperSection, StringComparison.Ordinal);
+        Assert.Contains("terminalDynamicResidue={TerminalDynamicResidue}", helperSection, StringComparison.Ordinal);
         Assert.Contains("eligibility.Code", helperSection, StringComparison.Ordinal);
         Assert.Contains("eligibility.Reason", helperSection, StringComparison.Ordinal);
         Assert.Contains("ExecutionPlanRunner.RunScript(", helperSection, StringComparison.Ordinal);

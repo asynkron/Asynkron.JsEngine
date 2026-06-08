@@ -457,6 +457,16 @@ ratchets, deleted runner/profiler/binding-target bridge names could return
 silently. Keep runner-internal expression evaluation in E5 rather than using it
 to reopen E4.
 
+Issue
+`planitem-planitem-planitem-gh3377-rebaseline-the-finite-bytecode-retirement-inven-1e1bc813d8`
+converted the sync-function/binding-program standalone payload call sites. The
+durable lesson is that external lowered binding-target callers can be moved off
+runner construction only when they use the static lowered binding-target core
+and route nested expression payloads through standalone unified bytecode; this
+does not make runner-internal binding-target execution part of E4. Keep that
+runner-owned path classified in E5 until the runner tier is retired, and do not
+use a binding-target bridge cleanup to blur the E4 standalone executor boundary.
+
 PR #2729 completed full deletion of `EvaluateLegacyAstExpression` and its
 sibling methods from `Ast/Legacy/ExpressionNodeExtensions.cs`. The build-stage
 quality gate failed because the quarantine guard test

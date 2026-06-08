@@ -57,6 +57,14 @@ bridge names as source-absence ratchets and keeps
 open E4 dynamic expression bridge. Runner-internal expression evaluation remains
 E5-owned runner-retirement inventory, not an E4 closure blocker.
 
+Faktorial issue
+`planitem-planitem-planitem-gh3377-rebaseline-the-finite-bytecode-retirement-inven-1e1bc813d8`
+then converted the sync-function and binding-program standalone payload call
+sites into one child slice. The important boundary was not "all binding target
+execution is standalone"; it was "external lowered binding-target callers may
+use standalone unified bytecode, while runner-internal binding-target execution
+remains E5-owned until the runner tier is retired."
+
 ## Decision
 
 Keep standalone `ExpressionProgram` execution centralized in
@@ -91,6 +99,10 @@ bytecode rather than the AST evaluator or IR runner.
   fallback-only. Production-accepted routes are considered first and return
   through `UnifiedBytecodeVirtualMachine` before this simple-IR fallback is
   considered.
+- External lowered binding-target callers should use the static lowered
+  binding-target core and route nested expression payloads through standalone
+  unified bytecode. Runner-internal binding-target execution remains on the
+  runner-owned path until the E5 runner-retirement lane removes it deliberately.
 
 ## Consequences
 
@@ -113,6 +125,10 @@ bytecode rather than the AST evaluator or IR runner.
   bridge names stay as absence ratchets, `ExecuteDynamic(...)` stays explicitly
   source-present while open, and runner-internal expression-program evaluation
   stays classified under E5 until that runner-retirement lane is owned.
+- Future binding-target bridge work must preserve the E4/E5 split: eliminating a
+  runner helper for external lowered callers is not permission to reroute
+  runner-internal binding-target evaluation through standalone execution in the
+  same slice.
 
 ## Evidence
 
@@ -166,6 +182,16 @@ bytecode rather than the AST evaluator or IR runner.
   - `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~ExecutionPlanDiagnosticsTests|FullyQualifiedName~BytecodeProofManifestTests"`:
     239 tests.
   - `rtk git diff --check`.
+- Faktorial issue
+  `planitem-planitem-planitem-gh3377-rebaseline-the-finite-bytecode-retirement-inven-1e1bc813d8`
+  converted the sync-function and binding-program standalone payload boundary.
+  Local merged delivery commits inspected during the learn pass were
+  `1033dfc6c`, `9c3d31019`, and `9f259a1e8`.
+  The delivery changed the standalone runner bridge, binding-target runner
+  bridge, standalone bytecode binding-target support, matching source gates, and
+  proof-manifest/checklist rows. The issue acceptance boundary preserved
+  runner-internal binding-target expression execution as E5-owned while routing
+  external lowered binding-target payloads through standalone unified bytecode.
 
 ## Related
 

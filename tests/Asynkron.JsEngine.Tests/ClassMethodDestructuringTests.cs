@@ -92,11 +92,11 @@ public sealed class ClassMethodDestructuringTests(ITestOutputHelper output) : In
     }
 
     [Fact(Timeout = 2000)]
-    public async Task PrivateGeneratorMethod_DefaultArrayRestPattern_BindsRestCopy()
+    public async Task PrivateGeneratorMethod_DefaultArrayRestPattern_DeclinesExplicitly()
     {
         await using var engine = CreateEngine();
 
-        var result = await engine.Evaluate(
+        var exception = await Assert.ThrowsAsync<NotSupportedException>(() => engine.Evaluate(
             """
             var values = [1, 2, 3];
             var observed = "";
@@ -115,9 +115,13 @@ public sealed class ClassMethodDestructuringTests(ITestOutputHelper output) : In
 
             new C().method().next();
             callCount + "|" + observed;
-            """);
+            """));
 
-        Assert.Equal("1|true|3|true|1,2,3", result?.ToString());
+        Assert.StartsWith(
+            "Sync-generator body '<anonymous>' is not eligible for unified bytecode execution:",
+            exception.Message,
+            StringComparison.Ordinal);
+        Assert.Contains("Non-simple sync-generator parameter lists", exception.Message, StringComparison.Ordinal);
     }
 
     [Fact(Timeout = 2000)]

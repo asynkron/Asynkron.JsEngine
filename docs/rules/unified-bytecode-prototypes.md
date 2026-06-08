@@ -334,6 +334,23 @@ all-or-nothing until a separate routing issue proves production readiness.
     / PR #3381 corrected the retrospective documentation after classification
     wording risked reading as E5 retirement progress and blurred true terminal
     dynamic residue with ordinary class-definition and runner-retirement work.
+9l. Keep A51h literal/span inventory lanes decomposed during rebaselines.
+    `A51h` owns non-container method/accessor/private/name-inference
+    restrictions and logical-control operands in simple literal spans; `A51h1`
+    owns spread-source and computed object-key literal-span restrictions; and
+    `A51h2` owns the array/object/template literal-container appender and
+    measurer helper lane. Do not collapse `A51h2` helper source-presence
+    anchors into the parent row or the spread/computed-key child just to make
+    checklist counts reconcile after nearby route-widening work. Moving or
+    closing any one of these lanes must update the checklist, expansion
+    contract, and proof manifest together, with exact source-presence anchors
+    for the remaining blockers. WHY: Faktorial issue
+    `planitem-planitem-planitem-gh3377-rebaseline-the-finite-bytecode-retirement-inven-c83a8e6022`
+    / PR #3408 resolved an A51h inventory rebase conflict by splitting
+    literal-container helper ownership into `A51h2` while keeping A51h's
+    non-container residue and A51h1's spread/computed-key residues separately
+    auditable. Related ADR:
+    `docs/adrs/0365-keep-a51h-literal-container-spans-as-separate-inventory-lane.md`.
 10. When invoking production unified bytecode from sync calls, keep the bridge
     slot-layout owned and fast-path ordered. The production unified route runs
     before direct specialized simple-return binary/chain shortcuts and the

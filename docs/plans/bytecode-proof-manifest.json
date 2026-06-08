@@ -1236,6 +1236,20 @@
           "expectedEligible": false,
           "declineCode": "UnsupportedPlanShape",
           "reasonContains": "Direct eval invocation semantics"
+        },
+        {
+          "id": "B24h-computed-static-block-non-production-static-block-stays-open",
+          "claim": "open",
+          "kind": "source-presence",
+          "path": "src/Asynkron.JsEngine/Execution/UnifiedBytecode/UnifiedBytecodeProductionEligibility.cs",
+          "pattern": "Class literal static block is outside {bucket} production routing:"
+        },
+        {
+          "id": "B24h-computed-static-block-ir-fallback-stays-open",
+          "claim": "open",
+          "kind": "source-presence",
+          "path": "src/Asynkron.JsEngine/Ast/ClassDefinitionExtensions.cs",
+          "pattern": "classified-static-block-ir-fallback reason=production-unified-bytecode-declined"
         }
       ]
     },

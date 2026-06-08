@@ -204,10 +204,11 @@ The remaining non-retirement work is concentrated in:
 - B24h class-definition state: computed-name/class element neighbors that still
   need runtime-source direct eval or otherwise non-production static-block plan
   ownership and broader class-definition environment bridging.
-- B36 resumable declarations: dynamic/eval helpers plus complex class
-  declarations (non-production static-block plans and private/static/computed
-  neighbors outside the admitted public method/computed/super/static subsets)
-  remain on the IR route while direct root helpers,
+- B36 resumable declarations: exact open manifest rows now keep dynamic eval
+  helpers, arguments eval helpers, runtime-source direct eval, non-production
+  static-block plans, static-block IR fallback, and private/static/computed
+  class declaration neighbors outside the admitted public method/computed/super/static
+  subsets visible while direct root helpers,
   recursive/sibling helper graphs, block/Annex B declarations, simple class
   declarations, plain `extends` declarations whose superclass expression
   compiles as standalone unified bytecode, activation-safe explicit public

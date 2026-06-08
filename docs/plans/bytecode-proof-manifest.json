@@ -1651,6 +1651,41 @@
           "expectedEligible": false,
           "declineCode": "UnsupportedPlanShape",
           "reasonContains": "Direct eval invocation semantics"
+        },
+        {
+          "id": "B36-resumable-dynamic-eval-helper-activation-decline-stays-open",
+          "claim": "open",
+          "kind": "source-presence",
+          "path": "src/Asynkron.JsEngine/Ast/TypedAstEvaluator.UnifiedBytecodeResumableActivation.cs",
+          "pattern": "ResumableDirectEvalActivationDetector.ContainsDynamicActivationDependency(function.Body)"
+        },
+        {
+          "id": "B36-resumable-arguments-eval-helper-decline-stays-open",
+          "claim": "open",
+          "kind": "source-presence",
+          "path": "src/Asynkron.JsEngine/Ast/TypedAstEvaluator.UnifiedBytecodeResumableActivation.cs",
+          "pattern": "ResumableDirectEvalActivationDetector.ContainsArgumentsObjectDependency(function.Body)"
+        },
+        {
+          "id": "B36-class-declaration-non-production-static-block-stays-open",
+          "claim": "open",
+          "kind": "source-presence",
+          "path": "src/Asynkron.JsEngine/Execution/UnifiedBytecode/UnifiedBytecodeProductionEligibility.cs",
+          "pattern": "Class declaration static block is outside B36 production routing:"
+        },
+        {
+          "id": "B36-class-declaration-static-block-ir-fallback-stays-open",
+          "claim": "open",
+          "kind": "source-presence",
+          "path": "src/Asynkron.JsEngine/Ast/ClassDefinitionExtensions.cs",
+          "pattern": "classified-static-block-ir-fallback reason=production-unified-bytecode-declined"
+        },
+        {
+          "id": "B36-class-declaration-private-static-computed-neighbors-stay-open",
+          "claim": "open",
+          "kind": "source-presence",
+          "path": "src/Asynkron.JsEngine/Execution/UnifiedBytecode/UnifiedBytecodeProductionEligibility.cs",
+          "pattern": "if (!field.IsStatic || field.IsPrivate || field.IsComputed)"
         }
       ]
     },

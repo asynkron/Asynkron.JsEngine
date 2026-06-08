@@ -398,7 +398,7 @@
     },
     {
       "id": "A51h",
-      "title": "Literal/span compiler diagnostics stay open",
+      "title": "General literal/span compiler diagnostics stay open",
       "status": "open",
       "proofs": [
         {
@@ -407,13 +407,6 @@
           "kind": "source-presence",
           "path": "src/Asynkron.JsEngine/Execution/UnifiedBytecode/UnifiedBytecodeCompiler.cs",
           "pattern": "Expected ArrayPush or ArraySpread after array element operand."
-        },
-        {
-          "id": "A51h-object-literal-computed-key-boundary-stays-open",
-          "claim": "open",
-          "kind": "source-presence",
-          "path": "src/Asynkron.JsEngine/Execution/UnifiedBytecode/UnifiedBytecodeCompiler.cs",
-          "pattern": "Complex computed keys and name-inferred computed properties are not admitted in simple object literals."
         },
         {
           "id": "A51h-object-literal-method-accessor-boundary-stays-open",
@@ -449,6 +442,27 @@
           "kind": "source-presence",
           "path": "src/Asynkron.JsEngine/Execution/UnifiedBytecode/UnifiedBytecodeCompiler.cs",
           "pattern": "Template literal RHS span does not match expected boundary."
+        }
+      ]
+    },
+    {
+      "id": "A51h1",
+      "title": "Spread-source and computed-object-key literal spans stay open",
+      "status": "open",
+      "proofs": [
+        {
+          "id": "A51h1-spread-source-member-call-boundary-stays-open",
+          "claim": "open",
+          "kind": "source-presence",
+          "path": "src/Asynkron.JsEngine/Execution/UnifiedBytecode/UnifiedBytecodeCompiler.cs",
+          "pattern": "Spread sources only admit direct named member calls with simple arguments."
+        },
+        {
+          "id": "A51h1-object-literal-computed-key-boundary-stays-open",
+          "claim": "open",
+          "kind": "source-presence",
+          "path": "src/Asynkron.JsEngine/Execution/UnifiedBytecode/UnifiedBytecodeCompiler.cs",
+          "pattern": "Complex computed keys and name-inferred computed properties are not admitted in simple object literals."
         }
       ]
     },

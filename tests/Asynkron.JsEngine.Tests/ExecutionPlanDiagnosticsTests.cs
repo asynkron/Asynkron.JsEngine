@@ -347,15 +347,37 @@ public sealed class ExecutionPlanDiagnosticsTests(ITestOutputHelper output) : In
         var repositoryRoot = FindRepositoryRoot();
         var sourceRoot = Path.Combine(repositoryRoot.FullName, "src", "Asynkron.JsEngine");
         var toolRoot = Path.Combine(repositoryRoot.FullName, "tools", "ProfileRunner");
+        var classDefinitionCallSites = new[]
+        {
+            new StandaloneExecutorCallSite(
+                "src/Asynkron.JsEngine/Ast/ClassDefinitionExtensions.cs",
+                "ResolveSuperclass",
+                "class extends standalone payload"),
+            new StandaloneExecutorCallSite(
+                "src/Asynkron.JsEngine/Ast/ClassFieldInitializer.cs",
+                "TryInitializeStaticField",
+                "class field initializer standalone payload"),
+            new StandaloneExecutorCallSite(
+                "src/Asynkron.JsEngine/Ast/ClassPropertyNameResolver.cs",
+                "TryResolveNameCore",
+                "computed class property-name standalone payload")
+        };
+        var expectedClassMembersByPath = classDefinitionCallSites
+            .GroupBy(static callSite => callSite.RelativePath)
+            .ToDictionary(
+                static group => group.Key,
+                static group => group.Select(static callSite => callSite.EnclosingMember).ToArray(),
+                StringComparer.Ordinal);
         var allowedCallSites = new HashSet<string>(StringComparer.Ordinal)
         {
             "src/Asynkron.JsEngine/Execution/UnifiedBytecode/UnifiedBytecodeExpressionProgramExecutor.cs",
-            "src/Asynkron.JsEngine/Ast/ClassDefinitionExtensions.cs",
-            "src/Asynkron.JsEngine/Ast/ClassFieldInitializer.cs",
-            "src/Asynkron.JsEngine/Ast/ClassPropertyNameResolver.cs",
             "src/Asynkron.JsEngine/Ast/TypedAstEvaluator.ExecutionPlanRunner.BindingPrograms.cs",
             "src/Asynkron.JsEngine/Ast/TypedAstEvaluator.SyncFunctionInvoker.cs"
         };
+        foreach (var callSite in classDefinitionCallSites)
+        {
+            allowedCallSites.Add(callSite.RelativePath);
+        }
 
         var scannedFiles = EnumerateCSharpFiles(sourceRoot, toolRoot).ToArray();
         Assert.Contains(
@@ -369,13 +391,21 @@ public sealed class ExecutionPlanDiagnosticsTests(ITestOutputHelper output) : In
             .SelectMany(file =>
             {
                 var relativePath = NormalizeRelativePath(repositoryRoot, file);
-                return File.ReadAllLines(file)
+                var lines = File.ReadAllLines(file);
+                return lines
                     .Select((line, index) => new { line, index })
                     .Where(entry =>
                         entry.line.Contains(
                             "UnifiedBytecodeExpressionProgramExecutor.ExecuteStandalone(",
                             StringComparison.Ordinal))
-                    .Select(entry => (relativePath, entry.index + 1, entry.line.Trim()));
+                    .Select(entry => (
+                        relativePath,
+                        LineNumber: entry.index + 1,
+                        Text: entry.line.Trim(),
+                        EnclosingMember: FindEnclosingMemberName(
+                            lines,
+                            entry.index,
+                            expectedClassMembersByPath.GetValueOrDefault(relativePath, []))));
             })
             .ToArray();
 
@@ -390,6 +420,22 @@ public sealed class ExecutionPlanDiagnosticsTests(ITestOutputHelper output) : In
             disallowed.Length == 0,
             "UnifiedBytecodeExpressionProgramExecutor.ExecuteStandalone call-site drift detected:\n" +
             string.Join('\n', disallowed));
+
+        var classifiedClassCallSites = matches
+            .Where(match => classDefinitionCallSites.Any(callSite => callSite.RelativePath == match.relativePath))
+            .Select(match => new StandaloneExecutorCallSite(
+                match.relativePath,
+                match.EnclosingMember,
+                classDefinitionCallSites
+                    .SingleOrDefault(callSite =>
+                        callSite.RelativePath == match.relativePath &&
+                        callSite.EnclosingMember == match.EnclosingMember)
+                    ?.Classification ?? "unclassified class-definition standalone payload"))
+            .ToArray();
+
+        Assert.Equal(
+            classDefinitionCallSites.OrderBy(static callSite => callSite.RelativePath).ThenBy(static callSite => callSite.EnclosingMember),
+            classifiedClassCallSites.OrderBy(static callSite => callSite.RelativePath).ThenBy(static callSite => callSite.EnclosingMember));
     }
 
     [Fact]
@@ -803,6 +849,56 @@ public sealed class ExecutionPlanDiagnosticsTests(ITestOutputHelper output) : In
     }
 
     [Fact]
+    public void ClassDefinitionStandalonePayloads_AreLoweredForExecutorOwnedSurfaces()
+    {
+        var program = AstTestHelpers.ParseAndAnalyze("""
+            const key = "value";
+            class Base {
+                static get seed() {
+                    return 41;
+                }
+            }
+
+            class Derived extends Base {
+                [key + "Method"]() {
+                    return 42;
+                }
+
+                [key + "Field"] = 1 + 2;
+                static total = super.seed + 1;
+            }
+            """).Analyzed;
+        var cache = AssertClassDefinitionCache(program, "Derived");
+
+        Assert.NotNull(cache.ExtendsProgram);
+        AssertProgramContains<LoadIdentifierExpressionOp>(
+            cache.ExtendsProgram,
+            op => op.Name.Name == "Base");
+
+        var memberNameProgram = Assert.Single(cache.MemberNamePrograms);
+        Assert.NotNull(memberNameProgram);
+        AssertProgramContains<BinaryExpressionOp>(
+            memberNameProgram,
+            op => op.Operator == BinaryOperator.Add);
+
+        var computedFieldNameProgram = cache.FieldNamePrograms.Single(program => program is not null);
+        Assert.NotNull(computedFieldNameProgram);
+        AssertProgramContains<BinaryExpressionOp>(
+            computedFieldNameProgram,
+            op => op.Operator == BinaryOperator.Add);
+
+        var initializerPrograms = cache.FieldInitializerPrograms
+            .Where(program => program is not null)
+            .Select(program => program!.Value)
+            .ToArray();
+        Assert.Equal(2, initializerPrograms.Length);
+        Assert.Contains(initializerPrograms, program =>
+            program.GetOps(BinaryExpressionOp.Kind).Any(op => op.Operator == BinaryOperator.Add));
+        Assert.Contains(initializerPrograms, program =>
+            program.GetOps(GetNamedSuperPropertyExpressionOp.Kind).Any(op => op.PropertyName == "seed"));
+    }
+
+    [Fact]
     public void DynamicWithAndGeneratorSeams_StayOnExpectedInstructionShapes()
     {
         var withEvalProgram = AstTestHelpers.ParseAndAnalyze("""
@@ -1123,10 +1219,7 @@ public sealed class ExecutionPlanDiagnosticsTests(ITestOutputHelper output) : In
 
     private static void AssertClassDefinitionBuilds(ProgramNode program, string className)
     {
-        var declaration = Assert.IsType<ClassDeclaration>(
-            program.Body.Single(statement => statement is ClassDeclaration candidate &&
-                                             candidate.Name.Name == className));
-        var cache = ((IAstCacheable<ClassDefinitionProgramCache>)declaration.Definition).GetOrCreateCache();
+        var cache = AssertClassDefinitionCache(program, className);
         Assert.True(cache.Succeeded, $"Class '{className}' should build definition bytecode. Failure: {cache.FailureReason}");
         Assert.True(
             cache.Definition.Constructor.PlanSeed.Succeeded,
@@ -1137,6 +1230,38 @@ public sealed class ExecutionPlanDiagnosticsTests(ITestOutputHelper output) : In
                 member.Callable.PlanSeed.Succeeded,
                 $"Class '{className}' member '{member.Name}' should build an IR plan. Failure: {member.Callable.PlanSeed.FailureReason}"));
     }
+
+    private static ClassDefinitionProgramCache AssertClassDefinitionCache(ProgramNode program, string className)
+    {
+        var declaration = Assert.IsType<ClassDeclaration>(
+            program.Body.Single(statement => statement is ClassDeclaration candidate &&
+                                             candidate.Name.Name == className));
+        var cache = ((IAstCacheable<ClassDefinitionProgramCache>)declaration.Definition).GetOrCreateCache();
+        Assert.True(cache.Succeeded, $"Class '{className}' should build definition bytecode. Failure: {cache.FailureReason}");
+        return cache;
+    }
+
+    private static string FindEnclosingMemberName(string[] lines, int callLineIndex, string[] expectedMemberNames)
+    {
+        for (var i = callLineIndex; i >= 0; i--)
+        {
+            var line = lines[i].Trim();
+            foreach (var expectedMemberName in expectedMemberNames)
+            {
+                if (line.Contains(expectedMemberName + "(", StringComparison.Ordinal))
+                {
+                    return expectedMemberName;
+                }
+            }
+        }
+
+        return "<unknown>";
+    }
+
+    private sealed record StandaloneExecutorCallSite(
+        string RelativePath,
+        string EnclosingMember,
+        string Classification);
 
     private static void AssertProgramContains<TOp>(ExpressionProgram? program, Func<ExpressionOpView, bool>? predicate = null)
         where TOp : IExpressionOpMarker

@@ -1937,6 +1937,26 @@
             "src/Asynkron.JsEngine/Ast/ClassPropertyNameResolver.cs",
             "src/Asynkron.JsEngine/Ast/TypedAstEvaluator.ExecutionPlanRunner.BindingPrograms.cs",
             "src/Asynkron.JsEngine/Ast/TypedAstEvaluator.SyncFunctionInvoker.cs"
+          ],
+          "classifiedCallSites": [
+            {
+              "childOwner": "E4-class-definition-standalone-payloads",
+              "classification": "class extends standalone payload",
+              "path": "src/Asynkron.JsEngine/Ast/ClassDefinitionExtensions.cs",
+              "enclosingMember": "ResolveSuperclass"
+            },
+            {
+              "childOwner": "E4-class-definition-standalone-payloads",
+              "classification": "class field initializer standalone payload",
+              "path": "src/Asynkron.JsEngine/Ast/ClassFieldInitializer.cs",
+              "enclosingMember": "TryInitializeStaticField"
+            },
+            {
+              "childOwner": "E4-class-definition-standalone-payloads",
+              "classification": "computed class property-name standalone payload",
+              "path": "src/Asynkron.JsEngine/Ast/ClassPropertyNameResolver.cs",
+              "enclosingMember": "TryResolveNameCore"
+            }
           ]
         },
         {

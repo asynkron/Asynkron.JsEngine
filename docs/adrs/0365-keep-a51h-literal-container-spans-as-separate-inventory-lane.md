@@ -14,7 +14,7 @@ nearby A51h work had moved object methods/accessors and nested operand spans.
 A51h had been carrying multiple different literal/span residues:
 
 - method/accessor/private/name-inference object-literal restrictions and
-  logical-control operands;
+  logical-control plus conditional consequent/alternate operands;
 - spread-source and computed object-key span restrictions;
 - the array/object/template literal-container appender and measurer helper
   lane itself.
@@ -30,8 +30,8 @@ surfaces.
 Keep the literal/span inventory split into three explicit lanes:
 
 - `A51h`: non-container residue for method/accessor/private/name-inference
-  object-literal restrictions and logical-control operands inside simple
-  literal spans.
+  object-literal restrictions plus logical-control and conditional
+  consequent/alternate operands inside simple literal spans.
 - `A51h1`: spread-source and computed object-key literal-span restrictions.
 - `A51h2`: array/object/template literal-container helper ownership, including
   `TryAppendSimpleArrayLiteralSpan`, `TryAppendSimpleObjectLiteralSpan`,
@@ -40,9 +40,9 @@ Keep the literal/span inventory split into three explicit lanes:
 
 Future inventory rebaselines or route-widening work must update the checklist,
 expansion contract, and proof manifest together when moving any of these
-anchors. Conditional consequent/alternate span boundaries belong with the
-simple operand-span lane once A51k owns that classification, not as generic
-A51h catch-all evidence.
+anchors. Conditional consequent/alternate simple-literal-span diagnostics belong
+with A51h's non-container literal/span lane; A51k should stay focused on the
+simple binary/operator and unsupported simple-operand helper diagnostics.
 
 ## Consequences
 
@@ -66,6 +66,9 @@ A51h catch-all evidence.
   `{"adr_id":365}`. The prefix `0365` was checked free before writing.
 - Delivery PR #3408 merged as commit
   `588703f4fc1d07391a10d98deb18fae5d7884284`.
+- Follow-up delivery PR #3411 merged as commit
+  `050b6ddd6313912c2a4577cf93aac8266040ed5b` and corrected the
+  conditional consequent/alternate simple-literal-span anchors back to A51h.
 - Delivery changed:
   - `docs/plans/bytecode-burndown-checklist.md`
   - `docs/plans/bytecode-proof-manifest.json`

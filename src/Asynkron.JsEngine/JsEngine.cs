@@ -7144,18 +7144,14 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
                 {
                     try
                     {
-#pragma warning disable CS0618 // Reuse the existing async iteration helpers for this TLA bridge.
-                        var getAsyncIterator = IterationHelper.CreateGetAsyncIteratorHelper(_engine);
-                        var iteratorValue = getAsyncIterator.Invoke([resolved], JsValue.Undefined);
+                        var iteratorValue = IterationHelper.GetAsyncIteratorCore([resolved], _engine);
                         if (!iteratorValue.TryGetObject<IJsObjectLike>(out var iterator))
                         {
                             throw StandardLibrary.ThrowTypeError("for await iterator must be an object",
                                 realm: _engine.RealmState);
                         }
 
-                        var iteratorNext = IterationHelper.CreateIteratorNextHelper(_engine);
-#pragma warning restore CS0618
-                        var nextResult = iteratorNext.Invoke([iteratorValue], JsValue.Undefined);
+                        var nextResult = IterationHelper.IteratorNextCore([iteratorValue], _engine);
                         var onNextFulfilled = new HostFunction(args =>
                         {
                             if (_completion.Task.IsCompleted)

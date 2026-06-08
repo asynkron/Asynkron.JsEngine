@@ -50,6 +50,13 @@ bridge tombstones must be absent from both engine code and `tools/ProfileRunner`
 and `UnifiedBytecodeExpressionProgramExecutor.ExecuteStandalone(...)` call sites
 must stay inside the approved helper-owned boundary surface.
 
+PR #3434 rebaselined that proof-manifest row as the finite E4 inventory instead
+of a vague "source-gated but not retired" bucket. The row now treats deleted
+bridge names as source-absence ratchets and keeps
+`UnifiedBytecodeExpressionProgramExecutor.ExecuteDynamic(...)` as the sole named
+open E4 dynamic expression bridge. Runner-internal expression evaluation remains
+E5-owned runner-retirement inventory, not an E4 closure blocker.
+
 ## Decision
 
 Keep standalone `ExpressionProgram` execution centralized in
@@ -102,6 +109,10 @@ bytecode rather than the AST evaluator or IR runner.
   leaving an allowlist entry.
 - If a future slice deletes any other quarantined helper, add or update the
   matching tombstone source gate in the same commit.
+- Future E4 rebaselines should preserve the finite-inventory shape: deleted
+  bridge names stay as absence ratchets, `ExecuteDynamic(...)` stays explicitly
+  source-present while open, and runner-internal expression-program evaluation
+  stays classified under E5 until that runner-retirement lane is owned.
 
 ## Evidence
 
@@ -144,6 +155,16 @@ bytecode rather than the AST evaluator or IR runner.
   Focused verification passed:
   - `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~ExecutionPlanDiagnosticsTests.SourceGate|FullyQualifiedName~BytecodeProofManifestTests"`:
     120 tests.
+  - `rtk git diff --check`.
+- PR #3434, from Faktorial issue
+  `planitem-planitem-planitem-gh3377-rebaseline-the-finite-bytecode-retirement-inven-78b3cfcd1a`,
+  rebaselined the E4 manifest/checklist wording around the finite source
+  inventory and added a source-presence assertion for the live
+  `ExecuteDynamic(...)` definition. The delivery branch commit was
+  `4f258ac21`; the merged PR commit on `main` was `6acd1acc1`.
+  Focused verification passed:
+  - `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~ExecutionPlanDiagnosticsTests|FullyQualifiedName~BytecodeProofManifestTests"`:
+    239 tests.
   - `rtk git diff --check`.
 
 ## Related

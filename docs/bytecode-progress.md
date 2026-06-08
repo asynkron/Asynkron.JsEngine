@@ -473,7 +473,7 @@ Use this meter instead:
 
 Current reproducible snapshot from local route-hit probes:
 
-Baseline: `origin/main` at `e2e0da918` on 2026-06-05. Command shape:
+Baseline: `origin/main` at `c42166d7c` on 2026-06-08. Command shape:
 
 ```bash
 profiles=(simplearithmetic fib forloop whileloop ir-arithmetic activation-noargs-lite activation-params-lite activation-arguments-lite activation-closures-lite activation-evalscope-lite objectcreation arrayops stringops propertyaccess classdef destructuring spread mapset json regex promise closures-lite recursion-lite forofiteration functioncalls functioncalls-lite)
@@ -507,7 +507,7 @@ done
 | `promise` | 60 | Active promise wrapper/eligible route; async/microtask semantics remain separate. |
 | `closures-lite` | 8,400 | Active closure workload route for eligible shapes. |
 | `recursion-lite` | 2 | Minimal-hit: wrapper/entry shape routes; recursive workload remains outside the production route. |
-| `forofiteration` | 2,000 | Active admitted sync iterator-driver route. |
+| `forofiteration` | 4,000 | Active admitted sync iterator-driver route. |
 | `functioncalls` | 8,000,010 | Active ordinary function-call route plus wrapper/entry shapes. |
 | `functioncalls-lite` | 1,600,002 | Active ordinary function-call route plus wrapper/entry shapes. |
 
@@ -516,14 +516,15 @@ support. They mean the measured workload shape did not enter the production
 unified-bytecode fast path. That is why route-hit evidence must be read
 together with the source shape and eligibility boundary.
 
-Final proof rerun on 2026-06-06 confirmed the representative production route
+Final proof rerun on 2026-06-08 confirmed the representative production route
 subset used by the expansion contract: `forloop` 40 hits, `propertyaccess` 20,
 `functioncalls-lite` 1,600,002, `activation-noargs-lite` 600,002, and
-`forofiteration` 2,000. The same run reported `forloop --memory` total
-allocation at 6.93 MB. The default Test262 regression script selected 1,910
-generated cases from the 523-entry `full` pack; 1,906 passed and 4 failed in
-the strict/non-strict Intl DateTimeFormat temporal resolved-time-zone rows
-(`formatRangeToParts` and `formatToParts`). Those residuals are Intl semantics
+`forofiteration` 4,000. The same run reported `forloop --memory` total
+allocation at 968.36 MB. The previous 2026-06-06 Test262 regression script
+selected 1,910 generated cases from the 523-entry `full` pack; 1,906 passed
+and 4 failed in the strict/non-strict Intl DateTimeFormat temporal
+resolved-time-zone rows (`formatRangeToParts` and `formatToParts`). Those
+residuals are Intl semantics
 evidence, not a retained discard-specific production bytecode gate.
 
 ## Practical Reading

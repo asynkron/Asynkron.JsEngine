@@ -2017,7 +2017,7 @@
         {
           "id": "E5-ir-runner-script-entry-still-present",
           "childOwner": "E5b-runner-entrypoint-retirement",
-          "classification": "ordinary script runner retirement source-presence anchor",
+          "classification": "classified script-runner source-presence anchor for non-admitted ordinary scripts plus terminal dynamic residue",
           "claim": "open",
           "kind": "source-presence",
           "path": "src/Asynkron.JsEngine/Ast/TypedAstEvaluator.ExecutionPlanRunner.Core.cs",
@@ -2051,7 +2051,7 @@
         {
           "id": "E5-script-ir-fallback-still-runs-execution-plan-runner",
           "childOwner": "E5c-script-fallback-retirement",
-          "classification": "ordinary script IR fallback retirement anchor",
+          "classification": "classified script IR fallback anchor for non-admitted ordinary scripts plus terminal dynamic residue",
           "claim": "open",
           "kind": "source-presence",
           "path": "src/Asynkron.JsEngine/Ast/Legacy/StatementNodeExtensions.cs",

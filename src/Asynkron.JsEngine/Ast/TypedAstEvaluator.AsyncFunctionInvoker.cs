@@ -5,6 +5,8 @@ using Asynkron.JsEngine.Execution.UnifiedBytecode;
 using Asynkron.JsEngine.Runtime;
 using Microsoft.Extensions.Logging;
 
+#pragma warning disable CS0618 // Obsolete AST evaluation methods are used intentionally here for declined async bodies.
+
 namespace Asynkron.JsEngine.Ast;
 
 public static partial class TypedAstEvaluator
@@ -29,6 +31,7 @@ public static partial class TypedAstEvaluator
     {
         private readonly RealmState _realmState = realmState;
         private readonly FunctionExecutionPlanSeed _planSeed = planSeed;
+        private ExecutionPlanRunner? _inner;
         private UnifiedBytecodeResumeState? _unifiedState;
 
         /// <summary>
@@ -57,7 +60,10 @@ public static partial class TypedAstEvaluator
                         return JsValue.Undefined;
                     }
 
-                    RejectDeclinedUnifiedBytecode(reject, declineCode, declineReason);
+                    _inner = CreateClassifiedAsyncDeclinedBodyRunner(declineCode, declineReason);
+                    _inner.Initialize();
+
+                    DriveToCompletion(ExecutionPlanRunner.ResumeMode.Next, JsValue.Undefined, resolve, reject);
                 }
                 catch (ThrowSignal signal)
                 {
@@ -271,27 +277,34 @@ public static partial class TypedAstEvaluator
             return false;
         }
 
-        private void RejectDeclinedUnifiedBytecode(
-            IJsCallable reject,
+        private ExecutionPlanRunner CreateClassifiedAsyncDeclinedBodyRunner(
             UnifiedBytecodeProductionDeclineCode declineCode,
             string declineReason)
         {
-            var message = CreateUnifiedBytecodeDeclineMessage(declineCode, declineReason);
             _realmState.Logger?.LogInformation(
-                "async-function-unified-bytecode-declined-rejected func={Function} code={DeclineCode} detail={DeclineReason}",
-                function.Name?.Name ?? "<anonymous>",
+                "classified-async-function-declined-body-runner-residue reason=production-unified-bytecode-declined code={DeclineCode} detail={DeclineReason}",
                 declineCode,
                 declineReason);
 
-            AsyncInvokeWithOneArg(reject, (JsValue)message);
+            return CreateExecutionPlanRunner();
         }
 
-        private string CreateUnifiedBytecodeDeclineMessage(
-            UnifiedBytecodeProductionDeclineCode declineCode,
-            string declineReason)
+        private ExecutionPlanRunner CreateExecutionPlanRunner()
         {
-            var functionName = function.Name?.Name ?? "<anonymous>";
-            return $"Async-function body '{functionName}' is not eligible for unified bytecode execution: {declineCode} - {declineReason}";
+            return new ExecutionPlanRunner(
+                function,
+                closure,
+                arguments,
+                thisValue,
+                callable,
+                _realmState,
+                isLexicallyStrict,
+                hasFunctionNameEnvironment: false,
+                homeObject,
+                privateNameScope,
+                capturedPrivateNameScopes,
+                planOverride: _planSeed.Plan,
+                planFailureOverride: _planSeed.Failure);
         }
 
         private void DriveUnifiedBytecodeToCompletion(
@@ -333,6 +346,47 @@ public static partial class TypedAstEvaluator
                 // reject the async function's promise. The first-step executor and the IR DriveToCompletion
                 // path both catch this; the bytecode resume drive must too, otherwise a post-await throw is
                 // swallowed and the promise hangs permanently pending.
+                AsyncInvokeWithOneArg(reject, signal.ThrownValue);
+            }
+            catch (Exception ex)
+            {
+                AsyncInvokeWithOneArg(reject, (JsValue)ex.Message);
+            }
+        }
+
+        private void DriveToCompletion(
+            ExecutionPlanRunner.ResumeMode mode,
+            JsValue argument,
+            IJsCallable resolve,
+            IJsCallable reject)
+        {
+            _realmState.Logger?.LogInformation(
+                "[AsyncFunctionInvoker] DriveToCompletion mode={Mode} argKind={Kind}",
+                mode,
+                argument.Kind);
+
+            try
+            {
+                var step = _inner!.ExecuteAsyncStep(mode, argument);
+
+                switch (step.Kind)
+                {
+                    case ExecutionPlanRunner.AsyncGeneratorStepKind.Completed:
+                        AsyncInvokeWithOneArg(resolve, step.Value);
+                        break;
+                    case ExecutionPlanRunner.AsyncGeneratorStepKind.Yield:
+                        DriveToCompletion(ExecutionPlanRunner.ResumeMode.Next, step.Value, resolve, reject);
+                        break;
+                    case ExecutionPlanRunner.AsyncGeneratorStepKind.Throw:
+                        AsyncInvokeWithOneArg(reject, step.Value);
+                        break;
+                    case ExecutionPlanRunner.AsyncGeneratorStepKind.Pending:
+                        HandlePendingPromise(step.PendingPromise, resolve, reject);
+                        break;
+                }
+            }
+            catch (ThrowSignal signal)
+            {
                 AsyncInvokeWithOneArg(reject, signal.ThrownValue);
             }
             catch (Exception ex)
@@ -405,11 +459,22 @@ public static partial class TypedAstEvaluator
 
                 try
                 {
-                    executor.DriveUnifiedBytecodeToCompletion(
-                        isRejection ? UnifiedBytecodeResumeMode.Throw : UnifiedBytecodeResumeMode.Next,
-                        value,
-                        resolve,
-                        reject);
+                    if (executor._unifiedState is not null)
+                    {
+                        executor.DriveUnifiedBytecodeToCompletion(
+                            isRejection ? UnifiedBytecodeResumeMode.Throw : UnifiedBytecodeResumeMode.Next,
+                            value,
+                            resolve,
+                            reject);
+                    }
+                    else
+                    {
+                        executor.DriveToCompletion(
+                            isRejection ? ExecutionPlanRunner.ResumeMode.Throw : ExecutionPlanRunner.ResumeMode.Next,
+                            value,
+                            resolve,
+                            reject);
+                    }
                 }
                 finally
                 {

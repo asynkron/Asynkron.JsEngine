@@ -2236,6 +2236,7 @@
             "src/Asynkron.JsEngine/Ast"
           ],
           "allowedPaths": [
+            "src/Asynkron.JsEngine/Ast/TypedAstEvaluator.AsyncFunctionInvoker.cs",
             "src/Asynkron.JsEngine/Ast/TypedAstEvaluator.ExecutionPlanRunner.Core.cs",
             "src/Asynkron.JsEngine/Ast/TypedAstEvaluator.GeneratorFunctionBase.cs",
             "src/Asynkron.JsEngine/Ast/TypedAstEvaluator.SyncFunctionInvoker.cs"
@@ -2272,11 +2273,11 @@
           "pattern": "runner.RunSync();"
         },
         {
-          "id": "E5-ir-runner-async-step-entry-absent",
-          "childOwner": "E5d-async-function-declined-body-runner-retired",
-          "classification": "async-function declined-body runner call site is retired; ExecuteAsyncStep remains only as the runner implementation method, not as an async-function entry bridge",
-          "claim": "retired-fallback",
-          "kind": "source-absence",
+          "id": "E5-ir-runner-async-step-entry-still-present",
+          "childOwner": "E5d-async-function-declined-body-runner-residue",
+          "classification": "classified async-function declined-body runner call site preserves legacy async semantics after resumable unified bytecode declines; not a broad E5b entry-presence blocker",
+          "claim": "open",
+          "kind": "source-presence",
           "path": "src/Asynkron.JsEngine/Ast/TypedAstEvaluator.AsyncFunctionInvoker.cs",
           "pattern": ".ExecuteAsyncStep("
         }
@@ -2340,11 +2341,11 @@
           "pattern": "CreateClassifiedSyncGeneratorDeclinedResidueRunner"
         },
         {
-          "id": "E5-async-function-declined-body-runner-retired",
-          "childOwner": "E5d-async-function-declined-body-runner-retired",
-          "classification": "async-function declined-body runner bridge is retired; production resumable declines reject explicitly with the decline code and reason instead of constructing an ExecutionPlanRunner",
-          "claim": "retired-fallback",
-          "kind": "source-absence",
+          "id": "E5-async-function-declined-body-runner-still-present",
+          "childOwner": "E5d-async-function-declined-body-runner-residue",
+          "classification": "classified async-function declined-body runner bridge remains required so production resumable declines preserve async execution semantics instead of rejecting ordinary programs",
+          "claim": "open",
+          "kind": "source-presence",
           "path": "src/Asynkron.JsEngine/Ast/TypedAstEvaluator.AsyncFunctionInvoker.cs",
           "pattern": "CreateClassifiedAsyncDeclinedBodyRunner"
         }

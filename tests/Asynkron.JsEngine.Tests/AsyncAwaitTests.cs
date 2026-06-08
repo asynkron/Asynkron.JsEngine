@@ -83,7 +83,7 @@ public sealed class AsyncAwaitTests(ITestOutputHelper output) : InternalTestBase
     }
 
     [Fact(Timeout = 2000)]
-    public async Task AsyncFunction_BlockScopedFunctionDeclaration_RejectsExplicitUnifiedBytecodeDecline()
+    public async Task AsyncFunction_BlockScopedFunctionDeclaration_UsesClassifiedDeclinedBodyRunner()
     {
         await using var engine = CreateEngine();
         var result = "";
@@ -126,12 +126,8 @@ public sealed class AsyncAwaitTests(ITestOutputHelper output) : InternalTestBase
             """));
 
         Assert.Null(exception);
-        Assert.True(string.IsNullOrEmpty(result));
-        Assert.StartsWith(
-            "Async-function body 'run' is not eligible for unified bytecode execution:",
-            error,
-            StringComparison.Ordinal);
-        Assert.Contains(" - ", error, StringComparison.Ordinal);
+        Assert.Equal("42", result);
+        Assert.True(string.IsNullOrEmpty(error));
     }
 
     [Fact(Timeout = 2000)]
@@ -808,7 +804,7 @@ public sealed class AsyncAwaitTests(ITestOutputHelper output) : InternalTestBase
     }
 
     [Fact(Timeout = 2000)]
-    public async Task AsyncFunction_MultipleSequentialAwaitsWithDebug_RejectsExplicitUnifiedBytecodeDecline()
+    public async Task AsyncFunction_MultipleSequentialAwaitsWithDebug_UsesClassifiedDeclinedBodyRunner()
     {
         // This test proves that a single straight block of awaits actually work
         // by using __debug() to capture state between each await
@@ -846,11 +842,7 @@ public sealed class AsyncAwaitTests(ITestOutputHelper output) : InternalTestBase
                 function(error) { captureResult(String(error)); });
             """);
 
-        Assert.StartsWith(
-            "Async-function body 'foo' is not eligible for unified bytecode execution:",
-            result,
-            StringComparison.Ordinal);
-        Assert.Contains(" - ", result, StringComparison.Ordinal);
+        Assert.Equal("fulfilled:30", result);
     }
 
     [Fact(Timeout = 2000)]

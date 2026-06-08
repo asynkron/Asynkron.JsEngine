@@ -1,8 +1,16 @@
-# ADR 0373: Retire async-function declined runner bridge with explicit rejection
+# ADR 0373: Superseded attempt to retire async-function declined runner bridge with explicit rejection
 
 ## Status
 
-Accepted.
+Superseded.
+
+Superseded on June 8, 2026 after the explicit-rejection contract broke
+`make quality`: broad async-function and microtask-draining tests stayed pending
+or observed empty results because route-ineligible async functions no longer
+completed through the legacy runner. The current contract is to keep
+`CreateClassifiedAsyncDeclinedBodyRunner(...)` and the async-function
+`.ExecuteAsyncStep(...)` call site as classified open residue until the
+resumable unified route owns those shapes semantically.
 
 ## Context
 
@@ -25,7 +33,7 @@ Keeping a broad `ExecuteAsyncStep(` allowlist would hide whether the
 async-function entry bridge had actually disappeared, because the runner
 implementation method itself can remain for other owners.
 
-## Decision
+## Superseded Decision
 
 Retire the async-function declined-body runner bridge.
 
@@ -36,7 +44,7 @@ Retire the async-function declined-body runner bridge.
   settlement path;
 - rejects route-ineligible async-function bodies with an explicit message that
   includes the production decline code and reason;
-- logs `async-function-unified-bytecode-declined-rejected` with the function
+- logged `async-function-unified-bytecode-declined-rejected` with the function
   name, decline code, and detail;
 - does not construct `ExecutionPlanRunner`, call `.ExecuteAsyncStep(...)`, or
   keep `CreateClassifiedAsyncDeclinedBodyRunner(...)`.
@@ -52,20 +60,21 @@ The proof manifest must represent this as a tombstone:
   `retired-fallback` source absence for
   `CreateClassifiedAsyncDeclinedBodyRunner`.
 
-Future route widening should replace a specific async-function rejection with
-public route-hit proof and nearby unsupported-route proof. It should not restore
-the runner bridge to preserve fallback success for non-admitted async bodies.
+Future route widening should replace the classified async-function runner bridge
+with public route-hit proof and nearby unsupported-route proof. It must not
+replace fallback execution with rejection unless the affected async semantics
+are already owned elsewhere.
 
 ## Consequences
 
-- Route-ineligible async functions reject their returned promise instead of
-  completing through the legacy IR runner.
+- Route-ineligible async functions must complete through the classified legacy
+  runner until their shapes route through resumable unified bytecode.
 - The E5 inventory can retire the async-function bridge without falsely closing
   ordinary sync, class-constructor, or sync-generator runner owners.
-- Source gates now prove both the deleted helper and the deleted async-function
-  `ExecuteAsyncStep` call site stay absent.
-- Tests that previously asserted fallback completion for declined async bodies
-  must assert explicit rejection with decline detail instead.
+- Source gates now keep the helper and async-function `ExecuteAsyncStep` call
+  site visible as classified residue.
+- Tests must assert fallback completion for current declined async bodies and
+  separately assert absence of the resumable fast-path log.
 
 ## Evidence
 

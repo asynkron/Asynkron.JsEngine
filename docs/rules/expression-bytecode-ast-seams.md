@@ -316,25 +316,24 @@ fallback or cleanup.
     fallback. WHY: proof-manifest wording can be ahead of actual routing
     retirement; forcing the tombstone before executable route/no-route proof
     breaks valid current behavior and hides the true E5c owner.
-38. When retiring async-function declined-body runner residue, convert both the
-    E5b async-step entry row and the E5d async-function declined-body row into
-    tombstones. The E5b proof should be `source-absence` scoped to
-    `TypedAstEvaluator.AsyncFunctionInvoker.cs` for the call-site token
-    `.ExecuteAsyncStep(`, because `ExecutionPlanRunner.Core.cs` may still
-    declare the shared implementation method for other owners. The E5d proof
-    should be `source-absence` for `CreateClassifiedAsyncDeclinedBodyRunner`.
-    Declined async-function production-resumable bodies should reject their
-    returned promise with the production decline code and reason, and log the
-    explicit rejection, instead of constructing an `ExecutionPlanRunner` bridge
-    to preserve fallback success. Keep ordinary sync function,
-    class-constructor, and sync-generator runner owners open until their own
-    source gates are retired. Issue
+38. Do not retire async-function declined-body runner residue by making
+    ordinary declined async functions reject. Keep both the E5b async-step entry
+    row and the E5d async-function declined-body row as classified open residue
+    until current async semantics are owned by the resumable unified route. The
+    E5b proof should stay scoped to `TypedAstEvaluator.AsyncFunctionInvoker.cs`
+    for the call-site token `.ExecuteAsyncStep(`, because
+    `ExecutionPlanRunner.Core.cs` may still declare the shared implementation
+    method for other owners. The E5d proof should be `source-presence` for
+    `CreateClassifiedAsyncDeclinedBodyRunner`, and the helper should preserve
+    the production decline code and reason before constructing the runner.
+    Issue
     `planitem-gh3377-rebaseline-the-finite-bytecode-retirement-inventory-retire-fallba-db1bb485e8`
-    / PR #3480 added this rule after retiring the async-function bridge while
-    leaving the other E5d owners open. WHY: a broad `ExecuteAsyncStep(` allowlist
-    can stay green because the runner method still exists, and fallback-success
-    tests can accidentally restore the async-function runner bridge after the
-    intended contract has become explicit rejection. Related ADR:
+    / PR #3480 attempted the tombstone by rejecting declined async bodies; the
+    June 8, 2026 quality repair restored the classified runner after broad
+    async/microtask tests stayed pending or empty. WHY: a broad
+    `ExecuteAsyncStep(` allowlist can stay green because the runner method still
+    exists, and tombstone tests can accidentally encode rejection while broad
+    async semantics still require fallback execution. Related ADR:
     `docs/adrs/0373-retire-async-function-declined-runner-bridge-with-explicit-rejection.md`.
 
 ## Dynamic Boundary Classification (#1405 Retry)

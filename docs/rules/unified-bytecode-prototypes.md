@@ -336,10 +336,11 @@ all-or-nothing until a separate routing issue proves production readiness.
     dynamic residue with ordinary class-definition and runner-retirement work.
 9l. Keep A51h literal/span inventory lanes decomposed during rebaselines.
     `A51h` owns non-container method/accessor/private/name-inference
-    restrictions and logical-control operands in simple literal spans; `A51h1`
-    owns spread-source and computed object-key literal-span restrictions; and
-    `A51h2` owns the array/object/template literal-container appender and
-    measurer helper lane. Do not collapse `A51h2` helper source-presence
+    restrictions plus logical-control and conditional consequent/alternate
+    operands in simple literal spans; `A51h1` owns spread-source and computed
+    object-key literal-span restrictions; and `A51h2` owns the
+    array/object/template literal-container appender and measurer helper lane.
+    Do not collapse `A51h2` helper source-presence
     anchors into the parent row or the spread/computed-key child just to make
     checklist counts reconcile after nearby route-widening work. Moving or
     closing any one of these lanes must update the checklist, expansion
@@ -349,7 +350,10 @@ all-or-nothing until a separate routing issue proves production readiness.
     / PR #3408 resolved an A51h inventory rebase conflict by splitting
     literal-container helper ownership into `A51h2` while keeping A51h's
     non-container residue and A51h1's spread/computed-key residues separately
-    auditable. Related ADR:
+    auditable. Faktorial issue
+    `planitem-planitem-planitem-gh3377-rebaseline-the-finite-bytecode-retirement-inven-a7e7dad1a8`
+    moved the conditional consequent/alternate simple-literal-span anchors back
+    under A51h so A51k remains the operand-span helper lane. Related ADR:
     `docs/adrs/0365-keep-a51h-literal-container-spans-as-separate-inventory-lane.md`.
 10. When invoking production unified bytecode from sync calls, keep the bridge
     slot-layout owned and fast-path ordered. The production unified route runs

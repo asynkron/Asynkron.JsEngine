@@ -206,6 +206,16 @@ all-or-nothing until a separate routing issue proves production readiness.
     `eval("var injected = 1"); injected;` must keep computing through the
     classified IR fallback, must not log the script production fast path, and
     must preserve the `CallDependency` decline detail with eval context.
+    Faktorial issue
+    `planitem-planitem-planitem-gh3377-rebaseline-the-finite-bytecode-retirement-inven-cd2d746199`
+    / PR #3444 refined the E5 rebaseline after script fallback wording lagged
+    behind script admission work. The remaining script fallback anchor is for
+    non-admitted ordinary scripts plus terminal dynamic residue, not for every
+    top-level script. Source gates for this boundary should isolate the
+    `ExecutionKind.Script` route section and prove it calls only
+    `RunScriptViaClassifiedIrFallback(...)`, with no direct
+    `ExecutionPlanRunner.RunScript(...)` call before the helper; this keeps
+    accepted script routes from being hidden by the classified fallback bridge.
 9f. Classify entrypoint and target rejects by builder provenance before
     treating them as active production residue. `Unsupported entrypoint.` and
     invalid-target integrity guards are A51a1 malformed-plan backstops when the

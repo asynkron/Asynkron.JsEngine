@@ -2232,11 +2232,11 @@
         {
           "id": "E5-function-runner-fallback-still-constructs-runner",
           "childOwner": "E5d-function-and-resumable-declined-body-runner-retirement",
-          "classification": "ordinary sync function fallback runner construction anchor",
+          "classification": "classified ordinary sync function fallback runner construction anchor, excluding class constructor residue",
           "claim": "open",
           "kind": "source-presence",
           "path": "src/Asynkron.JsEngine/Ast/TypedAstEvaluator.SyncFunctionInvoker.cs",
-          "pattern": "new ExecutionPlanRunner("
+          "pattern": "CreateOrdinarySyncFunctionFallbackRunner("
         },
         {
           "id": "E5-sync-generator-declined-body-runner-still-present",

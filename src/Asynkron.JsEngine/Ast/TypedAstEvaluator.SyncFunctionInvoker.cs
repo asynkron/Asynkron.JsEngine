@@ -1957,26 +1957,21 @@ TryCreateSimpleNumericSelfRecursionFastPath(
                             }
                         }
 
-                        var runner = new ExecutionPlanRunner(
-                            _function,
-                            _closure,
-                            arguments,
-                            constructorThisValue,
-                            this,
-                            RealmState,
-                            _isStrict,
-                            _hasFunctionNameEnvironment,
-                            _homeObject,
-                            PrivateNameScope,
-                            _capturedPrivateNameScopes,
-                            effectiveNewTarget,
-                            _lexicalThisEnvironment,
-                            _superConstructor,
-                            _superPrototype,
-                            context,
-                            derivedClassErrorRealm: constructErrorRealm,
-                            planOverride: plan,
-                            planFailureOverride: _planSeed.Failure);
+                        var runner = IsClassConstructor
+                            ? CreateClassConstructorFallbackRunner(
+                                arguments,
+                                constructorThisValue,
+                                effectiveNewTarget,
+                                plan,
+                                context,
+                                constructErrorRealm)
+                            : CreateOrdinarySyncFunctionFallbackRunner(
+                                arguments,
+                                constructorThisValue,
+                                effectiveNewTarget,
+                                plan,
+                                context,
+                                constructErrorRealm);
 
                         var runnerContext = runner.EnsureEvaluationContext();
 
@@ -3019,6 +3014,68 @@ TryCreateSimpleNumericSelfRecursionFastPath(
             {
                 ReturnSimpleIrActivationEnvironment(executionEnvironment);
             }
+        }
+
+        private ExecutionPlanRunner CreateOrdinarySyncFunctionFallbackRunner<TArgs>(
+            TArgs arguments,
+            JsValue thisValue,
+            JsValue newTarget,
+            ExecutionPlan plan,
+            EvaluationContext context,
+            RealmState constructErrorRealm)
+            where TArgs : IReadOnlyList<JsValue>
+        {
+            return new ExecutionPlanRunner(
+                _function,
+                _closure,
+                arguments,
+                thisValue,
+                this,
+                RealmState,
+                _isStrict,
+                _hasFunctionNameEnvironment,
+                _homeObject,
+                PrivateNameScope,
+                _capturedPrivateNameScopes,
+                newTarget,
+                _lexicalThisEnvironment,
+                _superConstructor,
+                _superPrototype,
+                context,
+                derivedClassErrorRealm: constructErrorRealm,
+                planOverride: plan,
+                planFailureOverride: _planSeed.Failure);
+        }
+
+        private ExecutionPlanRunner CreateClassConstructorFallbackRunner<TArgs>(
+            TArgs arguments,
+            JsValue thisValue,
+            JsValue newTarget,
+            ExecutionPlan plan,
+            EvaluationContext context,
+            RealmState constructErrorRealm)
+            where TArgs : IReadOnlyList<JsValue>
+        {
+            return new ExecutionPlanRunner(
+                _function,
+                _closure,
+                arguments,
+                thisValue,
+                this,
+                RealmState,
+                _isStrict,
+                _hasFunctionNameEnvironment,
+                _homeObject,
+                PrivateNameScope,
+                _capturedPrivateNameScopes,
+                newTarget,
+                _lexicalThisEnvironment,
+                _superConstructor,
+                _superPrototype,
+                context,
+                derivedClassErrorRealm: constructErrorRealm,
+                planOverride: plan,
+                planFailureOverride: _planSeed.Failure);
         }
 
         private bool TryInvokeProductionUnifiedBytecode<TArgs>(

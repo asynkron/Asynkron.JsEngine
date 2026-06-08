@@ -295,6 +295,14 @@ all-or-nothing until a separate routing issue proves production readiness.
     e)` and `typeof -(pick ? a : b)` after the bounded parser repair, while
     keeping `a + helper()` declined as `CallDependency`. Related ADR:
     `docs/adrs/0359-admit-nested-simple-operand-spans-through-bounded-recursive-walkers.md`.
+    Faktorial issue
+    `planitem-planitem-planitem-gh3377-rebaseline-the-finite-bytecode-retirement-inven-3a439da133`
+    / PR #3414 later split the admitted helper/walker inventory into A51k1
+    while leaving A51k open for unsupported simple/operator diagnostics and
+    call/private/dynamic-neighbor operands. Future rebaselines must keep A51k1
+    limited to the mirrored simple value span helpers and update the checklist,
+    proof manifest, and expansion contract together. Related ADR:
+    `docs/adrs/0366-keep-a51k1-simple-value-operand-span-inventory-separate.md`.
 9j. Keep class static-block IR fallback classified by the production decline
     that caused it. `ClassDefinitionExtensions.ExecuteStaticBlock` may still
     delegate to `ExecutionPlanRunner.RunScript` for non-production static-block
@@ -877,6 +885,14 @@ all-or-nothing until a separate routing issue proves production readiness.
      checklist ownership together while keeping excluded call/private/dynamic-key
      neighbors outside the new child unless already admitted by the measured
      span helper.
+     Faktorial issue
+     `planitem-planitem-planitem-gh3377-rebaseline-the-finite-bytecode-retirement-inven-3a439da133`
+     / PR #3414 applied the same source-presence split to A51k by extracting
+     A51k1 for the admitted simple value operand-span helper lane. Keep A51k1
+     out of A51k's remaining unsupported simple/operator and
+     call/private/dynamic-neighbor diagnostics unless a future delivery replaces
+     those anchors with executable proof. Related ADR:
+     `docs/adrs/0366-keep-a51k1-simple-value-operand-span-inventory-separate.md`.
 12. When defining property-read production eligibility, keep candidate
     recognition separate from VM acceptance until the same slice adds compiler
     opcodes, VM semantics, route-priority proof, and negative no-route tests.

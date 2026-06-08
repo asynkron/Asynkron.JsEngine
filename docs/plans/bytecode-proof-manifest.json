@@ -877,11 +877,26 @@
           ]
         },
         {
-          "id": "B24h-computed-name-activation-delete-throws",
-          "claim": "admitted",
-          "kind": "runtime",
-          "source": "function* g(key) {\n  yield 'ready';\n  var C = class {\n    [delete key]() { return key; }\n  };\n  var c = new C();\n  return c.false();\n}\nvar iterator = g('value');\nvar first = iterator.next();\nvar second = iterator.next();\nfirst.value + ':' + first.done + '|' + second.value + ':' + second.done;",
-          "expectedThrowContains": "Delete of an unqualified identifier"
+          "id": "B24h-computed-name-activation-delete-declines",
+          "claim": "open",
+          "kind": "eligibility",
+          "subject": "resumable-generator",
+          "functionName": "g",
+          "source": "function* g(key) {\n  yield 'ready';\n  var C = class {\n    [delete key]() { return 1; }\n  };\n  return C;\n}",
+          "expectedEligible": false,
+          "declineCode": "UnsupportedPlanShape",
+          "reasonContains": "activation binding delete"
+        },
+        {
+          "id": "B24h-computed-field-name-activation-delete-declines",
+          "claim": "open",
+          "kind": "eligibility",
+          "subject": "resumable-generator",
+          "functionName": "g",
+          "source": "function* g(key) {\n  yield 'ready';\n  var C = class {\n    [delete key] = 42;\n  };\n  return C;\n}",
+          "expectedEligible": false,
+          "declineCode": "UnsupportedPlanShape",
+          "reasonContains": "activation binding delete"
         },
         {
           "id": "B24h-computed-name-immediate-iife-capture-routes",

@@ -98,4 +98,8 @@ When a recurring-child task asks for Test262 maintenance:
 2. Apply the narrowest fix in the owning engine slice.
 3. Re-run the focused pack.
 4. Re-run broader regression packs only as confirmation.
-5. Update this README if local runner workflow or pack behavior changes.
+5. Before choosing or reporting the slice, follow the recurring-child sibling
+   check and evidence template in `agents/how-to-build-and-test.md`; durable
+   recurrence policy and compaction lessons live in
+   `docs/rules/recurring-maintenance-child-runs.md`.
+6. Update this README if local runner workflow or pack behavior changes.

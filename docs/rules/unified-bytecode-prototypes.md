@@ -333,6 +333,15 @@ all-or-nothing until a separate routing issue proves production readiness.
     adjacent B36 open-row discipline, because the same fallback mechanism does
     not make computed class expressions and direct class declarations the same
     checklist owner.
+    Faktorial issue
+    `planitem-planitem-planitem-gh3377-rebaseline-the-finite-bytecode-retirement-inven-6a4f7538d5`
+    / PR #3427 clarified the parent retrospective after a completed B24h child
+    was easy to read as full B24h closure. Future retrospective rebaselines
+    must treat parent-plan child completion as partial-slice closure unless the
+    maintained checklist and proof manifest also close the source-owned B24h or
+    B36 row, and must keep runtime-source direct eval, non-production
+    static-block plans, and classified static-block IR fallback visible as
+    separate residue anchors rather than ordinary B24h admission work.
 9k. Treat E4/E5 owner inventories as classification evidence, not closure
     claims. When docs, issue summaries, ADRs, or PR text describe remaining
     `ExpressionProgram` or `ExecutionPlanRunner` reachability, keep the

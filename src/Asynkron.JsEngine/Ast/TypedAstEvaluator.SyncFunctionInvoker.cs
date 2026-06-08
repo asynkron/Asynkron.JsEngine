@@ -3001,6 +3001,10 @@ TryCreateSimpleNumericSelfRecursionFastPath(
             RealmState constructErrorRealm)
             where TArgs : IReadOnlyList<JsValue>
         {
+            RealmState.Logger?.LogInformation(
+                "classified-ordinary-sync-function-fallback reason=production-unified-bytecode-declined func={Function} argc={ArgumentCount}",
+                _function.Name?.Name ?? "<anonymous>",
+                arguments.Count);
             return new ExecutionPlanRunner(
                 _function,
                 _closure,

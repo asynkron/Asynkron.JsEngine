@@ -10063,6 +10063,39 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
             "Deleted ordinary sync runner residue helper must stay tombstoned; add a classified source gate if it is intentionally restored.");
     }
 
+    [Fact(Timeout = 5000)]
+    public async Task OrdinarySyncZeroDepthDynamicIdentifierDelete_RoutesThroughProductionUnifiedBytecode()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            implicitGlobalForDelete = 1;
+            function deleteImplicitGlobal() {
+                return delete implicitGlobalForDelete;
+            }
+
+            var deleted = deleteImplicitGlobal();
+            deleted + ':' + typeof implicitGlobalForDelete;
+            """);
+
+        Assert.Equal("true:undefined", result);
+        var snapshot = CurrentLogger!.Collector.Snapshot();
+        Assert.Contains(
+            snapshot,
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=deleteImplicitGlobal argc=0",
+                StringComparison.Ordinal));
+        Assert.DoesNotContain(
+            snapshot,
+            static record => record.Message.Contains(
+                "classified-ordinary-sync-function-fallback",
+                StringComparison.Ordinal));
+        Assert.DoesNotContain(
+            snapshot,
+            static record => record.Message.Contains(
+                "simple-ir-activation-runner-declined func=deleteImplicitGlobal",
+                StringComparison.Ordinal));
+    }
+
     private static void AssertNoSimpleIrFallbackLog(IReadOnlyCollection<TestLogger.LogRecord> logRecords)
     {
         Assert.DoesNotContain(logRecords,

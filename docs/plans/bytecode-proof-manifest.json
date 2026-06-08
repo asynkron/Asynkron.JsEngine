@@ -1682,6 +1682,20 @@
           "pattern": "ResumableDirectEvalActivationDetector.ContainsArgumentsObjectDependency(function.Body)"
         },
         {
+          "id": "B36-resumable-helper-direct-eval-cache-decline-anchor-stays-open",
+          "claim": "open",
+          "kind": "source-presence",
+          "path": "src/Asynkron.JsEngine/Ast/TypedAstEvaluator.UnifiedBytecodeResumableActivation.cs",
+          "pattern": "!AllowsIdentifierCaching(functionDeclaration.Function)"
+        },
+        {
+          "id": "B36-resumable-helper-synthetic-activation-capture-decline-anchor-stays-open",
+          "claim": "open",
+          "kind": "source-presence",
+          "path": "src/Asynkron.JsEngine/Ast/TypedAstEvaluator.UnifiedBytecodeResumableActivation.cs",
+          "pattern": "capturedName[0] == '<'"
+        },
+        {
           "id": "B36-class-declaration-non-production-static-block-stays-open",
           "claim": "open",
           "kind": "source-presence",

@@ -1972,7 +1972,59 @@
           ]
         },
         {
+          "id": "E4-dynamic-expression-executor-call-sites-stay-boundary-owned",
+          "childOwner": "E4-dynamic-expression-executor-residue",
+          "classification": "finite dynamic expression payload boundary; ExpressionNodeExtensions is the primary child owner, FunctionExpressionExtensions and VariableKindExtensions share the same dynamic expression payload contract, and statement/loop legacy operands remain separately classified dynamic residue",
+          "claim": "source-ratchet",
+          "kind": "source-allowlist",
+          "paths": [
+            "src/Asynkron.JsEngine"
+          ],
+          "allowedPaths": [
+            "src/Asynkron.JsEngine/Ast/FunctionExpressionExtensions.cs",
+            "src/Asynkron.JsEngine/Ast/VariableKindExtensions.cs",
+            "src/Asynkron.JsEngine/Ast/Legacy/ExpressionNodeExtensions.cs",
+            "src/Asynkron.JsEngine/Ast/Legacy/LoopPlanExtensions.cs",
+            "src/Asynkron.JsEngine/Ast/Legacy/StatementNodeExtensions.cs"
+          ],
+          "pattern": "UnifiedBytecodeExpressionProgramExecutor.ExecuteDynamic(",
+          "classifiedCallSites": [
+            {
+              "childOwner": "E4-dynamic-function-parameter-defaults",
+              "classification": "function parameter default dynamic expression payload",
+              "path": "src/Asynkron.JsEngine/Ast/FunctionExpressionExtensions.cs",
+              "callCount": 1
+            },
+            {
+              "childOwner": "E4-dynamic-variable-initializers",
+              "classification": "variable initializer dynamic expression payload",
+              "path": "src/Asynkron.JsEngine/Ast/VariableKindExtensions.cs",
+              "callCount": 1
+            },
+            {
+              "childOwner": "E4-legacy-expression-node-dynamic-payloads",
+              "classification": "legacy expression-node dynamic expression payloads",
+              "path": "src/Asynkron.JsEngine/Ast/Legacy/ExpressionNodeExtensions.cs",
+              "callCount": 47
+            },
+            {
+              "childOwner": "E4-legacy-loop-operand-dynamic-payloads",
+              "classification": "legacy loop operand dynamic expression payloads",
+              "path": "src/Asynkron.JsEngine/Ast/Legacy/LoopPlanExtensions.cs",
+              "callCount": 2
+            },
+            {
+              "childOwner": "E4-legacy-statement-operand-dynamic-payloads",
+              "classification": "legacy statement operand dynamic expression payloads",
+              "path": "src/Asynkron.JsEngine/Ast/Legacy/StatementNodeExtensions.cs",
+              "callCount": 10
+            }
+          ]
+        },
+        {
           "id": "E4-dynamic-expression-executor-still-present",
+          "childOwner": "E4-dynamic-expression-executor-residue",
+          "classification": "open dynamic expression payload bridge definition; lowers/caches ExpressionNode payloads and routes through standalone unified bytecode",
           "claim": "open",
           "kind": "source-presence",
           "path": "src/Asynkron.JsEngine/Execution/UnifiedBytecode/UnifiedBytecodeExpressionProgramExecutor.cs",

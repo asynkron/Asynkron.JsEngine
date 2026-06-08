@@ -201,9 +201,12 @@ The remaining non-retirement work is concentrated in:
   topology, slot layout, scope/environment, driver state, destructuring,
   expression-span, call-boundary, literal, property, mutation, and cleanup
   diagnostics.
-- B24h class-definition state: computed-name/class element neighbors that still
-  need runtime-source direct eval or otherwise non-production static-block plan
-  ownership and broader class-definition environment bridging.
+- B24h class-expression class-definition state: computed-name/computed
+  class-element neighbors and the broader class-definition environment bridge.
+  This is not the B36 class-declaration row. Runtime-source direct eval,
+  otherwise non-production static-block plans, and static-block IR fallback
+  remain visible as separate residue anchors rather than ordinary B24h
+  admission work.
 - B36 resumable declarations: exact open manifest rows now keep dynamic eval
   helpers, arguments eval helpers, helper direct-eval cache declines,
   synthetic activation-capture declines, runtime-source direct eval,

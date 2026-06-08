@@ -127,7 +127,7 @@ public sealed partial class BytecodeProofManifestTests(ITestOutputHelper output)
     }
 
     [Fact]
-    public void Manifest_ExecutionPlanRunnerEntryAnchors_AreClassifiedAllowlists()
+    public void Manifest_ExecutionPlanRunnerEntryAnchors_AreClassifiedAllowlistsOrRetired()
     {
         var proofs = LoadManifest()
             .Items
@@ -137,14 +137,20 @@ public sealed partial class BytecodeProofManifestTests(ITestOutputHelper output)
 
         Assert.Equal(
             [
-                "E5-ir-runner-async-step-entry-still-present",
+                "E5-ir-runner-async-step-entry-absent",
                 "E5-ir-runner-script-entry-still-present",
                 "E5-ir-runner-sync-entry-still-present",
                 "E5-ir-runner-type-still-present"
             ],
             proofs.Keys.Order(StringComparer.Ordinal).ToArray());
 
-        foreach (var proof in proofs.Values)
+        var asyncStepProof = proofs["E5-ir-runner-async-step-entry-absent"];
+        Assert.Equal("source-absence", asyncStepProof.Kind);
+        Assert.Equal("retired-fallback", asyncStepProof.Claim);
+        Assert.Equal("E5d-async-function-declined-body-runner-retired", asyncStepProof.ChildOwner);
+        Assert.Equal(".ExecuteAsyncStep(", asyncStepProof.Pattern);
+
+        foreach (var proof in proofs.Values.Where(static proof => proof.Kind == "source-allowlist"))
         {
             Assert.Equal("source-allowlist", proof.Kind);
             Assert.Equal("open", proof.Claim);
@@ -155,7 +161,6 @@ public sealed partial class BytecodeProofManifestTests(ITestOutputHelper output)
 
         Assert.Equal("E5c-script-and-static-block-runner-fallback", proofs["E5-ir-runner-script-entry-still-present"].ChildOwner);
         Assert.Equal("E5d-function-and-constructor-runner-fallback", proofs["E5-ir-runner-sync-entry-still-present"].ChildOwner);
-        Assert.Equal("E5d-async-function-declined-body-runner-residue", proofs["E5-ir-runner-async-step-entry-still-present"].ChildOwner);
     }
 
     [Fact]
@@ -170,12 +175,18 @@ public sealed partial class BytecodeProofManifestTests(ITestOutputHelper output)
         Assert.Equal("open", items["E5e"].Status);
 
         Assert.All(
-            items["E5b"].Proofs,
+            items["E5b"].Proofs.Where(static proof => proof.Claim == "open"),
             proof =>
             {
                 Assert.Equal("source-allowlist", proof.Kind);
                 Assert.Equal("open", proof.Claim);
             });
+        Assert.Single(
+            items["E5b"].Proofs,
+            static proof =>
+                proof.Id == "E5-ir-runner-async-step-entry-absent" &&
+                proof.Kind == "source-absence" &&
+                proof.Claim == "retired-fallback");
 
         Assert.Equal(
             [
@@ -185,7 +196,7 @@ public sealed partial class BytecodeProofManifestTests(ITestOutputHelper output)
             items["E5c"].Proofs.Select(static proof => proof.ChildOwner).Order(StringComparer.Ordinal).ToArray());
         Assert.Equal(
             [
-                "E5d-async-function-declined-body-runner-residue",
+                "E5d-async-function-declined-body-runner-retired",
                 "E5d-class-constructor-initialization-residue",
                 "E5d-function-and-resumable-declined-body-runner-retirement",
                 "E5d-sync-generator-declined-residue"

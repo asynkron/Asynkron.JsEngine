@@ -212,7 +212,7 @@ public sealed class IrLoopEnvironmentTests(ITestOutputHelper output) : InternalT
     [Fact(Timeout = 5000)]
     public async Task AsyncFunction_ForLoop_ClosuresCaptureCorrectValues()
     {
-        // This tests the IR path - async functions use ExecutionPlanRunner
+        // This tests the resumable async-function route.
         // Closures should capture 0, 1, 2 - sum should be 3
         await using var engine = CreateEngine();
         await engine.Evaluate("""

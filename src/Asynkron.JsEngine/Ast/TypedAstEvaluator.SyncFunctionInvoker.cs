@@ -1780,7 +1780,6 @@ TryCreateSimpleNumericSelfRecursionFastPath(
                         this,
                         RealmState,
                         _isStrict,
-                        _hasFunctionNameEnvironment,
                         _homeObject,
                         PrivateNameScope,
                         _capturedPrivateNameScopes,

@@ -1463,25 +1463,33 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     }
 
     [Fact(Timeout = 5000)]
-    public async Task AsyncFunctionDirectEvalDeclaration_LogsClassifiedDeclinedBodyRunnerResidue()
+    public async Task AsyncFunctionDirectEvalDeclaration_RejectsExplicitUnifiedBytecodeDecline()
     {
         await using var engine = CreateEngine();
         var result = await engine.EvaluateAndAwait("""
             var asyncResult = undefined;
-            async function run() {
-                eval("var injected = 41;");
-                return injected + 1;
+            async function run(source) {
+                await 0;
+                return eval(source);
             }
 
-            run().then(value => asyncResult = value);
+            run().then(
+                value => asyncResult = 'fulfilled:' + value,
+                error => asyncResult = String(error));
             asyncResult;
             """);
 
-        Assert.Equal(42d, result);
+        var message = Assert.IsType<string>(result);
+        Assert.StartsWith(
+            "Async-function body 'run' is not eligible for unified bytecode execution:",
+            message,
+            StringComparison.Ordinal);
+        Assert.Contains(" - ", message, StringComparison.Ordinal);
+        Assert.False(message.EndsWith(" - ", StringComparison.Ordinal));
         var logs = CurrentLogger!.Collector.Snapshot();
         Assert.Contains(logs,
             static record => record.Message.Contains(
-                "classified-async-function-declined-body-runner-residue reason=production-unified-bytecode-declined",
+                "async-function-unified-bytecode-declined-rejected func=run",
                 StringComparison.Ordinal));
         Assert.DoesNotContain(logs,
             static record => record.Message.Contains(
@@ -10285,7 +10293,7 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     }
 
     [Fact]
-    public void SourceGate_AsyncFunctionDeclinedBodyRunnerResidue_IsExplicitlyClassified()
+    public void SourceGate_AsyncFunctionDeclinedBodyRunner_IsRetired()
     {
         var repositoryRoot = FindRepositoryRootForSourceGate();
         var sourcePath = Path.Combine(
@@ -10297,23 +10305,19 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
 
         Assert.True(File.Exists(sourcePath), $"Expected async-function source at '{sourcePath}'.");
         var source = File.ReadAllText(sourcePath);
-        var helperSection = ExtractRequiredSourceSection(
+        Assert.DoesNotContain("CreateClassifiedAsyncDeclinedBodyRunner", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("ExecutionPlanRunner", source, StringComparison.Ordinal);
+        Assert.DoesNotContain(".ExecuteAsyncStep(", source, StringComparison.Ordinal);
+        Assert.DoesNotContain(
+            "classified-async-function-declined-body-runner-residue",
             source,
-            "private ExecutionPlanRunner CreateClassifiedAsyncDeclinedBodyRunner(",
-            "private ExecutionPlanRunner CreateExecutionPlanRunner(",
-            "async-function declined-body classified runner residue");
-
-        Assert.Contains("UnifiedBytecodeProductionDeclineCode declineCode", helperSection, StringComparison.Ordinal);
-        Assert.Contains("string declineReason", helperSection, StringComparison.Ordinal);
-        Assert.Contains(
-            "classified-async-function-declined-body-runner-residue reason=production-unified-bytecode-declined",
-            helperSection,
             StringComparison.Ordinal);
-        Assert.Contains("code={DeclineCode}", helperSection, StringComparison.Ordinal);
-        Assert.Contains("detail={DeclineReason}", helperSection, StringComparison.Ordinal);
-        Assert.Contains("CreateExecutionPlanRunner();", helperSection, StringComparison.Ordinal);
-        Assert.DoesNotContain("ExecuteAsyncStep(", helperSection, StringComparison.Ordinal);
-        Assert.DoesNotContain("CreateClassifiedAsyncDeclinedBodyRunner();", source, StringComparison.Ordinal);
+        Assert.Contains(
+            "async-function-unified-bytecode-declined-rejected",
+            source,
+            StringComparison.Ordinal);
+        Assert.Contains("UnifiedBytecodeProductionDeclineCode declineCode", source, StringComparison.Ordinal);
+        Assert.Contains("string declineReason", source, StringComparison.Ordinal);
     }
 
     [Fact]

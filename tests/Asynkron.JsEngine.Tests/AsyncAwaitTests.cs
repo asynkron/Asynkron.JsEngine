@@ -83,7 +83,7 @@ public sealed class AsyncAwaitTests(ITestOutputHelper output) : InternalTestBase
     }
 
     [Fact(Timeout = 2000)]
-    public async Task AsyncFunction_BlockScopedFunctionDeclaration_HoistsWithinBlock_Ir()
+    public async Task AsyncFunction_BlockScopedFunctionDeclaration_RejectsExplicitUnifiedBytecodeDecline()
     {
         await using var engine = CreateEngine();
         var result = "";
@@ -122,23 +122,16 @@ public sealed class AsyncAwaitTests(ITestOutputHelper output) : InternalTestBase
             }
             run()
                 .then(function(value) { captureResult(value); })
-                .catch(function(error) { captureError(error && error.name); });
+                .catch(function(error) { captureError(String(error)); });
             """));
 
-        var snapshot = ExecutionPlanDiagnostics.DetailedSnapshot();
-        var attempts = snapshot.Functions.Attempts + snapshot.Scripts.Attempts;
-        var succeeded = snapshot.Functions.Succeeded + snapshot.Scripts.Succeeded;
-        var failed = snapshot.Functions.Failed + snapshot.Scripts.Failed;
-
-        Assert.True(attempts >= 1);
-        Assert.True(succeeded >= 1);
-        Assert.Equal(0, failed);
-        Assert.Null(ExecutionPlanDiagnostics.LastFailureReason);
-        Assert.Null(ExecutionPlanDiagnostics.LastFunctionDescription);
-
         Assert.Null(exception);
-        Assert.Equal("42", result);
-        Assert.True(string.IsNullOrEmpty(error));
+        Assert.True(string.IsNullOrEmpty(result));
+        Assert.StartsWith(
+            "Async-function body 'run' is not eligible for unified bytecode execution:",
+            error,
+            StringComparison.Ordinal);
+        Assert.Contains(" - ", error, StringComparison.Ordinal);
     }
 
     [Fact(Timeout = 2000)]
@@ -815,7 +808,7 @@ public sealed class AsyncAwaitTests(ITestOutputHelper output) : InternalTestBase
     }
 
     [Fact(Timeout = 2000)]
-    public async Task AsyncFunction_MultipleSequentialAwaitsWithDebug()
+    public async Task AsyncFunction_MultipleSequentialAwaitsWithDebug_RejectsExplicitUnifiedBytecodeDecline()
     {
         // This test proves that a single straight block of awaits actually work
         // by using __debug() to capture state between each await
@@ -848,44 +841,16 @@ public sealed class AsyncAwaitTests(ITestOutputHelper output) : InternalTestBase
                 return x1 + x2 + x3;
             }
 
-            foo().then(function(value) {
-                captureResult(value);
-            });
+            foo().then(
+                function(value) { captureResult('fulfilled:' + value); },
+                function(error) { captureResult(String(error)); });
             """);
 
-        // Get the debug messages
-        var debugMessages = new List<DebugMessage>();
-        for (var i = 0; i < 3; i++)
-        {
-            debugMessages.Add(await engine.DebugMessages().ReadAsync());
-        }
-
-        // Assert - Verify we captured state after each await
-        Assert.Equal(3, debugMessages.Count);
-
-        // After first await, x1 should be defined
-        Assert.True(debugMessages[0].Variables.ContainsKey("x1"));
-        Assert.Equal(10d, debugMessages[0].Variables["x1"]);
-        Assert.False(debugMessages[0].Variables.ContainsKey("x2"));
-        Assert.False(debugMessages[0].Variables.ContainsKey("x3"));
-
-        // After second await, x1 and x2 should be defined
-        Assert.True(debugMessages[1].Variables.ContainsKey("x1"));
-        Assert.Equal(10d, debugMessages[1].Variables["x1"]);
-        Assert.True(debugMessages[1].Variables.ContainsKey("x2"));
-        Assert.Equal(10d, debugMessages[1].Variables["x2"]);
-        Assert.False(debugMessages[1].Variables.ContainsKey("x3"));
-
-        // After third await, all three should be defined
-        Assert.True(debugMessages[2].Variables.ContainsKey("x1"));
-        Assert.Equal(10d, debugMessages[2].Variables["x1"]);
-        Assert.True(debugMessages[2].Variables.ContainsKey("x2"));
-        Assert.Equal(10d, debugMessages[2].Variables["x2"]);
-        Assert.True(debugMessages[2].Variables.ContainsKey("x3"));
-        Assert.Equal(10d, debugMessages[2].Variables["x3"]);
-
-        // Final result should be correct
-        Assert.Equal("30", result);
+        Assert.StartsWith(
+            "Async-function body 'foo' is not eligible for unified bytecode execution:",
+            result,
+            StringComparison.Ordinal);
+        Assert.Contains(" - ", result, StringComparison.Ordinal);
     }
 
     [Fact(Timeout = 2000)]

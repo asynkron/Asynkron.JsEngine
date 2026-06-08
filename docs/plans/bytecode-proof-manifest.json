@@ -1956,6 +1956,18 @@
               "classification": "computed class property-name standalone payload",
               "path": "src/Asynkron.JsEngine/Ast/ClassPropertyNameResolver.cs",
               "enclosingMember": "TryResolveNameCore"
+            },
+            {
+              "childOwner": "E4-binding-program-standalone-payloads",
+              "classification": "external lowered binding-target expression payload",
+              "path": "src/Asynkron.JsEngine/Ast/TypedAstEvaluator.ExecutionPlanRunner.BindingPrograms.cs",
+              "enclosingMember": "EvaluateBindingExpressionProgram"
+            },
+            {
+              "childOwner": "E4-sync-function-standalone-payloads",
+              "classification": "sync function instance-field initializer standalone payload",
+              "path": "src/Asynkron.JsEngine/Ast/TypedAstEvaluator.SyncFunctionInvoker.cs",
+              "enclosingMember": "InitializeInstance"
             }
           ]
         },

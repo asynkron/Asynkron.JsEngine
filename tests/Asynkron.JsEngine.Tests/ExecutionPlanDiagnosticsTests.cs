@@ -347,7 +347,7 @@ public sealed class ExecutionPlanDiagnosticsTests(ITestOutputHelper output) : In
         var repositoryRoot = FindRepositoryRoot();
         var sourceRoot = Path.Combine(repositoryRoot.FullName, "src", "Asynkron.JsEngine");
         var toolRoot = Path.Combine(repositoryRoot.FullName, "tools", "ProfileRunner");
-        var classDefinitionCallSites = new[]
+        var expectedCallSites = new[]
         {
             new StandaloneExecutorCallSite(
                 "src/Asynkron.JsEngine/Ast/ClassDefinitionExtensions.cs",
@@ -360,9 +360,17 @@ public sealed class ExecutionPlanDiagnosticsTests(ITestOutputHelper output) : In
             new StandaloneExecutorCallSite(
                 "src/Asynkron.JsEngine/Ast/ClassPropertyNameResolver.cs",
                 "TryResolveNameCore",
-                "computed class property-name standalone payload")
+                "computed class property-name standalone payload"),
+            new StandaloneExecutorCallSite(
+                "src/Asynkron.JsEngine/Ast/TypedAstEvaluator.ExecutionPlanRunner.BindingPrograms.cs",
+                "EvaluateBindingExpressionProgram",
+                "external lowered binding-target expression payload"),
+            new StandaloneExecutorCallSite(
+                "src/Asynkron.JsEngine/Ast/TypedAstEvaluator.SyncFunctionInvoker.cs",
+                "InitializeInstance",
+                "sync function instance-field initializer standalone payload")
         };
-        var expectedClassMembersByPath = classDefinitionCallSites
+        var expectedMembersByPath = expectedCallSites
             .GroupBy(static callSite => callSite.RelativePath)
             .ToDictionary(
                 static group => group.Key,
@@ -370,11 +378,9 @@ public sealed class ExecutionPlanDiagnosticsTests(ITestOutputHelper output) : In
                 StringComparer.Ordinal);
         var allowedCallSites = new HashSet<string>(StringComparer.Ordinal)
         {
-            "src/Asynkron.JsEngine/Execution/UnifiedBytecode/UnifiedBytecodeExpressionProgramExecutor.cs",
-            "src/Asynkron.JsEngine/Ast/TypedAstEvaluator.ExecutionPlanRunner.BindingPrograms.cs",
-            "src/Asynkron.JsEngine/Ast/TypedAstEvaluator.SyncFunctionInvoker.cs"
+            "src/Asynkron.JsEngine/Execution/UnifiedBytecode/UnifiedBytecodeExpressionProgramExecutor.cs"
         };
-        foreach (var callSite in classDefinitionCallSites)
+        foreach (var callSite in expectedCallSites)
         {
             allowedCallSites.Add(callSite.RelativePath);
         }
@@ -405,7 +411,7 @@ public sealed class ExecutionPlanDiagnosticsTests(ITestOutputHelper output) : In
                         EnclosingMember: FindEnclosingMemberName(
                             lines,
                             entry.index,
-                            expectedClassMembersByPath.GetValueOrDefault(relativePath, []))));
+                            expectedMembersByPath.GetValueOrDefault(relativePath, []))));
             })
             .ToArray();
 
@@ -421,21 +427,21 @@ public sealed class ExecutionPlanDiagnosticsTests(ITestOutputHelper output) : In
             "UnifiedBytecodeExpressionProgramExecutor.ExecuteStandalone call-site drift detected:\n" +
             string.Join('\n', disallowed));
 
-        var classifiedClassCallSites = matches
-            .Where(match => classDefinitionCallSites.Any(callSite => callSite.RelativePath == match.relativePath))
+        var classifiedCallSites = matches
+            .Where(match => expectedCallSites.Any(callSite => callSite.RelativePath == match.relativePath))
             .Select(match => new StandaloneExecutorCallSite(
                 match.relativePath,
                 match.EnclosingMember,
-                classDefinitionCallSites
+                expectedCallSites
                     .SingleOrDefault(callSite =>
                         callSite.RelativePath == match.relativePath &&
                         callSite.EnclosingMember == match.EnclosingMember)
-                    ?.Classification ?? "unclassified class-definition standalone payload"))
+                    ?.Classification ?? "unclassified standalone expression payload"))
             .ToArray();
 
         Assert.Equal(
-            classDefinitionCallSites.OrderBy(static callSite => callSite.RelativePath).ThenBy(static callSite => callSite.EnclosingMember),
-            classifiedClassCallSites.OrderBy(static callSite => callSite.RelativePath).ThenBy(static callSite => callSite.EnclosingMember));
+            expectedCallSites.OrderBy(static callSite => callSite.RelativePath).ThenBy(static callSite => callSite.EnclosingMember),
+            classifiedCallSites.OrderBy(static callSite => callSite.RelativePath).ThenBy(static callSite => callSite.EnclosingMember));
     }
 
     [Fact]

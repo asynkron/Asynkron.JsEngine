@@ -385,6 +385,19 @@ all-or-nothing until a separate routing issue proves production readiness.
     B36 row, and must keep runtime-source direct eval, non-production
     static-block plans, and classified static-block IR fallback visible as
     separate residue anchors rather than ordinary B24h admission work.
+    Faktorial issue
+    `planitem-gh3495-shared-context-e5c-script-and-static-block-runner-retirement-reti-e9fd42d64f`
+    / PR #3516 admitted the derived static-block `super` property family by
+    keeping `AllowsThisPropertyWrites` owned by the static-block activation
+    descriptor, then mirroring named `super` property read support through both
+    production eligibility and compiler emission. Do not generalize that flag to
+    ordinary scripts, functions, or resumable bodies, and do not admit a
+    static-block source row unless the route proof requires
+    `unified-bytecode-production-fast-path static-block`, forbids
+    `classified-static-block-ir-fallback`, keeps runtime-source direct eval
+    rows open, and records any retained compiler decline template in the
+    expansion contract. Related ADR:
+    `docs/adrs/0375-admit-static-block-super-property-route-through-descriptor-owned-this-writes.md`.
 9k. Treat E4/E5 owner inventories as classification evidence, not closure
     claims. When docs, issue summaries, ADRs, or PR text describe remaining
     `ExpressionProgram` or `ExecutionPlanRunner` reachability, keep the
@@ -3060,3 +3073,4 @@ Related ADRs:
 - `docs/adrs/0318-admit-apply-binding-target-assignment-destructuring-bridge-in-unified-bytecode.md`
 - `docs/adrs/0332-admit-resumable-try-catch-with-owned-frame-state.md`
 - `docs/adrs/0356-admit-object-method-literal-spans-through-mirrored-compiler-emission.md`
+- `docs/adrs/0375-admit-static-block-super-property-route-through-descriptor-owned-this-writes.md`

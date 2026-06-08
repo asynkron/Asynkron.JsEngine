@@ -39,7 +39,12 @@ This step is **critical** - agent investigation findings are lost if not documen
   - Split unrelated reads into small commands instead of large chained `sed`/`rg`/log commands.
   - Scope `rg` to specific existing paths and avoid broad `.faktorial/worktrees` searches unless the task explicitly requires that path.
   - When raw logs are required, use narrow snippets (targeted patterns and line caps) rather than full dumps.
-  - For recurring maintenance child runs, ensure `## Build Update` explicitly includes a `Sibling check:` line (or states the lookup was unavailable) so evidence gates can verify overlap avoidance.
+  - For recurring maintenance child runs, ensure `## Build Update` includes
+    the stable evidence fields from `agents/how-to-build-and-test.md`:
+    `Baseline signal:`, `Final signal:`, `Signal delta:`, `Sibling check:`,
+    `Slice check:`, and `Scope note:`. The `Sibling check:` line must name
+    the reviewed sibling issues or state that lookup was unavailable so
+    evidence gates can verify overlap avoidance.
 - In Faktorial issue-stage runs, keep in-flight progress updates as plain prose; reserve machine-readable structured schema output for the actual final stage result.
 - For each session, update an existing issue or create one if none fit.
 - Local/manual `gh` examples (non-Faktorial runtime):

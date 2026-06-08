@@ -4845,6 +4845,19 @@ internal static class UnifiedBytecodeProductionEligibility
                 continue;
             }
 
+            if (operation.Kind == ExpressionOpKind.LoadClassLiteral)
+            {
+                var classExpression = operation.GetObject<ClassExpression>(objectConstants);
+                var cache = ((IAstCacheable<ClassDefinitionProgramCache>)classExpression.Definition).GetOrCreateCache();
+                if (ClassDeclarationNeedsMaterializedBodyEnvironment(cache, activationSlots, out capturedName))
+                {
+                    dependencyReason = "nested class literal activation capture";
+                    return true;
+                }
+
+                continue;
+            }
+
             if (operation.Kind is ExpressionOpKind.Call or ExpressionOpKind.Construct or ExpressionOpKind.SuperConstruct)
             {
                 hasCallDependency = true;
@@ -4858,18 +4871,6 @@ internal static class UnifiedBytecodeProductionEligibility
             }
 
             capturedName = identifier.Name.Name;
-            if (operation.Kind == ExpressionOpKind.LoadIdentifier &&
-                TrySkipAdmittedClassComputedNameActivationConstruct(
-                    program,
-                    operationIndex,
-                    identifierConstants,
-                    activationSlots,
-                    out var constructOperationIndex))
-            {
-                operationIndex = constructOperationIndex;
-                continue;
-            }
-
             if (operation.Kind == ExpressionOpKind.LoadIdentifierCallTarget)
             {
                 if (allowDirectActivationCall &&
@@ -4907,50 +4908,6 @@ internal static class UnifiedBytecodeProductionEligibility
         }
 
         return false;
-    }
-
-    private static bool TrySkipAdmittedClassComputedNameActivationConstruct(
-        ExpressionProgram program,
-        int constructorOperationIndex,
-        ReadOnlySpan<IdentifierOperand> identifierConstants,
-        ActivationSlotShape activationSlots,
-        out int constructOperationIndex)
-    {
-        constructOperationIndex = constructorOperationIndex;
-        var constructorOperation = program.GetOperation(constructorOperationIndex);
-        if (constructorOperation.Kind != ExpressionOpKind.LoadIdentifier)
-        {
-            return false;
-        }
-
-        var constructorIdentifier = constructorOperation.GetIdentifier(identifierConstants);
-        if (!TryResolveActivationSlot(constructorIdentifier, activationSlots))
-        {
-            return false;
-        }
-
-        var candidateIndex = program.OperationCount - 1;
-        if (candidateIndex <= constructorOperationIndex)
-        {
-            return false;
-        }
-
-        var constructOperation = program.GetOperation(candidateIndex);
-        if (constructOperation.Kind != ExpressionOpKind.Construct ||
-            !TryValidateAdmittedComplexCallArgumentRegion(
-                program,
-                argsStartIndex: constructorOperationIndex + 1,
-                callIndex: candidateIndex,
-                expectedArgumentCount: constructOperation.ArgumentCount,
-                identifierConstants,
-                activationSlots,
-                allowsDynamicIdentifiers: false))
-        {
-            return false;
-        }
-
-        constructOperationIndex = candidateIndex;
-        return true;
     }
 
     private static bool TrySkipAdmittedClassComputedNameImmediateFunctionCall(
@@ -5049,8 +5006,7 @@ internal static class UnifiedBytecodeProductionEligibility
             ExpressionOpKind.ResolveIdentifierReference or
             ExpressionOpKind.StoreResolvedIdentifier or
             ExpressionOpKind.StoreIdentifier or
-            ExpressionOpKind.UpdateIdentifier or
-            ExpressionOpKind.DeleteIdentifier;
+            ExpressionOpKind.UpdateIdentifier;
 
     private static bool IsB24dStaticBlockClassLiteral(
         ClassDefinition definition,

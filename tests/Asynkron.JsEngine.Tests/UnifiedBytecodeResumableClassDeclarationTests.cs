@@ -133,7 +133,7 @@ public sealed class UnifiedBytecodeResumableClassDeclarationTests(ITestOutputHel
     }
 
     [Fact]
-    public void EvaluateResumable_ClassDeclarationComputedNameActivationDelete_AdmitsDeclareClass()
+    public void EvaluateResumable_ClassDeclarationComputedNameActivationDelete_DeclinesDeclareClass()
     {
         var plan = GetFunctionPlan("""
             function* g(key) {
@@ -152,9 +152,10 @@ public sealed class UnifiedBytecodeResumableClassDeclarationTests(ITestOutputHel
             plan,
             new UnifiedBytecodeProductionActivationDescriptor(IsGenerator: true));
 
-        Assert.True(result.IsEligible, result.Reason);
-        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
-        Assert.Contains(
+        Assert.False(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.UnsupportedPlanShape, result.Code);
+        Assert.Contains("activation binding delete", result.Reason, StringComparison.Ordinal);
+        Assert.DoesNotContain(
             result.Program.Instructions,
             static instruction => instruction.OpCode == UnifiedBytecodeOpCode.DeclareClass);
     }

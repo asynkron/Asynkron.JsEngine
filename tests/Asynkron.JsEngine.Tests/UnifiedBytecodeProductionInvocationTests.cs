@@ -10073,9 +10073,16 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
             "private static bool TryRunScriptViaProductionUnifiedBytecode(",
             "classified script IR fallback");
         var sourceOutsideHelper = source.Replace(helperSection, string.Empty, StringComparison.Ordinal);
+        var scriptRouteSection = ExtractRequiredSourceSection(
+            source,
+            "if (executionKind == ExecutionKind.Script)",
+            "return RunScriptViaClassifiedIrFallback(\n            scriptPlan,\n            UnifiedBytecodeProductionEligibilityResult.Decline(",
+            "ordinary script route");
 
-        Assert.Contains("return RunScriptViaClassifiedIrFallback(", source, StringComparison.Ordinal);
+        Assert.Contains("return RunScriptViaClassifiedIrFallback(", scriptRouteSection, StringComparison.Ordinal);
         Assert.DoesNotContain("return ExecutionPlanRunner.RunScript(", sourceOutsideHelper, StringComparison.Ordinal);
+        Assert.DoesNotContain("ExecutionPlanRunner.RunScript(", scriptRouteSection, StringComparison.Ordinal);
+        Assert.DoesNotContain("CreateOrdinaryScriptUnifiedBytecodeDeclineException(", source, StringComparison.Ordinal);
         Assert.Contains(
             "classified-script-ir-fallback reason=production-unified-bytecode-declined",
             helperSection,

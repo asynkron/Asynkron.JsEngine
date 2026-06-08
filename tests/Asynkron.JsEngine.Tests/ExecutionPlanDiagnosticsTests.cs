@@ -296,6 +296,11 @@ public sealed class ExecutionPlanDiagnosticsTests(ITestOutputHelper output) : In
     {
         var repositoryRoot = FindRepositoryRoot();
         var sourceRoot = Path.Combine(repositoryRoot.FullName, "src", "Asynkron.JsEngine");
+        var executorSource = Path.Combine(
+            sourceRoot,
+            "Execution",
+            "UnifiedBytecode",
+            "UnifiedBytecodeExpressionProgramExecutor.cs");
         var allowedCallSites = new HashSet<string>(StringComparer.Ordinal)
         {
             "src/Asynkron.JsEngine/Ast/FunctionExpressionExtensions.cs",
@@ -319,6 +324,11 @@ public sealed class ExecutionPlanDiagnosticsTests(ITestOutputHelper output) : In
                     .Select(entry => (relativePath, entry.index + 1, entry.line.Trim()));
             })
             .ToArray();
+
+        Assert.Contains(
+            "internal static JsValue ExecuteDynamic(",
+            File.ReadAllText(executorSource),
+            StringComparison.Ordinal);
 
         var disallowed = matches
             .Where(match => !allowedCallSites.Contains(match.relativePath))

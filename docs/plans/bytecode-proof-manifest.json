@@ -1855,7 +1855,7 @@
     },
     {
       "id": "E4",
-      "title": "AST/expression-program evaluation bridges are source-gated but not retired",
+      "title": "ExpressionProgram bridge inventory is finite: deleted bridges are ratcheted and ExecuteDynamic remains open",
       "status": "open",
       "proofs": [
         {

@@ -226,6 +226,12 @@ public sealed partial class BytecodeProofManifestTests(ITestOutputHelper output)
             ],
             openProofIds);
 
+        var repositoryRoot = FindRepositoryRoot();
+        var checklistText = File.ReadAllText(Path.Combine(repositoryRoot.FullName, ChecklistRelativePath));
+        Assert.All(
+            openProofIds,
+            proofId => Assert.Contains($"`{proofId}`", checklistText, StringComparison.Ordinal));
+
         var helperProofs = b36.Proofs
             .Where(static proof => proof.Id.StartsWith("B36-resumable-", StringComparison.Ordinal))
             .ToArray();

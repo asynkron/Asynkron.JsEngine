@@ -219,9 +219,10 @@ The remaining non-retirement work is concentrated in:
 - B36 resumable declarations: exact open manifest rows now keep dynamic eval
   helpers, arguments eval helpers, helper direct-eval cache declines,
   synthetic activation-capture declines, runtime-source direct eval,
-  non-production static-block plans, static-block IR fallback, and private/static/computed
-  class declaration neighbors outside the admitted public method/computed/super/static
-  subsets visible while direct root helpers,
+  private instance fields/method captures/static methods/computed private
+  neighbors, non-production static-block plans, static-block IR fallback, and
+  private/static/computed class declaration neighbors outside the admitted
+  public method/computed/super/static subsets visible while direct root helpers,
   recursive/sibling helper graphs, block/Annex B declarations, simple class
   declarations, plain `extends` declarations whose superclass expression
   compiles as standalone unified bytecode, activation-safe explicit public

@@ -18,7 +18,7 @@ public static partial class IterationHelper
         return GetAsyncIteratorCore(args, engine);
     }
 
-    private static JsValue GetAsyncIteratorCore(IReadOnlyList<JsValue> args, JsEngineInstance engine)
+    internal static JsValue GetAsyncIteratorCore(IReadOnlyList<JsValue> args, JsEngineInstance engine)
     {
         if (args.Count == 0)
         {
@@ -137,7 +137,7 @@ public static partial class IterationHelper
         var iteratorObj = new JsObject();
         var index = 0;
         // Use _handler directly instead of _invokeWithContext because
-        // CreateIteratorNextHelper uses Invoke() which only calls _handler
+        // IteratorNextCore invokes the next function directly through _handler.
         var next = new HostFunction((_, _) =>
         {
             var result = new JsObject();
@@ -175,12 +175,6 @@ public static partial class IterationHelper
                nextProp.TryGetObject<IJsCallable>(out _);
     }
 
-    [Obsolete("Use RegisterHostFunctions instead")]
-    public static HostFunction CreateGetAsyncIteratorHelper(JsEngineInstance engine)
-    {
-        return new HostFunction(args => GetAsyncIteratorCore(args, engine));
-    }
-
     /// <summary>
     ///     Helper method for async iteration: gets next value from iterator and wraps in Promise if needed.
     ///     This handles both sync and async iterators uniformly.
@@ -192,7 +186,7 @@ public static partial class IterationHelper
         return IteratorNextCore(args, engine);
     }
 
-    private static JsValue IteratorNextCore(IReadOnlyList<JsValue> args, JsEngineInstance engine)
+    internal static JsValue IteratorNextCore(IReadOnlyList<JsValue> args, JsEngineInstance engine)
     {
         // args[0] should be the iterator object
         if (args.Count == 0 || !args[0].TryGetObject(out var iterator))
@@ -256,16 +250,6 @@ public static partial class IterationHelper
         promise.Resolve(result);
         engine.WriteAsyncIteratorTrace("iteratorNext: wrapped result in resolved promise");
         return new JsValue(promise.JsObject);
-    }
-
-    /// <summary>
-    ///     Helper method for async iteration: gets next value from iterator and wraps in Promise if needed.
-    ///     This handles both sync and async iterators uniformly.
-    /// </summary>
-    [Obsolete("Use RegisterHostFunctions instead")]
-    public static HostFunction CreateIteratorNextHelper(JsEngineInstance engine)
-    {
-        return new HostFunction(args => IteratorNextCore(args, engine));
     }
 
     /// <summary>

@@ -532,7 +532,11 @@ activation-resolved constructs with spread and non-spread arguments now stay on
 declarations, and declaration-free single-literal direct eval statements whose
 bodies capture or mutate resumable activation slots are inside the
 materialized-body-environment route when the static-block body is otherwise
-production eligible.
+production eligible. Deferred class-definition environment bridge work remains
+separate from B24h class-expression closure: class-declaration declaration
+binding, static-block declaration instantiation, runtime-source direct eval,
+and class-declaration computed-name activation-call semantics stay in the
+B36/class-definition bridge inventory.
 
 - `B24a:ClassExpressionConstructor`
 - `B24b:ClassExpressionInstanceFields`
@@ -1017,7 +1021,11 @@ predicates and proof tests.
     direct eval, or otherwise non-production static-block
     plans, plus otherwise complex class declaration neighbors
     (private/static/computed shapes outside the admitted public subsets)
-    are the remaining separate B36 declaration-instantiation work.
+    are the remaining separate B36 declaration-instantiation work. Current
+    class-declaration computed-name activation-call admission is an explicit B36
+    proof lane; it must not be inherited by B24h or used to close the broader
+    declaration binding, static-block declaration instantiation, or
+    runtime-source direct-eval bridge.
     `DeclareFunction` remains off the resumable opcode allowlist because
     descriptor-backed block/Annex B declarations still need persisted
     materialized block environments across suspension; direct root

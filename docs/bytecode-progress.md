@@ -228,7 +228,9 @@ The remaining non-retirement work is concentrated in:
   as standalone unified bytecode and member bodies do not capture activation,
   and non-extends declarations that mix public non-computed static fields with
   eligible static blocks, are already accounted for as admitted partial
-  progress.
+  progress. Current class-declaration computed-name activation-call admission is
+  a B36 proof lane, not evidence that B24h owns declaration binding or the
+  broader class-definition environment bridge.
 - E4/E5 retirement work: remove the remaining tier-1 `ExpressionProgram` hot
   path and tier-2 `ExecutionPlanRunner` hot path after A/B/C parity is actually
   proven. The current E5 reachability text is classification evidence, not a

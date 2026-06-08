@@ -1250,6 +1250,13 @@
           "kind": "source-presence",
           "path": "src/Asynkron.JsEngine/Ast/ClassDefinitionExtensions.cs",
           "pattern": "classified-static-block-ir-fallback reason=production-unified-bytecode-declined"
+        },
+        {
+          "id": "B24h-deferred-class-definition-environment-bridge-stays-open",
+          "claim": "open",
+          "kind": "source-presence",
+          "path": "docs/unified-bytecode-expansion-contract.md",
+          "pattern": "Deferred class-definition environment bridge work remains"
         }
       ]
     },
@@ -1729,6 +1736,13 @@
           "kind": "source-presence",
           "path": "src/Asynkron.JsEngine/Execution/UnifiedBytecode/UnifiedBytecodeProductionEligibility.cs",
           "pattern": "if (!field.IsStatic || field.IsPrivate || field.IsComputed)"
+        },
+        {
+          "id": "B36-deferred-class-definition-environment-bridge-stays-open",
+          "claim": "open",
+          "kind": "source-presence",
+          "path": "docs/unified-bytecode-expansion-contract.md",
+          "pattern": "class-declaration computed-name activation-call admission is an explicit B36"
         }
       ]
     },

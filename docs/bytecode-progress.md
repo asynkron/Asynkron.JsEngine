@@ -165,16 +165,16 @@ instruction allowlist has 0 non-admitted IR instruction records. Those lists
 are drift-checked in `ExpressionProgramCoverageMapTests`, so future opcode or
 instruction additions cannot hide behind the old default buckets.
 
-Phase 0 inventory closure is complete as of 2026-06-05. The burndown checklist
-now has 145 finite items: 128 complete and 17 open. The last coarse leaves were
-split into A35a-A35e object-literal member opcode leaves and B24a-B24i
-class-expression semantic leaves.
+Phase 0 inventory closure is complete as of 2026-06-05. At that checkpoint,
+the burndown checklist had 145 finite items: 128 complete and 17 open. The last
+coarse leaves were split into A35a-A35e object-literal member opcode leaves and
+B24a-B24i class-expression semantic leaves.
 
 ### Current Retrospective Accounting
 
-The latest checklist recount is **128 / 145 complete**. Across the
-concrete A+B+C+D sections, **120 / 134** are complete and **14** remain open.
-Phase B stands at **54 / 57** complete. The D5 non-residue ratchet has **0**
+The latest checklist recount is **137 / 161 complete**. Across the
+concrete A+B+C+D sections, **127 / 146** are complete and **19** remain open.
+Phase B stands at **55 / 57** complete. The D5 non-residue ratchet has **0**
 known-open rows, the resumable opcode gap inventory has **5** remaining gaps,
 and the resumable instruction gap inventory has **0** remaining gaps.
 
@@ -209,12 +209,13 @@ The remaining non-retirement work is concentrated in:
   topology, slot layout, scope/environment, driver state, destructuring,
   expression-span, call-boundary, literal, property, mutation, and cleanup
   diagnostics.
-- B24h class-expression class-definition state: computed-name/computed
-  class-element neighbors and the broader class-definition environment bridge.
-  This is not the B36 class-declaration row. Runtime-source direct eval,
-  otherwise non-production static-block plans, and static-block IR fallback
-  remain visible as separate residue anchors rather than ordinary B24h
-  admission work.
+- B24h class-expression class-definition state: computed-name activation
+  delete/construct residue, runtime-source direct eval, non-production
+  static-block plan ownership, and the broader class-definition environment
+  bridge. This is not the B36 class-declaration row. Activation-safe computed
+  calls/IIFEs and declaration-free literal direct eval in static blocks are
+  admitted slices, but the remaining class-definition environment and
+  non-production static-block anchors stay open.
 - B36 resumable declarations: exact open manifest rows now keep dynamic eval
   helpers, arguments eval helpers, helper direct-eval cache declines,
   synthetic activation-capture declines, runtime-source direct eval,

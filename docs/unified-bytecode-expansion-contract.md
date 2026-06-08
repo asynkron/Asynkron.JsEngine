@@ -1011,8 +1011,10 @@ predicates and proof tests.
     static-block function declarations and nested static-block class declarations
     can close over the materialized resumable body environment, and
     declaration-free single-literal direct eval statements inside static blocks
-    route through the same production static-block path. Dynamic/eval
-    helpers, runtime-source direct eval or otherwise non-production static-block
+    route through the same production static-block path. Dynamic/eval helper
+    activation declines, arguments eval helper declines, helper direct-eval
+    cache declines, synthetic activation-capture declines, runtime-source
+    direct eval, or otherwise non-production static-block
     plans, plus otherwise complex class declaration neighbors
     (private/static/computed shapes outside the admitted public subsets)
     are the remaining separate B36 declaration-instantiation work.

@@ -484,12 +484,19 @@ public sealed partial class BytecodeProofManifestTests(ITestOutputHelper output)
         var countRows = proof.ClassifiedCallSites
             .Where(static callSite => callSite.CallCount.HasValue)
             .ToArray();
-        foreach (var callSite in countRows)
+        if (countRows.Length != 0)
         {
-            var actualCount = matches.Count(match => string.Equals(match.relativePath, callSite.Path, StringComparison.Ordinal));
             Assert.Equal(
-                callSite.CallCount!.Value,
-                actualCount);
+                countRows
+                    .GroupBy(static callSite => callSite.Path, StringComparer.Ordinal)
+                    .OrderBy(static group => group.Key, StringComparer.Ordinal)
+                    .Select(static group => (Path: group.Key, Count: group.Sum(static callSite => callSite.CallCount!.Value)))
+                    .ToArray(),
+                matches
+                    .GroupBy(static match => match.relativePath, StringComparer.Ordinal)
+                    .OrderBy(static group => group.Key, StringComparer.Ordinal)
+                    .Select(static group => (Path: group.Key, Count: group.Count()))
+                    .ToArray());
         }
 
         var memberRows = proof.ClassifiedCallSites

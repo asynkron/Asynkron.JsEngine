@@ -2255,6 +2255,12 @@
               "callCount": 1
             },
             {
+              "childOwner": "E5d-async-function-declined-body-runner-residue",
+              "classification": "async declined-body runner construction",
+              "path": "src/Asynkron.JsEngine/Ast/TypedAstEvaluator.AsyncFunctionInvoker.cs",
+              "callCount": 1
+            },
+            {
               "childOwner": "E5d-function-and-constructor-runner-fallback",
               "classification": "ordinary sync function and class-constructor declined-body fallback runner construction",
               "path": "src/Asynkron.JsEngine/Ast/TypedAstEvaluator.SyncFunctionInvoker.cs",

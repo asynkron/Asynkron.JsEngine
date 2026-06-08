@@ -117,6 +117,12 @@ parameter/binary routes, `SyncIrCallTrampoline`, and constructor/class
 invocation bridges decline. The old generic simple-return-expression branch in
 `TryInvokeIrFast` no longer executes `ExpressionProgram`; it now declines to
 the classified fallback too.
+The final Batch 5 retrospective confirms that the closed E5b child did not
+close the whole E5 batch. ADR 0371 converted the broad runner-entry anchors
+into source allowlists, but the manifest and checklist intentionally keep E5b,
+E5c, E5d, and E5e open until the classified script/static-block, ordinary
+function/constructor, resumable declined-body, and terminal dynamic-residue
+owners are either retired or tombstoned by their own proof rows.
 Top-level scripts now classify production declines before the old IR runner
 path: eligible scripts still route through the production VM, and every
 declined script reaches `ExecutionPlanRunner.RunScript` only through the

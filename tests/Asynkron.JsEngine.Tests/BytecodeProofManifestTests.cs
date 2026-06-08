@@ -158,6 +158,42 @@ public sealed partial class BytecodeProofManifestTests(ITestOutputHelper output)
         Assert.Equal("E5d-async-function-declined-body-runner-residue", proofs["E5-ir-runner-async-step-entry-still-present"].ChildOwner);
     }
 
+    [Fact]
+    public void Manifest_FinalE5Retrospective_KeepsBatchOpenUntilResidueOwnersRetire()
+    {
+        var items = LoadManifest().Items.ToDictionary(static item => item.Id, StringComparer.Ordinal);
+
+        Assert.Equal("done", items["E5a"].Status);
+        Assert.Equal("open", items["E5b"].Status);
+        Assert.Equal("open", items["E5c"].Status);
+        Assert.Equal("open", items["E5d"].Status);
+        Assert.Equal("open", items["E5e"].Status);
+
+        Assert.All(
+            items["E5b"].Proofs,
+            proof =>
+            {
+                Assert.Equal("source-allowlist", proof.Kind);
+                Assert.Equal("open", proof.Claim);
+            });
+
+        Assert.Equal(
+            [
+                "E5-static-block-declined-residue",
+                "E5c-script-fallback-retirement"
+            ],
+            items["E5c"].Proofs.Select(static proof => proof.ChildOwner).Order(StringComparer.Ordinal).ToArray());
+        Assert.Equal(
+            [
+                "E5d-async-function-declined-body-runner-residue",
+                "E5d-class-constructor-initialization-residue",
+                "E5d-function-and-resumable-declined-body-runner-retirement",
+                "E5d-sync-generator-declined-residue"
+            ],
+            items["E5d"].Proofs.Select(static proof => proof.ChildOwner).Order(StringComparer.Ordinal).ToArray());
+        Assert.Single(items["E5e"].Proofs, static proof => proof.Claim == "hard-quarantined");
+    }
+
     [Theory]
     [MemberData(nameof(ProofIds))]
     public async Task ProofRows_Hold(string proofId)

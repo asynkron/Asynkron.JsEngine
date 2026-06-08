@@ -847,7 +847,15 @@ all-or-nothing until a separate routing issue proves production readiness.
      / PR #3403 rechecked the A51h/A51k batch closeout and added current
      source-presence manifest rows for literal/span boundaries separately from
      operand-span boundaries, preventing future agents from flattening the
-     remaining open diagnostics during finite inventory rebaselines.
+     remaining open diagnostics during finite inventory rebaselines. Faktorial
+     issue
+     `planitem-planitem-planitem-gh3377-rebaseline-the-finite-bytecode-retirement-inven-ed4bdb6a97`
+     / PR #3407 then split A51h1 out of A51h for spread-source and computed
+     object-key literal-span gaps; the lesson is that later child splits must
+     move the matching source-presence rows, expansion-contract wording, and
+     checklist ownership together while keeping excluded call/private/dynamic-key
+     neighbors outside the new child unless already admitted by the measured
+     span helper.
 12. When defining property-read production eligibility, keep candidate
     recognition separate from VM acceptance until the same slice adds compiler
     opcodes, VM semantics, route-priority proof, and negative no-route tests.

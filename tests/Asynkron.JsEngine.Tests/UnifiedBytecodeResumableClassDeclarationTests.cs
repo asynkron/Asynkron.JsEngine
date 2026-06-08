@@ -1276,6 +1276,34 @@ public sealed class UnifiedBytecodeResumableClassDeclarationTests(ITestOutputHel
     }
 
     [Fact]
+    public void EvaluateResumable_ClassDeclarationStaticBlockRuntimeSourceDirectEval_StillDeclines()
+    {
+        var plan = GetFunctionPlan("""
+            function* g(source) {
+                yield "ready";
+                class Box {
+                    static {
+                        eval(source);
+                    }
+                }
+                yield typeof Box;
+            }
+            """,
+            "g");
+
+        var result = UnifiedBytecodeProductionEligibility.EvaluateResumable(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor(IsGenerator: true));
+
+        Assert.False(result.IsEligible);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.UnsupportedPlanShape, result.Code);
+        Assert.Contains(
+            "Class declaration static block is outside B36 production routing: Direct eval invocation semantics",
+            result.Reason,
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void EvaluateResumable_ClassDeclarationMixedStaticFieldAndBlock_AdmitsDeclareClass()
     {
         var plan = GetFunctionPlan("""

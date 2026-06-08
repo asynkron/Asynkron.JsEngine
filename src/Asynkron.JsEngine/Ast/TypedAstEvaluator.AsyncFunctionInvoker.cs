@@ -5,14 +5,12 @@ using Asynkron.JsEngine.Execution.UnifiedBytecode;
 using Asynkron.JsEngine.Runtime;
 using Microsoft.Extensions.Logging;
 
-#pragma warning disable CS0618 // Obsolete AST evaluation methods are used intentionally here
-
 namespace Asynkron.JsEngine.Ast;
 
 public static partial class TypedAstEvaluator
 {
     /// <summary>
-    ///     Drives an async function to completion using the generator IR executor.
+    ///     Drives an async function to completion using the resumable unified-bytecode executor.
     ///     Unlike AsyncGeneratorInvoker which exposes .next()/.return()/.throw() methods,
     ///     this class drives execution automatically and returns a single Promise.
     /// </summary>
@@ -24,7 +22,6 @@ public static partial class TypedAstEvaluator
         IJsCallable callable,
         RealmState realmState,
         bool isLexicallyStrict,
-        bool hasFunctionNameEnvironment,
         IJsObjectLike? homeObject,
         PrivateNameScope? privateNameScope,
         ImmutableArray<PrivateNameScope> capturedPrivateNameScopes,
@@ -32,7 +29,6 @@ public static partial class TypedAstEvaluator
     {
         private readonly RealmState _realmState = realmState;
         private readonly FunctionExecutionPlanSeed _planSeed = planSeed;
-        private ExecutionPlanRunner? _inner;
         private UnifiedBytecodeResumeState? _unifiedState;
 
         /// <summary>
@@ -61,12 +57,7 @@ public static partial class TypedAstEvaluator
                         return JsValue.Undefined;
                     }
 
-                    // Initialize generator inside Promise to capture any early errors.
-                    _inner = CreateClassifiedAsyncDeclinedBodyRunner(declineCode, declineReason);
-                    _inner.Initialize();
-
-                    // Start execution - async functions don't receive an argument on first call
-                    DriveToCompletion(ExecutionPlanRunner.ResumeMode.Next, JsValue.Undefined, resolve, reject);
+                    RejectDeclinedUnifiedBytecode(reject, declineCode, declineReason);
                 }
                 catch (ThrowSignal signal)
                 {
@@ -280,34 +271,27 @@ public static partial class TypedAstEvaluator
             return false;
         }
 
-        private ExecutionPlanRunner CreateClassifiedAsyncDeclinedBodyRunner(
+        private void RejectDeclinedUnifiedBytecode(
+            IJsCallable reject,
             UnifiedBytecodeProductionDeclineCode declineCode,
             string declineReason)
         {
+            var message = CreateUnifiedBytecodeDeclineMessage(declineCode, declineReason);
             _realmState.Logger?.LogInformation(
-                "classified-async-function-declined-body-runner-residue reason=production-unified-bytecode-declined code={DeclineCode} detail={DeclineReason}",
+                "async-function-unified-bytecode-declined-rejected func={Function} code={DeclineCode} detail={DeclineReason}",
+                function.Name?.Name ?? "<anonymous>",
                 declineCode,
                 declineReason);
 
-            return CreateExecutionPlanRunner();
+            AsyncInvokeWithOneArg(reject, (JsValue)message);
         }
 
-        private ExecutionPlanRunner CreateExecutionPlanRunner()
+        private string CreateUnifiedBytecodeDeclineMessage(
+            UnifiedBytecodeProductionDeclineCode declineCode,
+            string declineReason)
         {
-            return new ExecutionPlanRunner(
-                function,
-                closure,
-                arguments,
-                thisValue,
-                callable,
-                _realmState,
-                isLexicallyStrict,
-                hasFunctionNameEnvironment,
-                homeObject,
-                privateNameScope,
-                capturedPrivateNameScopes,
-                planOverride: _planSeed.Plan,
-                planFailureOverride: _planSeed.Failure);
+            var functionName = function.Name?.Name ?? "<anonymous>";
+            return $"Async-function body '{functionName}' is not eligible for unified bytecode execution: {declineCode} - {declineReason}";
         }
 
         private void DriveUnifiedBytecodeToCompletion(
@@ -353,56 +337,6 @@ public static partial class TypedAstEvaluator
             }
             catch (Exception ex)
             {
-                AsyncInvokeWithOneArg(reject, (JsValue)ex.Message);
-            }
-        }
-
-        private void DriveToCompletion(
-            ExecutionPlanRunner.ResumeMode mode,
-            JsValue argument,
-            IJsCallable resolve,
-            IJsCallable reject)
-        {
-            _realmState.Logger?.LogInformation(
-                "[AsyncFunctionInvoker] DriveToCompletion mode={Mode} argKind={Kind}",
-                mode,
-                argument.Kind);
-            try
-            {
-                var step = _inner!.ExecuteAsyncStep(mode, argument);
-
-                switch (step.Kind)
-                {
-                    case ExecutionPlanRunner.AsyncGeneratorStepKind.Completed:
-                        // Async function completed - resolve with the return value
-                        AsyncInvokeWithOneArg(resolve, step.Value);
-                        break;
-
-                    case ExecutionPlanRunner.AsyncGeneratorStepKind.Yield:
-                        // Async functions don't yield externally - treat as await
-                        // and continue driving to completion
-                        DriveToCompletion(ExecutionPlanRunner.ResumeMode.Next, step.Value, resolve, reject);
-                        break;
-
-                    case ExecutionPlanRunner.AsyncGeneratorStepKind.Throw:
-                        // Async function threw - reject the promise
-                        AsyncInvokeWithOneArg(reject, step.Value);
-                        break;
-
-                    case ExecutionPlanRunner.AsyncGeneratorStepKind.Pending:
-                        // Await hit a pending promise - attach handlers to resume
-                        HandlePendingPromise(step.PendingPromise, resolve, reject);
-                        break;
-                }
-            }
-            catch (ThrowSignal signal)
-            {
-                // Uncaught exception - reject the promise
-                AsyncInvokeWithOneArg(reject, signal.ThrownValue);
-            }
-            catch (Exception ex)
-            {
-                // Non-JS exception - wrap in error message
                 AsyncInvokeWithOneArg(reject, (JsValue)ex.Message);
             }
         }
@@ -468,24 +402,14 @@ public static partial class TypedAstEvaluator
                 ClearState();
 
                 var value = args.Count > 0 ? args[0] : JsValue.Undefined;
-                var mode = isRejection
-                    ? ExecutionPlanRunner.ResumeMode.Throw
-                    : ExecutionPlanRunner.ResumeMode.Next;
 
                 try
                 {
-                    if (executor._unifiedState is not null)
-                    {
-                        executor.DriveUnifiedBytecodeToCompletion(
-                            isRejection ? UnifiedBytecodeResumeMode.Throw : UnifiedBytecodeResumeMode.Next,
-                            value,
-                            resolve,
-                            reject);
-                    }
-                    else
-                    {
-                        executor.DriveToCompletion(mode, value, resolve, reject);
-                    }
+                    executor.DriveUnifiedBytecodeToCompletion(
+                        isRejection ? UnifiedBytecodeResumeMode.Throw : UnifiedBytecodeResumeMode.Next,
+                        value,
+                        resolve,
+                        reject);
                 }
                 finally
                 {

@@ -27,7 +27,7 @@
             "unified-bytecode-production-fast-path script"
           ],
           "requiredLogs": [
-            "classified-script-ir-fallback reason=production-unified-bytecode-declined"
+            "classified-terminal-dynamic-script-ir-fallback reason=production-unified-bytecode-declined"
           ]
         }
       ]
@@ -182,7 +182,7 @@
             "unified-bytecode-production-fast-path script"
           ],
           "requiredLogs": [
-            "classified-script-ir-fallback reason=production-unified-bytecode-declined",
+            "classified-terminal-dynamic-script-ir-fallback reason=production-unified-bytecode-declined",
             "code=CallDependency"
           ]
         },
@@ -2236,8 +2236,8 @@
         },
         {
           "id": "E5-ir-runner-script-entry-still-present",
-          "childOwner": "E5c-script-and-static-block-runner-fallback",
-          "classification": "classified RunScript call-site allowlist for non-admitted ordinary scripts, terminal dynamic residue, and declined static-block residue; not a broad E5b entry-presence blocker",
+          "childOwner": "E5c-terminal-dynamic-script-and-static-block-runner-residue",
+          "classification": "classified RunScript call-site allowlist for terminal dynamic script residue plus declined static-block residue; ordinary script declines must fail before this runner fallback and this is not a broad E5b entry-presence blocker",
           "claim": "open",
           "kind": "source-allowlist",
           "paths": [
@@ -2282,17 +2282,17 @@
     },
     {
       "id": "E5c",
-      "title": "Script fallback remains ordinary runner-retirement while static-block fallback is classified declined residue",
+      "title": "Ordinary script fallback is tombstoned while terminal dynamic script and static-block residue stay classified",
       "status": "open",
       "proofs": [
         {
-          "id": "E5-script-ir-fallback-still-runs-execution-plan-runner",
-          "childOwner": "E5c-script-fallback-retirement",
-          "classification": "classified script IR fallback anchor for non-admitted ordinary scripts plus terminal dynamic residue",
-          "claim": "open",
+          "id": "E5-terminal-dynamic-script-ir-fallback-still-runs-execution-plan-runner",
+          "childOwner": "E5c-terminal-dynamic-script-residue",
+          "classification": "hard-quarantined script IR fallback anchor for terminal dynamic direct-eval residue only; ordinary non-dynamic script production declines throw before ExecutionPlanRunner.RunScript",
+          "claim": "hard-quarantined",
           "kind": "source-presence",
           "path": "src/Asynkron.JsEngine/Ast/Legacy/StatementNodeExtensions.cs",
-          "pattern": "ExecutionPlanRunner.RunScript("
+          "pattern": "classified-terminal-dynamic-script-ir-fallback reason=production-unified-bytecode-declined"
         },
         {
           "id": "E5-static-block-ir-fallback-still-runs-execution-plan-runner",

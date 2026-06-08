@@ -7,7 +7,7 @@ public sealed class UnifiedBytecodeProductionScriptFallbackTests(ITestOutputHelp
     : InternalTestBase(output)
 {
     private const string ClassifiedScriptIrFallbackLog =
-        "classified-script-ir-fallback reason=production-unified-bytecode-declined";
+        "classified-terminal-dynamic-script-ir-fallback reason=production-unified-bytecode-declined";
     private const string ProductionScriptFastPathLog = "unified-bytecode-production-fast-path script";
 
     [Fact(Timeout = 5000)]

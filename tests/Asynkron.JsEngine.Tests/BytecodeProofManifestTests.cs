@@ -153,7 +153,7 @@ public sealed partial class BytecodeProofManifestTests(ITestOutputHelper output)
             Assert.Contains("not a broad E5b", proof.Classification, StringComparison.Ordinal);
         }
 
-        Assert.Equal("E5c-script-and-static-block-runner-fallback", proofs["E5-ir-runner-script-entry-still-present"].ChildOwner);
+        Assert.Equal("E5c-terminal-dynamic-script-and-static-block-runner-residue", proofs["E5-ir-runner-script-entry-still-present"].ChildOwner);
         Assert.Equal("E5d-function-and-constructor-runner-fallback", proofs["E5-ir-runner-sync-entry-still-present"].ChildOwner);
         Assert.Equal("E5d-async-function-declined-body-runner-residue", proofs["E5-ir-runner-async-step-entry-still-present"].ChildOwner);
     }
@@ -180,7 +180,7 @@ public sealed partial class BytecodeProofManifestTests(ITestOutputHelper output)
         Assert.Equal(
             [
                 "E5-static-block-declined-residue",
-                "E5c-script-fallback-retirement"
+                "E5c-terminal-dynamic-script-residue"
             ],
             items["E5c"].Proofs.Select(static proof => proof.ChildOwner).Order(StringComparer.Ordinal).ToArray());
         Assert.Equal(

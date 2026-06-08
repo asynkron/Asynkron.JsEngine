@@ -558,6 +558,69 @@
       ]
     },
     {
+      "id": "A51k1",
+      "title": "Simple value operand-span helpers are inventoried",
+      "status": "done",
+      "proofs": [
+        {
+          "id": "A51k1-compiler-binary-operand-span-helper-present",
+          "claim": "admitted",
+          "kind": "source-presence",
+          "path": "src/Asynkron.JsEngine/Execution/UnifiedBytecode/UnifiedBytecodeCompiler.cs",
+          "pattern": "private static bool TryAppendSimpleBinaryOperandSpan("
+        },
+        {
+          "id": "A51k1-compiler-unary-operand-span-helper-present",
+          "claim": "admitted",
+          "kind": "source-presence",
+          "path": "src/Asynkron.JsEngine/Execution/UnifiedBytecode/UnifiedBytecodeCompiler.cs",
+          "pattern": "private static bool TryAppendSimpleUnaryOperandSpan("
+        },
+        {
+          "id": "A51k1-compiler-nested-control-operand-span-helper-present",
+          "claim": "admitted",
+          "kind": "source-presence",
+          "path": "src/Asynkron.JsEngine/Execution/UnifiedBytecode/UnifiedBytecodeCompiler.cs",
+          "pattern": "TryAppendBoundedSimpleControlExpressionOperandSpan("
+        },
+        {
+          "id": "A51k1-eligibility-literal-value-operand-span-walker-present",
+          "claim": "admitted",
+          "kind": "source-presence",
+          "path": "src/Asynkron.JsEngine/Execution/UnifiedBytecode/UnifiedBytecodeProductionEligibility.cs",
+          "pattern": "private static bool TryMeasureSimpleLiteralValueOperandSpanCore("
+        },
+        {
+          "id": "A51k1-eligibility-binary-operand-span-walker-present",
+          "claim": "admitted",
+          "kind": "source-presence",
+          "path": "src/Asynkron.JsEngine/Execution/UnifiedBytecode/UnifiedBytecodeProductionEligibility.cs",
+          "pattern": "private static bool TryMeasureSimpleBinaryOperandSpan("
+        },
+        {
+          "id": "A51k1-eligibility-unary-operand-span-walker-present",
+          "claim": "admitted",
+          "kind": "source-presence",
+          "path": "src/Asynkron.JsEngine/Execution/UnifiedBytecode/UnifiedBytecodeProductionEligibility.cs",
+          "pattern": "private static bool TryMeasureSimpleUnaryOperandSpan("
+        },
+        {
+          "id": "A51k1-eligibility-control-operand-span-walker-present",
+          "claim": "admitted",
+          "kind": "source-presence",
+          "path": "src/Asynkron.JsEngine/Execution/UnifiedBytecode/UnifiedBytecodeProductionEligibility.cs",
+          "pattern": "private static bool TryMeasureSimpleControlExpressionOperandSpan("
+        },
+        {
+          "id": "A51k1-eligibility-conditional-operand-span-walker-present",
+          "claim": "admitted",
+          "kind": "source-presence",
+          "path": "src/Asynkron.JsEngine/Execution/UnifiedBytecode/UnifiedBytecodeProductionEligibility.cs",
+          "pattern": "private static bool TryMeasureSimpleConditionalExpressionOperandSpan("
+        }
+      ]
+    },
+    {
       "id": "A51f1",
       "title": "General expression loop covers every declared ExpressionOpKind",
       "status": "done",

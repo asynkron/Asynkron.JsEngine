@@ -398,16 +398,9 @@
     },
     {
       "id": "A51h",
-      "title": "General literal/span compiler diagnostics stay open",
+      "title": "Method/accessor and control-expression literal/span diagnostics stay open",
       "status": "open",
       "proofs": [
-        {
-          "id": "A51h-array-literal-span-boundary-stays-open",
-          "claim": "open",
-          "kind": "source-presence",
-          "path": "src/Asynkron.JsEngine/Execution/UnifiedBytecode/UnifiedBytecodeCompiler.cs",
-          "pattern": "Expected ArrayPush or ArraySpread after array element operand."
-        },
         {
           "id": "A51h-object-literal-method-accessor-boundary-stays-open",
           "claim": "open",
@@ -421,27 +414,6 @@
           "kind": "source-presence",
           "path": "src/Asynkron.JsEngine/Execution/UnifiedBytecode/UnifiedBytecodeCompiler.cs",
           "pattern": "Unsupported logical control-expression operand in simple literal span."
-        },
-        {
-          "id": "A51h-conditional-consequent-boundary-stays-open",
-          "claim": "open",
-          "kind": "source-presence",
-          "path": "src/Asynkron.JsEngine/Execution/UnifiedBytecode/UnifiedBytecodeCompiler.cs",
-          "pattern": "Unsupported conditional consequent in simple literal span."
-        },
-        {
-          "id": "A51h-conditional-alternate-boundary-stays-open",
-          "claim": "open",
-          "kind": "source-presence",
-          "path": "src/Asynkron.JsEngine/Execution/UnifiedBytecode/UnifiedBytecodeCompiler.cs",
-          "pattern": "Unsupported conditional alternate in simple literal span."
-        },
-        {
-          "id": "A51h-template-literal-span-boundary-stays-open",
-          "claim": "open",
-          "kind": "source-presence",
-          "path": "src/Asynkron.JsEngine/Execution/UnifiedBytecode/UnifiedBytecodeCompiler.cs",
-          "pattern": "Template literal RHS span does not match expected boundary."
         }
       ]
     },
@@ -467,6 +439,69 @@
       ]
     },
     {
+      "id": "A51h2",
+      "title": "Array/object/template literal container span helpers stay open",
+      "status": "open",
+      "proofs": [
+        {
+          "id": "A51h2-array-literal-span-appender-stays-open",
+          "claim": "open",
+          "kind": "source-presence",
+          "path": "src/Asynkron.JsEngine/Execution/UnifiedBytecode/UnifiedBytecodeCompiler.cs",
+          "pattern": "private static bool TryAppendSimpleArrayLiteralSpan("
+        },
+        {
+          "id": "A51h2-object-literal-span-appender-stays-open",
+          "claim": "open",
+          "kind": "source-presence",
+          "path": "src/Asynkron.JsEngine/Execution/UnifiedBytecode/UnifiedBytecodeCompiler.cs",
+          "pattern": "private static bool TryAppendSimpleObjectLiteralSpan("
+        },
+        {
+          "id": "A51h2-template-literal-span-appender-stays-open",
+          "claim": "open",
+          "kind": "source-presence",
+          "path": "src/Asynkron.JsEngine/Execution/UnifiedBytecode/UnifiedBytecodeCompiler.cs",
+          "pattern": "private static bool TryAppendSimpleTemplateLiteralSpan("
+        },
+        {
+          "id": "A51h2-array-literal-span-measurer-stays-open",
+          "claim": "open",
+          "kind": "source-presence",
+          "path": "src/Asynkron.JsEngine/Execution/UnifiedBytecode/UnifiedBytecodeProductionEligibility.cs",
+          "pattern": "private static bool TryMeasureSimpleArrayLiteralSpan("
+        },
+        {
+          "id": "A51h2-object-literal-span-measurer-stays-open",
+          "claim": "open",
+          "kind": "source-presence",
+          "path": "src/Asynkron.JsEngine/Execution/UnifiedBytecode/UnifiedBytecodeProductionEligibility.cs",
+          "pattern": "private static bool TryMeasureSimpleObjectLiteralSpan("
+        },
+        {
+          "id": "A51h2-template-literal-span-measurer-stays-open",
+          "claim": "open",
+          "kind": "source-presence",
+          "path": "src/Asynkron.JsEngine/Execution/UnifiedBytecode/UnifiedBytecodeProductionEligibility.cs",
+          "pattern": "private static bool TryMeasureSimpleTemplateLiteralSpan("
+        },
+        {
+          "id": "A51h2-array-literal-span-boundary-stays-open",
+          "claim": "open",
+          "kind": "source-presence",
+          "path": "src/Asynkron.JsEngine/Execution/UnifiedBytecode/UnifiedBytecodeCompiler.cs",
+          "pattern": "Expected ArrayPush or ArraySpread after array element operand."
+        },
+        {
+          "id": "A51h2-template-literal-span-boundary-stays-open",
+          "claim": "open",
+          "kind": "source-presence",
+          "path": "src/Asynkron.JsEngine/Execution/UnifiedBytecode/UnifiedBytecodeCompiler.cs",
+          "pattern": "Template literal RHS span does not match expected boundary."
+        }
+      ]
+    },
+    {
       "id": "A51k",
       "title": "Operand-span compiler diagnostics stay open",
       "status": "open",
@@ -484,6 +519,20 @@
           "kind": "source-presence",
           "path": "src/Asynkron.JsEngine/Execution/UnifiedBytecode/UnifiedBytecodeCompiler.cs",
           "pattern": "Unsupported simple operand op '{operation.Kind}'."
+        },
+        {
+          "id": "A51k-conditional-consequent-boundary-stays-open",
+          "claim": "open",
+          "kind": "source-presence",
+          "path": "src/Asynkron.JsEngine/Execution/UnifiedBytecode/UnifiedBytecodeCompiler.cs",
+          "pattern": "Unsupported conditional consequent in simple literal span."
+        },
+        {
+          "id": "A51k-conditional-alternate-boundary-stays-open",
+          "claim": "open",
+          "kind": "source-presence",
+          "path": "src/Asynkron.JsEngine/Execution/UnifiedBytecode/UnifiedBytecodeCompiler.cs",
+          "pattern": "Unsupported conditional alternate in simple literal span."
         }
       ]
     },

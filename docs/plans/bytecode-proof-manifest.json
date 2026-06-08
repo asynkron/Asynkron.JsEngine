@@ -1731,7 +1731,7 @@
           "pattern": "classified-static-block-ir-fallback reason=production-unified-bytecode-declined"
         },
         {
-          "id": "B36-class-declaration-private-static-computed-neighbors-stay-open",
+          "id": "B36-class-declaration-static-field-shape-guard-stays-open",
           "claim": "open",
           "kind": "source-presence",
           "path": "src/Asynkron.JsEngine/Execution/UnifiedBytecode/UnifiedBytecodeProductionEligibility.cs",
@@ -1743,6 +1743,27 @@
           "kind": "source-presence",
           "path": "docs/unified-bytecode-expansion-contract.md",
           "pattern": "class-declaration computed-name activation-call admission is an explicit B36"
+        },
+        {
+          "id": "B36-class-declaration-static-member-shape-guard-stays-open",
+          "claim": "open",
+          "kind": "source-presence",
+          "path": "src/Asynkron.JsEngine/Execution/UnifiedBytecode/UnifiedBytecodeProductionEligibility.cs",
+          "pattern": "if (!member.IsStatic || member.IsPrivate || member.IsComputed)"
+        },
+        {
+          "id": "B36-class-declaration-computed-member-activation-capture-stays-open",
+          "claim": "open",
+          "kind": "source-presence",
+          "path": "src/Asynkron.JsEngine/Execution/UnifiedBytecode/UnifiedBytecodeProductionEligibility.cs",
+          "pattern": "Class declaration computed member body captures activation binding"
+        },
+        {
+          "id": "B36-class-declaration-computed-field-activation-capture-stays-open",
+          "claim": "open",
+          "kind": "source-presence",
+          "path": "src/Asynkron.JsEngine/Execution/UnifiedBytecode/UnifiedBytecodeProductionEligibility.cs",
+          "pattern": "Class declaration computed field initializer captures activation binding"
         }
       ]
     },

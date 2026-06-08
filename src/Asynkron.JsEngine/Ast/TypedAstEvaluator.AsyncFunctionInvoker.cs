@@ -117,11 +117,14 @@ public static partial class TypedAstEvaluator
 
             var needsFunctionEnvironmentForDisposal =
                 UnifiedBytecodeProductionEligibility.PlanNeedsResumableFunctionEnvironmentForDisposal(plan);
+            var needsDirectEvalArgumentsObject =
+                HasResumableDirectEvalImplicitArgumentsAccess(function);
             var needsMaterializedBodyEnvironment =
                 UnifiedBytecodeProductionEligibility.PlanNeedsMaterializedResumableBodyEnvironment(plan) ||
                 HoistedFunctionDeclarationsNeedMaterializedBodyEnvironment(hoistedFunctionDeclarations) ||
                 UnifiedBytecodeProductionEligibility.PlanNeedsMaterializedResumableClassDeclarationEnvironment(plan) ||
-                needsFunctionEnvironmentForDisposal;
+                needsFunctionEnvironmentForDisposal ||
+                needsDirectEvalArgumentsObject;
             var needsNestedFunctionLiteralLexicalThisOrPrivateNameContext =
                 UnifiedBytecodeProductionEligibility.PlanNeedsNestedFunctionLiteralLexicalThisOrPrivateNameContext(plan);
             var activation = new UnifiedBytecodeProductionActivationDescriptor(
@@ -211,6 +214,11 @@ public static partial class TypedAstEvaluator
                     declineReason = "Materialized resumable body environment could not be created.";
                     return false;
                 }
+            }
+
+            if (needsDirectEvalArgumentsObject)
+            {
+                DefineResumableArgumentsObject(function, arguments, callingEnvironment, _realmState, callable, isStrict);
             }
 
             if (!TryPopulateResumableRootHoistedFunctionDeclarations(

@@ -90,25 +90,36 @@
           ]
         },
         {
-          "id": "A2-resumable-generator-arguments-direct-eval-boundary-stays-open",
-          "claim": "open",
-          "kind": "source-presence",
-          "path": "src/Asynkron.JsEngine/Ast/TypedAstEvaluator.UnifiedBytecodeResumableActivation.cs",
-          "pattern": "ResumableDirectEvalActivationDetector.ContainsArgumentsObjectDependency(function.Body)"
+          "id": "A2-resumable-generator-bounded-arguments-direct-eval-routes",
+          "claim": "admitted",
+          "kind": "runtime",
+          "source": "function* run(value) {\n  yield eval('arguments[0]');\n  yield eval('arguments.length');\n}\nvar iterator = run(42);\nString(iterator.next().value) + ':' + iterator.next().value;",
+          "expectedResult": "42:1",
+          "requiredLogs": [
+            "unified-bytecode-resumable-generator-fast-path func=run argc=1"
+          ]
         },
         {
-          "id": "A2-resumable-async-arguments-direct-eval-boundary-stays-open",
-          "claim": "open",
-          "kind": "source-presence",
-          "path": "src/Asynkron.JsEngine/Ast/TypedAstEvaluator.UnifiedBytecodeResumableActivation.cs",
-          "pattern": "ResumableDirectEvalActivationDetector.ContainsArgumentsObjectDependency(function.Body)"
+          "id": "A2-resumable-async-bounded-arguments-direct-eval-routes",
+          "claim": "admitted",
+          "kind": "runtime",
+          "awaitResult": true,
+          "source": "var asyncResult = undefined;\nasync function run(value, extra) {\n  await 0;\n  return eval('arguments[0] + \":\" + arguments.length + \":\" + extra');\n}\n\nrun(42).then(value => asyncResult = value);\nasyncResult;",
+          "expectedResult": "42:1:undefined",
+          "requiredLogs": [
+            "unified-bytecode-resumable-async-fast-path func=run argc=1"
+          ]
         },
         {
-          "id": "A2-resumable-async-generator-arguments-direct-eval-boundary-stays-open",
-          "claim": "open",
-          "kind": "source-presence",
-          "path": "src/Asynkron.JsEngine/Ast/TypedAstEvaluator.UnifiedBytecodeResumableActivation.cs",
-          "pattern": "ResumableDirectEvalActivationDetector.ContainsArgumentsObjectDependency(function.Body)"
+          "id": "A2-resumable-async-generator-bounded-arguments-direct-eval-settles",
+          "claim": "admitted",
+          "kind": "runtime",
+          "awaitResult": true,
+          "source": "var output = undefined;\nasync function* values(value) {\n  await 0;\n  yield eval('arguments[0] + \":\" + arguments.length');\n}\n\nasync function run() {\n  var iterator = values(42);\n  var first = await iterator.next();\n  return first.value + ':' + first.done;\n}\n\nrun().then(value => output = value);\noutput;",
+          "expectedResult": "42:1:false",
+          "requiredLogs": [
+            "unified-bytecode-resumable-async-generator-fast-path func=values argc=1"
+          ]
         },
         {
           "id": "A2-declaration-bearing-direct-eval-declines",

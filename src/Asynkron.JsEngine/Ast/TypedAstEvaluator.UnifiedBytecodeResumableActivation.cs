@@ -3,7 +3,9 @@ using System.Collections.Generic;
 using Asynkron.JsEngine.Execution;
 using Asynkron.JsEngine.Execution.Instructions;
 using Asynkron.JsEngine.Execution.UnifiedBytecode;
+using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Parser;
+using Asynkron.JsEngine.Runtime;
 
 namespace Asynkron.JsEngine.Ast;
 
@@ -106,12 +108,31 @@ public static partial class TypedAstEvaluator
              ? ResumableDirectEvalActivationDetector.ContainsArgumentsObjectDependency(function.Body)
              : DynamicScopeDetector.ContainsDirectEval(function.Body)));
 
+    private static bool HasResumableDirectEvalImplicitArgumentsAccess(FunctionExpression function) =>
+        !function.IsArrow &&
+        !HasArgumentsParameter(function) &&
+        ResumableDirectEvalActivationDetector.ContainsImplicitArgumentsAccess(function.Body);
+
+    private static bool HasArgumentsParameter(FunctionExpression function)
+    {
+        foreach (var parameter in function.Parameters)
+        {
+            if (ReferenceEquals(parameter.Name, Symbol.Arguments))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     private sealed class ResumableDirectEvalActivationDetector : AstVisitor
     {
         [ThreadStatic] private static ResumableDirectEvalActivationDetector? _instance;
 
         private bool _foundArgumentsObjectDependency;
         private bool _foundDynamicActivationDependency;
+        private bool _foundImplicitArgumentsAccess;
 
         public static bool ContainsDynamicActivationDependency(BlockStatement block)
         {
@@ -127,6 +148,14 @@ public static partial class TypedAstEvaluator
             detector.Reset();
             detector.Visit(block);
             return detector._foundArgumentsObjectDependency;
+        }
+
+        public static bool ContainsImplicitArgumentsAccess(BlockStatement block)
+        {
+            var detector = _instance ??= new ResumableDirectEvalActivationDetector();
+            detector.Reset();
+            detector.Visit(block);
+            return detector._foundImplicitArgumentsAccess;
         }
 
         protected override void VisitCallExpression(CallExpression node)
@@ -156,6 +185,7 @@ public static partial class TypedAstEvaluator
         {
             _foundArgumentsObjectDependency = false;
             _foundDynamicActivationDependency = false;
+            _foundImplicitArgumentsAccess = false;
             ShouldStop = false;
         }
 
@@ -169,14 +199,22 @@ public static partial class TypedAstEvaluator
                 return;
             }
 
-            if (ContainsEvalDeclarationKeyword(source))
+            var containsDeclaration = ContainsEvalDeclarationKeyword(source);
+            if (containsDeclaration)
             {
                 _foundDynamicActivationDependency = true;
             }
 
             if (ContainsKeyword(source, "arguments"))
             {
-                _foundArgumentsObjectDependency = true;
+                if (containsDeclaration)
+                {
+                    _foundArgumentsObjectDependency = true;
+                }
+                else
+                {
+                    _foundImplicitArgumentsAccess = true;
+                }
             }
 
             ShouldStop = _foundArgumentsObjectDependency || _foundDynamicActivationDependency;
@@ -234,6 +272,19 @@ public static partial class TypedAstEvaluator
             ch >= '0' && ch <= '9' ||
             ch >= 'A' && ch <= 'Z' ||
             ch >= 'a' && ch <= 'z';
+    }
+
+    private static void DefineResumableArgumentsObject(
+        FunctionExpression function,
+        IReadOnlyList<JsValue> arguments,
+        JsEnvironment environment,
+        RealmState realmState,
+        IJsCallable callee,
+        bool isStrict)
+    {
+        function.BindFunctionParameters(arguments, environment, realmState.CreateContext());
+        var argumentsObject = function.CreateArgumentsObject(arguments, environment, realmState, callee, isStrict);
+        environment.DefineJsValue(Symbol.Arguments, JsValue.FromObjectUnsafe(argumentsObject), isLexicalBinding: false);
     }
 
     private static bool TryInitializeResumableSlots(

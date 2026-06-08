@@ -157,6 +157,30 @@ rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "Name~TopLevelAwait_Async
 
 with both dependency-walk fault propagation tests passing.
 
+Follow-up issue `agentmanual1780943196527007000` selected the module export
+object storage seam. `JsObject` already stores property values as `JsValue`, but
+`JsEngine` module export helpers still wrote live export bindings through the
+`IDictionary<string, object?>` indexer and `ModuleNamespace` lookup recovered
+those bindings through the object-shaped `TryGetValue(...)`/`ToObject()` path.
+The follow-up moved module export writes to `SetJsValue(...)`, made namespace
+lookup read with `TryGetJsValue(...)`, and kept `LiveExportBinding` wrapped once
+at the helper boundary.
+
+Focused evidence from that follow-up:
+
+```text
+final rg "exports\\[" src/Asynkron.JsEngine/JsEngine.cs = 0 matches
+```
+
+The build stage ran:
+
+```bash
+rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "Name~ReExportedDefaultAliasReadsLiveBindingThroughNamespace|Name~SourceGate_ModuleExportStorage_StaysJsValueNative"
+```
+
+covering a re-exported default alias through module namespace lookup plus a
+source gate for the selected storage path.
+
 ## Decision
 
 Keep private typed module execution helpers `JsValue`-native.
@@ -187,7 +211,10 @@ For future typed module execution migrations:
    async module continuation tracking, not the only completion/fault surface,
    and an async dependency with no stored task must still await the returned
    task as the fault-propagation fallback; and
-8. prove each slice with a before/after search for the selected legacy
+8. keep module export storage and namespace export lookup on the `JsValue`
+   storage surface (`SetJsValue(...)`/`TryGetJsValue(...)`), wrapping
+   `LiveExportBinding` only at the dedicated helper boundary; and
+9. prove each slice with a before/after search for the selected legacy
    signatures plus focused module or async-module coverage when behavior, not
    just helper plumbing, changes.
 
@@ -205,6 +232,9 @@ For future typed module execution migrations:
 - Stored module evaluation tasks and dependency-drain task lists are no longer
   deferred `Task<object?>` owner surfaces; they stay typed as `Task<JsValue>`
   until an edge adapter returns public or compatibility `object?`.
+- Module export storage no longer uses the `JsObject` compatibility indexer for
+  private export-binding values; namespace lookup consumes the stored `JsValue`
+  directly and only unwraps `LiveExportBinding` through typed extraction.
 - Module dependency evaluation must observe both completion surfaces: the
   immediate task returned by `EnsureModuleEvaluatedAsync(...)` for synchronous
   dependency faults or unexpected async-task publication gaps, and stored

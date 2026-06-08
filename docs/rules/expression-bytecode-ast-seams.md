@@ -253,6 +253,17 @@ fallback or cleanup.
     source-presence gates that match
     raw construction tokens can stay technically true while losing the semantic
     ownership boundary future retirement work depends on.
+34. When rebaselining async-function declined-body runner residue, preserve the
+    production decline code and detail all the way into the classified runner
+    helper and source gate. The manifest row should anchor on
+    `CreateClassifiedAsyncDeclinedBodyRunner(...)`, not on a generic async-step
+    token such as `ExecuteAsyncStep(`, and the helper should log the
+    `UnifiedBytecodeProductionDeclineCode` plus detail text before constructing
+    the remaining runner. Issue #3377 / PR #3456 added this rule after the E5
+    rebaseline needed to distinguish async-function bodies that still decline
+    production routing from an unnamed async IR-step runner fallback. WHY:
+    without the decline reason, future retirement work can only see that the
+    runner still exists, not which production-eligibility boundary owns it.
 
 ## Dynamic Boundary Classification (#1405 Retry)
 

@@ -2347,13 +2347,13 @@ public static partial class TypedAstEvaluator
                     typed.SetHomeObject(targetObject);
                     typed.DisableConstruction();
                     break;
-                case SyncGeneratorInvoker generatorFactory:
-                    generatorFactory.SetHomeObject(targetObject);
-                    generatorFactory.DisableConstruction();
-                    break;
                 case AsyncGeneratorFunctionInvoker asyncGeneratorFactory:
                     asyncGeneratorFactory.SetHomeObject(targetObject);
                     asyncGeneratorFactory.DisableConstruction();
+                    break;
+                case GeneratorFunctionBase generatorFactory:
+                    generatorFactory.SetHomeObject(targetObject);
+                    generatorFactory.DisableConstruction();
                     break;
             }
 

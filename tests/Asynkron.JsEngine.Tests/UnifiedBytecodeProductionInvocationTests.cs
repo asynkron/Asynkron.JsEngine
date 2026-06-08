@@ -17,6 +17,7 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
         "simple-ir-parameter-number-binary-chain-fast-path";
     private const string SimpleIrActivationFastPathLog = "simple-ir-activation-fast-path";
     private const string SimpleIrReturnFastPathLog = "simple-ir-return-fast-path";
+    private const string ResumableGeneratorFastPathLog = "unified-bytecode-resumable-generator-fast-path";
 
     private static string DescribeRouteLogs(IEnumerable<TestLogger.LogRecord> logs)
     {
@@ -29,6 +30,95 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
                 message.Contains("classified", StringComparison.Ordinal));
 
         return string.Join(Environment.NewLine, relevant);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task DeclinedIrGeneratorClassMethod_KeepsPrivateNameScopeAndMethodShape()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            class C {
+                #value = 7;
+
+                *m(o, key) {
+                    yield o?.[key]();
+                    return this.#value;
+                }
+            }
+
+            const method = C.prototype.m;
+            const it = new C().m(null, "missing");
+            [
+                method.name,
+                Object.prototype.hasOwnProperty.call(method, "prototype"),
+                String(it.next().value),
+                String(it.next().value)
+            ].join("|");
+            """);
+
+        Assert.Equal("m|false|undefined|7", result);
+        Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(),
+            record => record.Message.Contains(ResumableGeneratorFastPathLog, StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task DeclinedIrGeneratorClassMethod_KeepsHomeObjectForSuper()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            class Base {
+                value() {
+                    return 11;
+                }
+            }
+
+            class Derived extends Base {
+                *m(o, key) {
+                    yield o?.[key]();
+                    return super.value();
+                }
+            }
+
+            const it = new Derived().m(null, "missing");
+            String(it.next().value) + "|" + it.next().value;
+            """);
+
+        Assert.Equal("undefined|11", result);
+        Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(),
+            record => record.Message.Contains(ResumableGeneratorFastPathLog, StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task DeclinedIrGeneratorObjectMethod_KeepsHomeObjectAndMethodShape()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            const base = {
+                value() {
+                    return 13;
+                }
+            };
+            const obj = {
+                __proto__: base,
+                *m(o, key) {
+                    yield o?.[key]();
+                    return super.value();
+                }
+            };
+
+            const method = obj.m;
+            const it = obj.m(null, "missing");
+            [
+                method.name,
+                Object.prototype.hasOwnProperty.call(method, "prototype"),
+                String(it.next().value),
+                String(it.next().value)
+            ].join("|");
+            """);
+
+        Assert.Equal("m|false|undefined|13", result);
+        Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(),
+            record => record.Message.Contains(ResumableGeneratorFastPathLog, StringComparison.Ordinal));
     }
 
     [Fact(Timeout = 5000)]
@@ -1444,6 +1534,38 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
         Assert.Contains("Non-simple sync-generator parameter lists", exception.Message, StringComparison.Ordinal);
         Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(),
             static record => record.Message.Contains("classified-sync-generator-ir-fallback", StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task SyncGeneratorProductionResumableDecline_UsesCreationTimeIrRouteWithoutResidueRunner()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function* values(o, k) {
+                yield 1;
+                yield o?.[k]();
+            }
+
+            var iterator = values({ m() { return 2; } }, "m");
+            var first = iterator.next();
+            var second = iterator.next();
+            [first.value, first.done, second.value, second.done];
+            """);
+
+        var steps = Assert.IsType<JsTypes.JsArray>(result);
+        Assert.Equal(1d, steps.Items[0].AsDouble());
+        Assert.False(steps.Items[1].AsBoolean());
+        Assert.Equal(2d, steps.Items[2].AsDouble());
+        Assert.False(steps.Items[3].AsBoolean());
+        var snapshot = CurrentLogger!.Collector.Snapshot();
+        Assert.DoesNotContain(snapshot,
+            static record => record.Message.Contains("classified-sync-generator-ir-fallback", StringComparison.Ordinal));
+        Assert.DoesNotContain(snapshot,
+            static record => record.Message.Contains("classified-sync-generator-declined-residue", StringComparison.Ordinal));
+        Assert.DoesNotContain(snapshot,
+            static record => record.Message.Contains(
+                "unified-bytecode-resumable-generator-fast-path func=values",
+                StringComparison.Ordinal));
     }
 
     [Fact(Timeout = 5000)]
@@ -10350,7 +10472,7 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     }
 
     [Fact]
-    public void SourceGate_SyncGeneratorInvoker_DoesNotKeepDeclinedBodyRunnerFallback()
+    public void SourceGate_SyncGeneratorInvoker_RetiresDeclinedResidueRunnerBridge()
     {
         var repositoryRoot = FindRepositoryRootForSourceGate();
         var sourcePath = Path.Combine(
@@ -10374,7 +10496,11 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
         {
             "CreateClassifiedGeneratorDeclinedBodyRunner",
             "CreateClassifiedDeclinedBodyRunner",
-            "classified-sync-generator-ir-fallback"
+            "CreateClassifiedSyncGeneratorDeclinedResidueRunner",
+            "CreateSyncGeneratorDeclinedResidueRunner",
+            "classified-sync-generator-ir-fallback",
+            "classified-sync-generator-declined-residue",
+            "out bool isDeclinedResidue"
         };
 
         foreach (var token in forbiddenFallbackTokens)
@@ -10384,10 +10510,10 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
 
         Assert.DoesNotContain("CreateClassifiedGeneratorDeclinedBodyRunner", generatorBaseSource, StringComparison.Ordinal);
         Assert.DoesNotContain("CreateClassifiedDeclinedBodyRunner", generatorBaseSource, StringComparison.Ordinal);
-        Assert.Contains("CreateClassifiedSyncGeneratorDeclinedResidueRunner", source, StringComparison.Ordinal);
-        Assert.Contains("classified-sync-generator-declined-residue", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("CreateClassifiedSyncGeneratorDeclinedResidueRunner", generatorBaseSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("CreateSyncGeneratorDeclinedResidueRunner", generatorBaseSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("new ExecutionPlanRunner(", generatorBaseSource, StringComparison.Ordinal);
         Assert.Contains("out string declineReason", source, StringComparison.Ordinal);
-        Assert.Contains("out bool isDeclinedResidue", source, StringComparison.Ordinal);
         Assert.Contains("Sync-generator body", source, StringComparison.Ordinal);
         Assert.Contains("is not eligible for unified bytecode execution", source, StringComparison.Ordinal);
     }

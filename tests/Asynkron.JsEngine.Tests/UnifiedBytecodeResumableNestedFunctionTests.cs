@@ -397,10 +397,10 @@ public sealed class UnifiedBytecodeResumableNestedFunctionTests(ITestOutputHelpe
     }
 
     [Fact(Timeout = 5000)]
-    public async Task GeneratorHoistedFunctionDeclarationWithRuntimeSourceEval_DeclinesExplicitly()
+    public async Task GeneratorHoistedFunctionDeclarationWithRuntimeSourceEval_RunsOnIrRoute()
     {
         await using var engine = CreateEngine();
-        var exception = await Assert.ThrowsAsync<NotSupportedException>(() => engine.Evaluate("""
+        var result = await engine.Evaluate("""
             function* g(source){
                 function helper(){ return 5; }
                 yield eval(source);
@@ -410,21 +410,17 @@ public sealed class UnifiedBytecodeResumableNestedFunctionTests(ITestOutputHelpe
             var first = it.next().value;
             var second = it.next().value;
             first + "|" + second;
-            """));
+            """);
 
-        Assert.StartsWith(
-            "Sync-generator body 'g' is not eligible for unified bytecode execution:",
-            exception.Message,
-            StringComparison.Ordinal);
-        Assert.Contains("Root hoisted function declarations", exception.Message, StringComparison.Ordinal);
+        Assert.Equal("42|5", result);
         AssertGeneratorNotRouted();
     }
 
     [Fact(Timeout = 5000)]
-    public async Task GeneratorHoistedFunctionDeclarationWithArgumentsEval_DeclinesExplicitly()
+    public async Task GeneratorHoistedFunctionDeclarationWithArgumentsEval_RunsOnIrRoute()
     {
         await using var engine = CreateEngine();
-        var exception = await Assert.ThrowsAsync<NotSupportedException>(() => engine.Evaluate("""
+        var result = await engine.Evaluate("""
             function* g(first, second){
                 function helper(){ return 5; }
                 yield eval('arguments.length + ":" + first + ":" + second');
@@ -434,13 +430,9 @@ public sealed class UnifiedBytecodeResumableNestedFunctionTests(ITestOutputHelpe
             var first = it.next().value;
             var second = it.next().value;
             first + "|" + second;
-            """));
+            """);
 
-        Assert.StartsWith(
-            "Sync-generator body 'g' is not eligible for unified bytecode execution:",
-            exception.Message,
-            StringComparison.Ordinal);
-        Assert.Contains("Root hoisted function declarations", exception.Message, StringComparison.Ordinal);
+        Assert.Equal("2:7:9|5", result);
         AssertGeneratorNotRouted();
     }
 

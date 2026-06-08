@@ -1401,7 +1401,7 @@
           "claim": "admitted",
           "kind": "runtime",
           "source": "function* g(key) {\n  yield 'ready';\n  class Box {\n    [delete key]() { return key; }\n  }\n  var box = new Box();\n  yield box.false();\n}\nvar iterator = g('value');\nvar first = iterator.next();\nvar second = iterator.next();\nfirst.value + ':' + first.done + '|' + second.value + ':' + second.done;",
-          "expectedThrowContains": "Delete of an unqualified identifier"
+          "expectedThrowContains": "SyntaxError"
         },
         {
           "id": "B36-class-declaration-simple-extends-routes",
@@ -2139,7 +2139,7 @@
           "allowedPaths": [
             "src/Asynkron.JsEngine/Ast/TypedAstEvaluator.AsyncFunctionInvoker.cs",
             "src/Asynkron.JsEngine/Ast/TypedAstEvaluator.ExecutionPlanRunner.Core.cs",
-            "src/Asynkron.JsEngine/Ast/TypedAstEvaluator.GeneratorFunctionBase.cs",
+            "src/Asynkron.JsEngine/Ast/TypedAstEvaluator.IrSyncGeneratorInvoker.cs",
             "src/Asynkron.JsEngine/Ast/TypedAstEvaluator.SyncFunctionInvoker.cs"
           ],
           "classifiedCallSites": [
@@ -2148,12 +2148,6 @@
               "classification": "script runner construction inside classified script/static-block fallback runner",
               "path": "src/Asynkron.JsEngine/Ast/TypedAstEvaluator.ExecutionPlanRunner.Core.cs",
               "callCount": 2
-            },
-            {
-              "childOwner": "E5d-function-and-resumable-declined-body-runner-retirement",
-              "classification": "resumable generator declined-body runner construction",
-              "path": "src/Asynkron.JsEngine/Ast/TypedAstEvaluator.GeneratorFunctionBase.cs",
-              "callCount": 1
             },
             {
               "childOwner": "E5d-async-function-declined-body-runner-residue",
@@ -2166,6 +2160,12 @@
               "classification": "ordinary sync function and class-constructor declined-body fallback runner construction",
               "path": "src/Asynkron.JsEngine/Ast/TypedAstEvaluator.SyncFunctionInvoker.cs",
               "callCount": 2
+            },
+            {
+              "childOwner": "E5d-sync-generator-ir-route-selection",
+              "classification": "creation-time IR sync-generator route for simple-parameter bodies that are not resumable-VM eligible; not the retired EvaluateResumable declined-residue bridge",
+              "path": "src/Asynkron.JsEngine/Ast/TypedAstEvaluator.IrSyncGeneratorInvoker.cs",
+              "callCount": 1
             }
           ],
           "pattern": "new ExecutionPlanRunner("
@@ -2343,9 +2343,9 @@
         {
           "id": "E5-sync-generator-declined-residue-runner-still-present",
           "childOwner": "E5d-sync-generator-declined-residue",
-          "classification": "explicit sync generator declined-residue runner bridge after production resumable eligibility declines; pre-gate ordinary declines fail explicitly and no generic declined-body runner remains",
-          "claim": "open",
-          "kind": "source-presence",
+          "classification": "sync generator declined-residue runner bridge is retired; simple-parameter bodies whose existing plan is not resumable-VM eligible use the classified creation-time IR route, pre-gate non-simple parameter declines still fail explicitly, and no generic declined-body runner remains",
+          "claim": "retired-fallback",
+          "kind": "source-absence",
           "path": "src/Asynkron.JsEngine/Ast/TypedAstEvaluator.SyncGeneratorInvoker.cs",
           "pattern": "CreateClassifiedSyncGeneratorDeclinedResidueRunner"
         },

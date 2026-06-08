@@ -92,17 +92,6 @@ public static partial class TypedAstEvaluator
                     typedFunction.DisableConstruction();
                     typedFunction.EnsureHasName(displayName, true);
                     break;
-                case SyncGeneratorInvoker generatorFactory:
-                    generatorFactory.SetPrivateNameScope(privateNameScope);
-                    if (homeObject is not null)
-                    {
-                        generatorFactory.SetHomeObject(homeObject);
-                    }
-
-                    // Class methods are non-constructors, even for generator forms.
-                    generatorFactory.DisableConstruction();
-                    generatorFactory.EnsureHasName(displayName, true);
-                    break;
                 case AsyncGeneratorFunctionInvoker asyncGeneratorFactory:
                     asyncGeneratorFactory.SetPrivateNameScope(privateNameScope);
                     if (homeObject is not null)
@@ -112,6 +101,17 @@ public static partial class TypedAstEvaluator
 
                     asyncGeneratorFactory.DisableConstruction();
                     asyncGeneratorFactory.EnsureHasName(displayName, true);
+                    break;
+                case GeneratorFunctionBase generatorFactory:
+                    generatorFactory.SetPrivateNameScope(privateNameScope);
+                    if (homeObject is not null)
+                    {
+                        generatorFactory.SetHomeObject(homeObject);
+                    }
+
+                    // Class methods are non-constructors, even for generator forms.
+                    generatorFactory.DisableConstruction();
+                    generatorFactory.EnsureHasName(displayName, true);
                     break;
                 case IFunctionNameTarget nameTarget:
                     nameTarget.EnsureHasName(displayName);

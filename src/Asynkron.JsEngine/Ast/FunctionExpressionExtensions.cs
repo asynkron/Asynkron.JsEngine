@@ -1,5 +1,6 @@
 using Asynkron.JsEngine.Execution;
 using Asynkron.JsEngine.Execution.Instructions;
+using Asynkron.JsEngine.Execution.UnifiedBytecode;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.StdLib;
 using Microsoft.Extensions.Logging;
@@ -490,6 +491,9 @@ public static partial class TypedAstEvaluator
             true when functionExpression.IsAsync => new AsyncGeneratorFunctionInvoker(functionExpression,
                 closureEnvironment,
                 context.RealmState, isLexicallyStrict, hasFunctionNameEnvironment, isConstructorFunction, planSeed),
+            true when ShouldCreateIrSyncGeneratorInvoker(functionExpression, closureEnvironment, planSeed) =>
+                new IrSyncGeneratorInvoker(functionExpression, closureEnvironment, context.RealmState,
+                    isLexicallyStrict, hasFunctionNameEnvironment, isConstructorFunction, planSeed),
             true => new SyncGeneratorInvoker(functionExpression, closureEnvironment, context.RealmState,
                 isLexicallyStrict, hasFunctionNameEnvironment, isConstructorFunction, planSeed),
             _ => new SyncFunctionInvoker(functionExpression, closureEnvironment, context.RealmState,
@@ -507,14 +511,6 @@ public static partial class TypedAstEvaluator
             case SyncFunctionInvoker typed:
                 typed.SetCapturedPrivateNameScopes(capturedPrivateScopes);
                 break;
-            case SyncGeneratorInvoker generatorFactory when context.CurrentPrivateNameScope is not null &&
-                                                            generatorFactory.PrivateNameScope is null:
-                generatorFactory.SetPrivateNameScope(context.CurrentPrivateNameScope);
-                generatorFactory.SetCapturedPrivateNameScopes(capturedPrivateScopes);
-                break;
-            case SyncGeneratorInvoker generatorFactory:
-                generatorFactory.SetCapturedPrivateNameScopes(capturedPrivateScopes);
-                break;
             case AsyncGeneratorFunctionInvoker asyncGeneratorFactory
                 when context.CurrentPrivateNameScope is not null &&
                      asyncGeneratorFactory.PrivateNameScope is null:
@@ -523,6 +519,14 @@ public static partial class TypedAstEvaluator
                 break;
             case AsyncGeneratorFunctionInvoker asyncGeneratorFactory:
                 asyncGeneratorFactory.SetCapturedPrivateNameScopes(capturedPrivateScopes);
+                break;
+            case GeneratorFunctionBase generatorFactory when context.CurrentPrivateNameScope is not null &&
+                                                             generatorFactory.PrivateNameScope is null:
+                generatorFactory.SetPrivateNameScope(context.CurrentPrivateNameScope);
+                generatorFactory.SetCapturedPrivateNameScopes(capturedPrivateScopes);
+                break;
+            case GeneratorFunctionBase generatorFactory:
+                generatorFactory.SetCapturedPrivateNameScopes(capturedPrivateScopes);
                 break;
         }
 
@@ -556,6 +560,69 @@ public static partial class TypedAstEvaluator
             isLexicalBinding: true, blocksFunctionScopeOverride: true, isImmutableBinding: true);
 
         return callable;
+    }
+
+    private static bool ShouldCreateIrSyncGeneratorInvoker(
+        FunctionExpression functionExpression,
+        JsEnvironment closureEnvironment,
+        FunctionExecutionPlanSeed planSeed)
+    {
+        if (!functionExpression.HasOnlySimpleIdentifierParameters())
+        {
+            return false;
+        }
+
+        var plan = planSeed.Plan;
+        if (plan is null)
+        {
+            if (planSeed.Failure is not null)
+            {
+                return false;
+            }
+
+            var cache = ((IAstCacheable<ExecutionPlanCache>)functionExpression).GetOrCreateCache();
+            if (cache.Plan is null)
+            {
+                return false;
+            }
+
+            plan = cache.Plan;
+        }
+
+        if (!TryCollectResumableRootHoistedFunctionDeclarations(
+                functionExpression,
+                plan,
+                allowCapturedActivationSlots: true,
+                out var hoistedFunctionDeclarations))
+        {
+            return true;
+        }
+
+        var needsFunctionEnvironmentForDisposal =
+            UnifiedBytecodeProductionEligibility.PlanNeedsResumableFunctionEnvironmentForDisposal(plan);
+        var needsDirectEvalArgumentsObject =
+            HasResumableDirectEvalImplicitArgumentsAccess(functionExpression);
+        var needsMaterializedBodyEnvironment =
+            UnifiedBytecodeProductionEligibility.PlanNeedsMaterializedResumableBodyEnvironment(plan) ||
+            HoistedFunctionDeclarationsNeedMaterializedBodyEnvironment(hoistedFunctionDeclarations) ||
+            UnifiedBytecodeProductionEligibility.PlanNeedsMaterializedResumableClassDeclarationEnvironment(plan) ||
+            needsFunctionEnvironmentForDisposal ||
+            needsDirectEvalArgumentsObject;
+        var activation = new UnifiedBytecodeProductionActivationDescriptor(
+            IsAsyncLike: false,
+            IsGenerator: true,
+            HasCapturedOrDynamicActivation: HasResumableCapturedOrDynamicActivationDecline(
+                functionExpression,
+                closureEnvironment,
+                allowDeclarationFreeDirectEval: true),
+            HasArgumentsObjectDependency: HasResumableArgumentsObjectDependency(
+                functionExpression,
+                allowDeclarationFreeDirectEval: true),
+            AllowsRootFunctionDeclarationInstructions: !hoistedFunctionDeclarations.IsEmpty,
+            AllowsMaterializedBodyEnvironmentFunctionLiterals: needsMaterializedBodyEnvironment,
+            AllowsNestedFunctionLiteralLexicalThisOrPrivateNameContext:
+            UnifiedBytecodeProductionEligibility.PlanNeedsNestedFunctionLiteralLexicalThisOrPrivateNameContext(plan));
+        return !UnifiedBytecodeProductionEligibility.EvaluateResumable(plan, activation).IsEligible;
     }
 
     internal static IJsCallable CreateFunctionValueFromLiteral(

@@ -275,13 +275,15 @@ public static partial class TypedAstEvaluator
 
         public void DisableConstruction()
         {
-            if (!_isConstructorEnabled)
+            if (_isConstructorEnabled)
             {
-                return;
+                _isConstructorEnabled = false;
             }
 
-            _isConstructorEnabled = false;
-            _properties.DeleteOwnProperty("prototype");
+            if (!_properties.DeleteOwnProperty("prototype"))
+            {
+                _properties.ForceDeleteOwnProperty("prototype");
+            }
         }
 
         public void SetHomeObject(IJsObjectLike homeObject)
@@ -620,13 +622,6 @@ public static partial class TypedAstEvaluator
                 _planSeed);
         }
 
-        protected ExecutionPlanRunner CreateClassifiedSyncGeneratorDeclinedResidueRunner(
-            IReadOnlyList<JsValue> arguments,
-            JsValue thisValue)
-        {
-            var context = CreateInvocationContext(arguments, thisValue);
-            return context.CreateSyncGeneratorDeclinedResidueRunner();
-        }
     }
 
     private readonly struct GeneratorInvocationContext
@@ -670,29 +665,6 @@ public static partial class TypedAstEvaluator
             _privateNameScope = privateNameScope;
             _capturedPrivateNameScopes = capturedPrivateNameScopes;
             _planSeed = planSeed;
-        }
-
-        private ExecutionPlanRunner CreateRunner()
-        {
-            return new ExecutionPlanRunner(
-                _function,
-                _closure,
-                _arguments,
-                _thisValue,
-                _callable,
-                _realmState,
-                _isLexicallyStrict,
-                _hasFunctionNameEnvironment,
-                _homeObject,
-                _privateNameScope,
-                _capturedPrivateNameScopes,
-                planOverride: _planSeed.Plan,
-                planFailureOverride: _planSeed.Failure);
-        }
-
-        public ExecutionPlanRunner CreateSyncGeneratorDeclinedResidueRunner()
-        {
-            return CreateRunner();
         }
 
         public AsyncGeneratorInvoker CreateAsyncGeneratorInvoker()

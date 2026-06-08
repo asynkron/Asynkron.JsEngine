@@ -73,22 +73,26 @@ fallback or cleanup.
     that the runner files have no obvious direct call; it does not prove that a
     dynamic entry point still reaches the IR/function pipeline under runtime
     execution.
-15. Keep dynamic expression-program bridges explicitly named and source-gated.
-    Quarantined legacy or dynamic callers should route through
-    `UnifiedBytecodeExpressionProgramExecutor.ExecuteDynamic`, which
-    lowers/caches the dynamic expression and throws on lowering failure.
+15. Keep expression-program bridge lifecycles explicitly named and source-gated.
+    `EvaluateDynamicExpressionProgram(...)` and
+    `UnifiedBytecodeExpressionProgramExecutor.ExecuteDynamic(...)` are
+    tombstoned. Quarantined legacy expression operands that only need a value
+    should route through `LoweredExpressionProgramCache.ExecuteCached(...)`,
+    which uses the owning `ExpressionNode` cache and then
+    `UnifiedBytecodeExpressionProgramExecutor.ExecuteStandalone(...)`.
     Already-lowered payloads should use
-    `UnifiedBytecodeExpressionProgramExecutor.ExecuteStandalone`; do not blur
-    these surfaces under generic cached-helper naming or add raw AST expression
-    fallback on compile failure. `EvaluateDynamicExpressionProgram(...)` is
-    tombstoned.
+    `UnifiedBytecodeExpressionProgramExecutor.ExecuteStandalone(...)` directly;
+    do not blur these surfaces under generic cached-helper naming or add raw AST
+    expression fallback on compile failure.
 16. When retiring dynamic operand AST seams, migrate one operand family at a
-    time through the dynamic `ExpressionProgram` bridge when the operand only
-    needs a value. Dynamic return operands are the reference shape: evaluate
-    the return expression with
-    `UnifiedBytecodeExpressionProgramExecutor.ExecuteDynamic(...)`, preserve
-    precise unsupported-bytecode failures, and prove the path with a focused
-    DEBUG `EvaluationContext.AssertNoAstEvaluation` regression. Keep
+    time through cached lowered `ExpressionProgram` execution when the operand
+    only needs a value. Dynamic return operands were the reference shape for the
+    old dynamic bridge; after issue
+    `planitem-gh3495-shared-context-e4-expression-payload-retirement-retire-the-live-u-ad82fa8e92`
+    / PR #3513, the accepted value-only shape is
+    `LoweredExpressionProgramCache.ExecuteCached(...)`, preserving precise
+    unsupported-bytecode failures and proving the path with focused DEBUG
+    `EvaluationContext.AssertNoAstEvaluation` coverage. Keep
     suspending operands (`await`, `yield`), assignment/name-inference operands,
     and delete-default operands as separate slices until their evaluation order,
     resume, and side-effect semantics are proven.
@@ -113,9 +117,11 @@ fallback or cleanup.
     handling via `EvaluateAwaitInGenerator(...)`, the dynamic executor via
     `UnifiedBytecodeExpressionProgramExecutor.ExecuteDynamic(...)`, and legacy
     await/yield operand evaluation in `Ast/Legacy/ExpressionNodeExtensions.cs`.
-    Future refreshes
-    should update that owner list when it changes so downstream bytecode work
-    starts from the right ownership boundary.
+    That was a historical owner list: after PR #3513, the dynamic executor item
+    is an absence ratchet and value-only legacy operands route through
+    `LoweredExpressionProgramCache.ExecuteCached(...)`. Future refreshes should
+    update owner lists when they change so downstream bytecode work starts from
+    the right ownership boundary.
 21. When expanding `docs/expression-bytecode-coverage.md`, keep the per-node
     family rows and the global `ExpressionProgramFailureCode` bucket index as
     separate source-of-truth surfaces. A bucket can belong in the global index
@@ -202,37 +208,42 @@ fallback or cleanup.
     rule after the finite bytecode retirement inventory needed to separate
     class-definition payload execution from static-block body fallback
     ownership.
-30. When rebaselining the dynamic `ExecuteDynamic(...)` bridge, treat approved
-    source files and per-file call counts as part of the boundary contract.
-    Assert that every expected source file is scanned, that no unapproved file
-    calls `UnifiedBytecodeExpressionProgramExecutor.ExecuteDynamic(...)`, and
-    that each approved file still has the expected count and child-owner
-    classification. Function parameter defaults and variable initializers are
-    retired from this bridge when they cache lowered `ExpressionProgram`
-    payloads on their owning AST nodes and execute those programs through
-    standalone unified bytecode; if either caller reappears, it must fail the
-    source gate instead of being silently reclassified as legacy residue. Legacy
-    expression-node payloads remain the primary dynamic expression boundary,
-    while legacy statement and loop operands remain separately classified
-    dynamic residue. Issue #3377 / PR #3446 added this rule after an E4
+30. When rebaselining the now-retired dynamic `ExecuteDynamic(...)` bridge,
+    treat approved source files and per-file call counts as historical boundary
+    evidence that must become source absence after retirement. Assert that every
+    expected source file is scanned, that no source file calls
+    `UnifiedBytecodeExpressionProgramExecutor.ExecuteDynamic(...)`, and that the
+    executor definition itself is absent. Function parameter defaults, variable
+    initializers, and legacy expression-node/statement/loop operands are retired
+    from this bridge when they cache lowered `ExpressionProgram` payloads on
+    their owning AST nodes and execute those programs through standalone unified
+    bytecode; if any caller reappears, it must fail the source gate instead of
+    being silently reclassified as residue. Issue #3377 / PR #3446 added this
+    rule after an E4
     rebaseline needed to distinguish a finite dynamic expression boundary from
     ordinary E4 closure work; issue #3377 / PR #3479 later retired the ordinary
     parameter-default and variable-initializer callers through cached owning-node
-    `ExpressionProgram` payloads and the standalone executor. WHY: ordinary
+    `ExpressionProgram` payloads and the standalone executor; issue
+    `planitem-gh3495-shared-context-e4-expression-payload-retirement-retire-the-live-u-ad82fa8e92`
+    / PR #3513 then retired the remaining 47 legacy expression-node, 10 legacy
+    statement, and 2 legacy loop dynamic executor calls by moving cached
+    lowering onto `ExpressionNode` / `LoweredExpressionProgramCache`. WHY:
     AST-owned payloads that are already lowerable should not remain parked on
-    the dynamic bridge, because that hides real legacy dynamic residue and makes
-    the finite retirement inventory less precise. Related ADR:
+    the dynamic bridge, because that hides the real retirement state and gives
+    future agents a misleading fallback target after the bridge is tombstoned.
+    Related ADR:
     `docs/adrs/0372-cache-ordinary-expression-payloads-on-owning-ast-nodes.md`.
-31. When rebaselining legacy statement or loop `ExecuteDynamic(...)` operands,
+31. When rebaselining legacy statement or loop dynamic expression operands,
     classify each call site by enclosing member and stable diagnostic label,
-    not only by file-level call count. Statement and loop operands can share the
-    same approved files while representing different semantic payloads such as
-    loop conditions, iterable expressions, return or tail-call operands, switch
-    operands, throw operands, and `with` object operands. Future source gates
-    should compare the full call-site inventory and should keep non-expression
-    statement IR fallback, static-block/script runner fallback, and resumable
-    runner fallback in the E5 owner rows unless a separate proof changes those
-    boundaries. Issue #3377 / PR #3447 added this rule after the finite
+    not only by file-level call count. Before PR #3513, statement and loop
+    operands shared `ExecuteDynamic(...)` files while representing different
+    semantic payloads such as loop conditions, iterable expressions, return or
+    tail-call operands, switch operands, throw operands, and `with` object
+    operands. Future source gates should compare the full call-site inventory
+    when an allowlist is still open, and should keep non-expression statement IR
+    fallback, static-block/script runner fallback, and resumable runner fallback
+    in the E5 owner rows unless a separate proof changes those boundaries. Issue
+    #3377 / PR #3447 added this rule after the finite
     bytecode retirement inventory needed to separate statement/loop dynamic
     expression payload residue from broader runner-retirement residue. WHY:
     file-count-only allowlists can stay green while ownership silently drifts
@@ -482,8 +493,12 @@ initializer payloads do not get mislabeled as legacy fallback.
 
 Later E4 bridge-retirement work moved that cache/lower/execute behavior into
 `UnifiedBytecodeExpressionProgramExecutor.ExecuteDynamic(...)` and tombstoned
-`EvaluateDynamicExpressionProgram(...)`. Future dynamic callers should use the
-unified-bytecode executor directly.
+`EvaluateDynamicExpressionProgram(...)`. Issue
+`planitem-gh3495-shared-context-e4-expression-payload-retirement-retire-the-live-u-ad82fa8e92`
+/ PR #3513 then tombstoned `ExecuteDynamic(...)` as well. Future value-only
+legacy expression operands should use `LoweredExpressionProgramCache.ExecuteCached(...)`;
+future already-lowered payloads should use
+`UnifiedBytecodeExpressionProgramExecutor.ExecuteStandalone(...)` directly.
 
 Issue #1447 / PR #1457 converted the dynamic return-expression boundary from
 `EvaluateDynamicOrSuspendingExpressionOperand(...)` to the dynamic expression-program bridge.
@@ -495,13 +510,15 @@ delete semantics in one migration.
 
 Issue #1461 / PR #1462 repaired a `main is red` compile failure after
 `EvaluateCachedExpressionProgram` was removed but the legacy dynamic
-return-expression boundary still called it. The correct caller is
-the dynamic expression-program bridge, now
-`UnifiedBytecodeExpressionProgramExecutor.ExecuteDynamic(...)`, because this
-seam starts in quarantined AST statement evaluation but must execute the return
-expression through bytecode. Future bridge refactors need a whole-AST
-bridge-call search, including `src/Asynkron.JsEngine/Ast/Legacy`, before they
-claim the rename/removal is complete.
+return-expression boundary still called it. At that stage, the correct caller
+was the dynamic expression-program bridge,
+`UnifiedBytecodeExpressionProgramExecutor.ExecuteDynamic(...)`, because the seam
+started in quarantined AST statement evaluation but still had to execute the
+return expression through bytecode. After PR #3513, that value-only legacy shape
+uses `LoweredExpressionProgramCache.ExecuteCached(...)` instead. Future bridge
+refactors need a whole-AST bridge-call search, including
+`src/Asynkron.JsEngine/Ast/Legacy`, before they claim the rename/removal is
+complete.
 
 Issue #1395 direct-closed an optional-tagged-template
 `UnsupportedExpressionProgram` bucket after current-worktree proof showed the
@@ -620,6 +637,19 @@ approved dynamic-boundary file is not a blanket permission: adding one more call
 inside `ExpressionNodeExtensions`, `StatementNodeExtensions`, or another
 approved file changes the residue boundary and should fail the ratchet until
 the child owner and manifest classification are updated intentionally.
+
+Issue
+`planitem-gh3495-shared-context-e4-expression-payload-retirement-retire-the-live-u-ad82fa8e92`
+/ PR #3513 completed the E4 dynamic-executor lifecycle. The delivery replaced
+the 47 legacy expression-node, 10 legacy statement, and 2 legacy loop
+`ExecuteDynamic(...)` callers with `LoweredExpressionProgramCache.ExecuteCached(...)`,
+moved cached lowering ownership to `ExpressionNode`, deleted the executor-owned
+`ConditionalWeakTable` cache and `ExecuteDynamic(...)` definition, and converted
+the manifest/diagnostic guard from source-presence or allowlist to source
+absence. WHY: after all value-only legacy operands execute through the owning
+node cache plus standalone unified bytecode, keeping a live dynamic executor
+would make E4 look open and would invite new fallback-style callers instead of
+failing the tombstone gate.
 
 Issue
 `planitem-planitem-planitem-gh3377-rebaseline-the-finite-bytecode-retirement-inven-1e1bc813d8`

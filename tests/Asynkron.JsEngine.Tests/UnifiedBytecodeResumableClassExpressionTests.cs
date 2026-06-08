@@ -1972,7 +1972,7 @@ public sealed class UnifiedBytecodeResumableClassExpressionTests(ITestOutputHelp
     }
 
     [Fact]
-    public void EvaluateResumable_ClassExpressionComputedMemberConstructorCapturesActivation_AdmitsLoadClassLiteral()
+    public void EvaluateResumable_ClassExpressionComputedMemberConstructorCapturesActivation_DeclinesBeforeVm()
     {
         var plan = GetFunctionPlan("""
         function* g(seed) {
@@ -1990,16 +1990,15 @@ public sealed class UnifiedBytecodeResumableClassExpressionTests(ITestOutputHelp
             plan,
             new UnifiedBytecodeProductionActivationDescriptor(IsGenerator: true));
 
-        Assert.True(result.IsEligible, result.Reason);
-        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
-        Assert.Contains(
-            result.Program.Instructions,
-            static instruction => instruction.OpCode == UnifiedBytecodeOpCode.LoadClassLiteral);
+        Assert.False(result.IsEligible);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.UnsupportedPlanShape, result.Code);
+        Assert.Contains("B24h", result.Reason, StringComparison.Ordinal);
+        Assert.Contains("broader class-definition environment bridge", result.Reason, StringComparison.Ordinal);
         Assert.True(UnifiedBytecodeProductionEligibility.PlanNeedsMaterializedResumableBodyEnvironment(plan));
     }
 
     [Fact(Timeout = 5000)]
-    public async Task GeneratorClassExpressionComputedMemberConstructorCapturesActivation_RoutesResumableAndReadsLaterMutation()
+    public async Task GeneratorClassExpressionComputedMemberConstructorCapturesActivation_FallsBackAndReadsLaterMutation()
     {
         await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
@@ -2022,8 +2021,10 @@ public sealed class UnifiedBytecodeResumableClassExpressionTests(ITestOutputHelp
             """);
 
         Assert.Equal("ready:false|42:false", result);
-        AssertGeneratorFastPath("g", argc: 1);
-        AssertProductionFastPath("Box");
+        Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                $"{ResumableGeneratorFastPathLog} func=g argc=1",
+                StringComparison.Ordinal));
     }
 
     [Fact]

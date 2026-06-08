@@ -4627,11 +4627,10 @@ internal static class UnifiedBytecodeProductionEligibility
             return false;
         }
 
-        if (FunctionCapturesActivationSlot(definition.Constructor, activationSlots, out var constructorCapturedName) &&
-            !IsMaterializedResumableBodyEnvironmentCapture(constructorCapturedName))
+        if (FunctionCapturesActivationSlot(definition.Constructor, activationSlots, out var constructorCapturedName))
         {
             declineReason =
-                $"Class literal is outside B24h: constructor body captures activation binding '{constructorCapturedName}' and needs the materialized body environment route.";
+                $"Class literal is outside B24h: constructor body captures activation binding '{constructorCapturedName}' and needs the broader class-definition environment bridge.";
             return false;
         }
 

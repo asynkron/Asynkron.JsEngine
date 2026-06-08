@@ -2241,6 +2241,26 @@
             "src/Asynkron.JsEngine/Ast/TypedAstEvaluator.GeneratorFunctionBase.cs",
             "src/Asynkron.JsEngine/Ast/TypedAstEvaluator.SyncFunctionInvoker.cs"
           ],
+          "classifiedCallSites": [
+            {
+              "childOwner": "E5c-script-and-static-block-runner-fallback",
+              "classification": "script runner construction inside classified script/static-block fallback runner",
+              "path": "src/Asynkron.JsEngine/Ast/TypedAstEvaluator.ExecutionPlanRunner.Core.cs",
+              "callCount": 2
+            },
+            {
+              "childOwner": "E5d-function-and-resumable-declined-body-runner-retirement",
+              "classification": "resumable generator declined-body runner construction",
+              "path": "src/Asynkron.JsEngine/Ast/TypedAstEvaluator.GeneratorFunctionBase.cs",
+              "callCount": 1
+            },
+            {
+              "childOwner": "E5d-function-and-constructor-runner-fallback",
+              "classification": "ordinary sync function and class-constructor declined-body fallback runner construction",
+              "path": "src/Asynkron.JsEngine/Ast/TypedAstEvaluator.SyncFunctionInvoker.cs",
+              "callCount": 2
+            }
+          ],
           "pattern": "new ExecutionPlanRunner("
         },
         {
@@ -2256,6 +2276,20 @@
             "src/Asynkron.JsEngine/Ast/ClassDefinitionExtensions.cs",
             "src/Asynkron.JsEngine/Ast/Legacy/StatementNodeExtensions.cs"
           ],
+          "classifiedCallSites": [
+            {
+              "childOwner": "E5-static-block-declined-residue",
+              "classification": "class static-block declined-body fallback after production unified bytecode declines",
+              "path": "src/Asynkron.JsEngine/Ast/ClassDefinitionExtensions.cs",
+              "enclosingMember": "ExecuteStaticBlock"
+            },
+            {
+              "childOwner": "E5c-script-fallback-retirement",
+              "classification": "ordinary script classified IR fallback after production unified bytecode declines",
+              "path": "src/Asynkron.JsEngine/Ast/Legacy/StatementNodeExtensions.cs",
+              "enclosingMember": "RunScriptViaClassifiedIrFallback"
+            }
+          ],
           "pattern": "ExecutionPlanRunner.RunScript("
         },
         {
@@ -2269,6 +2303,26 @@
           ],
           "allowedPaths": [
             "src/Asynkron.JsEngine/Ast/TypedAstEvaluator.SyncFunctionInvoker.cs"
+          ],
+          "classifiedCallSites": [
+            {
+              "childOwner": "E5d-function-and-constructor-runner-fallback",
+              "classification": "ordinary sync declined-body fallback runner execution",
+              "path": "src/Asynkron.JsEngine/Ast/TypedAstEvaluator.SyncFunctionInvoker.cs",
+              "enclosingMember": "TryInvokeIrFast"
+            },
+            {
+              "childOwner": "E5d-class-constructor-initialization-residue",
+              "classification": "simple derived class-constructor fallback runner execution",
+              "path": "src/Asynkron.JsEngine/Ast/TypedAstEvaluator.SyncFunctionInvoker.cs",
+              "enclosingMember": "TryInvokeSimpleDerivedClassConstructorFastPath"
+            },
+            {
+              "childOwner": "E5d-class-constructor-initialization-residue",
+              "classification": "simple base class-constructor fallback runner execution",
+              "path": "src/Asynkron.JsEngine/Ast/TypedAstEvaluator.SyncFunctionInvoker.cs",
+              "enclosingMember": "TryInvokeSimpleBaseClassConstructorFastPath"
+            }
           ],
           "pattern": "runner.RunSync();"
         },

@@ -454,6 +454,109 @@ public sealed partial class BytecodeProofManifestTests(ITestOutputHelper output)
         Assert.True(
             disallowed.Length == 0,
             $"{proof.Id}: source allowlist drift detected for '{pattern}':\n" + string.Join('\n', disallowed));
+
+        VerifyClassifiedCallSites(proof, matches);
+    }
+
+    private static void VerifyClassifiedCallSites(
+        ProofManifestProof proof,
+        (string relativePath, int LineNumber, string Text)[] matches)
+    {
+        if (proof.ClassifiedCallSites.Count == 0)
+        {
+            return;
+        }
+
+        foreach (var callSite in proof.ClassifiedCallSites)
+        {
+            Assert.True(
+                proof.AllowedPaths.Contains(callSite.Path, StringComparer.Ordinal),
+                $"{proof.Id}: classified call site '{callSite.Path}' must be listed in allowedPaths.");
+
+            Assert.False(
+                string.IsNullOrWhiteSpace(callSite.ChildOwner),
+                $"{proof.Id}: classified call site '{callSite.Path}' is missing childOwner.");
+            Assert.False(
+                string.IsNullOrWhiteSpace(callSite.Classification),
+                $"{proof.Id}: classified call site '{callSite.Path}' is missing classification.");
+        }
+
+        var countRows = proof.ClassifiedCallSites
+            .Where(static callSite => callSite.CallCount.HasValue)
+            .ToArray();
+        foreach (var callSite in countRows)
+        {
+            var actualCount = matches.Count(match => string.Equals(match.relativePath, callSite.Path, StringComparison.Ordinal));
+            Assert.Equal(
+                callSite.CallCount!.Value,
+                actualCount);
+        }
+
+        var memberRows = proof.ClassifiedCallSites
+            .Where(static callSite =>
+                !string.IsNullOrWhiteSpace(callSite.EnclosingMember) ||
+                !string.IsNullOrWhiteSpace(callSite.DynamicLabel))
+            .ToArray();
+        if (memberRows.Length == 0)
+        {
+            return;
+        }
+
+        var expectedMembersByPath = memberRows
+            .Where(static callSite => !string.IsNullOrWhiteSpace(callSite.EnclosingMember))
+            .GroupBy(static callSite => callSite.Path, StringComparer.Ordinal)
+            .ToDictionary(
+                static group => group.Key,
+                static group => group.Select(static callSite => callSite.EnclosingMember!).Distinct(StringComparer.Ordinal).ToArray(),
+                StringComparer.Ordinal);
+        var expectedCallSites = memberRows
+            .Select(static callSite => new ClassifiedSourceCallSite(
+                callSite.Path,
+                callSite.EnclosingMember ?? string.Empty,
+                callSite.DynamicLabel ?? string.Empty,
+                callSite.ChildOwner,
+                callSite.Classification))
+            .OrderBy(static callSite => callSite.RelativePath)
+            .ThenBy(static callSite => callSite.EnclosingMember)
+            .ThenBy(static callSite => callSite.DynamicLabel)
+            .ToArray();
+        var expectedPaths = expectedCallSites
+            .Select(static callSite => callSite.RelativePath)
+            .ToHashSet(StringComparer.Ordinal);
+        var repositoryRoot = FindRepositoryRoot();
+        var actualCallSites = matches
+            .Where(match => expectedPaths.Contains(match.relativePath))
+            .Select(match =>
+            {
+                var path = Path.Combine(repositoryRoot.FullName, match.relativePath);
+                var lines = File.ReadAllLines(path);
+                var lineIndex = match.LineNumber - 1;
+                var member = expectedMembersByPath.TryGetValue(match.relativePath, out var members)
+                    ? FindEnclosingMemberName(lines, lineIndex, members)
+                    : string.Empty;
+                var dynamicLabel = memberRows.Any(callSite => string.Equals(callSite.Path, match.relativePath, StringComparison.Ordinal) &&
+                                                              !string.IsNullOrWhiteSpace(callSite.DynamicLabel))
+                    ? FindDynamicExecutorLabel(lines, lineIndex)
+                    : string.Empty;
+
+                var expected = memberRows.SingleOrDefault(callSite =>
+                    string.Equals(callSite.Path, match.relativePath, StringComparison.Ordinal) &&
+                    string.Equals(callSite.EnclosingMember ?? string.Empty, member, StringComparison.Ordinal) &&
+                    string.Equals(callSite.DynamicLabel ?? string.Empty, dynamicLabel, StringComparison.Ordinal));
+
+                return new ClassifiedSourceCallSite(
+                    match.relativePath,
+                    member,
+                    dynamicLabel,
+                    expected?.ChildOwner ?? "unclassified child owner",
+                    expected?.Classification ?? "unclassified source call site");
+            })
+            .OrderBy(static callSite => callSite.RelativePath)
+            .ThenBy(static callSite => callSite.EnclosingMember)
+            .ThenBy(static callSite => callSite.DynamicLabel)
+            .ToArray();
+
+        Assert.Equal(expectedCallSites, actualCallSites);
     }
 
     private static IEnumerable<string> EnumerateManifestSourceFiles(
@@ -663,6 +766,54 @@ public sealed partial class BytecodeProofManifestTests(ITestOutputHelper output)
             .ToArray();
     }
 
+    private static string FindEnclosingMemberName(string[] lines, int callLineIndex, string[] expectedMemberNames)
+    {
+        for (var i = callLineIndex; i >= 0; i--)
+        {
+            var line = lines[i].Trim();
+            foreach (var expectedMemberName in expectedMemberNames)
+            {
+                if (Regex.IsMatch(
+                        line,
+                        $@"(?<![A-Za-z0-9_.]){Regex.Escape(expectedMemberName)}(?:<[^>]+>)?\(",
+                        RegexOptions.CultureInvariant))
+                {
+                    return expectedMemberName;
+                }
+            }
+        }
+
+        return "<unknown>";
+    }
+
+    private static string FindDynamicExecutorLabel(string[] lines, int callLineIndex)
+    {
+        for (var i = callLineIndex; i < Math.Min(lines.Length, callLineIndex + 8); i++)
+        {
+            var line = lines[i];
+            var labelStart = line.IndexOf("\"Dynamic ", StringComparison.Ordinal);
+            if (labelStart < 0)
+            {
+                continue;
+            }
+
+            var labelEnd = line.IndexOf('"', labelStart + 1);
+            if (labelEnd > labelStart)
+            {
+                return line.Substring(labelStart + 1, labelEnd - labelStart - 1);
+            }
+        }
+
+        return "<unknown>";
+    }
+
+    private sealed record ClassifiedSourceCallSite(
+        string RelativePath,
+        string EnclosingMember,
+        string DynamicLabel,
+        string ChildOwner,
+        string Classification);
+
     [GeneratedRegex(@"^- \[(?<mark>x| )\] \*\*(?<id>[A-Z][0-9]+[a-z]?(?:[0-9]+)?)\*\*", RegexOptions.Multiline)]
     private static partial Regex ChecklistRowPattern();
 
@@ -726,8 +877,25 @@ public sealed partial class BytecodeProofManifestTests(ITestOutputHelper output)
 
         public List<string> AllowedPaths { get; set; } = [];
 
+        public List<ProofManifestClassifiedCallSite> ClassifiedCallSites { get; set; } = [];
+
         public string? RequiredOpCode { get; set; }
 
         public bool RequiresBindingTargetConstants { get; set; }
+    }
+
+    private sealed class ProofManifestClassifiedCallSite
+    {
+        public string ChildOwner { get; set; } = string.Empty;
+
+        public string Classification { get; set; } = string.Empty;
+
+        public string Path { get; set; } = string.Empty;
+
+        public int? CallCount { get; set; }
+
+        public string? EnclosingMember { get; set; }
+
+        public string? DynamicLabel { get; set; }
     }
 }

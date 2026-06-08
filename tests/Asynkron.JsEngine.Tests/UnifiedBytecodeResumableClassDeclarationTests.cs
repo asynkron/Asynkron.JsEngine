@@ -731,6 +731,45 @@ public sealed class UnifiedBytecodeResumableClassDeclarationTests(ITestOutputHel
         AssertGeneratorFastPath("g", argc: 1);
     }
 
+    [Fact(Timeout = 5000)]
+    public async Task GeneratorPrivateInstanceAccessorClassDeclaration_RoutesResumableAndCallsGetterSetter()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function* g(seed) {
+                yield "ready";
+                class Box {
+                    constructor(value) {
+                        this.#stored = value;
+                    }
+
+                    get #stored() {
+                        return this.value + 1;
+                    }
+
+                    set #stored(value) {
+                        this.value = value * 2;
+                    }
+
+                    read() {
+                        return this.#stored;
+                    }
+                }
+
+                var box = new Box(seed);
+                yield box.read() + ":" + box.value;
+            }
+
+            var iterator = g(6);
+            var first = iterator.next();
+            var second = iterator.next();
+            first.value + ":" + first.done + "|" + second.value + ":" + second.done;
+            """);
+
+        Assert.Equal("ready:false|13:12:false", result);
+        AssertGeneratorFastPath("g", argc: 1);
+    }
+
     [Fact]
     public void EvaluateResumable_ClassDeclarationExtendsPublicFieldWithSuper_AdmitsDeclareClass()
     {

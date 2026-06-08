@@ -257,6 +257,24 @@ optimization.
     reshuffle regressed to `1461 ms`; both runtime edits were reverted and only
     the measured residual evidence was retained in
     `docs/performance/mapset-ir-plain-method-fast-path.md`.
+6m. For retained `classdef` production unified-bytecode slot-storage wins, keep
+    the cache owner-local to the class-constructor invoker unless fresh profile
+    evidence proves a broader storage owner. A small reusable slot buffer may be
+    held by `SyncFunctionInvoker` only for class constructors, bounded slot
+    counts, and non-reentrant execution; ordinary functions, larger programs,
+    and recursive or concurrent re-entry must stay on the existing
+    `ArrayPool<JsValue>.Shared` path. Clear the used span before releasing the
+    buffer back to the invoker so per-call `JsValue` references are not
+    retained. Keep CPU and memory claims separate: a constructor rent/return
+    win does not imply a `forloop` allocation win unless the matching memory
+    profile proves it. WHY: issue `autrun-dj0y1gbpfxlc-79c4e12a6e` / PR #3505
+    retained the class-constructor-only slot cache after repeated `classdef`
+    CPU profiles named `SyncFunctionInvoker` / `ExecutePreparedSuperConstruct`
+    and `SharedArrayPool<JsValue>` as the owner. Focused A/B timing improved
+    from about `4399 ms` unpatched to about `2092 ms` patched, while
+    `forloop --memory` matched current-main behavior at about `968 MB`.
+    Related ADR:
+    `docs/adrs/0374-keep-classdef-production-slot-storage-cache-invoker-owned.md`.
 7. For expression-bytecode arithmetic optimization, narrow from a broad
    benchmark table to the profile that actually owns the hot path before
    changing the runner. Use `rtk ./tools/profile <profile> --cpu` to confirm

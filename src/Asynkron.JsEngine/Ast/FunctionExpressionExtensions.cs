@@ -1,6 +1,5 @@
 using Asynkron.JsEngine.Execution;
 using Asynkron.JsEngine.Execution.Instructions;
-using Asynkron.JsEngine.Execution.UnifiedBytecode;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.StdLib;
 using Microsoft.Extensions.Logging;
@@ -156,11 +155,9 @@ public static partial class TypedAstEvaluator
                     return;
                 }
 
-                value = UnifiedBytecodeExpressionProgramExecutor.ExecuteDynamic(
-                    parameter.DefaultValue,
-                    environment,
-                    context,
-                    "Function parameter default expression");
+                value = ((IAstCacheable<LoweredExpressionProgramCache>)parameter)
+                    .GetOrCreateCache()
+                    .Execute(environment, context, "Function parameter default expression");
                 if (context.ShouldStopEvaluation)
                 {
                     return;

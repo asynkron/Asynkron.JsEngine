@@ -207,12 +207,17 @@ fallback or cleanup.
     Assert that every expected source file is scanned, that no unapproved file
     calls `UnifiedBytecodeExpressionProgramExecutor.ExecuteDynamic(...)`, and
     that each approved file still has the expected count and child-owner
-    classification. Function parameter defaults and variable initializers share
-    the same dynamic expression payload contract as legacy expression-node
-    payloads, while legacy statement and loop operands remain separately
-    classified dynamic residue. Issue #3377 / PR #3446 added this rule after an
-    E4 rebaseline needed to distinguish a finite dynamic expression boundary
-    from ordinary E4 closure work.
+    classification. Function parameter defaults and variable initializers are
+    retired from this bridge when they cache lowered `ExpressionProgram`
+    payloads on their owning AST nodes and execute those programs through
+    standalone unified bytecode; if either caller reappears, it must fail the
+    source gate instead of being silently reclassified as legacy residue. Legacy
+    expression-node payloads remain the primary dynamic expression boundary,
+    while legacy statement and loop operands remain separately classified
+    dynamic residue. Issue #3377 / PR #3446 added this rule after an E4
+    rebaseline needed to distinguish a finite dynamic expression boundary from
+    ordinary E4 closure work; issue #3377 later retired the ordinary
+    parameter-default and variable-initializer callers.
 31. When rebaselining legacy statement or loop `ExecuteDynamic(...)` operands,
     classify each call site by enclosing member and stable diagnostic label,
     not only by file-level call count. Statement and loop operands can share the

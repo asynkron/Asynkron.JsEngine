@@ -96,8 +96,9 @@ before/after quickly:
 - `Final signal:` the same command after editing with a short output excerpt.
 - `Signal delta:` the measured difference between the baseline and final
   signals, including units and direction when applicable.
-- `Sibling check:` issue numbers and one-line note of which active sibling
-  slices were intentionally avoided (or `none` when not applicable).
+- `Sibling check:` issue numbers and one-line note of which active and recently
+  merged sibling slices were intentionally avoided (or `none` when not
+  applicable).
 - `Slice check:` `rtk git diff --check` result and changed file list for the slice.
 - `Scope note:` one line confirming no recurrence infrastructure, Makefile
   contract, or unrelated files were changed.

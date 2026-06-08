@@ -1235,7 +1235,7 @@
           "source": "function* g(source) {\n  yield 'ready';\n  var C = class {\n    ['read']() { return 42; }\n    static {\n      eval(source);\n    }\n  };\n  return C;\n}",
           "expectedEligible": false,
           "declineCode": "UnsupportedPlanShape",
-          "reasonContains": "Direct eval invocation semantics"
+          "reasonContains": "Class literal static block is outside B24h production routing: Direct eval invocation semantics"
         },
         {
           "id": "B24h-computed-static-block-non-production-static-block-stays-open",

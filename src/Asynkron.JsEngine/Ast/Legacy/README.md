@@ -26,12 +26,12 @@ See `/agents/how-to-architecture.md` for detailed information about the executio
 
 ## Boundary Classification
 
-- `UnifiedBytecodeExpressionProgramExecutor.ExecuteDynamic` is the
-  dynamic-boundary bridge from quarantined AST evaluation to lowered
-  `ExpressionProgram` execution. It lowers once, caches success/failure per
-  node, and throws when lowering fails. It must not fall back to raw AST
-  expression evaluation on compile failure. `EvaluateDynamicExpressionProgram`
-  is tombstoned.
+- Quarantined expression operands that only need a value execute cached lowered
+  `ExpressionProgram` payloads through `LoweredExpressionProgramCache` and
+  `UnifiedBytecodeExpressionProgramExecutor.ExecuteStandalone`. They must not
+  fall back to raw AST expression evaluation on compile failure.
+  `EvaluateDynamicExpressionProgram` and
+  `UnifiedBytecodeExpressionProgramExecutor.ExecuteDynamic` are tombstoned.
 - Already-lowered expression-program payloads outside this directory should use
   `UnifiedBytecodeExpressionProgramExecutor.ExecuteStandalone` (for example
   computed class member names and class field initializers). That path is

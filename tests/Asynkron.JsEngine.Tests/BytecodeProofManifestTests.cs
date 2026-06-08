@@ -402,18 +402,27 @@ public sealed partial class BytecodeProofManifestTests(ITestOutputHelper output)
     private static void VerifySourcePresence(ProofManifestProof proof, bool shouldExist)
     {
         var repositoryRoot = FindRepositoryRoot();
-        var path = Path.Combine(repositoryRoot.FullName, Require(proof.Path, proof.Id, nameof(proof.Path)));
-        Assert.True(File.Exists(path), $"{proof.Id}: expected source file '{path}'.");
-
-        var source = File.ReadAllText(path);
         var patterns = proof.Patterns.Count > 0
             ? proof.Patterns
             : [Require(proof.Pattern, proof.Id, nameof(proof.Pattern))];
+        var scannedFiles = !string.IsNullOrWhiteSpace(proof.Path)
+            ? [Path.Combine(repositoryRoot.FullName, proof.Path)]
+            : proof.Paths
+                .SelectMany(path => EnumerateManifestSourceFiles(repositoryRoot, proof.Id, path))
+                .ToArray();
 
-        foreach (var pattern in patterns)
+        Assert.NotEmpty(scannedFiles);
+
+        foreach (var path in scannedFiles)
         {
-            var contains = source.Contains(pattern, StringComparison.Ordinal);
-            Assert.Equal(shouldExist, contains);
+            Assert.True(File.Exists(path), $"{proof.Id}: expected source file '{path}'.");
+
+            var source = File.ReadAllText(path);
+            foreach (var pattern in patterns)
+            {
+                var contains = source.Contains(pattern, StringComparison.Ordinal);
+                Assert.Equal(shouldExist, contains);
+            }
         }
     }
 

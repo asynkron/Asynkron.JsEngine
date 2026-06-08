@@ -45,6 +45,17 @@ internal sealed class LoweredExpressionProgramCache
         return UnifiedBytecodeExpressionProgramExecutor.ExecuteStandalone(Program, environment, context);
     }
 
+    public static JsValue ExecuteCached(
+        ExpressionNode expression,
+        JsEnvironment environment,
+        EvaluationContext context,
+        string failureLabel)
+    {
+        return ((IAstCacheable<LoweredExpressionProgramCache>)expression)
+            .GetOrCreateCache()
+            .Execute(environment, context, failureLabel);
+    }
+
     private static LoweredExpressionProgramCache Success(ExpressionProgram program) =>
         new(true, program, failureReason: null);
 

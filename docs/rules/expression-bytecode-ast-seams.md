@@ -352,6 +352,24 @@ fallback or cleanup.
     exists, and tombstone tests can accidentally encode rejection while broad
     async semantics still require fallback execution. Related ADR:
     `docs/adrs/0373-retire-async-function-declined-runner-bridge-with-explicit-rejection.md`.
+39. When narrowing E5d ordinary sync runner fallback residue, classify
+    `runner.RunSync();` allowlist entries by the enclosing member declaration,
+    not by nearest expected token text or file-level path. A retired ordinary
+    sync family should add executable route/no-fallback proof, while the
+    remaining ordinary sync fallback row stays anchored to
+    `InvokeWithContextSlow(...)` after `TryInvokeIrFast(...)` declines.
+    `TryInvokeIrFast(...)` itself must remain runner-free. Do not let route
+    proof for one ordinary sync family hard-tombstone class-constructor,
+    async-function, sync-generator, or E5e terminal dynamic residue rows. Issue
+    `planitem-gh3495-shared-context-e5d-function-and-resumable-runner-retirement-retir-4a3da72159`
+    / PR #3520 added this rule after the build-stage repair corrected the E5d
+    ordinary sync `runner.RunSync();` row from the fast-path method to the
+    outer slow-path owner and taught `BytecodeProofManifestTests` to find the
+    nearest expected member declaration first. WHY: nearest-token or file-level
+    allowlists can pass while attributing a live runner call to the wrong owner,
+    making a partial route retirement look like broader fallback retirement.
+    Related ADR:
+    `docs/adrs/0376-keep-e5d-ordinary-sync-runner-allowlists-member-classified.md`.
 
 ## Dynamic Boundary Classification (#1405 Retry)
 

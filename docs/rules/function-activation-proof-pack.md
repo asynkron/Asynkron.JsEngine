@@ -318,18 +318,24 @@ rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~Activ
 27. When pinning ordinary FunctionCode/direct-eval replacement surfaces after
     runner-removal work, keep the route assertion owned by the activation proof
     pack, not only a feature-local eval test. Assert the observable JavaScript
-    result, reject `Executing sync function via dynamic-scope executor`, and
-    accept either `classified-ordinary-sync-function-fallback` with a production
-    unified-bytecode decline reason or `unified-bytecode-production-fast-path`
-    when both routes preserve the intended IR/unified-bytecode-owned boundary.
-    Do not lock the proof to one currently selected owned route unless the
-    issue specifically changes that routing choice. WHY: Faktorial issue
+    result and reject the retired `classified-ordinary-sync-function-fallback`
+    runner log. After the ordinary sync runner fallback is retired, a current
+    replacement proof may require the explicit ordinary-sync decline fallthrough
+    plus `Executing sync function via dynamic-scope executor`; future production
+    unified bytecode admission can replace that route only with matching
+    executable proof. Do not lock the proof to one currently selected owned
+    route unless the issue specifically changes that routing choice. WHY:
+    Faktorial issue
     `planitem-gh3560-batch-1-pin-the-replacement-surface-batch-4-function-code-and-act-e772459f34`
     / PR #3576 found that current `origin/main` already avoided the dynamic
     scope executor for `DirectEvalFunctionDeclarationParameterDefault`, so the
     durable delivery was to promote the route contract into
     `ActivationSemanticsProofPackTests` and let future production-bytecode
-    admission replace the classified fallback without failing the proof.
+    admission replace the classified fallback without failing the proof. Later
+    Faktorial issue
+    `planitem-planitem-planitem-planitem-planitem-planitem-gh3495-shared-context-e5b-r-330c306121`
+    retired the ordinary sync runner fallback itself, making the dynamic-scope
+    executor the explicit replacement route for this still-declined shape.
 
 ## Why
 

@@ -349,6 +349,18 @@ public sealed partial class BytecodeProofManifestTests(ITestOutputHelper output)
             "classified IR-residue execution",
             ordinaryFallbackProof.Classification,
             StringComparison.Ordinal);
+        Assert.Contains(
+            "no-private ordinary declined-body proofs",
+            ordinaryFallbackProof.Classification,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "currently route through classified IR-residue execution",
+            ordinaryFallbackProof.Classification,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "not class-constructor initialization residue",
+            ordinaryFallbackProof.Classification,
+            StringComparison.Ordinal);
     }
 
     [Fact]

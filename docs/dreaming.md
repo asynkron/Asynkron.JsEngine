@@ -1,6 +1,6 @@
 # Asynkron.JsEngine Dreaming
 
-Date: 2026-06-09 (rev 16)
+Date: 2026-06-09 (rev 17)
 
 ## Why this document exists
 Architecture north star for Asynkron.JsEngine as a Node.js-competitive JavaScript runtime on .NET.
@@ -289,7 +289,7 @@ Decomposition rules:
 - Each module owns one reviewable surface: compiler artifacts, execution routes, async resume state, host integration, runtime values, or evidence gates.
 - Subcomponents are the smallest durable routing units for recurring packets. A packet may cross fabrics only by naming the sending surface, the receiving contract, and the evidence gate before implementation.
 - Directional leaves such as Shape/IC, capability grants, Worker Fabric, artifact cache, and speculative optimization remain future architecture until focused proof and quality evidence exist.
-- The current selectable queue is gh3238, gh3490, gh3491, gh2935, gh2954, and gh2955; gh2934, gh3175, and gh3176 remain landed adjacent evidence only.
+- The current selectable queue is gh3238, gh3490, gh3491, gh2935, gh2954, gh2955, gh3530, gh3543, gh3544, and gh3531; gh2934, gh3175, gh3176, PR #3505, PR #3528, and PR #3537 remain landed or trial adjacent evidence only.
 
 ## System lifecycle
 

@@ -5,6 +5,7 @@ using Asynkron.JsEngine.Execution.Instructions;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.StdLib;
+using Microsoft.Extensions.Logging;
 
 #pragma warning disable CS0618 // Compatibility overloads remain for dynamic/resume seams; not proof of direct runner AST fallback.
 
@@ -80,6 +81,57 @@ public static partial class TypedAstEvaluator
 
             _plan = planCache.Plan;
             _programCounter = _plan.EntryPoint;
+        }
+
+        public static JsValue ExecuteOrdinarySyncDynamicScopeExecutor<TArgs>(
+            FunctionExpression function,
+            JsEnvironment closure,
+            TArgs arguments,
+            JsValue thisValue,
+            IJsCallable callable,
+            RealmState realmState,
+            bool isLexicallyStrict,
+            bool hasFunctionNameEnvironment,
+            IJsObjectLike? homeObject,
+            PrivateNameScope? privateNameScope,
+            ImmutableArray<PrivateNameScope> capturedPrivateNameScopes,
+            JsValue newTarget,
+            JsEnvironment? lexicalThisEnvironment,
+            IJsEnvironmentAwareCallable? superConstructor,
+            IJsPropertyAccessor? superPrototype,
+            EvaluationContext context,
+            RealmState derivedClassErrorRealm,
+            ExecutionPlan plan,
+            ExecutionPlanBuildFailure? planFailure)
+            where TArgs : IReadOnlyList<JsValue>
+        {
+            realmState.Logger?.LogInformation(
+                "ordinary-sync-declined-body-dynamic-scope-executor reason=production-unified-bytecode-declined func={Function} argc={ArgumentCount}",
+                function.Name?.Name ?? "<anonymous>",
+                arguments.Count);
+
+            ExecutionPlanRunner executor = new(
+                function,
+                closure,
+                arguments,
+                thisValue,
+                callable,
+                realmState,
+                isLexicallyStrict,
+                hasFunctionNameEnvironment,
+                homeObject,
+                privateNameScope,
+                capturedPrivateNameScopes,
+                newTarget,
+                lexicalThisEnvironment,
+                superConstructor,
+                superPrototype,
+                context,
+                derivedClassErrorRealm,
+                planOverride: plan,
+                planFailureOverride: planFailure);
+
+            return executor.RunSync();
         }
 
         /// <summary>

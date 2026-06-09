@@ -1899,10 +1899,52 @@ TryCreateSimpleNumericSelfRecursionFastPath(
                         }
                         else
                         {
-                            RealmState.Logger?.LogInformation(
-                                "ordinary-sync-declined-body-dynamic-scope-executor reason=production-unified-bytecode-declined func={Function} argc={ArgumentCount}",
-                                _function.Name?.Name ?? "<anonymous>",
-                                arguments.Count);
+                            var effectiveThisValue = thisValue;
+                            var effectiveNewTarget = newTarget;
+                            if (IsArrowFunction)
+                            {
+                                var lexicalThis = _lexicalThis;
+                                if (_lexicalThisEnvironment is not null &&
+                                    _lexicalThisEnvironment.TryFindBindingJsValue(Symbol.This, true, out _, out var envThis))
+                                {
+                                    lexicalThis = envThis;
+                                }
+
+                                effectiveThisValue = lexicalThis.IsUninitialized ? JsValue.Undefined : lexicalThis;
+                                if (effectiveNewTarget.IsUndefined && !_lexicalNewTarget.IsUndefined)
+                                {
+                                    effectiveNewTarget = _lexicalNewTarget;
+                                }
+                            }
+
+                            try
+                            {
+                                return ExecutionPlanRunner.ExecuteOrdinarySyncDynamicScopeExecutor(
+                                    _function,
+                                    _closure,
+                                    arguments,
+                                    effectiveThisValue,
+                                    this,
+                                    RealmState,
+                                    _isStrict,
+                                    _hasFunctionNameEnvironment,
+                                    _homeObject,
+                                    PrivateNameScope,
+                                    _capturedPrivateNameScopes,
+                                    effectiveNewTarget,
+                                    _lexicalThisEnvironment,
+                                    _superConstructor,
+                                    _superPrototype,
+                                    context,
+                                    constructErrorRealm,
+                                    plan,
+                                    _planSeed.Failure);
+                            }
+                            catch (ThrowSignal signal) when (callingContext is not null)
+                            {
+                                callingContext.SetThrow(signal.ThrownValue);
+                                return signal.ThrownValue;
+                            }
                         }
                     }
 

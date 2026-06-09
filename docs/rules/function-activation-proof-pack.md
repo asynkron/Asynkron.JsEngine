@@ -295,6 +295,26 @@ rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~Activ
     `CastHelpers.Box` to consume 85.7% of `InvokeWithContextSlow` time
     (6.77x speedup after removal). Related ADR:
     `docs/adrs/0280-keep-simple-ir-fast-path-eligibility-ir-observability-guarded.md`.
+26. When retiring class-constructor runner fallback residue, keep constructor
+    fallback ownership split from ordinary sync-function fallback ownership and
+    from script-mode FunctionCode IR seams. Class constructors may attempt
+    production unified bytecode first, but a production decline must fall
+    through to the existing dynamic-scope constructor evaluator, not construct a
+    class-constructor `ExecutionPlanRunner` or call `runner.RunSync()`. The
+    remaining ordinary sync fallback runner is a separate E5d row and must not
+    be used as evidence that constructor residue remains. When narrowing
+    FunctionCode IR-seam bypasses in the same area, allow production unified
+    bytecode only when the plan is eligible and the function has no observable
+    `arguments`, no needed arguments binding, no legacy tail-restart reset
+    vars, and no strict block-scoped function-declaration instruction. Pair the
+    tombstone with `BytecodeProofManifestTests`, focused class-constructor
+    semantics, and focused FunctionCode quality proof. WHY: Faktorial issue
+    `planitem-planitem-gh3495-shared-context-e5b-runner-entry-point-tombstones-after-e-e3f725d87e`
+    / PR #3554 retired `CreateClassifiedClassConstructorFallbackRunner`, then
+    quality-gate repair had to tighten the FunctionCode bypass after
+    observable `arguments`, legacy restart reset, and strict block-function
+    shapes were incorrectly treated as production-UBC-safe. Related ADR:
+    `docs/adrs/0380-retire-class-constructor-runner-fallback-through-dynamic-constructor-evaluator.md`.
 
 ## Why
 

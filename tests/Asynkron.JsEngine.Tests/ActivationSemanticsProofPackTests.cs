@@ -278,6 +278,42 @@ public sealed class ActivationSemanticsProofPackTests(ITestOutputHelper output) 
     }
 
     [Fact(Timeout = 5000)]
+    public async Task DirectEvalOrdinarySyncBody_UsesReplacementRouteNotRetiredFallback()
+    {
+        var logger = new TestLogger(output, "DirectEvalOrdinarySyncBodyRoute", minLogLevel: LogLevel.Debug);
+        await using var engine = CreateEngine(() => new JsEngineOptions
+        {
+            DebugMode = true,
+            Logger = logger
+        });
+
+        var result = await engine.Evaluate("""
+            function probe(a) {
+                const value = eval("a + 1");
+                return value;
+            }
+
+            probe(41);
+            """);
+
+        var records = logger.Collector.Snapshot();
+        Assert.Equal(42d, result);
+        Assert.DoesNotContain(records,
+            static record => record.Message.Contains(
+                ClassifiedOrdinarySyncFunctionFallbackLog + " reason=production-unified-bytecode-declined func=probe",
+                StringComparison.Ordinal));
+        Assert.Contains(records,
+            static record =>
+                record.Message.Contains(DynamicScopeExecutorLog + " func=probe", StringComparison.Ordinal) ||
+                record.Message.Contains(
+                    ClassifiedSyncFunctionIrResidueLog + " reason=production-unified-bytecode-declined func=probe",
+                    StringComparison.Ordinal) ||
+                record.Message.Contains(
+                    UnifiedBytecodeProductionFastPathLog + " func=probe",
+                    StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task ClassMethodCreatedInsideFunctionWithoutCapturedNames_UsesProductionUnifiedBytecode()
     {
         await using var engine = CreateEngine();

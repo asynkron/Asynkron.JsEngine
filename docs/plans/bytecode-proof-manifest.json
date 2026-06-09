@@ -2130,7 +2130,7 @@
         {
           "id": "E5-ir-runner-type-still-present",
           "childOwner": "E5b-runner-construction-allowlist",
-          "classification": "classified ExecutionPlanRunner construction allowlist for script runners plus remaining async-function and sync-generator owners; ordinary sync declined bodies no longer construct a runner; not a broad E5b hot-path type-presence blocker",
+          "classification": "classified ExecutionPlanRunner construction allowlist for script runners plus remaining async-function, sync-generator, and sync-function IR-residue owners; ordinary sync declined bodies no longer construct the retired ordinary fallback runner; not a broad E5b hot-path type-presence blocker",
           "claim": "open",
           "kind": "source-allowlist",
           "paths": [
@@ -2147,6 +2147,12 @@
               "classification": "script runner construction inside classified ordinary script fallback runner",
               "path": "src/Asynkron.JsEngine/Ast/TypedAstEvaluator.ExecutionPlanRunner.Core.cs",
               "callCount": 2
+            },
+            {
+              "childOwner": "E5d-function-and-resumable-declined-body-runner-retirement",
+              "classification": "classified sync-function IR-residue construction inside ExecutionPlanRunner.Core; planned sync production declines no longer construct the retired ordinary fallback runner or call the retired RunSync surface",
+              "path": "src/Asynkron.JsEngine/Ast/TypedAstEvaluator.ExecutionPlanRunner.Core.cs",
+              "callCount": 1
             },
             {
               "childOwner": "E5d-async-function-declined-body-runner-residue",
@@ -2188,7 +2194,7 @@
         {
           "id": "E5-ir-runner-sync-entry-still-present",
           "childOwner": "E5d-function-and-resumable-declined-body-runner-retirement",
-          "classification": "ordinary sync function declined-body ExecutionPlanRunner.RunSync route is retired across Ast sources; class-constructor RunSync fallback entries remain retired; not a broad E5b entry-presence blocker",
+          "classification": "ordinary sync function declined-body ExecutionPlanRunner.RunSync route is retired across Ast sources; planned sync/class-constructor production declines use the classified IR-residue executor without the retired RunSync call surface; not a broad E5b entry-presence blocker",
           "claim": "retired-fallback",
           "kind": "source-absence",
           "paths": [
@@ -2288,7 +2294,7 @@
         {
           "id": "E5-function-runner-fallback-still-constructs-runner",
           "childOwner": "E5d-function-and-resumable-declined-body-runner-retirement",
-          "classification": "ordinary sync function fallback runner construction is retired; no-private ordinary declined-body proofs forbid the classified fallback log; not class-constructor initialization residue",
+          "classification": "ordinary sync function fallback runner construction is retired; no-private ordinary declined-body proofs forbid the classified fallback log and permit only production, dynamic-scope, or classified IR-residue execution; not class-constructor initialization residue",
           "claim": "retired-fallback",
           "kind": "source-absence",
           "path": "src/Asynkron.JsEngine/Ast/TypedAstEvaluator.SyncFunctionInvoker.cs",
@@ -2297,7 +2303,7 @@
         {
           "id": "E5-class-constructor-runner-fallback-still-constructs-runner",
           "childOwner": "E5d-class-constructor-initialization-residue",
-          "classification": "class-constructor fallback runner construction is retired; production unified bytecode attempts first and declined constructors fall through to the existing dynamic-scope constructor evaluator that owns base/derived this, new.target, private brand, and instance-field initialization; not ordinary sync function fallback retirement",
+          "classification": "class-constructor fallback runner construction is retired; production unified bytecode attempts first and declined constructors fall through to the classified IR-residue executor that owns base/derived this, new.target, private brand, and instance-field initialization without reintroducing the ordinary sync fallback helper; not ordinary sync function fallback retirement",
           "claim": "retired-fallback",
           "kind": "source-absence",
           "path": "src/Asynkron.JsEngine/Ast/TypedAstEvaluator.SyncFunctionInvoker.cs",

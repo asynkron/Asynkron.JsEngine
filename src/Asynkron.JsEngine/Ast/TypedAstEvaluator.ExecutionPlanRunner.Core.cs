@@ -167,6 +167,51 @@ public static partial class TypedAstEvaluator
             return RunScriptCore(plan, environment, context);
         }
 
+        public static JsValue ExecuteClassifiedSyncFunctionIrResidue(
+            FunctionExpression function,
+            JsEnvironment closure,
+            IReadOnlyList<JsValue> arguments,
+            JsValue thisValue,
+            IJsCallable callable,
+            RealmState realmState,
+            bool isLexicallyStrict,
+            bool hasFunctionNameEnvironment,
+            IJsObjectLike? homeObject,
+            PrivateNameScope? privateNameScope,
+            ImmutableArray<PrivateNameScope> capturedPrivateNameScopes,
+            JsValue newTarget,
+            JsEnvironment? lexicalThisEnvironment,
+            IJsEnvironmentAwareCallable? superConstructor,
+            IJsPropertyAccessor? superPrototype,
+            EvaluationContext context,
+            RealmState derivedClassErrorRealm,
+            ExecutionPlan plan,
+            ExecutionPlanBuildFailure? planFailure)
+        {
+            var runner = new ExecutionPlanRunner(
+                function,
+                closure,
+                arguments,
+                thisValue,
+                callable,
+                realmState,
+                isLexicallyStrict,
+                hasFunctionNameEnvironment,
+                homeObject,
+                privateNameScope,
+                capturedPrivateNameScopes,
+                newTarget,
+                lexicalThisEnvironment,
+                superConstructor,
+                superPrototype,
+                context,
+                derivedClassErrorRealm,
+                plan,
+                planFailure);
+
+            return runner.RunSyncCore();
+        }
+
         private static JsValue RunScriptCore(
             ExecutionPlan plan,
             JsEnvironment environment,
@@ -298,6 +343,11 @@ public static partial class TypedAstEvaluator
         /// Used for sync function execution via IR.
         /// </summary>
         public JsValue RunSync()
+        {
+            return RunSyncCore();
+        }
+
+        private JsValue RunSyncCore()
         {
             var executionEnvironment = EnsureExecutionEnvironment();
             var previousEnvironment = JsEnvironment.Current;

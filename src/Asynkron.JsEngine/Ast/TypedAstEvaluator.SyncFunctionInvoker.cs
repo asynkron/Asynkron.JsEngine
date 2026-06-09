@@ -1894,9 +1894,18 @@ TryCreateSimpleNumericSelfRecursionFastPath(
                         if (IsClassConstructor)
                         {
                             RealmState.Logger?.LogInformation(
-                                "class-constructor production bytecode declined; falling through to dynamic-scope executor func={Function}",
+                                "class-constructor production bytecode declined; falling through to classified IR residue func={Function}",
                                 _function.Name?.Name ?? "<anonymous>");
                         }
+
+                        return ExecuteClassifiedSyncFunctionIrResidue(
+                            arguments,
+                            thisValue,
+                            newTarget,
+                            plan,
+                            context,
+                            callingContext,
+                            constructErrorRealm);
                     }
 
                     if (!IsClassConstructor && plan is null)
@@ -2627,6 +2636,71 @@ TryCreateSimpleNumericSelfRecursionFastPath(
                 global::Asynkron.JsEngine.Runtime.RealmState.Current = previousRealm;
                 _currentCaller = previousCaller;
                 t_currentlyExecuting = previouslyExecuting;
+            }
+        }
+
+        private JsValue ExecuteClassifiedSyncFunctionIrResidue<TArgs>(
+            TArgs arguments,
+            JsValue thisValue,
+            JsValue newTarget,
+            ExecutionPlan plan,
+            EvaluationContext context,
+            EvaluationContext? callingContext,
+            RealmState constructErrorRealm)
+            where TArgs : IReadOnlyList<JsValue>
+        {
+            var effectiveThisValue = thisValue;
+            var effectiveNewTarget = newTarget;
+            if (IsArrowFunction)
+            {
+                var lexicalThis = _lexicalThis;
+                if (_lexicalThisEnvironment is not null &&
+                    _lexicalThisEnvironment.TryFindBindingJsValue(Symbol.This, true, out _, out var envThis))
+                {
+                    lexicalThis = envThis;
+                }
+
+                effectiveThisValue = lexicalThis.IsUninitialized ? JsValue.Undefined : lexicalThis;
+                if (effectiveNewTarget.IsUndefined && !_lexicalNewTarget.IsUndefined)
+                {
+                    effectiveNewTarget = _lexicalNewTarget;
+                }
+            }
+
+            RealmState.Logger?.LogInformation(
+                "classified-sync-function-ir-residue reason=production-unified-bytecode-declined func={Function} argc={ArgumentCount} classConstructor={ClassConstructor} privateNameResidue={PrivateNameResidue}",
+                _function.Name?.Name ?? "<anonymous>",
+                arguments.Count,
+                IsClassConstructor,
+                PrivateNameScope is not null || !_capturedPrivateNameScopes.IsDefaultOrEmpty);
+
+            try
+            {
+                return ExecutionPlanRunner.ExecuteClassifiedSyncFunctionIrResidue(
+                    _function,
+                    _closure,
+                    arguments,
+                    effectiveThisValue,
+                    this,
+                    RealmState,
+                    _isStrict,
+                    _hasFunctionNameEnvironment,
+                    _homeObject,
+                    PrivateNameScope,
+                    _capturedPrivateNameScopes,
+                    effectiveNewTarget,
+                    _lexicalThisEnvironment,
+                    _superConstructor,
+                    _superPrototype,
+                    context,
+                    constructErrorRealm,
+                    plan,
+                    _planSeed.Failure);
+            }
+            catch (ThrowSignal signal) when (callingContext is not null)
+            {
+                callingContext.SetThrow(signal.ThrownValue);
+                return signal.ThrownValue;
             }
         }
 

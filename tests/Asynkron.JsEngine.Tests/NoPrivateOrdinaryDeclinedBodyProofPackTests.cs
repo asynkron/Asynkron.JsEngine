@@ -10,6 +10,7 @@ public sealed class NoPrivateOrdinaryDeclinedBodyProofPackTests(ITestOutputHelpe
 {
     private const string OrdinarySyncFallbackLog = "classified-ordinary-sync-function-fallback";
     private const string DynamicScopeExecutorLog = "Executing sync function via dynamic-scope executor";
+    private const string SyncIrResidueLog = "classified-sync-function-ir-residue";
     private const string ProductionFastPathLog = "unified-bytecode-production-fast-path";
 
     [Fact(Timeout = 5000)]
@@ -205,8 +206,9 @@ public sealed class NoPrivateOrdinaryDeclinedBodyProofPackTests(ITestOutputHelpe
                 StringComparison.Ordinal));
         Assert.Contains(
             snapshot,
-            record =>
-                record.Message.Contains($"{ProductionFastPathLog} func={functionName}", StringComparison.Ordinal) ||
-                record.Message.Contains($"{DynamicScopeExecutorLog} func={functionName}", StringComparison.Ordinal));
+                record =>
+                    record.Message.Contains($"{ProductionFastPathLog} func={functionName}", StringComparison.Ordinal) ||
+                    record.Message.Contains($"{DynamicScopeExecutorLog} func={functionName}", StringComparison.Ordinal) ||
+                    record.Message.Contains($"{SyncIrResidueLog} reason=production-unified-bytecode-declined func={functionName}", StringComparison.Ordinal));
     }
 }

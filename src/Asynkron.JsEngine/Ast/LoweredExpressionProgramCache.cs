@@ -34,7 +34,8 @@ internal sealed class LoweredExpressionProgramCache
     public JsValue Execute(
         JsEnvironment environment,
         EvaluationContext context,
-        string failureLabel)
+        string failureLabel,
+        JsValue newTarget = default)
     {
         if (!Succeeded)
         {
@@ -42,7 +43,18 @@ internal sealed class LoweredExpressionProgramCache
                 $"{failureLabel} could not be lowered to expression bytecode: {FailureReason}");
         }
 
-        return UnifiedBytecodeExpressionProgramExecutor.ExecuteStandalone(Program, environment, context);
+        var effectiveNewTarget = newTarget;
+        if (effectiveNewTarget.IsUndefined &&
+            environment.TryGetJsValue(Symbol.NewTarget, out var inheritedNewTarget))
+        {
+            effectiveNewTarget = inheritedNewTarget;
+        }
+
+        return UnifiedBytecodeExpressionProgramExecutor.ExecuteStandalone(
+            Program,
+            environment,
+            context,
+            effectiveNewTarget);
     }
 
     public static JsValue ExecuteCached(

@@ -10128,7 +10128,7 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
             StringComparison.Ordinal);
         Assert.True(routeStart >= 0, "Could not locate TryInvokeIrFast route method.");
         var routeEnd = invokerSource.IndexOf(
-            "private bool TryInvokeSimpleDerivedClassConstructorFastPath<TArgs>(",
+            "private bool ShouldDeferSimpleIrFastPathToProductionUnifiedBytecode(",
             routeStart,
             StringComparison.Ordinal);
         Assert.True(routeEnd > routeStart, "Could not locate end boundary for TryInvokeIrFast.");
@@ -10281,7 +10281,7 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
         var routeSource = ExtractRequiredSourceSection(
             invokerSource,
             "private bool TryInvokeIrFast<TArgs>(",
-            "private bool TryInvokeSimpleDerivedClassConstructorFastPath<TArgs>(",
+            "private bool ShouldDeferSimpleIrFastPathToProductionUnifiedBytecode(",
             "ordinary sync route");
         var cacheHelperSource = ExtractRequiredSourceSection(
             invokerSource,

@@ -215,7 +215,7 @@ public sealed class UnifiedBytecodeProductionConstructCallTests(ITestOutputHelpe
     }
 
     [Fact(Timeout = 5000)]
-    public async Task BaseClassConstructorWithPrivateInstanceField_UsesProductionFastPathAndBrandsInstance()
+    public async Task BaseClassConstructorWithPrivateInstanceField_UsesDynamicScopeConstructorEvaluatorAndBrandsInstance()
     {
         await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
@@ -239,7 +239,7 @@ public sealed class UnifiedBytecodeProductionConstructCallTests(ITestOutputHelpe
         Assert.Equal("true:42", result?.ToString());
         Assert.Contains(CurrentLogger!.Collector.Snapshot(),
             static record => record.Message.Contains(
-                "unified-bytecode-production-fast-path func=Box argc=0",
+                "Executing sync function via dynamic-scope executor func=Box",
                 StringComparison.Ordinal));
     }
 

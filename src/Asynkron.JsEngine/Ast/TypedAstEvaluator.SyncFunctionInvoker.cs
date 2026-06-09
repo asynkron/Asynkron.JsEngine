@@ -1758,398 +1758,318 @@ TryCreateSimpleNumericSelfRecursionFastPath(
             try
             {
 
-            if (IsClassConstructor && newTarget.IsUndefined)
-            {
-                var error = StandardLibrary.CreateTypeError(
-                    "Class constructor cannot be invoked without 'new'",
-                    context,
-                    RealmState);
-                throw new ThrowSignal(error);
-            }
-
-            // Async functions use the generator IR executor for non-blocking await
-            // This routes async functions through ExecutionPlanRunner with _asyncStepMode=true
-            if (IsAsyncLike && !IsClassConstructor)
-            {
-                try
+                if (IsClassConstructor && newTarget.IsUndefined)
                 {
-                    RealmState.Logger?.LogInformation(
-                        "[SyncFunctionInvoker] Routing async-like function {Function} to AsyncFunctionInvoker",
-                        _function.Name?.Name ?? "<anonymous>");
-                    var executor = new AsyncFunctionInvoker(
-                        _function,
-                        _closure,
-                        arguments,
-                        thisValue,
-                        this,
-                        RealmState,
-                        _isStrict,
-                        _homeObject,
-                        PrivateNameScope,
-                        _capturedPrivateNameScopes,
-                        _planSeed);
-                    return executor.Execute();
+                    var error = StandardLibrary.CreateTypeError(
+                        "Class constructor cannot be invoked without 'new'",
+                        context,
+                        RealmState);
+                    throw new ThrowSignal(error);
                 }
-                catch (ThrowSignal signal) when (callingContext is not null)
+
+                // Async functions use the generator IR executor for non-blocking await
+                // This routes async functions through ExecutionPlanRunner with _asyncStepMode=true
+                if (IsAsyncLike && !IsClassConstructor)
                 {
-
-                    callingContext.SetThrow(signal.ThrownValue);
-                    return signal.ThrownValue;
-                }
-            }
-
-            if (!_function.IsGenerator && !IsAsyncFunction && _planSeed.Failure is not null)
-            {
-                throw new NotSupportedException(
-                    $"IR plan generation failed for function: {_planSeed.FailureReason}");
-            }
-
-            RealmState.Logger?.LogInformation(
-                "[SyncFunctionInvoker.Invoke.ALL] _function.Hash={Hash} _allowIdentifierCache={AllowCache} _function.Name={Name}",
-                _function.GetHashCode(),
-                _allowIdentifierCache,
-                _function.Name?.Name ?? "<anonymous>");
-
-            ExecutionPlan? plan = null;
-            string? failureReason = null;
-            var usedCachedPlanSeed = false;
-            if (!_function.IsGenerator && !IsAsyncFunction)
-            {
-                plan = _planSeed.Plan;
-                failureReason = _planSeed.FailureReason;
-                usedCachedPlanSeed = plan is not null || _planSeed.Failure is not null;
-                if (!usedCachedPlanSeed)
-                {
-                    var planCache = ((IAstCacheable<ExecutionPlanCache>)_function).GetOrCreateCache();
-                    plan = planCache.Plan;
-                    failureReason = planCache.FailureReason;
-                }
-            }
-
-            // Sync callables can use the IR runner whenever they have a lowered plan or an explicit
-            // lowering failure to surface. That keeps captured with-closures on the no-slot IR path
-            // and prevents silent re-entry into legacy AST execution.
-            var hasFunctionCodeIrSeam =
-                context.ExecutionKind == ExecutionKind.Script &&
-                _allowIdentifierCache &&
-                (_hasFunctionDeclarationParameterConflict ||
-                 (_hasNonParameterCalleeCall && (!_isStrict || _hasHoistableDeclarations)));
-            if (hasFunctionCodeIrSeam &&
-                _hasDirectEvalInBodyOrParameters &&
-                plan is not null &&
-                CanUseProductionUnifiedBytecodeFastPath(plan, JsValue.Undefined))
-            {
-                hasFunctionCodeIrSeam = false;
-            }
-
-            var canUseIrPlan =
-                !_function.IsGenerator &&
-                !IsAsyncFunction &&
-                // Keep IR for non-script function contexts; block known function-code seams in script mode.
-                !hasFunctionCodeIrSeam &&
-                (_allowIdentifierCache || !_closure.HasWithObjectInChain() || plan is not null || failureReason is not null);
-            if (canUseIrPlan)
-            {
-                RealmState.Logger?.LogInformation(
-                    "[SyncFunctionInvoker.Invoke] _function.Hash={Hash} planSource={PlanSource} planSucceeded={Succeeded} plan.Hash={PlanHash}",
-                    _function.GetHashCode(),
-                    usedCachedPlanSeed ? "class-cache" : "function-cache",
-                    plan is not null,
-                    plan?.GetHashCode() ?? -1);
-                if (plan is not null)
-                {
-                    if (IsClassConstructor &&
-                        CanUseCachedOrEvaluateProductionUnifiedBytecodeFastPath(plan, newTarget) &&
-                        TryInvokeProductionUnifiedBytecode(
-                            arguments,
-                            thisValue,
-                            newTarget,
-                            plan,
-                            context,
-                            callingContext,
-                            out var productionConstructorResult,
-                            constructErrorRealm))
-                    {
-                        return productionConstructorResult;
-                    }
-
-                    if (IsClassConstructor && _isDerivedClassConstructor &&
-                        TryInvokeSimpleDerivedClassConstructorFastPath(
-                            arguments,
-                            thisValue,
-                            callingContext,
-                            newTarget,
-                            plan,
-                            context,
-                            constructErrorRealm,
-                            out var derivedConstructorFastResult))
-                    {
-                        return derivedConstructorFastResult;
-                    }
-
-                    if (IsClassConstructor && !_isDerivedClassConstructor &&
-                        TryInvokeSimpleBaseClassConstructorFastPath(
-                            arguments,
-                            thisValue,
-                            callingContext,
-                            newTarget,
-                            plan,
-                            context,
-                            constructErrorRealm,
-                            out var constructorFastResult))
-                    {
-                        return constructorFastResult;
-                    }
-
-                    if (TryInvokeIrFast(
-                            arguments,
-                            thisValue,
-                            callingContext,
-                            newTarget,
-                            plan,
-                            context,
-                            out var fastResult))
-                    {
-                        return fastResult;
-                    }
-
-                    // For arrow functions, use lexically captured this and new.target
-                    var effectiveThisValue = thisValue;
-                    var effectiveNewTarget = newTarget;
-                    if (IsArrowFunction)
-                    {
-                        var lexicalThis = _lexicalThis;
-                        if (_lexicalThisEnvironment is not null &&
-                            _lexicalThisEnvironment.TryFindBindingJsValue(Symbol.This, true, out _, out var envThis))
-                        {
-                            lexicalThis = envThis;
-                        }
-
-                        effectiveThisValue = lexicalThis.IsUninitialized ? JsValue.Undefined : lexicalThis;
-
-                        // Arrow functions inherit new.target from the enclosing function
-                        if (effectiveNewTarget.IsUndefined && !_lexicalNewTarget.IsUndefined)
-                        {
-                            effectiveNewTarget = _lexicalNewTarget;
-                        }
-                    }
-
                     try
                     {
-                        // For base class constructors, we need to initialize the instance before running
-                        // the constructor body. This includes adding the private brand and initializing
-                        // instance fields. For derived classes, initialization happens in the AST path
-                        // when super() is called.
-                        var needsInstanceInit = IsClassConstructor && !_isDerivedClassConstructor;
-                        IJsObjectLike? instanceToInit = null;
-                        var constructorThisValue = effectiveThisValue;
-
-                        if (needsInstanceInit)
-                        {
-                            // For base class constructors called with `new`, create a new instance
-                            // if thisValue is undefined (same logic as in the AST execution path)
-                            if (!newTarget.IsUndefined && effectiveThisValue.IsUndefined)
-                            {
-                                var constructedThis = CreateConstructedThis(newTarget, RealmState);
-                                constructorThisValue = JsValue.FromObjectUnsafe(constructedThis);
-                                instanceToInit = constructedThis;
-                            }
-                            else if (effectiveThisValue.TryGetObject<IJsObjectLike>(out var existingInstance))
-                            {
-                                instanceToInit = existingInstance;
-                            }
-                        }
-
-                        var runner = IsClassConstructor
-                            ? CreateClassifiedClassConstructorFallbackRunner(
-                                arguments,
-                                constructorThisValue,
-                                effectiveNewTarget,
-                                plan,
-                                context,
-                                constructErrorRealm)
-                            : CreateClassifiedOrdinarySyncFunctionFallbackRunner(
-                                arguments,
-                                constructorThisValue,
-                                effectiveNewTarget,
-                                plan,
-                                context,
-                                constructErrorRealm);
-
-                        var runnerContext = runner.EnsureEvaluationContext();
-
-                        if (IsClassConstructor && _isDerivedClassConstructor)
-                        {
-                            var pendingFieldInitialization = new PendingClassFieldInitialization(
-                                this,
-                                runner.GetOrCreateExecutionEnvironmentForInternalUse());
-                            runnerContext.PushClassFieldInitializer(pendingFieldInitialization);
-                        }
-
-                        // Initialize instance BEFORE running constructor body (adds private brand and initializes fields)
-                        if (instanceToInit is not null)
-                        {
-                            var initContext = runnerContext;
-                            var initEnv = JsEnvironment.CreateInstance(_closure, isStrict: _isStrict);
-                            InitializeInstance(instanceToInit, initEnv, initContext);
-                            if (initContext.IsThrow)
-                            {
-                                callingContext?.SetThrow(initContext.FlowValue);
-                                return initContext.FlowValue;
-                            }
-                        }
-
-                        try
-                        {
-                            return runner.RunSync();
-                        }
-                        catch (ThrowSignal signal) when (callingContext is not null && IsClassConstructor && _isDerivedClassConstructor)
-                        {
-                            var normalized = NormalizeDerivedClassRealmError(signal, callingContext);
-                            if (!normalized.IsUndefined)
-                            {
-                                callingContext.SetThrow(normalized);
-                                return normalized;
-                            }
-
-                            callingContext.SetThrow(signal.ThrownValue);
-                            return signal.ThrownValue;
-                        }
+                        RealmState.Logger?.LogInformation(
+                            "[SyncFunctionInvoker] Routing async-like function {Function} to AsyncFunctionInvoker",
+                            _function.Name?.Name ?? "<anonymous>");
+                        var executor = new AsyncFunctionInvoker(
+                            _function,
+                            _closure,
+                            arguments,
+                            thisValue,
+                            this,
+                            RealmState,
+                            _isStrict,
+                            _homeObject,
+                            PrivateNameScope,
+                            _capturedPrivateNameScopes,
+                            _planSeed);
+                        return executor.Execute();
                     }
                     catch (ThrowSignal signal) when (callingContext is not null)
                     {
+
                         callingContext.SetThrow(signal.ThrownValue);
                         return signal.ThrownValue;
                     }
                 }
 
-                throw new NotSupportedException(
-                    $"IR plan generation failed for function: {failureReason}");
-            }
-
-            if (!_function.IsGenerator && !IsAsyncFunction)
-            {
-                RealmState.Logger?.LogInformation(
-                    "Executing sync function via dynamic-scope executor func={Function}",
-                    _function.Name?.Name ?? "<anonymous>");
-            }
-
-            var lexicalNames = RentSymbolSet(_lexicalTemplate);
-            // Used to compute body-lexical blocking; cleared and reused as an "active catch" set for hoisting.
-            var simpleCatchParameterNames = RentSymbolSet(_simpleCatchParameterTemplate);
-            // Track active catch parameters while hoisting (Annex B.3.5/B.3.3.3); start empty.
-            var catchParameterNames = RentSymbolSet();
-            var bodyLexicalNames = lexicalNames.Count == 0
-                ? lexicalNames
-                : RentSymbolSet(_bodyLexicalTemplate);
-            bodyLexicalNames.ExceptWith(simpleCatchParameterNames);
-            simpleCatchParameterNames.Clear();
-
-            var functionMode = _isStrict ? ScopeMode.Strict : ScopeMode.Sloppy;
-            using var functionScopeFrame = context.PushScope(ScopeKind.Function, functionMode);
-
-            // When parameter expressions are present, keep the parameter environment outside
-            // the var environment so defaults cannot observe body var bindings (spec step 27).
-            JsEnvironment parameterEnvironment;
-            JsEnvironment functionEnvironment;
-            JsEnvironment varEnvironment;
-            if (_hasParameterExpressions)
-            {
-                functionEnvironment = JsEnvironment.CreateInstance(_closure, true, _isStrict, _function.Source,
-                    _functionDescription);
-                functionEnvironment.IsArrowFunctionEnvironment = IsArrowFunction;
-                // Don't initialize slots for complex parameter expressions (destructuring, defaults)
-                // Values are bound via dictionary, not slots - only set scope metadata
-                functionEnvironment.ScopeId = _function.ScopeId;
-                functionEnvironment.SetSlotMap(_function.SlotMap);
-
-                parameterEnvironment = JsEnvironment.CreateInstance(functionEnvironment, false, _isStrict, _function.Source,
-                    _functionDescription, isParameterEnvironment: true);
-                parameterEnvironment.IsArrowFunctionEnvironment = IsArrowFunction;
-
-                varEnvironment = JsEnvironment.CreateInstance(parameterEnvironment, true, _isStrict, _function.Source,
-                    _functionDescription);
-                varEnvironment.IsArrowFunctionEnvironment = IsArrowFunction;
-            }
-            else
-            {
-                functionEnvironment = JsEnvironment.CreateInstance(_closure, true, _isStrict, _function.Source,
-                    _functionDescription);
-                functionEnvironment.IsArrowFunctionEnvironment = IsArrowFunction;
-                // InvokeWithContext uses dictionary-based lookups (slow path).
-                // Set ScopeId for scope chain navigation but DON'T initialize slots.
-                // Function declarations are hoisted into the dictionary via DefineFunctionScoped,
-                // and initializing slots would shadow them with Undefined values.
-                functionEnvironment.ScopeId = _function.ScopeId;
-                functionEnvironment.SetSlotMap(_function.SlotMap);
-                parameterEnvironment = functionEnvironment;
-                varEnvironment = functionEnvironment;
-            }
-
-            var executionEnvironment = JsEnvironment.CreateInstance(varEnvironment, false, _isStrict,
-                _function.Source, _functionDescription, isBodyEnvironment: true);
-            executionEnvironment.SetBodyLexicalNames(bodyLexicalNames);
-
-            // Per Annex B.3.3.1: compute names blocked from AnnexB function-scope hoisting.
-            // These are body-level lexical names, parameter names, and non-simple catch params.
-            {
-                var hoistPlanForBlocked = ((IAstCacheable<HoistPlan>)_function.Body).GetOrCreateCache();
-                var catchNamesForBlocked = hoistPlanForBlocked.CatchParameterNames;
-                var simpleCatchNamesForBlocked = hoistPlanForBlocked.SimpleCatchParameterNames;
-                if (!_isStrict && (bodyLexicalNames.Count > 0 || _parameterNames.Length > 0 ||
-                                   catchNamesForBlocked.Count > 0 || _argumentsObjectNeeded))
+                if (!_function.IsGenerator && !IsAsyncFunction && _planSeed.Failure is not null)
                 {
-                    var blockedNames =
-                        new HashSet<Symbol>(bodyLexicalNames, ReferenceEqualityComparer<Symbol>.Instance);
-                    foreach (var pn in _parameterNames)
-                    {
-                        blockedNames.Add(pn);
-                    }
+                    throw new NotSupportedException(
+                        $"IR plan generation failed for function: {_planSeed.FailureReason}");
+                }
 
-                    // B.3.5: non-simple catch parameters (destructured) block AnnexB hoisting
-                    foreach (var cn in catchNamesForBlocked)
-                    {
-                        if (!simpleCatchNamesForBlocked.Contains(cn))
-                        {
-                            blockedNames.Add(cn);
-                        }
-                    }
+                RealmState.Logger?.LogInformation(
+                    "[SyncFunctionInvoker.Invoke.ALL] _function.Hash={Hash} _allowIdentifierCache={AllowCache} _function.Name={Name}",
+                    _function.GetHashCode(),
+                    _allowIdentifierCache,
+                    _function.Name?.Name ?? "<anonymous>");
 
-                    if (_hasParameterExpressions)
+                ExecutionPlan? plan = null;
+                string? failureReason = null;
+                var usedCachedPlanSeed = false;
+                if (!_function.IsGenerator && !IsAsyncFunction)
+                {
+                    plan = _planSeed.Plan;
+                    failureReason = _planSeed.FailureReason;
+                    usedCachedPlanSeed = plan is not null || _planSeed.Failure is not null;
+                    if (!usedCachedPlanSeed)
                     {
-                        foreach (var blockedName in CollectAnnexBBlockFunctionNames(_function.Body))
-                        {
-                            blockedNames.Add(blockedName);
-                        }
-                    }
-
-                    // Per spec step 22.f: when argumentsObjectNeeded, "arguments" blocks AnnexB
-                    if (_argumentsObjectNeeded)
-                    {
-                        blockedNames.Add(Symbol.Arguments);
-                    }
-
-                    if (blockedNames.Count > 0)
-                    {
-                        varEnvironment.SetAnnexBBlockedNames(blockedNames);
+                        var planCache = ((IAstCacheable<ExecutionPlanCache>)_function).GetOrCreateCache();
+                        plan = planCache.Plan;
+                        failureReason = planCache.FailureReason;
                     }
                 }
-            }
 
-            // Mark environment as default derived constructor for special argument forwarding per ES spec 15.7.14
-            if (_function.IsDefaultDerivedConstructor)
-            {
-                functionEnvironment.IsDefaultDerivedConstructor = true;
-                executionEnvironment.IsDefaultDerivedConstructor = true;
-            }
+                // Sync callables can use the IR runner whenever they have a lowered plan or an explicit
+                // lowering failure to surface. That keeps captured with-closures on the no-slot IR path
+                // and prevents silent re-entry into legacy AST execution.
+                var hasFunctionCodeIrSeam =
+                    context.ExecutionKind == ExecutionKind.Script &&
+                    _allowIdentifierCache &&
+                    (_hasFunctionDeclarationParameterConflict ||
+                     (_hasHoistableDeclarations && _isStrict) ||
+                     (_hasNonParameterCalleeCall && (!_isStrict || _hasHoistableDeclarations)));
+                if (hasFunctionCodeIrSeam &&
+                    !IsClassConstructor &&
+                    plan is not null &&
+                    !_usesArguments &&
+                    !_needsArgumentsBinding &&
+                    _legacyTailRestartResetVarNames.IsEmpty &&
+                    !(_isStrict && HasBlockScopedFunctionDeclarationInstruction(plan)) &&
+                    CanUseProductionUnifiedBytecodeFastPath(plan, newTarget))
+                {
+                    hasFunctionCodeIrSeam = false;
+                }
 
-            using var capturedPrivateScopes = !_capturedPrivateNameScopes.IsDefaultOrEmpty
-                ? context.EnterPrivateNameScopes(_capturedPrivateNameScopes)
-                : null;
-            using var privateScope = PrivateNameScope is not null
-                ? context.EnterPrivateNameScope(PrivateNameScope)
-                : null;
-            var hasPendingFieldInitialization = false;
+                var canUseIrPlan =
+                    !_function.IsGenerator &&
+                    !IsAsyncFunction &&
+                    // Keep IR for non-script function contexts; block known function-code seams in script mode.
+                    !hasFunctionCodeIrSeam &&
+                    (_allowIdentifierCache || !_closure.HasWithObjectInChain() || plan is not null || failureReason is not null);
+                if (canUseIrPlan)
+                {
+                    RealmState.Logger?.LogInformation(
+                        "[SyncFunctionInvoker.Invoke] _function.Hash={Hash} planSource={PlanSource} planSucceeded={Succeeded} plan.Hash={PlanHash}",
+                        _function.GetHashCode(),
+                        usedCachedPlanSeed ? "class-cache" : "function-cache",
+                        plan is not null,
+                        plan?.GetHashCode() ?? -1);
+                    if (plan is not null)
+                    {
+                        if (IsClassConstructor &&
+                            CanUseCachedOrEvaluateProductionUnifiedBytecodeFastPath(plan, newTarget) &&
+                            TryInvokeProductionUnifiedBytecode(
+                                arguments,
+                                thisValue,
+                                newTarget,
+                                plan,
+                                context,
+                                callingContext,
+                                out var productionConstructorResult,
+                                constructErrorRealm))
+                        {
+                            return productionConstructorResult;
+                        }
+
+                        if (!IsClassConstructor &&
+                            TryInvokeIrFast(
+                                arguments,
+                                thisValue,
+                                callingContext,
+                                newTarget,
+                                plan,
+                                context,
+                                out var fastResult))
+                        {
+                            return fastResult;
+                        }
+
+                        if (IsClassConstructor)
+                        {
+                            RealmState.Logger?.LogInformation(
+                                "class-constructor production bytecode declined; falling through to dynamic-scope executor func={Function}",
+                                _function.Name?.Name ?? "<anonymous>");
+                        }
+                        else
+                        {
+                            // For arrow functions, use lexically captured this and new.target
+                            var effectiveThisValue = thisValue;
+                            var effectiveNewTarget = newTarget;
+                            if (IsArrowFunction)
+                            {
+                                var lexicalThis = _lexicalThis;
+                                if (_lexicalThisEnvironment is not null &&
+                                    _lexicalThisEnvironment.TryFindBindingJsValue(Symbol.This, true, out _, out var envThis))
+                                {
+                                    lexicalThis = envThis;
+                                }
+
+                                effectiveThisValue = lexicalThis.IsUninitialized ? JsValue.Undefined : lexicalThis;
+
+                                // Arrow functions inherit new.target from the enclosing function
+                                if (effectiveNewTarget.IsUndefined && !_lexicalNewTarget.IsUndefined)
+                                {
+                                    effectiveNewTarget = _lexicalNewTarget;
+                                }
+                            }
+
+                            try
+                            {
+                                var runner = CreateClassifiedOrdinarySyncFunctionFallbackRunner(
+                                    arguments,
+                                    effectiveThisValue,
+                                    effectiveNewTarget,
+                                    plan,
+                                    context,
+                                    constructErrorRealm);
+
+                                return runner.RunSync();
+                            }
+                            catch (ThrowSignal signal) when (callingContext is not null)
+                            {
+                                callingContext.SetThrow(signal.ThrownValue);
+                                return signal.ThrownValue;
+                            }
+                        }
+                    }
+
+                    if (!IsClassConstructor)
+                    {
+                        throw new NotSupportedException(
+                            $"IR plan generation failed for function: {failureReason}");
+                    }
+                }
+
+                if (!_function.IsGenerator && !IsAsyncFunction)
+                {
+                    RealmState.Logger?.LogInformation(
+                        "Executing sync function via dynamic-scope executor func={Function}",
+                        _function.Name?.Name ?? "<anonymous>");
+                }
+
+                var lexicalNames = RentSymbolSet(_lexicalTemplate);
+                // Used to compute body-lexical blocking; cleared and reused as an "active catch" set for hoisting.
+                var simpleCatchParameterNames = RentSymbolSet(_simpleCatchParameterTemplate);
+                // Track active catch parameters while hoisting (Annex B.3.5/B.3.3.3); start empty.
+                var catchParameterNames = RentSymbolSet();
+                var bodyLexicalNames = lexicalNames.Count == 0
+                    ? lexicalNames
+                    : RentSymbolSet(_bodyLexicalTemplate);
+                bodyLexicalNames.ExceptWith(simpleCatchParameterNames);
+                simpleCatchParameterNames.Clear();
+
+                var functionMode = _isStrict ? ScopeMode.Strict : ScopeMode.Sloppy;
+                using var functionScopeFrame = context.PushScope(ScopeKind.Function, functionMode);
+
+                // When parameter expressions are present, keep the parameter environment outside
+                // the var environment so defaults cannot observe body var bindings (spec step 27).
+                JsEnvironment parameterEnvironment;
+                JsEnvironment functionEnvironment;
+                JsEnvironment varEnvironment;
+                if (_hasParameterExpressions)
+                {
+                    functionEnvironment = JsEnvironment.CreateInstance(_closure, true, _isStrict, _function.Source,
+                        _functionDescription);
+                    functionEnvironment.IsArrowFunctionEnvironment = IsArrowFunction;
+                    // Don't initialize slots for complex parameter expressions (destructuring, defaults)
+                    // Values are bound via dictionary, not slots - only set scope metadata
+                    functionEnvironment.ScopeId = _function.ScopeId;
+                    functionEnvironment.SetSlotMap(_function.SlotMap);
+
+                    parameterEnvironment = JsEnvironment.CreateInstance(functionEnvironment, false, _isStrict, _function.Source,
+                        _functionDescription, isParameterEnvironment: true);
+                    parameterEnvironment.IsArrowFunctionEnvironment = IsArrowFunction;
+
+                    varEnvironment = JsEnvironment.CreateInstance(parameterEnvironment, true, _isStrict, _function.Source,
+                        _functionDescription);
+                    varEnvironment.IsArrowFunctionEnvironment = IsArrowFunction;
+                }
+                else
+                {
+                    functionEnvironment = JsEnvironment.CreateInstance(_closure, true, _isStrict, _function.Source,
+                        _functionDescription);
+                    functionEnvironment.IsArrowFunctionEnvironment = IsArrowFunction;
+                    // InvokeWithContext uses dictionary-based lookups (slow path).
+                    // Set ScopeId for scope chain navigation but DON'T initialize slots.
+                    // Function declarations are hoisted into the dictionary via DefineFunctionScoped,
+                    // and initializing slots would shadow them with Undefined values.
+                    functionEnvironment.ScopeId = _function.ScopeId;
+                    functionEnvironment.SetSlotMap(_function.SlotMap);
+                    parameterEnvironment = functionEnvironment;
+                    varEnvironment = functionEnvironment;
+                }
+
+                var executionEnvironment = JsEnvironment.CreateInstance(varEnvironment, false, _isStrict,
+                    _function.Source, _functionDescription, isBodyEnvironment: true);
+                executionEnvironment.SetBodyLexicalNames(bodyLexicalNames);
+
+                // Per Annex B.3.3.1: compute names blocked from AnnexB function-scope hoisting.
+                // These are body-level lexical names, parameter names, and non-simple catch params.
+                {
+                    var hoistPlanForBlocked = ((IAstCacheable<HoistPlan>)_function.Body).GetOrCreateCache();
+                    var catchNamesForBlocked = hoistPlanForBlocked.CatchParameterNames;
+                    var simpleCatchNamesForBlocked = hoistPlanForBlocked.SimpleCatchParameterNames;
+                    if (!_isStrict && (bodyLexicalNames.Count > 0 || _parameterNames.Length > 0 ||
+                                       catchNamesForBlocked.Count > 0 || _argumentsObjectNeeded))
+                    {
+                        var blockedNames =
+                            new HashSet<Symbol>(bodyLexicalNames, ReferenceEqualityComparer<Symbol>.Instance);
+                        foreach (var pn in _parameterNames)
+                        {
+                            blockedNames.Add(pn);
+                        }
+
+                        // B.3.5: non-simple catch parameters (destructured) block AnnexB hoisting
+                        foreach (var cn in catchNamesForBlocked)
+                        {
+                            if (!simpleCatchNamesForBlocked.Contains(cn))
+                            {
+                                blockedNames.Add(cn);
+                            }
+                        }
+
+                        if (_hasParameterExpressions)
+                        {
+                            foreach (var blockedName in CollectAnnexBBlockFunctionNames(_function.Body))
+                            {
+                                blockedNames.Add(blockedName);
+                            }
+                        }
+
+                        // Per spec step 22.f: when argumentsObjectNeeded, "arguments" blocks AnnexB
+                        if (_argumentsObjectNeeded)
+                        {
+                            blockedNames.Add(Symbol.Arguments);
+                        }
+
+                        if (blockedNames.Count > 0)
+                        {
+                            varEnvironment.SetAnnexBBlockedNames(blockedNames);
+                        }
+                    }
+                }
+
+                // Mark environment as default derived constructor for special argument forwarding per ES spec 15.7.14
+                if (_function.IsDefaultDerivedConstructor)
+                {
+                    functionEnvironment.IsDefaultDerivedConstructor = true;
+                    executionEnvironment.IsDefaultDerivedConstructor = true;
+                }
+
+                using var capturedPrivateScopes = !_capturedPrivateNameScopes.IsDefaultOrEmpty
+                    ? context.EnterPrivateNameScopes(_capturedPrivateNameScopes)
+                    : null;
+                using var privateScope = PrivateNameScope is not null
+                    ? context.EnterPrivateNameScope(PrivateNameScope)
+                    : null;
+                var hasPendingFieldInitialization = false;
 
                 if (!IsArrowFunction)
                 {
@@ -2160,240 +2080,299 @@ TryCreateSimpleNumericSelfRecursionFastPath(
                         isLexicalBinding: true, blocksFunctionScopeOverride: true);
                 }
 
-            // Bind `this`.
-            if (IsArrowFunction)
-            {
-                var lexicalThis = _lexicalThis;
-                var lexicalThisInitialized = !lexicalThis.IsUninitialized;
-                if (_lexicalThisEnvironment is not null)
+                // Bind `this`.
+                if (IsArrowFunction)
                 {
-                    // Try to get the this binding from the lexical environment, allowing uninitialized
-                    if (_lexicalThisEnvironment.TryFindBindingJsValue(Symbol.This, true, out _,
-                            out var envThis))
+                    var lexicalThis = _lexicalThis;
+                    var lexicalThisInitialized = !lexicalThis.IsUninitialized;
+                    if (_lexicalThisEnvironment is not null)
                     {
-                        lexicalThis = envThis;
-                        lexicalThisInitialized = !lexicalThis.IsUninitialized;
-                    }
-                    else
-                    {
-                        // Binding not found - treat as uninitialized
-                        lexicalThis = JsValue.Uninitialized;
-                        lexicalThisInitialized = false;
-                    }
-                }
-
-                var boundThis = lexicalThisInitialized ? lexicalThis : JsValue.Undefined;
-                if (lexicalThisInitialized)
-                {
-                    context.MarkThisInitialized();
-                }
-                else
-                {
-                    context.MarkThisUninitialized();
-                }
-
-                functionEnvironment._thisValue = boundThis;
-                functionEnvironment._hasThisValue = true;
-                functionEnvironment.DefineJsValue(Symbol.This, boundThis);
-
-                // Store a reference to the original environment that owns the `this` binding.
-                // This is needed for super() calls in arrow functions - super() must update
-                // the original constructor's `this` binding, not the arrow function's local copy.
-                if (_lexicalThisEnvironment is not null &&
-                    _lexicalThisEnvironment.TryFindBindingJsValue(Symbol.This, true,
-                        out var originalThisEnv, out _))
-                {
-                    functionEnvironment.DefineJsValue(Symbol.LexicalThisEnvironment,
-                        JsValue.FromObjectUnsafe(originalThisEnv));
-                }
-
-                var hasCopiedInitialization = false;
-                if (_closure.TryGetJsValue(Symbol.ThisInitialized, out var closureThisInitialized))
-                {
-                    functionEnvironment.SetThisInitializationStatus(JsOps.ToBoolean(closureThisInitialized));
-                    hasCopiedInitialization = true;
-                }
-                else if (_closure.TryGetObject<SuperBinding>(Symbol.Super, out var closureSuperBinding))
-                {
-                    functionEnvironment.SetThisInitializationStatus(closureSuperBinding.IsThisInitialized);
-                    hasCopiedInitialization = true;
-                }
-
-                SuperBinding? lexicalSuperBinding = null;
-                if (_superConstructor is not null || _superPrototype is not null)
-                {
-                    lexicalSuperBinding = new SuperBinding(
-                        _superConstructor,
-                        _superPrototype,
-                        boundThis,
-                        lexicalThisInitialized);
-                }
-                else if (_closure.TryGetObject<SuperBinding>(Symbol.Super, out var inheritedSuperBinding))
-                {
-                    lexicalSuperBinding = new SuperBinding(
-                        inheritedSuperBinding.Constructor,
-                        inheritedSuperBinding.Prototype,
-                        boundThis,
-                        lexicalThisInitialized);
-                }
-
-                if (lexicalSuperBinding is not null)
-                {
-                    functionEnvironment.RealmState?.Logger?.LogInformation(
-                        "SuperBinding: define lexical for arrow/lexical this protoNull={ProtoNull} thisInit={ThisInit}",
-                        lexicalSuperBinding.Prototype is null,
-                        lexicalSuperBinding.IsThisInitialized);
-                    functionEnvironment.DefineJsValue(Symbol.Super, JsValue.FromObjectUnsafe(lexicalSuperBinding),
-                        isLexicalBinding: true,
-                        blocksFunctionScopeOverride: true);
-                    if (!hasCopiedInitialization)
-                    {
-                        functionEnvironment.SetThisInitializationStatus(lexicalSuperBinding.IsThisInitialized);
-                    }
-                }
-            }
-            else
-            {
-                var boundThis = thisValue;
-
-                if (IsClassConstructor &&
-                    boundThis.IsUndefined &&
-                    !newTarget.IsUndefined)
-                {
-                    var constructedThis = CreateConstructedThis(newTarget, RealmState);
-
-                    RealmState.Logger?.LogInformation(
-                        "ctor: synthesized receiver func={Function} receiver={Receiver} proto={Proto} newTargetKind={NewTargetKind}",
-                        _function.Name?.Name ?? "<anonymous>",
-                        DescribeValue(constructedThis),
-                        DescribePrototype(constructedThis.PrototypeAccessor ?? constructedThis.Prototype),
-                        newTarget.Kind);
-
-                    boundThis = JsValue.FromObjectUnsafe(constructedThis);
-                }
-
-                if (!_isStrict)
-                {
-                    if (thisValue.IsNullish)
-                    {
-                        boundThis = RealmState.Engine is { GlobalObject: { } globalObj }
-                            ? JsValue.FromObjectUnsafe(globalObj)
-                            : JsValue.Undefined;
-                    }
-
-                    if (!boundThis.IsUndefined &&
-                        !boundThis.IsNull &&
-                        boundThis.ObjectValue is not IJsPropertyAccessor &&
-                        boundThis.ObjectValue is not IIsHtmlDda)
-                    {
-                        boundThis = JsValue.FromObjectUnsafe(ToObjectForDestructuringJsValue(boundThis, context));
-                    }
-                }
-
-                JsValue initialThisValue;
-                bool initialThisInitialized;
-                if (_isDerivedClassConstructor)
-                {
-                    context.MarkThisUninitialized();
-                    initialThisInitialized = false;
-                    initialThisValue = JsValue.Uninitialized;
-                }
-                else
-                {
-                    context.MarkThisInitialized();
-                    initialThisInitialized = true;
-                    initialThisValue = boundThis;
-                    if (!_isStrict && initialThisValue.IsNull)
-                    {
-                        initialThisValue = JsValue.FromObjectUnsafe(new JsObject { RealmState = RealmState });
-                    }
-
-                    boundThis = initialThisValue;
-                }
-
-                functionEnvironment.SetThisInitializationStatus(initialThisInitialized);
-                functionEnvironment._thisValue = initialThisValue;
-                functionEnvironment._hasThisValue = true;
-                functionEnvironment.DefineJsValue(Symbol.This, initialThisValue);
-                if (_isDerivedClassConstructor)
-                {
-                    functionEnvironment.DefineJsValue(Symbol.LexicalThisEnvironment,
-                        JsValue.FromObjectUnsafe(functionEnvironment));
-                }
-
-                if (IsClassConstructor && initialThisValue.TryGetObject<JsObject>(out var ctorThis))
-                {
-                    RealmState.Logger?.LogInformation(
-                        "ctor: bound this func={Function} this={This} proto={Proto} initialized={Initialized}",
-                        _function.Name?.Name ?? "<anonymous>",
-                        DescribeValue(ctorThis),
-                        DescribePrototype(ctorThis.PrototypeAccessor ?? ctorThis.Prototype),
-                        initialThisInitialized);
-                }
-
-                IJsPropertyAccessor? prototypeForSuper;
-                if (_homeObject is not null)
-                {
-                    // Super property resolution is based on the current [[Prototype]] of the home object,
-                    // even if it has been mutated after class definition (e.g. Object.setPrototypeOf).
-                    prototypeForSuper = (_homeObject as IPrototypeAccessorProvider)?.PrototypeAccessor ??
-                                        _homeObject.Prototype;
-                    prototypeForSuper ??= _superPrototype;
-                }
-                else
-                {
-                    prototypeForSuper = _superPrototype;
-                    if (prototypeForSuper is null && thisValue.TryGetObject<JsObject>(out var thisObj))
-                    {
-                        prototypeForSuper = thisObj.Prototype;
-                    }
-                }
-
-                var shouldDefineSuperBinding = IsClassConstructor ||
-                                              _homeObject is not null ||
-                                              _superConstructor is not null ||
-                                              prototypeForSuper is not null;
-                if (shouldDefineSuperBinding)
-                {
-                    var runtimeSuperConstructor = _superConstructor;
-                    if (IsClassConstructor)
-                    {
-                        var runtimeCtorPrototype =
-                            (this as IPrototypeAccessorProvider).PrototypeAccessor ?? Prototype;
-                        if (runtimeCtorPrototype is IJsEnvironmentAwareCallable ctorLike)
+                        // Try to get the this binding from the lexical environment, allowing uninitialized
+                        if (_lexicalThisEnvironment.TryFindBindingJsValue(Symbol.This, true, out _,
+                                out var envThis))
                         {
-                            runtimeSuperConstructor = ctorLike;
+                            lexicalThis = envThis;
+                            lexicalThisInitialized = !lexicalThis.IsUninitialized;
+                        }
+                        else
+                        {
+                            // Binding not found - treat as uninitialized
+                            lexicalThis = JsValue.Uninitialized;
+                            lexicalThisInitialized = false;
                         }
                     }
 
-                    var thisForSuper = initialThisInitialized &&
-                                       !boundThis.IsUndefined &&
-                                       !boundThis.IsUninitialized
-                        ? boundThis
-                        : JsValue.Undefined;
-                    var binding = new SuperBinding(runtimeSuperConstructor, prototypeForSuper,
-                        thisForSuper, initialThisInitialized);
-                    functionEnvironment.RealmState?.Logger?.LogInformation(
-                        "SuperBinding: define in function env env={Env} isCtor={IsCtor} isDerivedCtor={IsDerivedCtor} protoNull={ProtoNull} thisInit={ThisInit}",
-                        functionEnvironment.GetHashCode(),
-                        IsClassConstructor,
-                        _isDerivedClassConstructor,
-                        prototypeForSuper is null,
-                        initialThisInitialized);
-                    functionEnvironment.DefineJsValue(Symbol.Super, JsValue.FromObjectUnsafe(binding));
-                }
+                    var boundThis = lexicalThisInitialized ? lexicalThis : JsValue.Undefined;
+                    if (lexicalThisInitialized)
+                    {
+                        context.MarkThisInitialized();
+                    }
+                    else
+                    {
+                        context.MarkThisUninitialized();
+                    }
 
-                if (IsClassConstructor)
+                    functionEnvironment._thisValue = boundThis;
+                    functionEnvironment._hasThisValue = true;
+                    functionEnvironment.DefineJsValue(Symbol.This, boundThis);
+
+                    // Store a reference to the original environment that owns the `this` binding.
+                    // This is needed for super() calls in arrow functions - super() must update
+                    // the original constructor's `this` binding, not the arrow function's local copy.
+                    if (_lexicalThisEnvironment is not null &&
+                        _lexicalThisEnvironment.TryFindBindingJsValue(Symbol.This, true,
+                            out var originalThisEnv, out _))
+                    {
+                        functionEnvironment.DefineJsValue(Symbol.LexicalThisEnvironment,
+                            JsValue.FromObjectUnsafe(originalThisEnv));
+                    }
+
+                    var hasCopiedInitialization = false;
+                    if (_closure.TryGetJsValue(Symbol.ThisInitialized, out var closureThisInitialized))
+                    {
+                        functionEnvironment.SetThisInitializationStatus(JsOps.ToBoolean(closureThisInitialized));
+                        hasCopiedInitialization = true;
+                    }
+                    else if (_closure.TryGetObject<SuperBinding>(Symbol.Super, out var closureSuperBinding))
+                    {
+                        functionEnvironment.SetThisInitializationStatus(closureSuperBinding.IsThisInitialized);
+                        hasCopiedInitialization = true;
+                    }
+
+                    SuperBinding? lexicalSuperBinding = null;
+                    if (_superConstructor is not null || _superPrototype is not null)
+                    {
+                        lexicalSuperBinding = new SuperBinding(
+                            _superConstructor,
+                            _superPrototype,
+                            boundThis,
+                            lexicalThisInitialized);
+                    }
+                    else if (_closure.TryGetObject<SuperBinding>(Symbol.Super, out var inheritedSuperBinding))
+                    {
+                        lexicalSuperBinding = new SuperBinding(
+                            inheritedSuperBinding.Constructor,
+                            inheritedSuperBinding.Prototype,
+                            boundThis,
+                            lexicalThisInitialized);
+                    }
+
+                    if (lexicalSuperBinding is not null)
+                    {
+                        functionEnvironment.RealmState?.Logger?.LogInformation(
+                            "SuperBinding: define lexical for arrow/lexical this protoNull={ProtoNull} thisInit={ThisInit}",
+                            lexicalSuperBinding.Prototype is null,
+                            lexicalSuperBinding.IsThisInitialized);
+                        functionEnvironment.DefineJsValue(Symbol.Super, JsValue.FromObjectUnsafe(lexicalSuperBinding),
+                            isLexicalBinding: true,
+                            blocksFunctionScopeOverride: true);
+                        if (!hasCopiedInitialization)
+                        {
+                            functionEnvironment.SetThisInitializationStatus(lexicalSuperBinding.IsThisInitialized);
+                        }
+                    }
+                }
+                else
                 {
+                    var boundThis = thisValue;
+
+                    if (IsClassConstructor &&
+                        boundThis.IsUndefined &&
+                        !newTarget.IsUndefined)
+                    {
+                        var constructedThis = CreateConstructedThis(newTarget, RealmState);
+
+                        RealmState.Logger?.LogInformation(
+                            "ctor: synthesized receiver func={Function} receiver={Receiver} proto={Proto} newTargetKind={NewTargetKind}",
+                            _function.Name?.Name ?? "<anonymous>",
+                            DescribeValue(constructedThis),
+                            DescribePrototype(constructedThis.PrototypeAccessor ?? constructedThis.Prototype),
+                            newTarget.Kind);
+
+                        boundThis = JsValue.FromObjectUnsafe(constructedThis);
+                    }
+
+                    if (!_isStrict)
+                    {
+                        if (thisValue.IsNullish)
+                        {
+                            boundThis = RealmState.Engine is { GlobalObject: { } globalObj }
+                                ? JsValue.FromObjectUnsafe(globalObj)
+                                : JsValue.Undefined;
+                        }
+
+                        if (!boundThis.IsUndefined &&
+                            !boundThis.IsNull &&
+                            boundThis.ObjectValue is not IJsPropertyAccessor &&
+                            boundThis.ObjectValue is not IIsHtmlDda)
+                        {
+                            boundThis = JsValue.FromObjectUnsafe(ToObjectForDestructuringJsValue(boundThis, context));
+                        }
+                    }
+
+                    JsValue initialThisValue;
+                    bool initialThisInitialized;
                     if (_isDerivedClassConstructor)
                     {
-                        var pendingFieldInitialization = new PendingClassFieldInitialization(this, functionEnvironment);
-                        context.PushClassFieldInitializer(pendingFieldInitialization);
-                        hasPendingFieldInitialization = true;
+                        context.MarkThisUninitialized();
+                        initialThisInitialized = false;
+                        initialThisValue = JsValue.Uninitialized;
                     }
-                    else if (boundThis.TryGetObject<JsObject>(out var thisInstance))
+                    else
                     {
-                        InitializeInstance(thisInstance, functionEnvironment, context);
+                        context.MarkThisInitialized();
+                        initialThisInitialized = true;
+                        initialThisValue = boundThis;
+                        if (!_isStrict && initialThisValue.IsNull)
+                        {
+                            initialThisValue = JsValue.FromObjectUnsafe(new JsObject { RealmState = RealmState });
+                        }
+
+                        boundThis = initialThisValue;
+                    }
+
+                    functionEnvironment.SetThisInitializationStatus(initialThisInitialized);
+                    functionEnvironment._thisValue = initialThisValue;
+                    functionEnvironment._hasThisValue = true;
+                    functionEnvironment.DefineJsValue(Symbol.This, initialThisValue);
+                    if (_isDerivedClassConstructor)
+                    {
+                        functionEnvironment.DefineJsValue(Symbol.LexicalThisEnvironment,
+                            JsValue.FromObjectUnsafe(functionEnvironment));
+                    }
+
+                    if (IsClassConstructor && initialThisValue.TryGetObject<JsObject>(out var ctorThis))
+                    {
+                        RealmState.Logger?.LogInformation(
+                            "ctor: bound this func={Function} this={This} proto={Proto} initialized={Initialized}",
+                            _function.Name?.Name ?? "<anonymous>",
+                            DescribeValue(ctorThis),
+                            DescribePrototype(ctorThis.PrototypeAccessor ?? ctorThis.Prototype),
+                            initialThisInitialized);
+                    }
+
+                    IJsPropertyAccessor? prototypeForSuper;
+                    if (_homeObject is not null)
+                    {
+                        // Super property resolution is based on the current [[Prototype]] of the home object,
+                        // even if it has been mutated after class definition (e.g. Object.setPrototypeOf).
+                        prototypeForSuper = (_homeObject as IPrototypeAccessorProvider)?.PrototypeAccessor ??
+                                            _homeObject.Prototype;
+                        prototypeForSuper ??= _superPrototype;
+                    }
+                    else
+                    {
+                        prototypeForSuper = _superPrototype;
+                        if (prototypeForSuper is null && thisValue.TryGetObject<JsObject>(out var thisObj))
+                        {
+                            prototypeForSuper = thisObj.Prototype;
+                        }
+                    }
+
+                    var shouldDefineSuperBinding = IsClassConstructor ||
+                                                  _homeObject is not null ||
+                                                  _superConstructor is not null ||
+                                                  prototypeForSuper is not null;
+                    if (shouldDefineSuperBinding)
+                    {
+                        var runtimeSuperConstructor = _superConstructor;
+                        if (IsClassConstructor)
+                        {
+                            var runtimeCtorPrototype =
+                                (this as IPrototypeAccessorProvider).PrototypeAccessor ?? Prototype;
+                            if (runtimeCtorPrototype is IJsEnvironmentAwareCallable ctorLike)
+                            {
+                                runtimeSuperConstructor = ctorLike;
+                            }
+                        }
+
+                        var thisForSuper = initialThisInitialized &&
+                                           !boundThis.IsUndefined &&
+                                           !boundThis.IsUninitialized
+                            ? boundThis
+                            : JsValue.Undefined;
+                        var binding = new SuperBinding(runtimeSuperConstructor, prototypeForSuper,
+                            thisForSuper, initialThisInitialized);
+                        functionEnvironment.RealmState?.Logger?.LogInformation(
+                            "SuperBinding: define in function env env={Env} isCtor={IsCtor} isDerivedCtor={IsDerivedCtor} protoNull={ProtoNull} thisInit={ThisInit}",
+                            functionEnvironment.GetHashCode(),
+                            IsClassConstructor,
+                            _isDerivedClassConstructor,
+                            prototypeForSuper is null,
+                            initialThisInitialized);
+                        functionEnvironment.DefineJsValue(Symbol.Super, JsValue.FromObjectUnsafe(binding));
+                    }
+
+                    if (IsClassConstructor)
+                    {
+                        if (_isDerivedClassConstructor)
+                        {
+                            var pendingFieldInitialization = new PendingClassFieldInitialization(this, functionEnvironment);
+                            context.PushClassFieldInitializer(pendingFieldInitialization);
+                            hasPendingFieldInitialization = true;
+                        }
+                        else if (boundThis.TryGetObject<JsObject>(out var thisInstance))
+                        {
+                            InitializeInstance(thisInstance, functionEnvironment, context);
+                            if (context.ShouldStopEvaluation)
+                            {
+                                if (!context.IsThrow)
+                                {
+                                    return JsValue.Undefined;
+                                }
+
+                                var thrownDuringInitialization = context.FlowValue;
+                                callingContext?.SetThrow(thrownDuringInitialization);
+                                return thrownDuringInitialization;
+                            }
+                        }
+                    }
+                }
+
+                IReadOnlyList<JsValue> currentArguments = arguments;
+                var isLegacyTailRestart = false;
+                try
+                {
+                    // Named function expressions should see their name inside the body.
+                    if (!IsArrowFunction && _function.Name is { } functionName && !_hasFunctionNameEnvironment)
+                    {
+                        parameterEnvironment.DefineJsValue(functionName, _cachedJsValue, true,
+                            isLexicalBinding: true, blocksFunctionScopeOverride: true);
+                    }
+
+                    // Wrap parameter binding and body evaluation in the same try-catch for async functions.
+                    // This ensures ThrowSignal exceptions from TDZ errors during parameter default evaluation
+                    // are properly caught and converted to rejected promises.
+                    try
+                    {
+                    LegacyTailCallRestart:
+                        context.ClearReturn();
+                        if (isLegacyTailRestart)
+                        {
+                            ResetLegacyTailRestartActivation(varEnvironment, executionEnvironment);
+                        }
+
+                        // Create the `arguments` binding before parameter defaults can observe it.
+                        // Legacy tail restarts update currentArguments, so the observable object must be refreshed here.
+                        if (_argumentsObjectNeeded)
+                        {
+                            var argumentsObject = _function.CreateArgumentsObject(currentArguments, executionEnvironment,
+                                RealmState,
+                                this,
+                                _isStrict);
+                            executionEnvironment.DefineJsValue(Symbol.Arguments, JsValue.FromObjectUnsafe(argumentsObject),
+                                isLexicalBinding: false);
+                            parameterEnvironment.DefineJsValue(Symbol.Arguments, JsValue.FromObjectUnsafe(argumentsObject),
+                                isLexicalBinding: false);
+                            if (!ReferenceEquals(parameterEnvironment, functionEnvironment))
+                            {
+                                functionEnvironment.DefineJsValue(Symbol.Arguments, JsValue.FromObjectUnsafe(argumentsObject),
+                                    isLexicalBinding: false);
+                            }
+                        }
+
+                        // Bind parameters
+                        _function.BindFunctionParameters(currentArguments, parameterEnvironment, context);
                         if (context.ShouldStopEvaluation)
                         {
                             if (!context.IsThrow)
@@ -2401,250 +2380,231 @@ TryCreateSimpleNumericSelfRecursionFastPath(
                                 return JsValue.Undefined;
                             }
 
-                            var thrownDuringInitialization = context.FlowValue;
-                            callingContext?.SetThrow(thrownDuringInitialization);
-                            return thrownDuringInitialization;
-                        }
-                    }
-                }
-            }
-
-            IReadOnlyList<JsValue> currentArguments = arguments;
-            var isLegacyTailRestart = false;
-            try
-            {
-                // Named function expressions should see their name inside the body.
-                if (!IsArrowFunction && _function.Name is { } functionName && !_hasFunctionNameEnvironment)
-                {
-                    parameterEnvironment.DefineJsValue(functionName, _cachedJsValue, true,
-                        isLexicalBinding: true, blocksFunctionScopeOverride: true);
-                }
-
-                // Wrap parameter binding and body evaluation in the same try-catch for async functions.
-                // This ensures ThrowSignal exceptions from TDZ errors during parameter default evaluation
-                // are properly caught and converted to rejected promises.
-                try
-                {
-                LegacyTailCallRestart:
-                    context.ClearReturn();
-                    if (isLegacyTailRestart)
-                    {
-                        ResetLegacyTailRestartActivation(varEnvironment, executionEnvironment);
-                    }
-
-                    // Create the `arguments` binding before parameter defaults can observe it.
-                    // Legacy tail restarts update currentArguments, so the observable object must be refreshed here.
-                    if (_argumentsObjectNeeded)
-                    {
-                        var argumentsObject = _function.CreateArgumentsObject(currentArguments, executionEnvironment,
-                            RealmState,
-                            this,
-                            _isStrict);
-                        executionEnvironment.DefineJsValue(Symbol.Arguments, JsValue.FromObjectUnsafe(argumentsObject),
-                            isLexicalBinding: false);
-                        parameterEnvironment.DefineJsValue(Symbol.Arguments, JsValue.FromObjectUnsafe(argumentsObject),
-                            isLexicalBinding: false);
-                        if (!ReferenceEquals(parameterEnvironment, functionEnvironment))
-                        {
-                            functionEnvironment.DefineJsValue(Symbol.Arguments, JsValue.FromObjectUnsafe(argumentsObject),
-                                isLexicalBinding: false);
-                        }
-                    }
-
-                    // Bind parameters
-                    _function.BindFunctionParameters(currentArguments, parameterEnvironment, context);
-                    if (context.ShouldStopEvaluation)
-                    {
-                        if (!context.IsThrow)
-                        {
-                            return JsValue.Undefined;
-                        }
-
-                        var thrownDuringBinding = context.FlowValue;
-                        if (IsAsyncFunction || _wasAsyncFunction)
-                        {
-                            // Async functions must reject instead of throwing synchronously.
-                            // Use CreateRejectedPromiseFromRealm, which uses the RealmState's
-                            // PromiseConstructor, ensuring we always have access to Promise.
-                            callingContext?.Clear();
-
-                            var rejectedBindingResult = CreateRejectedPromiseFromRealm(thrownDuringBinding);
-                            return rejectedBindingResult;
-                        }
-
-                        if (callingContext is null)
-                        {
-                            throw new ThrowSignal(thrownDuringBinding);
-                        }
-
-                        callingContext.SetThrow(thrownDuringBinding);
-                        return thrownDuringBinding;
-                    }
-
-                    _function.Body.HoistVarDeclarations(executionEnvironment, context,
-                        lexicalNames: lexicalNames,
-                        catchParameterNames: catchParameterNames,
-                        simpleCatchParameterNames: simpleCatchParameterNames);
-
-                    if (_hasFunctionNameEnvironment &&
-                        _function.Name is { } hoistedName &&
-                        ContainsVarDeclaration(_function, hoistedName) &&
-                        !functionEnvironment.HasBinding(hoistedName))
-                    {
-                        functionEnvironment.DefineFunctionScoped(hoistedName, JsValue.Undefined, false,
-                            context: context);
-                    }
-
-                    // ES2024 9.2.12 FunctionDeclarationInstantiation step 34-35:
-                    // Create TDZ bindings for lexical declarations (let/const) in the function environment.
-                    // This must happen BEFORE the body is evaluated so that closures that reference these
-                    // variables will find them in TDZ state and throw ReferenceError if accessed before initialization.
-                    // NOTE: We use _topLevelLexicalNames which excludes for-loop/for-of initializer variables
-                    // (those create their own per-iteration environments and should NOT be in function TDZ).
-                    foreach (var lexicalName in _topLevelLexicalNames)
-                    {
-                        if (!executionEnvironment.HasBinding(lexicalName))
-                        {
-                            var isConst = _lexicalDeclarationKinds.TryGetValue(lexicalName, out var c) && c;
-                            executionEnvironment.DefineJsValue(lexicalName, JsValue.Uninitialized, isConst: isConst,
-                                isLexicalBinding: true, blocksFunctionScopeOverride: true);
-                        }
-                    }
-
-                    var previousEnvironment = JsEnvironment.Current;
-                    JsEnvironment.Current = executionEnvironment;
-                    try
-                    {
-                        _ = _function.Body.EvaluateBlockJsValue(executionEnvironment,
-                            context);
-                    }
-                    finally
-                    {
-                        JsEnvironment.Current = previousEnvironment;
-                    }
-
-                    if (context.TryConsumeLegacyTailCallRestart(
-                            this,
-                            out var restartArguments,
-                            out var restartThisValue,
-                            out var restartNewTargetValue))
-                    {
-                        currentArguments = restartArguments;
-                        isLegacyTailRestart = true;
-                        if (_isStrict && !IsArrowFunction)
-                        {
-                            functionEnvironment._thisValue = restartThisValue;
-                            functionEnvironment._hasThisValue = true;
-                            functionEnvironment.DefineJsValue(Symbol.This, restartThisValue);
-                            functionEnvironment.DefineJsValue(Symbol.NewTarget, restartNewTargetValue, true,
-                                isLexicalBinding: true, blocksFunctionScopeOverride: true);
-                        }
-
-                        goto LegacyTailCallRestart;
-                    }
-
-                    if (context.IsThrow)
-                    {
-                        var thrown = context.FlowValue;
-                        RealmState.Logger?.LogInformation(
-                            "InvokeWithContext propagating throw kind={ThrowKind} callerHasContext={HasCaller} func={FunctionName}",
-                            thrown.Kind,
-                            callingContext is not null,
-                            _function.Name?.Name ?? "<anonymous>");
-
-                        if (IsAsyncFunction || _wasAsyncFunction)
-                        {
-                            var rejectedThrowResult = CreateRejectedPromise(thrown, executionEnvironment);
-                            return rejectedThrowResult;
-                        }
-
-                        if (callingContext is null)
-                        {
-                            throw new ThrowSignal(thrown);
-                        }
-
-                        callingContext.SetThrow(thrown);
-                        return thrown;
-                    }
-
-                    // Use IsAsyncLike so CPS-transformed async functions (WasAsync=true, IsAsync=false)
-                    // still wrap completion values in a promise.
-                    if (!IsAsyncLike)
-                    {
-                        if (!context.IsReturn)
-                        {
-                            if (!IsClassConstructor)
+                            var thrownDuringBinding = context.FlowValue;
+                            if (IsAsyncFunction || _wasAsyncFunction)
                             {
+                                // Async functions must reject instead of throwing synchronously.
+                                // Use CreateRejectedPromiseFromRealm, which uses the RealmState's
+                                // PromiseConstructor, ensuring we always have access to Promise.
+                                callingContext?.Clear();
+
+                                var rejectedBindingResult = CreateRejectedPromiseFromRealm(thrownDuringBinding);
+                                return rejectedBindingResult;
+                            }
+
+                            if (callingContext is null)
+                            {
+                                throw new ThrowSignal(thrownDuringBinding);
+                            }
+
+                            callingContext.SetThrow(thrownDuringBinding);
+                            return thrownDuringBinding;
+                        }
+
+                        _function.Body.HoistVarDeclarations(executionEnvironment, context,
+                            lexicalNames: lexicalNames,
+                            catchParameterNames: catchParameterNames,
+                            simpleCatchParameterNames: simpleCatchParameterNames);
+
+                        if (_hasFunctionNameEnvironment &&
+                            _function.Name is { } hoistedName &&
+                            ContainsVarDeclaration(_function, hoistedName) &&
+                            !functionEnvironment.HasBinding(hoistedName))
+                        {
+                            functionEnvironment.DefineFunctionScoped(hoistedName, JsValue.Undefined, false,
+                                context: context);
+                        }
+
+                        // ES2024 9.2.12 FunctionDeclarationInstantiation step 34-35:
+                        // Create TDZ bindings for lexical declarations (let/const) in the function environment.
+                        // This must happen BEFORE the body is evaluated so that closures that reference these
+                        // variables will find them in TDZ state and throw ReferenceError if accessed before initialization.
+                        // NOTE: We use _topLevelLexicalNames which excludes for-loop/for-of initializer variables
+                        // (those create their own per-iteration environments and should NOT be in function TDZ).
+                        foreach (var lexicalName in _topLevelLexicalNames)
+                        {
+                            if (!executionEnvironment.HasBinding(lexicalName))
+                            {
+                                var isConst = _lexicalDeclarationKinds.TryGetValue(lexicalName, out var c) && c;
+                                executionEnvironment.DefineJsValue(lexicalName, JsValue.Uninitialized, isConst: isConst,
+                                    isLexicalBinding: true, blocksFunctionScopeOverride: true);
+                            }
+                        }
+
+                        var previousEnvironment = JsEnvironment.Current;
+                        JsEnvironment.Current = executionEnvironment;
+                        try
+                        {
+                            _ = _function.Body.EvaluateBlockJsValue(executionEnvironment,
+                                context);
+                        }
+                        finally
+                        {
+                            JsEnvironment.Current = previousEnvironment;
+                        }
+
+                        if (context.TryConsumeLegacyTailCallRestart(
+                                this,
+                                out var restartArguments,
+                                out var restartThisValue,
+                                out var restartNewTargetValue))
+                        {
+                            currentArguments = restartArguments;
+                            isLegacyTailRestart = true;
+                            if (_isStrict && !IsArrowFunction)
+                            {
+                                functionEnvironment._thisValue = restartThisValue;
+                                functionEnvironment._hasThisValue = true;
+                                functionEnvironment.DefineJsValue(Symbol.This, restartThisValue);
+                                functionEnvironment.DefineJsValue(Symbol.NewTarget, restartNewTargetValue, true,
+                                    isLexicalBinding: true, blocksFunctionScopeOverride: true);
+                            }
+
+                            goto LegacyTailCallRestart;
+                        }
+
+                        if (context.IsThrow)
+                        {
+                            var thrown = context.FlowValue;
+                            RealmState.Logger?.LogInformation(
+                                "InvokeWithContext propagating throw kind={ThrowKind} callerHasContext={HasCaller} func={FunctionName}",
+                                thrown.Kind,
+                                callingContext is not null,
+                                _function.Name?.Name ?? "<anonymous>");
+
+                            if (IsAsyncFunction || _wasAsyncFunction)
+                            {
+                                var rejectedThrowResult = CreateRejectedPromise(thrown, executionEnvironment);
+                                return rejectedThrowResult;
+                            }
+
+                            if (callingContext is null)
+                            {
+                                throw new ThrowSignal(thrown);
+                            }
+
+                            callingContext.SetThrow(thrown);
+                            return thrown;
+                        }
+
+                        // Use IsAsyncLike so CPS-transformed async functions (WasAsync=true, IsAsync=false)
+                        // still wrap completion values in a promise.
+                        if (!IsAsyncLike)
+                        {
+                            if (!context.IsReturn)
+                            {
+                                if (!IsClassConstructor)
+                                {
+                                    return JsValue.Undefined;
+                                }
+
+                                try
+                                {
+                                    if (functionEnvironment.TryGetJsValue(Symbol.This, out var currentThis))
+                                    {
+                                        if (_isDerivedClassConstructor &&
+                                            (currentThis.IsUninitialized ||
+                                             ReferenceEquals(currentThis.ObjectValue, JsEnvironment.Uninitialized)))
+                                        {
+                                            var errorObject = StandardLibrary.CreateReferenceError(
+                                                "ReferenceError: this is not defined - must call super() in derived class constructor",
+                                                context,
+                                                constructErrorRealm);
+                                            throw new ThrowSignal(errorObject);
+                                        }
+
+                                        RealmState.Logger?.LogInformation(
+                                            "Class constructor returning this={This}",
+                                            DescribeValue(currentThis.ObjectValue));
+                                        return currentThis;
+                                    }
+                                }
+                                catch (InvalidOperationException ex) when (ex.Message.StartsWith(
+                                                                               "ReferenceError: this",
+                                                                               StringComparison.Ordinal))
+                                {
+                                    // If `this` is uninitialized (e.g., derived ctor without super()), surface a JS ReferenceError.
+                                    var errorObject =
+                                        StandardLibrary.CreateReferenceError(ex.Message, context, constructErrorRealm);
+                                    throw new ThrowSignal(errorObject);
+                                }
+                                catch (ThrowSignal signal) when (_isDerivedClassConstructor &&
+                                                                signal.Message.Contains("ReferenceError",
+                                                                    StringComparison.Ordinal))
+                                {
+                                    var errorObject = StandardLibrary.CreateReferenceError(
+                                        "ReferenceError: this is not defined - must call super() in derived class constructor",
+                                        context,
+                                        constructErrorRealm);
+                                    throw new ThrowSignal(errorObject);
+                                }
+
                                 return JsValue.Undefined;
                             }
 
-                            try
+                            var value = context.FlowValue;
+                            context.ClearReturn();
+                            if (IsClassConstructor &&
+                                !value.TryGetObject<JsObject>(out _) &&
+                                !value.TryGetObject<IJsObjectLike>(out _))
                             {
-                                if (functionEnvironment.TryGetJsValue(Symbol.This, out var currentThis))
+                                // Per ES spec 9.2.2 [[Construct]] step 13c:
+                                // For derived class constructors, if return value is not undefined,
+                                // throw TypeError. For base class constructors, fall back to `this`.
+                                if (_isDerivedClassConstructor && !value.IsUndefined)
                                 {
-                                    RealmState.Logger?.LogInformation(
-                                        "Class constructor returning this={This}",
-                                        DescribeValue(currentThis.ObjectValue));
-                                    return currentThis;
-                                }
-                            }
-                            catch (InvalidOperationException ex) when (ex.Message.StartsWith(
-                                                                           "ReferenceError: this",
-                                                                           StringComparison.Ordinal))
-                            {
-                                // If `this` is uninitialized (e.g., derived ctor without super()), surface a JS ReferenceError.
-                                var errorObject =
-                                    StandardLibrary.CreateReferenceError(ex.Message, context, constructErrorRealm);
-                                throw new ThrowSignal(errorObject);
-                            }
-                            catch (ThrowSignal signal) when (_isDerivedClassConstructor &&
-                                                            signal.Message.Contains("ReferenceError",
-                                                                StringComparison.Ordinal))
-                            {
-                                var errorObject = StandardLibrary.CreateReferenceError(
-                                    "ReferenceError: this is not defined - must call super() in derived class constructor",
-                                    context,
-                                    constructErrorRealm);
-                                throw new ThrowSignal(errorObject);
-                            }
-
-                            return JsValue.Undefined;
-                        }
-
-                        var value = context.FlowValue;
-                        context.ClearReturn();
-                        if (IsClassConstructor &&
-                            !value.TryGetObject<JsObject>(out _) &&
-                            !value.TryGetObject<IJsObjectLike>(out _))
-                        {
-                            // Per ES spec 9.2.2 [[Construct]] step 13c:
-                            // For derived class constructors, if return value is not undefined,
-                            // throw TypeError. For base class constructors, fall back to `this`.
-                            if (_isDerivedClassConstructor && !value.IsUndefined)
-                            {
-                                throw StandardLibrary.ThrowTypeError(
-                                    "Derived constructors may only return object or undefined",
-                                    context,
-                                    constructErrorRealm);
-                            }
-
-                            try
-                            {
-                                if (functionEnvironment.TryGetJsValue(Symbol.This, out var currentThisValue) &&
-                                    currentThisValue.ObjectValue is not null &&
-                                    !ReferenceEquals(currentThisValue.ObjectValue, JsEnvironment.Uninitialized))
-                                {
-                                    RealmState.Logger?.LogInformation(
-                                        "Class constructor returning bound this instead of non-object return value");
-                                    return currentThisValue;
+                                    throw StandardLibrary.ThrowTypeError(
+                                        "Derived constructors may only return object or undefined",
+                                        context,
+                                        constructErrorRealm);
                                 }
 
-                                // Per ES spec 9.2.2 [[Construct]] step 15:
-                                // If return value is undefined, call GetThisBinding() which
-                                // throws ReferenceError if `this` is uninitialized (super() not called)
-                                if (_isDerivedClassConstructor &&
-                                    (ReferenceEquals(currentThisValue.ObjectValue, JsEnvironment.Uninitialized) ||
-                                     value.IsUndefined))
+                                try
+                                {
+                                    if (functionEnvironment.TryGetJsValue(Symbol.This, out var currentThisValue) &&
+                                        currentThisValue.ObjectValue is not null &&
+                                        !ReferenceEquals(currentThisValue.ObjectValue, JsEnvironment.Uninitialized))
+                                    {
+                                        RealmState.Logger?.LogInformation(
+                                            "Class constructor returning bound this instead of non-object return value");
+                                        return currentThisValue;
+                                    }
+
+                                    // Per ES spec 9.2.2 [[Construct]] step 15:
+                                    // If return value is undefined, call GetThisBinding() which
+                                    // throws ReferenceError if `this` is uninitialized (super() not called)
+                                    if (_isDerivedClassConstructor &&
+                                        (ReferenceEquals(currentThisValue.ObjectValue, JsEnvironment.Uninitialized) ||
+                                         value.IsUndefined))
+                                    {
+                                        var errorObject = StandardLibrary.CreateReferenceError(
+                                            "ReferenceError: this is not defined - must call super() in derived class constructor",
+                                            context,
+                                            constructErrorRealm);
+                                        throw new ThrowSignal(errorObject);
+                                    }
+                                }
+                                catch (InvalidOperationException ex) when (ex.Message.StartsWith(
+                                                                               "ReferenceError: this",
+                                                                               StringComparison.Ordinal))
+                                {
+                                    // Per ES spec 9.2.2 [[Construct]] step 15:
+                                    // For derived class constructors, if return value is undefined (or not an object),
+                                    // the spec calls GetThisBinding() which throws ReferenceError if this is uninitialized
+                                    if (_isDerivedClassConstructor)
+                                    {
+                                        var errorObject =
+                                            StandardLibrary.CreateReferenceError(ex.Message, context, constructErrorRealm);
+                                        throw new ThrowSignal(errorObject);
+                                    }
+
+                                    RealmState.Logger?.LogInformation(
+                                        "Class constructor missing initialized this; falling back to return value reason={Reason}",
+                                        ex.Message);
+                                }
+                                catch (ThrowSignal signal) when (_isDerivedClassConstructor &&
+                                                                signal.Message.Contains("ReferenceError",
+                                                                    StringComparison.Ordinal))
                                 {
                                     var errorObject = StandardLibrary.CreateReferenceError(
                                         "ReferenceError: this is not defined - must call super() in derived class constructor",
@@ -2653,82 +2613,53 @@ TryCreateSimpleNumericSelfRecursionFastPath(
                                     throw new ThrowSignal(errorObject);
                                 }
                             }
-                            catch (InvalidOperationException ex) when (ex.Message.StartsWith(
-                                                                           "ReferenceError: this",
-                                                                           StringComparison.Ordinal))
-                            {
-                                // Per ES spec 9.2.2 [[Construct]] step 15:
-                                // For derived class constructors, if return value is undefined (or not an object),
-                                // the spec calls GetThisBinding() which throws ReferenceError if this is uninitialized
-                                if (_isDerivedClassConstructor)
-                                {
-                                    var errorObject =
-                                        StandardLibrary.CreateReferenceError(ex.Message, context, constructErrorRealm);
-                                    throw new ThrowSignal(errorObject);
-                                }
 
-                                RealmState.Logger?.LogInformation(
-                                    "Class constructor missing initialized this; falling back to return value reason={Reason}",
-                                    ex.Message);
-                            }
-                            catch (ThrowSignal signal) when (_isDerivedClassConstructor &&
-                                                            signal.Message.Contains("ReferenceError",
-                                                                StringComparison.Ordinal))
-                            {
-                                var errorObject = StandardLibrary.CreateReferenceError(
-                                    "ReferenceError: this is not defined - must call super() in derived class constructor",
-                                    context,
-                                    constructErrorRealm);
-                                throw new ThrowSignal(errorObject);
-                            }
+                            return value;
                         }
 
-                        return value;
-                    }
+                        var completionValue = JsValue.Undefined;
+                        if (context.IsReturn)
+                        {
+                            completionValue = context.FlowValue;
+                            context.ClearReturn();
+                        }
 
-                    var completionValue = JsValue.Undefined;
-                    if (context.IsReturn)
+                        RealmState.Logger?.LogInformation(
+                            "Async completion func={Function} isAsync={IsAsync} wasAsync={WasAsync} completionKind={Kind}",
+                            _function.Name?.Name ?? "<anonymous>",
+                            IsAsyncFunction,
+                            _wasAsyncFunction,
+                            completionValue.Kind);
+                        var resolvedResult = CreateResolvedPromise(completionValue, executionEnvironment);
+                        return resolvedResult;
+                    }
+                    catch (ThrowSignal signal) when (IsAsyncFunction || _wasAsyncFunction)
                     {
-                        completionValue = context.FlowValue;
-                        context.ClearReturn();
+                        // Use CreateRejectedPromiseFromRealm which uses the RealmState's PromiseConstructor
+                        // directly, avoiding environment lookup that might fail during parameter binding.
+                        var rejectedResult = CreateRejectedPromiseFromRealm(signal.ThrownValue);
+                        return rejectedResult;
                     }
-
-                    RealmState.Logger?.LogInformation(
-                        "Async completion func={Function} isAsync={IsAsync} wasAsync={WasAsync} completionKind={Kind}",
-                        _function.Name?.Name ?? "<anonymous>",
-                        IsAsyncFunction,
-                        _wasAsyncFunction,
-                        completionValue.Kind);
-                    var resolvedResult = CreateResolvedPromise(completionValue, executionEnvironment);
-                    return resolvedResult;
-                }
-                catch (ThrowSignal signal) when (IsAsyncFunction || _wasAsyncFunction)
-                {
-                    // Use CreateRejectedPromiseFromRealm which uses the RealmState's PromiseConstructor
-                    // directly, avoiding environment lookup that might fail during parameter binding.
-                    var rejectedResult = CreateRejectedPromiseFromRealm(signal.ThrownValue);
-                    return rejectedResult;
+                    finally
+                    {
+                        ReturnSymbolSet(lexicalNames);
+                        ReturnSymbolSet(catchParameterNames);
+                        ReturnSymbolSet(simpleCatchParameterNames);
+                        if (!ReferenceEquals(bodyLexicalNames, lexicalNames))
+                        {
+                            ReturnSymbolSet(bodyLexicalNames);
+                        }
+                    }
                 }
                 finally
                 {
-                    ReturnSymbolSet(lexicalNames);
-                    ReturnSymbolSet(catchParameterNames);
-                    ReturnSymbolSet(simpleCatchParameterNames);
-                    if (!ReferenceEquals(bodyLexicalNames, lexicalNames))
+                    if (hasPendingFieldInitialization)
                     {
-                        ReturnSymbolSet(bodyLexicalNames);
+                        context.RemovePendingClassFieldInitializer(this);
                     }
-                }
-            }
-            finally
-            {
-                if (hasPendingFieldInitialization)
-                {
-                    context.RemovePendingClassFieldInitializer(this);
-                }
 
-                RealmState.ReturnContext(context);
-            }
+                    RealmState.ReturnContext(context);
+                }
             }
             finally
             {
@@ -2834,165 +2765,6 @@ TryCreateSimpleNumericSelfRecursionFastPath(
             return CanUseCachedOrEvaluateProductionUnifiedBytecodeFastPath(plan, newTarget);
         }
 
-        private bool TryInvokeSimpleDerivedClassConstructorFastPath<TArgs>(
-            TArgs arguments,
-            JsValue thisValue,
-            EvaluationContext? callingContext,
-            JsValue newTarget,
-            ExecutionPlan plan,
-            EvaluationContext context,
-            RealmState constructErrorRealm,
-            out JsValue result)
-            where TArgs : IReadOnlyList<JsValue>
-        {
-            result = JsValue.Undefined;
-            if (!CanUseSimpleDerivedClassConstructorFastPath(plan, newTarget))
-            {
-                return false;
-            }
-
-            if (CanUseCachedOrEvaluateProductionUnifiedBytecodeFastPath(plan, newTarget) &&
-                TryInvokeProductionUnifiedBytecode(
-                    arguments,
-                    thisValue,
-                    newTarget,
-                    plan,
-                    context,
-                    callingContext,
-                    out result,
-                    constructErrorRealm))
-            {
-                return true;
-            }
-
-            JsEnvironment? executionEnvironment = null;
-            try
-            {
-                context.MarkThisUninitialized();
-                executionEnvironment = CreateSimpleDerivedClassConstructorEnvironment(
-                    arguments,
-                    newTarget,
-                    plan);
-
-                var runner = CreateClassifiedClassConstructorFallbackRunner(
-                    Array.Empty<JsValue>(),
-                    thisValue,
-                    newTarget,
-                    plan,
-                    context,
-                    constructErrorRealm,
-                    executionEnvironment);
-
-                result = runner.RunSync();
-                return true;
-            }
-            catch (ThrowSignal signal) when (callingContext is not null)
-            {
-                var normalized = NormalizeDerivedClassRealmError(signal, callingContext);
-                if (!normalized.IsUndefined)
-                {
-                    callingContext.SetThrow(normalized);
-                    result = normalized;
-                    return true;
-                }
-
-                callingContext.SetThrow(signal.ThrownValue);
-                result = signal.ThrownValue;
-                return true;
-            }
-            finally
-            {
-                ReturnSimpleIrActivationEnvironment(executionEnvironment);
-            }
-        }
-
-        private bool TryInvokeSimpleBaseClassConstructorFastPath<TArgs>(
-            TArgs arguments,
-            JsValue thisValue,
-            EvaluationContext? callingContext,
-            JsValue newTarget,
-            ExecutionPlan plan,
-            EvaluationContext context,
-            RealmState constructErrorRealm,
-            out JsValue result)
-            where TArgs : IReadOnlyList<JsValue>
-        {
-            result = JsValue.Undefined;
-            if (!CanUseSimpleBaseClassConstructorFastPath(plan, newTarget))
-            {
-                return false;
-            }
-
-            IJsObjectLike? instance = null;
-            var constructorThisValue = thisValue;
-            if (thisValue.IsUndefined)
-            {
-                var constructedThis = CreateConstructedThis(newTarget, RealmState);
-                constructorThisValue = JsValue.FromObjectUnsafe(constructedThis);
-                instance = constructedThis;
-            }
-            else if (thisValue.TryGetObject<IJsObjectLike>(out var existingInstance))
-            {
-                instance = existingInstance;
-            }
-            else
-            {
-                return false;
-            }
-
-            JsEnvironment? executionEnvironment = null;
-            try
-            {
-                context.MarkThisInitialized();
-                executionEnvironment = CreateSimpleBaseClassConstructorEnvironment(
-                    arguments,
-                    constructorThisValue,
-                    newTarget,
-                    plan);
-
-                if (instance is not null &&
-                    (PrivateNameScope is not null || !_instanceFields.IsDefaultOrEmpty))
-                {
-                    InitializeInstance(instance, executionEnvironment.Enclosing!, context);
-                    if (context.ShouldStopEvaluation)
-                    {
-                        if (!context.IsThrow)
-                        {
-                            result = JsValue.Undefined;
-                            return true;
-                        }
-
-                        var thrownDuringInitialization = context.FlowValue;
-                        callingContext?.SetThrow(thrownDuringInitialization);
-                        result = thrownDuringInitialization;
-                        return true;
-                    }
-                }
-
-                var runner = CreateClassifiedClassConstructorFallbackRunner(
-                    Array.Empty<JsValue>(),
-                    constructorThisValue,
-                    newTarget,
-                    plan,
-                    context,
-                    constructErrorRealm,
-                    executionEnvironment);
-
-                result = runner.RunSync();
-                return true;
-            }
-            catch (ThrowSignal signal) when (callingContext is not null)
-            {
-                callingContext.SetThrow(signal.ThrownValue);
-                result = signal.ThrownValue;
-                return true;
-            }
-            finally
-            {
-                ReturnSimpleIrActivationEnvironment(executionEnvironment);
-            }
-        }
-
         private ExecutionPlanRunner CreateClassifiedOrdinarySyncFunctionFallbackRunner<TArgs>(
             TArgs arguments,
             JsValue thisValue,
@@ -3026,39 +2798,6 @@ TryCreateSimpleNumericSelfRecursionFastPath(
                 derivedClassErrorRealm: constructErrorRealm,
                 planOverride: plan,
                 planFailureOverride: _planSeed.Failure);
-        }
-
-        private ExecutionPlanRunner CreateClassifiedClassConstructorFallbackRunner<TArgs>(
-            TArgs arguments,
-            JsValue thisValue,
-            JsValue newTarget,
-            ExecutionPlan plan,
-            EvaluationContext context,
-            RealmState constructErrorRealm,
-            JsEnvironment? executionEnvironmentOverride = null)
-            where TArgs : IReadOnlyList<JsValue>
-        {
-            return new ExecutionPlanRunner(
-                _function,
-                _closure,
-                arguments,
-                thisValue,
-                this,
-                RealmState,
-                _isStrict,
-                _hasFunctionNameEnvironment,
-                _homeObject,
-                PrivateNameScope,
-                _capturedPrivateNameScopes,
-                newTarget,
-                _lexicalThisEnvironment,
-                _superConstructor,
-                _superPrototype,
-                context,
-                derivedClassErrorRealm: constructErrorRealm,
-                planOverride: plan,
-                planFailureOverride: _planSeed.Failure,
-                executionEnvironmentOverride: executionEnvironmentOverride);
         }
 
         private bool TryInvokeProductionUnifiedBytecode<TArgs>(
@@ -3888,34 +3627,6 @@ TryCreateSimpleNumericSelfRecursionFastPath(
             return CanUseSimpleIrActivationPlanShape(plan);
         }
 
-        private bool CanUseSimpleDerivedClassConstructorFastPath(ExecutionPlan plan, JsValue newTarget)
-        {
-            if (!IsClassConstructor ||
-                !_isDerivedClassConstructor ||
-                newTarget.IsUndefined ||
-                IsArrowFunction ||
-                IsAsyncLike ||
-                _function.IsGenerator ||
-                _function.IsDefaultDerivedConstructor ||
-                _hasParameterExpressions ||
-                !_hasOnlySimpleIdentifierParameters ||
-                _argumentsObjectNeeded ||
-                _usesArguments ||
-                _needsArgumentsBinding ||
-                !_allowIdentifierCache ||
-                _lexicalThisEnvironment is not null ||
-                _homeObject is not null ||
-                PrivateNameScope is not null ||
-                !_capturedPrivateNameScopes.IsDefaultOrEmpty ||
-                !_instanceFields.IsDefaultOrEmpty ||
-                (_superConstructor is null && _superPrototype is null))
-            {
-                return false;
-            }
-
-            return CanUseSimpleIrActivationPlanShape(plan);
-        }
-
         private bool CanUseProductionUnifiedBytecodeDerivedClassConstructorActivation(
             ExecutionPlan plan,
             JsValue newTarget)
@@ -4213,33 +3924,6 @@ TryCreateSimpleNumericSelfRecursionFastPath(
             return true;
         }
 
-        private bool CanUseSimpleBaseClassConstructorFastPath(ExecutionPlan plan, JsValue newTarget)
-        {
-            if (!IsClassConstructor ||
-                _isDerivedClassConstructor ||
-                newTarget.IsUndefined ||
-                IsArrowFunction ||
-                IsAsyncLike ||
-                _function.IsGenerator ||
-                _function.IsDefaultDerivedConstructor ||
-                _hasParameterExpressions ||
-                !_hasOnlySimpleIdentifierParameters ||
-                _argumentsObjectNeeded ||
-                _usesArguments ||
-                _needsArgumentsBinding ||
-                !_allowIdentifierCache ||
-                _lexicalThisEnvironment is not null ||
-                _homeObject is not null ||
-                !_capturedPrivateNameScopes.IsDefaultOrEmpty ||
-                _superConstructor is not null ||
-                _superPrototype is not null)
-            {
-                return false;
-            }
-
-            return CanUseSimpleIrActivationPlanShape(plan);
-        }
-
         private bool CanUseSimpleIrActivationHomeObjectPath(ExecutionPlan plan)
         {
             if (_homeObject is null)
@@ -4338,6 +4022,7 @@ TryCreateSimpleNumericSelfRecursionFastPath(
         private bool CanUseProductionUnifiedBytecodeImplicitArgumentsObjectDependencyPath(ExecutionPlan plan)
         {
             return _argumentsObjectNeeded &&
+                   !IsClassConstructor &&
                    !_hasDirectEvalInBodyOrParameters &&
                    !_hasClosureWithObject &&
                    !_hasCapturedActivationInClosure &&
@@ -4370,6 +4055,20 @@ TryCreateSimpleNumericSelfRecursionFastPath(
             for (var i = 0; i < instructions.Length; i++)
             {
                 if (instructions[i] is ClassDeclarationInstruction)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private static bool HasBlockScopedFunctionDeclarationInstruction(ExecutionPlan plan)
+        {
+            var instructions = plan.Instructions;
+            for (var i = 0; i < instructions.Length; i++)
+            {
+                if (instructions[i] is FunctionDeclarationInstruction { Descriptor: not null })
                 {
                     return true;
                 }
@@ -4442,7 +4141,7 @@ TryCreateSimpleNumericSelfRecursionFastPath(
 
             functionEnvironment.SetThisInitializationStatus(true);
 
-            IJsPropertyAccessor? prototypeForSuper = null;
+            IJsPropertyAccessor? prototypeForSuper;
             if (_homeObject is not null)
             {
                 prototypeForSuper = (_homeObject as IPrototypeAccessorProvider)?.PrototypeAccessor ??

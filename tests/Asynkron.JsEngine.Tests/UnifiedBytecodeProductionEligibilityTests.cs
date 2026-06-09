@@ -124,6 +124,68 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
+    public void Evaluate_WithStatementBody_Declines()
+    {
+        var plan = GetFunctionPlan("""
+            function withScope(obj) {
+                with (obj) {
+                    return x;
+                }
+            }
+            """,
+            "withScope");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor(HasDynamicLookupDependency: true));
+
+        Assert.False(result.IsEligible);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.DynamicLookupDependency, result.Code);
+    }
+
+    [Fact]
+    public void Evaluate_WithStatementReadAndWrite_Declines()
+    {
+        var plan = GetFunctionPlan("""
+            function withReadWrite(obj, y) {
+                with (obj) {
+                    var z = x;
+                    y = z;
+                }
+                return y;
+            }
+            """,
+            "withReadWrite");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor(HasDynamicLookupDependency: true));
+
+        Assert.False(result.IsEligible);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.DynamicLookupDependency, result.Code);
+    }
+
+    [Fact]
+    public void Evaluate_WithStatementOnlyEnvLeak_Declines()
+    {
+        var plan = GetFunctionPlan("""
+            function withEnvLeak(obj) {
+                with (obj) {
+                    a;
+                }
+            }
+            """,
+            "withEnvLeak");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor(HasDynamicLookupDependency: true));
+
+        Assert.False(result.IsEligible);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.DynamicLookupDependency, result.Code);
+    }
+
+    [Fact]
     public void Execute_LinearSlotLiteralReturnPlan_ReturnsSlotValueInProductionVm()
     {
         var plan = GetFunctionPlan("""

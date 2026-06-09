@@ -908,6 +908,25 @@ optimization.
      programs. Related ADR:
      `docs/adrs/0378-cache-production-ubc-dependency-scans-on-executionplan.md`.
 
+30c. For production unified-bytecode route-admission caches, keep the cache on
+     the owner that owns the inputs. Plan-pure dependency facts belong on
+     `ExecutionPlan`; descriptor-sensitive accepted/rejected route decisions
+     and accepted `UnifiedBytecodeProgram` results belong on
+     `SyncFunctionInvoker`; live environment values, runtime lookups, and call
+     arguments should not become route-admission cache keys. If a cache includes
+     `newTarget`, key it by the route-relevant state such as
+     `newTarget.IsUndefined`, and invalidate it from every invoker shape mutator
+     that can change descriptor or activation inputs. Prove retained route
+     caches with the selected CPU profile before/after pair plus source or
+     semantic coverage for the guard and invalidation boundary. WHY: issue
+     #3543 / PR #3547 found `functioncalls` repeatedly rescanning production
+     route eligibility for the same invoker, plan, descriptor shape, and
+     ordinary-call `new.target` state. The retained fix kept ADR 0378's
+     plan-pure caches separate, added a `newTarget`-aware invoker guard, and
+     invalidated it from shape mutators, reducing `ExecutePreparedCall` filtered
+     time from 3657.91 ms to 119.29 ms in the selected profile. Related ADR:
+     `docs/adrs/0379-cache-production-ubc-route-eligibility-on-sync-invoker.md`.
+
 31. For `CreateExecutionEnvironment` compliance-overhead work, guard spec-required
     bookkeeping structures with `HoistPlan` or `ExecutionPlan` AST-cached flags
     before building them. The blocked-names `HashSet<Symbol>` in non-strict

@@ -396,6 +396,29 @@ fallback or cleanup.
     while the runtime replacement surface still contains ordinary sync semantics
     that no production route owns yet. Related ADR:
     `docs/adrs/0381-pin-no-private-ordinary-declined-body-replacement-surface.md`.
+41. When admitting dynamic identifier expression payloads from the no-private
+    ordinary declined-body replacement surface, keep the fix in the standalone
+    expression-program compiler and executor path. Dynamic free/global
+    identifier property reads, optional chains, computed keys, and call targets
+    should use dynamic-aware operand/key emission when
+    `allowsDynamicIdentifiers` is true, then execute through the existing VM
+    dynamic identifier and optional-chain opcodes. Do not repair an
+    activation-slot miss by adding `ExecutionPlanRunner`, legacy AST evaluator,
+    `ExecuteDynamic(...)`, or another fallback bridge. If a specialized
+    appender does not own the dynamic shape, it must either emit the
+    dynamic-aware form or silently decline so the later owned path can try;
+    non-empty hard reasons are for true unsupported shapes. Pin the route with
+    `NoPrivateOrdinaryDeclinedBodyProofPackTests` covering live global rebinding,
+    optional-chain nullish skipping, live dynamic optional calls, and
+    `with`-scoped call receiver preservation. Issue
+    `planitem-gh3560-batch-1-pin-the-replacement-surface-batch-2-dynamic-identifier-ex-44cec02efe`
+    / PR #3565 added this rule after activation-only standalone appenders
+    blocked the existing dynamic VM path before the general dynamic-aware loop
+    could run. WHY: dynamic identifier payloads are ordinary standalone
+    expression payloads once lowered; treating activation-slot absence as a
+    fallback reason reopens AST/runner pressure and can lose live environment,
+    optional-chain, or `with` receiver semantics. Related ADR:
+    `docs/adrs/0382-admit-dynamic-identifier-standalone-expression-payloads.md`.
 
 ## Dynamic Boundary Classification (#1405 Retry)
 

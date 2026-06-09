@@ -13,6 +13,13 @@ public sealed class NoPrivateOrdinaryDeclinedBodyProofPackTests(ITestOutputHelpe
     private const string SyncIrResidueLog = "classified-sync-function-ir-residue";
     private const string ProductionFastPathLog = "unified-bytecode-production-fast-path";
 
+    private enum OrdinaryRouteClass
+    {
+        ProductionFastPath,
+        DynamicScopeExecutor,
+        SyncIrResidue
+    }
+
     [Fact(Timeout = 5000)]
     public async Task GlobalPropertyReadPayloads_PreserveSetViewAndOptionalChainSemantics()
     {
@@ -35,7 +42,8 @@ public sealed class NoPrivateOrdinaryDeclinedBodyProofPackTests(ITestOutputHelpe
             globalPropertyPayload("b");
             """,
             "2|7|true",
-            "globalPropertyPayload");
+            "globalPropertyPayload",
+            OrdinaryRouteClass.SyncIrResidue);
     }
 
     [Fact(Timeout = 5000)]
@@ -59,7 +67,8 @@ public sealed class NoPrivateOrdinaryDeclinedBodyProofPackTests(ITestOutputHelpe
             globalLivePropertyPayload();
             """,
             "1|3|2|undefined",
-            "globalLivePropertyPayload");
+            "globalLivePropertyPayload",
+            OrdinaryRouteClass.SyncIrResidue);
     }
 
     [Fact(Timeout = 5000)]
@@ -85,7 +94,8 @@ public sealed class NoPrivateOrdinaryDeclinedBodyProofPackTests(ITestOutputHelpe
             globalDynamicCallPayload();
             """,
             "first:a|undefined|second:b|optional:c",
-            "globalDynamicCallPayload");
+            "globalDynamicCallPayload",
+            OrdinaryRouteClass.SyncIrResidue);
     }
 
     [Fact(Timeout = 5000)]
@@ -106,7 +116,8 @@ public sealed class NoPrivateOrdinaryDeclinedBodyProofPackTests(ITestOutputHelpe
             });
             """,
             "42",
-            "withScopedDynamicCallPayload");
+            "withScopedDynamicCallPayload",
+            OrdinaryRouteClass.SyncIrResidue);
     }
 
     [Fact(Timeout = 5000)]
@@ -124,7 +135,8 @@ public sealed class NoPrivateOrdinaryDeclinedBodyProofPackTests(ITestOutputHelpe
             computedLogicalWrite({ hit: 0, hit2: null }, "hit", 5);
             """,
             "5|6",
-            "computedLogicalWrite");
+            "computedLogicalWrite",
+            OrdinaryRouteClass.SyncIrResidue);
     }
 
     [Fact(Timeout = 5000)]
@@ -141,7 +153,8 @@ public sealed class NoPrivateOrdinaryDeclinedBodyProofPackTests(ITestOutputHelpe
             directEvalFunctionCode(40);
             """,
             "40:42:1",
-            "directEvalFunctionCode");
+            "directEvalFunctionCode",
+            OrdinaryRouteClass.SyncIrResidue);
     }
 
     [Fact(Timeout = 5000)]
@@ -164,7 +177,8 @@ public sealed class NoPrivateOrdinaryDeclinedBodyProofPackTests(ITestOutputHelpe
             }, 7);
             """,
             "3|false|8|14",
-            "createArrayOperandPayload");
+            "createArrayOperandPayload",
+            OrdinaryRouteClass.SyncIrResidue);
     }
 
     [Fact(Timeout = 5000)]
@@ -188,10 +202,15 @@ public sealed class NoPrivateOrdinaryDeclinedBodyProofPackTests(ITestOutputHelpe
             nestedOrdinaryCallStack(20);
             """,
             "41",
-            "nestedOrdinaryCallStack");
+            "nestedOrdinaryCallStack",
+            OrdinaryRouteClass.SyncIrResidue);
     }
 
-    private async Task AssertOrdinaryDeclinedBodyAsync(string source, string expectedResult, string functionName)
+    private async Task AssertOrdinaryDeclinedBodyAsync(
+        string source,
+        string expectedResult,
+        string functionName,
+        OrdinaryRouteClass routeClass)
     {
         await using var engine = CreateEngine();
         var result = await engine.Evaluate(source);
@@ -204,11 +223,22 @@ public sealed class NoPrivateOrdinaryDeclinedBodyProofPackTests(ITestOutputHelpe
             record => record.Message.Contains(
                 OrdinarySyncFallbackLog,
                 StringComparison.Ordinal));
-        Assert.Contains(
-            snapshot,
-                record =>
-                    record.Message.Contains($"{ProductionFastPathLog} func={functionName}", StringComparison.Ordinal) ||
-                    record.Message.Contains($"{DynamicScopeExecutorLog} func={functionName}", StringComparison.Ordinal) ||
-                    record.Message.Contains($"{SyncIrResidueLog} reason=production-unified-bytecode-declined func={functionName}", StringComparison.Ordinal));
+        Assert.Contains(snapshot, record => IsRouteLog(record.Message, functionName, routeClass));
+    }
+
+    private static bool IsRouteLog(string message, string functionName, OrdinaryRouteClass routeClass)
+    {
+        return routeClass switch
+        {
+            OrdinaryRouteClass.ProductionFastPath =>
+                message.Contains($"{ProductionFastPathLog} func={functionName}", StringComparison.Ordinal),
+            OrdinaryRouteClass.DynamicScopeExecutor =>
+                message.Contains($"{DynamicScopeExecutorLog} func={functionName}", StringComparison.Ordinal),
+            OrdinaryRouteClass.SyncIrResidue =>
+                message.Contains(
+                    $"{SyncIrResidueLog} reason=production-unified-bytecode-declined func={functionName}",
+                    StringComparison.Ordinal),
+            _ => throw new ArgumentOutOfRangeException(nameof(routeClass), routeClass, null)
+        };
     }
 }

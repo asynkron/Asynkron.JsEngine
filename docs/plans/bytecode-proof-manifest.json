@@ -2173,7 +2173,7 @@
         {
           "id": "E5-ir-runner-script-entry-still-present",
           "childOwner": "E5c-script-fallback-retirement",
-          "classification": "classified RunScript call-site allowlist for non-admitted ordinary scripts and terminal dynamic residue; static-block declined bodies no longer enter ExecutionPlanRunner.RunScript; not a broad E5b entry-presence blocker",
+          "classification": "classified RunScript call-site allowlist for terminal dynamic/eval script residue; ordinary script declines no longer use this E5b runner entry; static-block declined bodies no longer enter ExecutionPlanRunner.RunScript; not a broad E5b entry-presence blocker",
           "claim": "open",
           "kind": "source-allowlist",
           "paths": [
@@ -2184,10 +2184,10 @@
           ],
           "classifiedCallSites": [
             {
-              "childOwner": "E5c-script-fallback-retirement",
-              "classification": "ordinary script classified IR fallback after production unified bytecode declines",
+              "childOwner": "E5c-terminal-dynamic-script-residue",
+              "classification": "terminal dynamic direct-eval and eval execution-kind script residue classified outside ordinary E5 runner retirement after production unified bytecode declines",
               "path": "src/Asynkron.JsEngine/Ast/Legacy/StatementNodeExtensions.cs",
-              "enclosingMember": "RunScriptViaClassifiedIrFallback"
+              "callCount": 2
             }
           ],
           "pattern": "ExecutionPlanRunner.RunScript("
@@ -2277,11 +2277,11 @@
         {
           "id": "E5-script-ir-fallback-still-runs-execution-plan-runner",
           "childOwner": "E5c-script-fallback-retirement",
-          "classification": "classified script IR fallback anchor for non-admitted ordinary scripts plus terminal dynamic residue; terminal dynamic residue is logged explicitly but current ordinary wrapper script declines still keep this row open",
-          "claim": "open",
-          "kind": "source-presence",
+          "classification": "ordinary script RunScript entry is retired; non-terminal ordinary production declines no longer call ExecutionPlanRunner.RunScript or the tombstoned RunOrdinaryDeclinedScript wrapper",
+          "claim": "retired-fallback",
+          "kind": "source-absence",
           "path": "src/Asynkron.JsEngine/Ast/Legacy/StatementNodeExtensions.cs",
-          "pattern": "classified-script-ir-fallback reason=production-unified-bytecode-declined"
+          "pattern": "RunOrdinaryDeclinedScript("
         },
         {
           "id": "E5-static-block-ir-fallback-still-runs-execution-plan-runner",

@@ -10266,7 +10266,7 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     }
 
     [Fact]
-    public void SourceGate_TopLevelScriptIrFallback_IsClassifiedOutsideAcceptedPath()
+    public void SourceGate_TopLevelScriptDeclines_SplitTerminalDynamicResidueFromOrdinaryFallback()
     {
         var repositoryRoot = FindRepositoryRootForSourceGate();
         var sourcePath = Path.Combine(
@@ -10279,32 +10279,52 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
 
         Assert.True(File.Exists(sourcePath), $"Expected script source at '{sourcePath}'.");
         var source = File.ReadAllText(sourcePath);
-        var helperSection = ExtractRequiredSourceSection(
+        var terminalResidueHelperSection = ExtractRequiredSourceSection(
             source,
-            "private static JsValue RunScriptViaClassifiedIrFallback(",
-            "private static bool TryRunScriptViaProductionUnifiedBytecode(",
-            "classified script IR fallback");
-        var sourceOutsideHelper = source.Replace(helperSection, string.Empty, StringComparison.Ordinal);
+            "private static JsValue RunTerminalDynamicScriptResidueViaIrFallback(",
+            "private static JsValue RunEvalScriptViaIrFallback(",
+            "terminal dynamic script IR fallback");
+        var evalHelperSection = ExtractRequiredSourceSection(
+            source,
+            "private static JsValue RunEvalScriptViaIrFallback(",
+            "private static JsValue RunOrdinaryScriptViaClassifiedRunnerFallback(",
+            "eval script IR fallback");
+        var ordinaryFallbackSection = ExtractRequiredSourceSection(
+            source,
+            "private static JsValue RunOrdinaryScriptViaClassifiedRunnerFallback(",
+            "private static bool IsTerminalDynamicScriptResidue(",
+            "ordinary script fallback");
+        var sourceOutsideClassifiedHelpers = source
+            .Replace(terminalResidueHelperSection, string.Empty, StringComparison.Ordinal)
+            .Replace(evalHelperSection, string.Empty, StringComparison.Ordinal);
         var scriptRouteSection = ExtractRequiredSourceSection(
             source,
             "if (executionKind == ExecutionKind.Script)",
-            "private static JsValue RunScriptViaClassifiedIrFallback(",
+            "private static JsValue RunTerminalDynamicScriptResidueViaIrFallback(",
             "ordinary script route");
 
-        Assert.Contains("return RunScriptViaClassifiedIrFallback(", scriptRouteSection, StringComparison.Ordinal);
-        Assert.DoesNotContain("return ExecutionPlanRunner.RunScript(", sourceOutsideHelper, StringComparison.Ordinal);
+        Assert.Contains("IsTerminalDynamicScriptResidue(eligibility)", scriptRouteSection, StringComparison.Ordinal);
+        Assert.Contains("return RunTerminalDynamicScriptResidueViaIrFallback(", scriptRouteSection, StringComparison.Ordinal);
+        Assert.Contains("return RunOrdinaryScriptViaClassifiedRunnerFallback(", scriptRouteSection, StringComparison.Ordinal);
+        Assert.DoesNotContain("return ExecutionPlanRunner.RunScript(", sourceOutsideClassifiedHelpers, StringComparison.Ordinal);
         Assert.DoesNotContain("ExecutionPlanRunner.RunScript(", scriptRouteSection, StringComparison.Ordinal);
-        Assert.Contains("IsTerminalDynamicScriptResidue(eligibility)", helperSection, StringComparison.Ordinal);
+        Assert.Contains("ordinary-script-classified-runner-fallback", ordinaryFallbackSection, StringComparison.Ordinal);
+        Assert.Contains("ExecuteClassifiedOrdinaryScriptFallback(", ordinaryFallbackSection, StringComparison.Ordinal);
+        Assert.DoesNotContain("RunOrdinaryDeclinedScript(", ordinaryFallbackSection, StringComparison.Ordinal);
+        Assert.DoesNotContain("RunScriptCore(", ordinaryFallbackSection, StringComparison.Ordinal);
+        Assert.DoesNotContain("ExecutionPlanRunner.RunScript(", ordinaryFallbackSection, StringComparison.Ordinal);
         Assert.Contains(
             "classified-script-ir-fallback reason=production-unified-bytecode-declined",
-            helperSection,
+            terminalResidueHelperSection,
             StringComparison.Ordinal);
-        Assert.Contains("code={DeclineCode}", helperSection, StringComparison.Ordinal);
-        Assert.Contains("detail={DeclineReason}", helperSection, StringComparison.Ordinal);
-        Assert.Contains("terminalDynamicResidue={TerminalDynamicResidue}", helperSection, StringComparison.Ordinal);
-        Assert.Contains("eligibility.Code", helperSection, StringComparison.Ordinal);
-        Assert.Contains("eligibility.Reason", helperSection, StringComparison.Ordinal);
-        Assert.Contains("ExecutionPlanRunner.RunScript(", helperSection, StringComparison.Ordinal);
+        Assert.Contains("code={DeclineCode}", terminalResidueHelperSection, StringComparison.Ordinal);
+        Assert.Contains("detail={DeclineReason}", terminalResidueHelperSection, StringComparison.Ordinal);
+        Assert.Contains("terminalDynamicResidue={TerminalDynamicResidue}", terminalResidueHelperSection, StringComparison.Ordinal);
+        Assert.Contains("eligibility.Code", terminalResidueHelperSection, StringComparison.Ordinal);
+        Assert.Contains("eligibility.Reason", terminalResidueHelperSection, StringComparison.Ordinal);
+        Assert.Contains("ExecutionPlanRunner.RunScript(", terminalResidueHelperSection, StringComparison.Ordinal);
+        Assert.Contains("classified-eval-script-ir-fallback", evalHelperSection, StringComparison.Ordinal);
+        Assert.Contains("ExecutionPlanRunner.RunScript(", evalHelperSection, StringComparison.Ordinal);
     }
 
     [Fact]

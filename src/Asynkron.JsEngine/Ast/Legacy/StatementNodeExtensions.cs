@@ -2564,23 +2564,33 @@ public static partial class TypedAstEvaluator
                 return scriptBytecodeResult;
             }
 
-            return RunScriptViaClassifiedIrFallback(
+            if (IsTerminalDynamicScriptResidue(eligibility))
+            {
+                return RunTerminalDynamicScriptResidueViaIrFallback(
+                    scriptPlan,
+                    eligibility,
+                    executionEnvironment,
+                    context);
+            }
+
+            return RunOrdinaryScriptViaClassifiedRunnerFallback(
                 scriptPlan,
-                eligibility,
+                programBlock,
                 executionEnvironment,
+                eligibility,
                 context);
         }
 
-        return RunScriptViaClassifiedIrFallback(
+        return RunEvalScriptViaIrFallback(
             scriptPlan,
             UnifiedBytecodeProductionEligibilityResult.Decline(
                 UnifiedBytecodeProductionDeclineCode.UnsupportedPlanShape,
-                "Script execution kind is outside production unified bytecode routing."),
+                "Eval execution kind is outside production unified bytecode routing."),
             executionEnvironment,
             context);
     }
 
-    private static JsValue RunScriptViaClassifiedIrFallback(
+    private static JsValue RunTerminalDynamicScriptResidueViaIrFallback(
         ExecutionPlan scriptPlan,
         UnifiedBytecodeProductionEligibilityResult eligibility,
         JsEnvironment executionEnvironment,
@@ -2595,6 +2605,42 @@ public static partial class TypedAstEvaluator
             IsTerminalDynamicScriptResidue(eligibility),
             scriptPlan.Instructions.Length);
         return ExecutionPlanRunner.RunScript(
+            scriptPlan,
+            executionEnvironment,
+            context);
+    }
+
+    private static JsValue RunEvalScriptViaIrFallback(
+        ExecutionPlan scriptPlan,
+        UnifiedBytecodeProductionEligibilityResult eligibility,
+        JsEnvironment executionEnvironment,
+        EvaluationContext context)
+    {
+        context.RealmState.Logger?.LogInformation(
+            "classified-eval-script-ir-fallback reason=production-unified-bytecode-declined code={DeclineCode} detail={DeclineReason} instructions={InstructionCount}",
+            eligibility.Code,
+            eligibility.Reason,
+            scriptPlan.Instructions.Length);
+        return ExecutionPlanRunner.RunScript(
+            scriptPlan,
+            executionEnvironment,
+            context);
+    }
+
+    private static JsValue RunOrdinaryScriptViaClassifiedRunnerFallback(
+        ExecutionPlan scriptPlan,
+        BlockStatement programBlock,
+        JsEnvironment executionEnvironment,
+        UnifiedBytecodeProductionEligibilityResult eligibility,
+        EvaluationContext context)
+    {
+        context.RealmState.Logger?.LogInformation(
+            "ordinary-script-classified-runner-fallback reason=production-unified-bytecode-declined code={DeclineCode} detail={DeclineReason} statements={StatementCount} instructions={InstructionCount}",
+            eligibility.Code,
+            eligibility.Reason,
+            programBlock.Statements.Length,
+            scriptPlan.Instructions.Length);
+        return ExecutionPlanRunner.ExecuteClassifiedOrdinaryScriptFallback(
             scriptPlan,
             executionEnvironment,
             context);

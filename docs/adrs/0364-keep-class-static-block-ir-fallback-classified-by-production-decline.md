@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted.
+Accepted; amended by PR #3538 to retire the static-block runner fallback.
 
 ## Context
 
@@ -24,6 +24,15 @@ runtime-source direct eval remains declined, and the static-block fallback is
 source-gated as a classified fallback after a production unified-bytecode
 eligibility decline.
 
+Issue
+`planitem-planitem-gh3495-shared-context-e5b-runner-entry-point-tombstones-after-e-d73f08d6db`
+and delivery PR #3538 later retired the `ExecutionPlanRunner.RunScript`
+fallback from `ClassDefinitionExtensions.ExecuteStaticBlock`. That delivery did
+not make every declined static-block body production-bytecode owned; it changed
+the declined path so static-block residue remains classified by the
+production-decline log while executing through the existing legacy block
+evaluator instead of the generic script runner entry point.
+
 ## Decision
 
 Keep `ClassDefinitionExtensions.ExecuteStaticBlock` ordered as:
@@ -31,7 +40,8 @@ Keep `ClassDefinitionExtensions.ExecuteStaticBlock` ordered as:
 - create the static-block lexical environment;
 - attempt `TryExecuteStaticBlockViaUnifiedBytecode(...)`;
 - if production eligibility declines, log the stable decline code and reason;
-- then and only then delegate to `ExecutionPlanRunner.RunScript`.
+- then and only then execute the declined body through the classified legacy
+  block evaluator path.
 
 The accepted path must stay all-or-nothing through
 `UnifiedBytecodeVirtualMachine.Execute` and must not delegate to
@@ -42,13 +52,14 @@ Runtime-source direct eval and any otherwise non-production static-block plan
 remain B24h/B36 residue until a future class-definition environment slice proves
 the exact eval environment and declaration semantics. Future widening should
 replace a specific decline with route-hit proof and nearby no-route proof; it
-should not replace the classified fallback with a generic runner call or a VM
-fallback.
+should not replace the classified declined-body path with a generic runner call,
+ordinary script fallback, or a VM fallback.
 
 ## Consequences
 
-- The remaining static-block runner edge is auditable E5 residue, not an
-  unclassified hot-path escape.
+- The static-block `ExecutionPlanRunner.RunScript` edge is now a source-absence
+  tombstone. If it reappears in `ClassDefinitionExtensions.cs`, it is a
+  regression in E5 runner-entry retirement, not a new allowed residue bucket.
 - Logs preserve the production decline family through the
   `classified-static-block-ir-fallback` message with `code={DeclineCode}` and
   `detail={DeclineReason}`.
@@ -56,8 +67,8 @@ fallback.
   blurring them with eligible static-block bodies that now route through
   production unified bytecode.
 - Source gates should keep the accepted static-block path free of runner,
-  expression-program, and AST delegation while the fallback section may still
-  contain the classified `ExecutionPlanRunner.RunScript` call.
+  expression-program, and AST delegation, and should also keep the declined
+  static-block fallback section free of `ExecutionPlanRunner.RunScript`.
 
 ## Evidence
 
@@ -75,6 +86,11 @@ fallback.
     passed.
   - focused `BytecodeProofManifestTests` manifest checks passed.
   - `rtk git diff --check` passed.
+- Delivery PR #3538 merged as commit
+  `d607a3af1df3af984fe71a6efd22782461bba7c5`.
+- Build-stage commit `2f4db91b2` passed focused proof for the amended
+  boundary: `BytecodeProofManifestTests`, the static-block source gate, stale
+  `RunScript` wording scan, and `rtk git diff --check`.
 
 ## Related
 

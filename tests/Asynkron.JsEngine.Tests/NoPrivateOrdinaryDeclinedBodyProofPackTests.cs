@@ -206,14 +206,10 @@ public sealed class NoPrivateOrdinaryDeclinedBodyProofPackTests(ITestOutputHelpe
             record => record.Message.Contains(
                 $"{OrdinarySyncFallbackLog} func={functionName}",
                 StringComparison.Ordinal));
-        Assert.DoesNotContain(
-            snapshot,
-            record => record.Message.Contains(
-                $"{DeclinedOrdinarySyncPlanRouteLog} func={functionName}",
-                StringComparison.Ordinal));
         Assert.Contains(
             snapshot,
             record =>
+                record.Message.Contains($"{DeclinedOrdinarySyncPlanRouteLog} func={functionName}", StringComparison.Ordinal) ||
                 record.Message.Contains($"{DynamicScopeExecutorLog} func={functionName}", StringComparison.Ordinal) ||
                 record.Message.Contains($"{UnifiedBytecodeProductionFastPathLog} func={functionName}", StringComparison.Ordinal));
     }

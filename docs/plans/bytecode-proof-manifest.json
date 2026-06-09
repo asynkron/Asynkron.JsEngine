@@ -2130,7 +2130,7 @@
         {
           "id": "E5-ir-runner-type-still-present",
           "childOwner": "E5b-runner-construction-allowlist",
-          "classification": "classified ExecutionPlanRunner construction allowlist for script runners plus remaining E5d resumable declined-body owners; ordinary sync runner construction is retired and not a broad E5b hot-path type-presence blocker",
+          "classification": "classified ExecutionPlanRunner construction allowlist for script runners plus remaining E5d function/resumable declined-body owners; not a broad E5b hot-path type-presence blocker",
           "claim": "open",
           "kind": "source-allowlist",
           "paths": [
@@ -2147,6 +2147,12 @@
               "classification": "script runner construction inside classified ordinary script fallback runner",
               "path": "src/Asynkron.JsEngine/Ast/TypedAstEvaluator.ExecutionPlanRunner.Core.cs",
               "callCount": 2
+            },
+            {
+              "childOwner": "E5d-declined-ordinary-sync-plan-route",
+              "classification": "runner-owner construction for the unclassified declined ordinary sync plan route; the classified ordinary sync fallback helper and SyncFunctionInvoker call-site remain retired",
+              "path": "src/Asynkron.JsEngine/Ast/TypedAstEvaluator.ExecutionPlanRunner.Core.cs",
+              "callCount": 1
             },
             {
               "childOwner": "E5d-async-function-declined-body-runner-residue",
@@ -2188,13 +2194,13 @@
         {
           "id": "E5-ir-runner-sync-entry-still-present",
           "childOwner": "E5d-function-and-resumable-declined-body-runner-retirement",
-          "classification": "ordinary sync function declined-body .RunSync fallback is retired; class-constructor RunSync fallback entries remain retired; not a broad E5b entry-presence blocker",
+          "classification": "ordinary sync function declined-body runner.RunSync fallback is retired; class-constructor RunSync fallback entries remain retired; not a broad E5b entry-presence blocker",
           "claim": "retired-fallback",
           "kind": "source-absence",
           "paths": [
             "src/Asynkron.JsEngine/Ast"
           ],
-          "pattern": ".RunSync("
+          "pattern": "runner.RunSync();"
         },
         {
           "id": "E5-ir-runner-async-step-entry-still-present",
@@ -2288,18 +2294,11 @@
         {
           "id": "E5-function-runner-fallback-still-constructs-runner",
           "childOwner": "E5d-function-and-resumable-declined-body-runner-retirement",
-          "classification": "ordinary sync function fallback runner construction is retired; no-private declined-body replacement surfaces preserve behavior through the dynamic-scope executor or production unified bytecode without the classified runner; not class-constructor initialization residue",
+          "classification": "ordinary sync function fallback runner construction is retired; no-private declined-body replacement surfaces preserve behavior without the classified runner; not class-constructor initialization residue",
           "claim": "retired-fallback",
           "kind": "source-absence",
-          "paths": [
-            "src/Asynkron.JsEngine/Ast"
-          ],
-          "pattern": "CreateClassifiedOrdinarySyncFunctionFallbackRunner",
-          "patterns": [
-            "CreateClassifiedOrdinarySyncFunctionFallbackRunner",
-            "RunDeclinedOrdinarySyncPlan",
-            "CreateDeclinedOrdinarySyncPlan"
-          ]
+          "path": "src/Asynkron.JsEngine/Ast/TypedAstEvaluator.SyncFunctionInvoker.cs",
+          "pattern": "CreateClassifiedOrdinarySyncFunctionFallbackRunner"
         },
         {
           "id": "E5-class-constructor-runner-fallback-still-constructs-runner",

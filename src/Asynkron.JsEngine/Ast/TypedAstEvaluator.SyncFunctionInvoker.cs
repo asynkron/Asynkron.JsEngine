@@ -2742,6 +2742,24 @@ TryCreateSimpleNumericSelfRecursionFastPath(
             return false;
         }
 
+        [MethodImpl(JsEngineConstants.Inlining)]
+        private bool ShouldDeferSimpleIrFastPathToProductionUnifiedBytecode(JsValue newTarget)
+        {
+            if (_planSeed.Plan is not { } plan ||
+                plan.IsProductionEligibilityPermanentDecline)
+            {
+                return false;
+            }
+
+            if (ReferenceEquals(_unifiedBytecodeProductionEligibilityPlan, plan) &&
+                _unifiedBytecodeProductionEligibility != UnifiedBytecodeEligibilityUnknown)
+            {
+                return _unifiedBytecodeProductionEligibility == UnifiedBytecodeEligibilityAccepted;
+            }
+
+            return CanUseCachedOrEvaluateProductionUnifiedBytecodeFastPath(plan, newTarget);
+        }
+
         private JsValue RunDeclinedOrdinarySyncPlan<TArgs>(
             TArgs arguments,
             JsValue thisValue,
@@ -2777,24 +2795,6 @@ TryCreateSimpleNumericSelfRecursionFastPath(
                 _planSeed.Failure);
 
             return executionPlan.RunSync();
-        }
-
-        [MethodImpl(JsEngineConstants.Inlining)]
-        private bool ShouldDeferSimpleIrFastPathToProductionUnifiedBytecode(JsValue newTarget)
-        {
-            if (_planSeed.Plan is not { } plan ||
-                plan.IsProductionEligibilityPermanentDecline)
-            {
-                return false;
-            }
-
-            if (ReferenceEquals(_unifiedBytecodeProductionEligibilityPlan, plan) &&
-                _unifiedBytecodeProductionEligibility != UnifiedBytecodeEligibilityUnknown)
-            {
-                return _unifiedBytecodeProductionEligibility == UnifiedBytecodeEligibilityAccepted;
-            }
-
-            return CanUseCachedOrEvaluateProductionUnifiedBytecodeFastPath(plan, newTarget);
         }
 
         private bool TryInvokeProductionUnifiedBytecode<TArgs>(

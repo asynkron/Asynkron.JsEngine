@@ -885,6 +885,29 @@ optimization.
 
 30a. For IIFE-style workloads where a new `SyncFunctionInvoker` is created on every call to the same `FunctionExpression`, per-invoker caches are discarded on every iteration. When `UnifiedBytecodeProductionEligibility.Evaluate` returns a structural decline (a decline that is a pure function of the immutable `ExecutionPlan` — not of the closure or activation descriptor), cache that result on the `ExecutionPlan` itself so future invoker instances can skip the re-evaluation. The structural vs. descriptor-dependent boundary is encoded in `IsPlanStructuralDecline`: descriptor-dependent codes (`AsyncLikeFunction`, `GeneratorFunction`, `CapturedOrDynamicActivation`, `ArgumentsObjectDependency`, `ArrowLexicalThisDependency`, `ClassConstructorActivation`) must be excluded; all other codes are structural and cacheable. Use a `volatile bool` flag for thread safety; the race is benign because all concurrent writers derive the same answer from the same immutable plan. When adding a new decline code, classify it as structural or descriptor-dependent before it is used, and update `IsPlanStructuralDecline` accordingly. Separately: any new pure-AST property needed by `SyncFunctionInvoker..ctor` or `CreateExecutionEnvironment` belongs in `FunctionInvokerStaticPlan` — `UsesArguments` and `NeedsArgumentsBinding` were added in this pass (issue autrun-diwap9usj808-20f5ecd5ca / PR #2774), extending the set established in rule 30. Also: the decline code for out-of-boundary call shapes in `TryFindExpressionDecline` must be `CallInvocationBoundary`, not `CallDependency`; using `CallDependency` makes `IsPlanStructuralDecline` treat that structural decline as descriptor-dependent and prevents caching. Direct eval declines keep `CallDependency` because they depend on caller context. WHY: issue autrun-diwap9usj808-20f5ecd5ca / PR #2774 showed 10,000 calls to the same IIFE each re-running `TryBuildActiveWithDepths` + `TryFindExpressionDecline`; fixing the code classification and adding the plan-level flag eliminated that work after the first call and contributed to an 11.9% improvement on `simplearithmetic`.
 
+30b. For production unified-bytecode dependency scans that return positive plan
+     facts rather than decline results, apply the same plan-purity boundary
+     before caching. A scan result may live on `ExecutionPlan` only when it is
+     derived from immutable plan data such as the instruction stream,
+     expression-program payloads, entry point, and activation slot shape. Do
+     not cache descriptor-owned activation blockers, closure or caller state,
+     live environment values, call arguments, compiled `UnifiedBytecodeProgram`
+     results, or runtime lookup outcomes at plan scope. Use explicit tri-state
+     boolean storage with volatile reads/writes for nullable scan facts; benign
+     races are safe only when all writers recompute the same plan-pure value.
+     Prove retained caches with repeated focused profile ownership plus
+     selected-profile before/after rows, not with a cleaner call tree alone.
+     WHY: issue `autrun-dj42gyidvt1k-b99293a5fe` / PR #3528 found
+     `functioncalls` repeatedly paying
+     `UnifiedBytecodeProductionEligibility.TryGetExpressionProgram` and
+     `ContainsOrdinaryDynamicIdentifierExpression` while checking ordinary
+     dynamic identifier and implicit `arguments` dependencies. Caching those
+     two plan-pure dependency facts on `ExecutionPlan` improved repeated
+     focused `functioncalls` rows from a 6043 ms average to 5179 ms, about
+     14.3%, without caching descriptor-dependent eligibility or compiled
+     programs. Related ADR:
+     `docs/adrs/0378-cache-production-ubc-dependency-scans-on-executionplan.md`.
+
 31. For `CreateExecutionEnvironment` compliance-overhead work, guard spec-required
     bookkeeping structures with `HoistPlan` or `ExecutionPlan` AST-cached flags
     before building them. The blocked-names `HashSet<Symbol>` in non-strict

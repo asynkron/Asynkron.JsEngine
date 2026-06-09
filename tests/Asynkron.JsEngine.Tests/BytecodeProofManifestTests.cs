@@ -73,7 +73,7 @@ public sealed partial class BytecodeProofManifestTests(ITestOutputHelper output)
     }
 
     [Fact]
-    public void Manifest_StaticBlockFallback_IsClassifiedDeclinedResidue()
+    public void Manifest_StaticBlockRunnerFallback_IsRetiredButResidueStaysClassified()
     {
         var proof = LoadManifest()
             .Items
@@ -81,7 +81,12 @@ public sealed partial class BytecodeProofManifestTests(ITestOutputHelper output)
             .Single(static proof => proof.Id == "E5-static-block-ir-fallback-still-runs-execution-plan-runner");
 
         Assert.Equal("E5-static-block-declined-residue", proof.ChildOwner);
-        Assert.Contains("explicit declined static-block residue", proof.Classification, StringComparison.Ordinal);
+        Assert.Equal("source-absence", proof.Kind);
+        Assert.Equal("retired-fallback", proof.Claim);
+        Assert.Equal("src/Asynkron.JsEngine/Ast/ClassDefinitionExtensions.cs", proof.Path);
+        Assert.Equal("ExecutionPlanRunner.RunScript(", proof.Pattern);
+        Assert.Contains("static-block declined-body ExecutionPlanRunner.RunScript fallback is retired", proof.Classification, StringComparison.Ordinal);
+        Assert.Contains("static-block production-decline log", proof.Classification, StringComparison.Ordinal);
         Assert.Contains("not ordinary E5c script fallback retirement", proof.Classification, StringComparison.Ordinal);
     }
 
@@ -159,7 +164,15 @@ public sealed partial class BytecodeProofManifestTests(ITestOutputHelper output)
             Assert.Contains("not a broad E5b", proof.Classification, StringComparison.Ordinal);
         }
 
-        Assert.Equal("E5c-script-and-static-block-runner-fallback", proofs["E5-ir-runner-script-entry-still-present"].ChildOwner);
+        var scriptEntryProof = proofs["E5-ir-runner-script-entry-still-present"];
+        Assert.Equal("E5c-script-fallback-retirement", scriptEntryProof.ChildOwner);
+        Assert.DoesNotContain(
+            "src/Asynkron.JsEngine/Ast/ClassDefinitionExtensions.cs",
+            scriptEntryProof.AllowedPaths,
+            StringComparer.Ordinal);
+        Assert.DoesNotContain(
+            scriptEntryProof.ClassifiedCallSites,
+            static callSite => callSite.ChildOwner == "E5-static-block-declined-residue");
         Assert.Equal("E5d-function-and-constructor-runner-fallback", proofs["E5-ir-runner-sync-entry-still-present"].ChildOwner);
     }
 

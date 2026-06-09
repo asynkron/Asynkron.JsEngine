@@ -30,6 +30,7 @@ internal readonly record struct LoweredClassDefinition(
     ImmutableArray<LoweredClassMember> Members,
     ImmutableArray<LoweredClassField> Fields,
     ImmutableArray<ClassStaticElement> StaticElements,
+    ImmutableArray<ClassStaticBlock> StaticBlocks,
     ImmutableArray<ExecutionPlan> StaticBlockPlans);
 
 /// <summary>
@@ -181,6 +182,7 @@ internal sealed class ClassDefinitionProgramCache
             loweredMembers.ToImmutable(),
             loweredFields.ToImmutable(),
             definition.StaticElements,
+            definition.StaticBlocks,
             staticBlockPlans.ToImmutable());
 
         return new ClassDefinitionProgramCache(

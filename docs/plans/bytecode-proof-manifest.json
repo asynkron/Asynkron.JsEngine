@@ -2144,8 +2144,8 @@
           ],
           "classifiedCallSites": [
             {
-              "childOwner": "E5c-script-and-static-block-runner-fallback",
-              "classification": "script runner construction inside classified script/static-block fallback runner",
+              "childOwner": "E5c-script-fallback-retirement",
+              "classification": "script runner construction inside classified ordinary script fallback runner",
               "path": "src/Asynkron.JsEngine/Ast/TypedAstEvaluator.ExecutionPlanRunner.Core.cs",
               "callCount": 2
             },
@@ -2172,24 +2172,17 @@
         },
         {
           "id": "E5-ir-runner-script-entry-still-present",
-          "childOwner": "E5c-script-and-static-block-runner-fallback",
-          "classification": "classified RunScript call-site allowlist for non-admitted ordinary scripts, terminal dynamic residue, and declined static-block residue; not a broad E5b entry-presence blocker",
+          "childOwner": "E5c-script-fallback-retirement",
+          "classification": "classified RunScript call-site allowlist for non-admitted ordinary scripts and terminal dynamic residue; static-block declined bodies no longer enter ExecutionPlanRunner.RunScript; not a broad E5b entry-presence blocker",
           "claim": "open",
           "kind": "source-allowlist",
           "paths": [
             "src/Asynkron.JsEngine/Ast"
           ],
           "allowedPaths": [
-            "src/Asynkron.JsEngine/Ast/ClassDefinitionExtensions.cs",
             "src/Asynkron.JsEngine/Ast/Legacy/StatementNodeExtensions.cs"
           ],
           "classifiedCallSites": [
-            {
-              "childOwner": "E5-static-block-declined-residue",
-              "classification": "class static-block declined-body fallback after production unified bytecode declines",
-              "path": "src/Asynkron.JsEngine/Ast/ClassDefinitionExtensions.cs",
-              "enclosingMember": "ExecuteStaticBlock"
-            },
             {
               "childOwner": "E5c-script-fallback-retirement",
               "classification": "ordinary script classified IR fallback after production unified bytecode declines",
@@ -2293,9 +2286,9 @@
         {
           "id": "E5-static-block-ir-fallback-still-runs-execution-plan-runner",
           "childOwner": "E5-static-block-declined-residue",
-          "classification": "explicit declined static-block residue after production eligibility declines; not ordinary E5c script fallback retirement",
-          "claim": "open",
-          "kind": "source-presence",
+          "classification": "static-block declined-body ExecutionPlanRunner.RunScript fallback is retired; declined static-block residue remains explicitly classified by the static-block production-decline log and is not ordinary E5c script fallback retirement",
+          "claim": "retired-fallback",
+          "kind": "source-absence",
           "path": "src/Asynkron.JsEngine/Ast/ClassDefinitionExtensions.cs",
           "pattern": "ExecutionPlanRunner.RunScript("
         }

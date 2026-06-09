@@ -10332,7 +10332,8 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
             "class static-block accepted path");
 
         Assert.Contains("TryExecuteStaticBlockViaUnifiedBytecode(", fallbackSection, StringComparison.Ordinal);
-        Assert.Contains("ExecutionPlanRunner.RunScript(", fallbackSection, StringComparison.Ordinal);
+        Assert.DoesNotContain("ExecutionPlanRunner.RunScript(", fallbackSection, StringComparison.Ordinal);
+        Assert.Contains("EvaluateBlockJsValue(", fallbackSection, StringComparison.Ordinal);
         Assert.Contains(
             "classified-static-block-ir-fallback reason=production-unified-bytecode-declined",
             acceptedPathSection,

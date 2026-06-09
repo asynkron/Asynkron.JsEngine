@@ -80,6 +80,7 @@ public static partial class TypedAstEvaluator
                     break;
                 case ClassStaticElementKind.Block:
                     ExecuteStaticBlock(
+                        definition.StaticBlocks[element.Index],
                         definition.StaticBlockPlans[element.Index],
                         constructorAccessor,
                         environment,
@@ -177,6 +178,7 @@ public static partial class TypedAstEvaluator
     }
 
     private static void ExecuteStaticBlock(
+        ClassStaticBlock block,
         ExecutionPlan plan,
         IJsPropertyAccessor constructorAccessor,
         JsEnvironment environment,
@@ -192,7 +194,7 @@ public static partial class TypedAstEvaluator
                 return;
             }
 
-            _ = ExecutionPlanRunner.RunScript(plan, blockEnvironment, context);
+            _ = block.Body.EvaluateBlockJsValue(blockEnvironment, context);
         }
         catch (ThrowSignal signal)
         {

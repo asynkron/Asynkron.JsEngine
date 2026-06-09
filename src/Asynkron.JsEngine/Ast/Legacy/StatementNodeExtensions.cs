@@ -2573,7 +2573,7 @@ public static partial class TypedAstEvaluator
                     context);
             }
 
-            return RunOrdinaryScriptViaClassifiedRunnerFallback(
+            return RunOrdinaryScriptViaClassifiedLegacyAstFallback(
                 scriptPlan,
                 programBlock,
                 executionEnvironment,
@@ -2627,7 +2627,7 @@ public static partial class TypedAstEvaluator
             context);
     }
 
-    private static JsValue RunOrdinaryScriptViaClassifiedRunnerFallback(
+    private static JsValue RunOrdinaryScriptViaClassifiedLegacyAstFallback(
         ExecutionPlan scriptPlan,
         BlockStatement programBlock,
         JsEnvironment executionEnvironment,
@@ -2635,15 +2635,12 @@ public static partial class TypedAstEvaluator
         EvaluationContext context)
     {
         context.RealmState.Logger?.LogInformation(
-            "ordinary-script-classified-runner-fallback reason=production-unified-bytecode-declined code={DeclineCode} detail={DeclineReason} statements={StatementCount} instructions={InstructionCount}",
+            "ordinary-script-classified-legacy-ast-fallback reason=production-unified-bytecode-declined code={DeclineCode} detail={DeclineReason} statements={StatementCount} instructions={InstructionCount}",
             eligibility.Code,
             eligibility.Reason,
             programBlock.Statements.Length,
             scriptPlan.Instructions.Length);
-        return ExecutionPlanRunner.RunOrdinaryDeclinedScript(
-            scriptPlan,
-            executionEnvironment,
-            context);
+        return programBlock.EvaluateBlockJsValue(executionEnvironment, context);
     }
 
     private static bool IsTerminalDynamicScriptResidue(UnifiedBytecodeProductionEligibilityResult eligibility) =>

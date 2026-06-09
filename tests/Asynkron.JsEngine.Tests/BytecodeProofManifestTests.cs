@@ -224,6 +224,11 @@ public sealed partial class BytecodeProofManifestTests(ITestOutputHelper output)
             "no longer call ExecutionPlanRunner.RunScript",
             retiredScriptFallbackProof.Classification,
             StringComparison.Ordinal);
+        Assert.Contains(
+            "RunOrdinaryDeclinedScript",
+            retiredScriptFallbackProof.Classification,
+            StringComparison.Ordinal);
+        Assert.Equal("RunOrdinaryDeclinedScript(", retiredScriptFallbackProof.Pattern);
         Assert.Equal(
             [
                 "E5d-async-function-declined-body-runner-residue",

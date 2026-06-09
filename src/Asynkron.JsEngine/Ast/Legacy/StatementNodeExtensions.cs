@@ -491,60 +491,43 @@ public static partial class TypedAstEvaluator
         EvaluationContext context)
     {
         if (statement.Expression is CallExpression callExpression &&
-            SyncFunctionInvoker.TryGetLegacySameFunctionTailRestartTarget(
-                callExpression,
+            TryEvaluateLegacyTailCallRestart(callExpression, environment, context, out var tailCallResult))
+        {
+            return tailCallResult;
+        }
+
+        if (statement.Expression is ConditionalExpression conditionalExpression)
+        {
+            var test = LoweredExpressionProgramCache.ExecuteCached(
+                conditionalExpression.Test,
                 environment,
                 context,
-                out var tailCallTarget))
-        {
-            var tailCallValue = JsValue.Undefined;
-            var tailCallArguments = new JsValue[callExpression.Arguments.Length];
-            var argumentMayCaptureActivation = false;
-            for (var i = 0; i < callExpression.Arguments.Length; i++)
+                "Dynamic return conditional test");
+            if (context.ShouldStopEvaluation)
             {
-                var argumentExpression = callExpression.Arguments[i].Expression;
-                argumentMayCaptureActivation |=
-                    ContainsInnerFunctionExpression(argumentExpression) ||
-                    DynamicScopeDetector.ContainsDirectEval(argumentExpression);
-                tailCallArguments[i] = LoweredExpressionProgramCache.ExecuteCached(
-                    argumentExpression,
-                    environment,
-                    context,
-                    "Dynamic tail-call argument");
-                if (context.ShouldStopEvaluation)
-                {
-                    return tailCallValue;
-                }
+                return JsValue.Undefined;
             }
 
-            if (argumentMayCaptureActivation ||
-                !tailCallTarget.CanReuseLegacyTailRestartActivation(environment))
+            var selectedExpression = test.IsTruthy
+                ? conditionalExpression.Consequent
+                : conditionalExpression.Alternate;
+            if (selectedExpression is CallExpression conditionalTailCall &&
+                TryEvaluateLegacyTailCallRestart(conditionalTailCall, environment, context, out var conditionalResult))
             {
-                var result = InvokeCallableJsValue(
-                    tailCallTarget,
-                    tailCallArguments,
-                    JsValue.Undefined,
-                    context,
-                    environment);
-                if (!context.ShouldStopEvaluation)
-                {
-                    context.SetReturn(result);
-                }
-
-                return result;
+                return conditionalResult;
             }
 
-            context.SetLegacyTailCallRestart(
-                tailCallTarget,
-                tailCallArguments,
-                JsValue.Undefined,
-                JsValue.Undefined);
+            var branchResult = LoweredExpressionProgramCache.ExecuteCached(
+                selectedExpression,
+                environment,
+                context,
+                "Dynamic return conditional branch");
             if (!context.ShouldStopEvaluation)
             {
-                context.SetReturn(tailCallValue);
+                context.SetReturn(branchResult);
             }
 
-            return tailCallValue;
+            return branchResult;
         }
 
         if (statement.Expression is CallExpression returnCallExpression)
@@ -574,6 +557,71 @@ public static partial class TypedAstEvaluator
 
         context.SetReturn(jsValue);
         return jsValue;
+    }
+
+    private static bool TryEvaluateLegacyTailCallRestart(
+        CallExpression callExpression,
+        JsEnvironment environment,
+        EvaluationContext context,
+        out JsValue result)
+    {
+        result = JsValue.Undefined;
+        if (!SyncFunctionInvoker.TryGetLegacySameFunctionTailRestartTarget(
+                callExpression,
+                environment,
+                context,
+                out var tailCallTarget))
+        {
+            return false;
+        }
+
+        var tailCallArguments = new JsValue[callExpression.Arguments.Length];
+        var argumentMayCaptureActivation = false;
+        for (var i = 0; i < callExpression.Arguments.Length; i++)
+        {
+            var argumentExpression = callExpression.Arguments[i].Expression;
+            argumentMayCaptureActivation |=
+                ContainsInnerFunctionExpression(argumentExpression) ||
+                DynamicScopeDetector.ContainsDirectEval(argumentExpression);
+            tailCallArguments[i] = LoweredExpressionProgramCache.ExecuteCached(
+                argumentExpression,
+                environment,
+                context,
+                "Dynamic tail-call argument");
+            if (context.ShouldStopEvaluation)
+            {
+                return true;
+            }
+        }
+
+        if (argumentMayCaptureActivation ||
+            !tailCallTarget.CanReuseLegacyTailRestartActivation(environment))
+        {
+            result = InvokeCallableJsValue(
+                tailCallTarget,
+                tailCallArguments,
+                JsValue.Undefined,
+                context,
+                environment);
+            if (!context.ShouldStopEvaluation)
+            {
+                context.SetReturn(result);
+            }
+
+            return true;
+        }
+
+        context.SetLegacyTailCallRestart(
+            tailCallTarget,
+            tailCallArguments,
+            JsValue.Undefined,
+            JsValue.Undefined);
+        if (!context.ShouldStopEvaluation)
+        {
+            context.SetReturn(result);
+        }
+
+        return true;
     }
 
     [Obsolete("This AST evaluation method is quarantined. Prefer IR execution via ExecutionPlanRunner.")]

@@ -315,6 +315,21 @@ rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~Activ
     observable `arguments`, legacy restart reset, and strict block-function
     shapes were incorrectly treated as production-UBC-safe. Related ADR:
     `docs/adrs/0380-retire-class-constructor-runner-fallback-through-dynamic-constructor-evaluator.md`.
+27. When pinning ordinary FunctionCode/direct-eval replacement surfaces after
+    runner-removal work, keep the route assertion owned by the activation proof
+    pack, not only a feature-local eval test. Assert the observable JavaScript
+    result, reject `Executing sync function via dynamic-scope executor`, and
+    accept either `classified-ordinary-sync-function-fallback` with a production
+    unified-bytecode decline reason or `unified-bytecode-production-fast-path`
+    when both routes preserve the intended IR/unified-bytecode-owned boundary.
+    Do not lock the proof to one currently selected owned route unless the
+    issue specifically changes that routing choice. WHY: Faktorial issue
+    `planitem-gh3560-batch-1-pin-the-replacement-surface-batch-4-function-code-and-act-e772459f34`
+    / PR #3576 found that current `origin/main` already avoided the dynamic
+    scope executor for `DirectEvalFunctionDeclarationParameterDefault`, so the
+    durable delivery was to promote the route contract into
+    `ActivationSemanticsProofPackTests` and let future production-bytecode
+    admission replace the classified fallback without failing the proof.
 
 ## Why
 

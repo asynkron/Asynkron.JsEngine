@@ -72,6 +72,11 @@ The JsEngine has two separate generator execution paths:
    `classified-sync-generator-declined-residue`, and `isDeclinedResidue` so the
    retired bridge cannot quietly reappear. Related ADR:
    `docs/adrs/0377-retire-sync-generator-declined-residue-runner-through-creation-time-ir-route.md`.
+   When rebaselining proof-manifest rows for remaining
+   `new ExecutionPlanRunner(` occurrences, keep the `IrSyncGeneratorInvoker`
+   call site under a route-selection owner such as
+   `E5d-sync-generator-ir-route-selection` and assert that retired
+   declined-residue tombstones do not carry that owner.
 5. When an async-generator fallback bridge is retired, update the stale tests in
    the same slice to assert explicit decline failure instead of fallback
    success. Rename affected tests away from `FallsBack...`, assert that the
@@ -125,6 +130,17 @@ unsupported-route failures. The related source gate now rejects both generic and
 residue-specific runner bridge names plus stale fallback log markers, and the
 proof manifest row is a source-absence tombstone rather than an open
 source-presence anchor.
+
+Issue
+`planitem-planitem-gh3495-shared-context-e5b-runner-entry-point-tombstones-after-e-62e23a32d7`
+/ PR #3549 rebaseline-tested the remaining `IrSyncGeneratorInvoker`
+`new ExecutionPlanRunner(` call site as `E5d-sync-generator-ir-route-selection`
+under the E5 runner-type allowlist, while asserting that the retired
+`E5-sync-generator-declined-residue-runner-still-present` tombstone does not
+carry that owner. The durable lesson is that proof-manifest tombstoning should
+not count the required creation-time IR route as hot-path fallback debt, and
+the negative assertion is the guardrail that keeps the retired bridge from being
+silently reintroduced under a new classification.
 
 Issue
 `planitem-planmanual1780730299657353000-unified-bytecode-remaining-burndown-05-fal-4aeda4866f`

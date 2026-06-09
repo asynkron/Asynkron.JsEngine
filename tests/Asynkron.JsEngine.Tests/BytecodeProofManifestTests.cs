@@ -104,6 +104,9 @@ public sealed partial class BytecodeProofManifestTests(ITestOutputHelper output)
         Assert.Equal(
             "CreateClassifiedOrdinarySyncFunctionFallbackRunner",
             ordinaryProof.Pattern);
+        Assert.Equal("source-absence", ordinaryProof.Kind);
+        Assert.Equal("retired-fallback", ordinaryProof.Claim);
+        Assert.Contains("dynamic-scope executor route", ordinaryProof.Classification, StringComparison.Ordinal);
         Assert.Contains("not class-constructor initialization residue", ordinaryProof.Classification, StringComparison.Ordinal);
 
         Assert.Equal("E5d-class-constructor-initialization-residue", classConstructorProof.ChildOwner);
@@ -179,6 +182,12 @@ public sealed partial class BytecodeProofManifestTests(ITestOutputHelper output)
         Assert.Equal(
             "E5d-function-and-resumable-declined-body-runner-retirement",
             proofs["E5-ir-runner-sync-entry-still-present"].ChildOwner);
+
+        var syncEntryProof = proofs["E5-ir-runner-sync-entry-still-present"];
+        Assert.Equal("source-absence", syncEntryProof.Kind);
+        Assert.Equal("retired-fallback", syncEntryProof.Claim);
+        Assert.Equal("runner.RunSync();", syncEntryProof.Pattern);
+        Assert.Contains("dynamic-scope executor route", syncEntryProof.Classification, StringComparison.Ordinal);
 
         var runnerTypeProof = proofs["E5-ir-runner-type-still-present"];
         var syncGeneratorRoute = Assert.Single(
@@ -299,7 +308,7 @@ public sealed partial class BytecodeProofManifestTests(ITestOutputHelper output)
             dynamicDeleteProof.Classification,
             StringComparison.Ordinal);
         Assert.Contains(
-            "classified ordinary sync fallback runner",
+            "ordinary sync dynamic-scope executor",
             dynamicDeleteProof.Classification,
             StringComparison.Ordinal);
         Assert.Contains(
@@ -307,18 +316,23 @@ public sealed partial class BytecodeProofManifestTests(ITestOutputHelper output)
             dynamicDeleteProof.RequiredLogs,
             StringComparer.Ordinal);
         Assert.Contains(
+            "ordinary-sync-declined-body-dynamic-scope-executor reason=production-unified-bytecode-declined func=deleteImplicitGlobal",
+            dynamicDeleteProof.ForbiddenLogs,
+            StringComparer.Ordinal);
+        Assert.Contains(
             "classified-ordinary-sync-function-fallback reason=production-unified-bytecode-declined func=deleteImplicitGlobal",
             dynamicDeleteProof.ForbiddenLogs,
             StringComparer.Ordinal);
 
         var remainingFallbackProof = proofs["E5-function-runner-fallback-still-constructs-runner"];
-        Assert.Equal("open", remainingFallbackProof.Claim);
+        Assert.Equal("source-absence", remainingFallbackProof.Kind);
+        Assert.Equal("retired-fallback", remainingFallbackProof.Claim);
         Assert.Contains(
-            "remaining ordinary sync function fallback runner construction anchor",
+            "ordinary sync function fallback runner construction is retired",
             remainingFallbackProof.Classification,
             StringComparison.Ordinal);
         Assert.Contains(
-            "after zero-depth dynamic identifier delete routes through production unified bytecode",
+            "dynamic-scope executor route",
             remainingFallbackProof.Classification,
             StringComparison.Ordinal);
     }

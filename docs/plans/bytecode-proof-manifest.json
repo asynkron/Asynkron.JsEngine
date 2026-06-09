@@ -2130,7 +2130,7 @@
         {
           "id": "E5-ir-runner-type-still-present",
           "childOwner": "E5b-runner-construction-allowlist",
-          "classification": "classified ExecutionPlanRunner construction allowlist for script runners plus remaining E5d function/resumable declined-body owners; not a broad E5b hot-path type-presence blocker",
+          "classification": "classified ExecutionPlanRunner construction allowlist for script runners plus remaining E5d resumable declined-body owners; ordinary sync function fallback runner construction is retired and no longer appears in SyncFunctionInvoker; not a broad E5b hot-path type-presence blocker",
           "claim": "open",
           "kind": "source-allowlist",
           "paths": [
@@ -2139,8 +2139,7 @@
           "allowedPaths": [
             "src/Asynkron.JsEngine/Ast/TypedAstEvaluator.AsyncFunctionInvoker.cs",
             "src/Asynkron.JsEngine/Ast/TypedAstEvaluator.ExecutionPlanRunner.Core.cs",
-            "src/Asynkron.JsEngine/Ast/TypedAstEvaluator.IrSyncGeneratorInvoker.cs",
-            "src/Asynkron.JsEngine/Ast/TypedAstEvaluator.SyncFunctionInvoker.cs"
+            "src/Asynkron.JsEngine/Ast/TypedAstEvaluator.IrSyncGeneratorInvoker.cs"
           ],
           "classifiedCallSites": [
             {
@@ -2153,12 +2152,6 @@
               "childOwner": "E5d-async-function-declined-body-runner-residue",
               "classification": "async declined-body runner construction",
               "path": "src/Asynkron.JsEngine/Ast/TypedAstEvaluator.AsyncFunctionInvoker.cs",
-              "callCount": 1
-            },
-            {
-              "childOwner": "E5d-function-and-resumable-declined-body-runner-retirement",
-              "classification": "ordinary sync function declined-body fallback runner construction; class-constructor fallback runner construction is retired",
-              "path": "src/Asynkron.JsEngine/Ast/TypedAstEvaluator.SyncFunctionInvoker.cs",
               "callCount": 1
             },
             {
@@ -2195,23 +2188,10 @@
         {
           "id": "E5-ir-runner-sync-entry-still-present",
           "childOwner": "E5d-function-and-resumable-declined-body-runner-retirement",
-          "classification": "classified RunSync call-site allowlist for ordinary sync function declined-body fallback; class-constructor RunSync fallback entries are retired; not a broad E5b entry-presence blocker",
-          "claim": "open",
-          "kind": "source-allowlist",
-          "paths": [
-            "src/Asynkron.JsEngine/Ast"
-          ],
-          "allowedPaths": [
-            "src/Asynkron.JsEngine/Ast/TypedAstEvaluator.SyncFunctionInvoker.cs"
-          ],
-          "classifiedCallSites": [
-            {
-              "childOwner": "E5d-function-and-resumable-declined-body-runner-retirement",
-              "classification": "remaining ordinary sync declined-body fallback runner execution in the outer slow path after TryInvokeIrFast declines and zero-depth dynamic identifier delete retired to production unified bytecode",
-              "path": "src/Asynkron.JsEngine/Ast/TypedAstEvaluator.SyncFunctionInvoker.cs",
-              "enclosingMember": "InvokeWithContextSlow"
-            }
-          ],
+          "classification": "ordinary sync function declined-body runner.RunSync fallback is retired; production-unified-bytecode declines now fall through to the classified dynamic-scope executor route; class-constructor RunSync fallback entries remain retired; not a broad E5b entry-presence blocker",
+          "claim": "retired-fallback",
+          "kind": "source-absence",
+          "path": "src/Asynkron.JsEngine/Ast/TypedAstEvaluator.SyncFunctionInvoker.cs",
           "pattern": "runner.RunSync();"
         },
         {
@@ -2290,7 +2270,7 @@
         {
           "id": "E5-ordinary-sync-zero-depth-dynamic-identifier-delete-routes",
           "childOwner": "E5d-function-and-resumable-declined-body-runner-retirement",
-          "classification": "executable zero-depth dynamic identifier delete ordinary sync function body routes through production unified bytecode and no longer reaches the classified ordinary sync fallback runner",
+          "classification": "executable zero-depth dynamic identifier delete ordinary sync function body routes through production unified bytecode and no longer reaches the ordinary sync dynamic-scope executor or retired runner fallback",
           "claim": "admitted",
           "kind": "runtime",
           "source": "implicitGlobalForDelete = 1;\nfunction deleteImplicitGlobal() {\n  return delete implicitGlobalForDelete;\n}\nvar deleted = deleteImplicitGlobal();\ndeleted + ':' + typeof implicitGlobalForDelete;",
@@ -2300,15 +2280,16 @@
           ],
           "forbiddenLogs": [
             "classified-ordinary-sync-function-fallback reason=production-unified-bytecode-declined func=deleteImplicitGlobal",
+            "ordinary-sync-declined-body-dynamic-scope-executor reason=production-unified-bytecode-declined func=deleteImplicitGlobal",
             "simple-ir-activation-runner-declined func=deleteImplicitGlobal"
           ]
         },
         {
           "id": "E5-function-runner-fallback-still-constructs-runner",
           "childOwner": "E5d-function-and-resumable-declined-body-runner-retirement",
-          "classification": "remaining ordinary sync function fallback runner construction anchor after zero-depth dynamic identifier delete routes through production unified bytecode; not class-constructor initialization residue",
-          "claim": "open",
-          "kind": "source-presence",
+          "classification": "ordinary sync function fallback runner construction is retired; production-unified-bytecode declines now fall through to the classified dynamic-scope executor route; not class-constructor initialization residue",
+          "claim": "retired-fallback",
+          "kind": "source-absence",
           "path": "src/Asynkron.JsEngine/Ast/TypedAstEvaluator.SyncFunctionInvoker.cs",
           "pattern": "CreateClassifiedOrdinarySyncFunctionFallbackRunner"
         },

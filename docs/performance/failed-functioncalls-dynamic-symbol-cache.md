@@ -90,6 +90,37 @@ should avoid retrying this exact cache unless a fresh profile shows
 selected workload. The larger residual remains production call dispatch and
 eligibility around `ExecutePreparedCall` / `InvokeWithContextSlow`.
 
+## Retry gate
+
+The #3537 dynamic call-target symbol cache remains off-limits unless fresh
+profile evidence satisfies this guard before any runtime edit touches
+`PrepareDynamicIdentifierCallTarget`, `UnifiedBytecodeProgram` string/name
+storage, or dynamic identifier lookup through `JsEnvironment`.
+
+Required profile command:
+
+```bash
+rtk ./tools/profile functioncalls --cpu --calltree-depth 40 --calltree-width 40
+```
+
+Retry threshold: at least two fresh selected-workload CPU profiles must show
+`UnifiedBytecodeVirtualMachine.PrepareDynamicIdentifierCallTarget` as a
+repeated top owner at or above 10% inclusive CPU/sample share for the selected
+`functioncalls` workload. If the profiler output does not print percentages,
+use the same profile's call-tree timing or sample totals to record the
+equivalent inclusive share calculation.
+
+Owner signal: the repeated cost must implicate dynamic call-target name
+preparation or string-to-symbol materialization. A subtree that only shows
+`JsEnvironment.TryGetIdentifierJsValueAfterWithMiss` lookup cost does not
+satisfy this gate, and neither does a broad `functioncalls` loss with no
+separate `PrepareDynamicIdentifierCallTarget` owner.
+
+Keep this symbol-cache retry separate from the larger production call dispatch
+residual around `ExecutePreparedCall` / `InvokeWithContextSlow`. Passing this
+gate would only permit a new symbol-cache experiment; it would not justify
+claims that the cache addresses those dispatch and eligibility residuals.
+
 ## Commands run
 
 ```bash

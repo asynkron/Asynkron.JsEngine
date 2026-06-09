@@ -19,8 +19,6 @@ public sealed class ActivationSemanticsProofPackTests(ITestOutputHelper output) 
     private const string SimpleIrParameterBinaryChainFastPathLog = "simple-ir-parameter-binary-chain-fast-path";
     private const string SimpleIrReturnFastPathLog = "simple-ir-return-fast-path";
     private const string UnifiedBytecodeProductionFastPathLog = "unified-bytecode-production-fast-path";
-    private const string ClassifiedOrdinarySyncFunctionFallbackLog = "classified-ordinary-sync-function-fallback";
-    private const string DeclinedOrdinarySyncPlanRouteLog = "declined-ordinary-sync-plan-route";
     private const string DynamicScopeExecutorLog = "Executing sync function via dynamic-scope executor";
 
     [Fact(Timeout = 5000)]
@@ -264,15 +262,12 @@ public sealed class ActivationSemanticsProofPackTests(ITestOutputHelper output) 
         Assert.Equal(42d, result);
         Assert.DoesNotContain(records,
             static record => record.Message.Contains(
-                ClassifiedOrdinarySyncFunctionFallbackLog + " reason=production-unified-bytecode-declined func=read",
+                "classified-ordinary-sync-function-fallback reason=production-unified-bytecode-declined func=read",
                 StringComparison.Ordinal));
         Assert.Contains(records,
             static record =>
                 record.Message.Contains(
                     DynamicScopeExecutorLog + " func=read",
-                    StringComparison.Ordinal) ||
-                record.Message.Contains(
-                    DeclinedOrdinarySyncPlanRouteLog + " reason=production-unified-bytecode-declined func=read",
                     StringComparison.Ordinal) ||
                 record.Message.Contains(
                     UnifiedBytecodeProductionFastPathLog + " func=read",

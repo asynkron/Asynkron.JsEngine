@@ -185,8 +185,8 @@ public sealed partial class BytecodeProofManifestTests(ITestOutputHelper output)
         Assert.Equal("E5d-function-and-resumable-declined-body-runner-retirement", syncEntryProof.ChildOwner);
         Assert.Equal("source-absence", syncEntryProof.Kind);
         Assert.Equal("retired-fallback", syncEntryProof.Claim);
-        Assert.Equal("runner.RunSync();", syncEntryProof.Pattern);
-        Assert.Contains("ordinary sync function declined-body runner.RunSync fallback is retired", syncEntryProof.Classification, StringComparison.Ordinal);
+        Assert.Equal(".RunSync(", syncEntryProof.Pattern);
+        Assert.Contains("ordinary sync function declined-body ExecutionPlanRunner.RunSync route is retired", syncEntryProof.Classification, StringComparison.Ordinal);
 
         var runnerTypeProof = proofs["E5-ir-runner-type-still-present"];
         Assert.DoesNotContain(
@@ -196,7 +196,7 @@ public sealed partial class BytecodeProofManifestTests(ITestOutputHelper output)
         Assert.DoesNotContain(
             runnerTypeProof.ClassifiedCallSites,
             static callSite => callSite.ChildOwner == "E5d-function-and-resumable-declined-body-runner-retirement");
-        Assert.Contains(
+        Assert.DoesNotContain(
             runnerTypeProof.ClassifiedCallSites,
             static callSite => callSite.ChildOwner == "E5d-declined-ordinary-sync-plan-route");
         var syncGeneratorRoute = Assert.Single(

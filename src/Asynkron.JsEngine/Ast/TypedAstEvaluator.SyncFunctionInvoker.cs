@@ -1838,6 +1838,10 @@ TryCreateSimpleNumericSelfRecursionFastPath(
                 if (hasFunctionCodeIrSeam &&
                     !IsClassConstructor &&
                     plan is not null &&
+                    !_usesArguments &&
+                    !_needsArgumentsBinding &&
+                    _legacyTailRestartResetVarNames.IsEmpty &&
+                    !(_isStrict && HasBlockScopedFunctionDeclarationInstruction(plan)) &&
                     CanUseProductionUnifiedBytecodeFastPath(plan, newTarget))
                 {
                     hasFunctionCodeIrSeam = false;
@@ -4051,6 +4055,20 @@ TryCreateSimpleNumericSelfRecursionFastPath(
             for (var i = 0; i < instructions.Length; i++)
             {
                 if (instructions[i] is ClassDeclarationInstruction)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private static bool HasBlockScopedFunctionDeclarationInstruction(ExecutionPlan plan)
+        {
+            var instructions = plan.Instructions;
+            for (var i = 0; i < instructions.Length; i++)
+            {
+                if (instructions[i] is FunctionDeclarationInstruction { Descriptor: not null })
                 {
                     return true;
                 }

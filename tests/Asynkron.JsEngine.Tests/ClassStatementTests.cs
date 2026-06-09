@@ -247,7 +247,8 @@ public sealed class ClassStatementTests(ITestOutputHelper output) : InternalTest
             logger.Collector.Snapshot(),
             static record => record.Message.Contains(
                 "Executing sync function via dynamic-scope executor",
-                StringComparison.Ordinal));
+                StringComparison.Ordinal) &&
+                             record.Message.Contains("func=read", StringComparison.Ordinal));
     }
 
     [Fact(Timeout = 2000)]

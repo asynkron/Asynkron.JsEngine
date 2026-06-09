@@ -156,6 +156,22 @@ public static partial class TypedAstEvaluator
             JsEnvironment environment,
             EvaluationContext context)
         {
+            return RunScriptCore(plan, environment, context);
+        }
+
+        public static JsValue RunOrdinaryDeclinedScript(
+            ExecutionPlan plan,
+            JsEnvironment environment,
+            EvaluationContext context)
+        {
+            return RunScriptCore(plan, environment, context);
+        }
+
+        private static JsValue RunScriptCore(
+            ExecutionPlan plan,
+            JsEnvironment environment,
+            EvaluationContext context)
+        {
             // When script entry already initialized the
             // slot layout (strict-wrapper scripts where HasSlots was false), the plan's
             // synthetic slots are at index 0..N-1 and hoisted vars were appended after

@@ -193,6 +193,13 @@ public sealed partial class BytecodeProofManifestTests(ITestOutputHelper output)
             {
                 Assert.Equal("source-allowlist", proof.Kind);
                 Assert.Equal("open", proof.Claim);
+                if (proof.Id == "E5-ir-runner-script-entry-still-present")
+                {
+                    Assert.Contains(
+                        "ordinary script declines no longer use this E5b runner entry",
+                        proof.Classification,
+                        StringComparison.Ordinal);
+                }
             });
         Assert.Single(
             items["E5b"].Proofs,
@@ -209,6 +216,14 @@ public sealed partial class BytecodeProofManifestTests(ITestOutputHelper output)
                 "E5c-terminal-dynamic-script-residue"
             ],
             items["E5c"].Proofs.Select(static proof => proof.ChildOwner).Order(StringComparer.Ordinal).ToArray());
+        var retiredScriptFallbackProof = items["E5c"].Proofs.Single(static proof =>
+            proof.Id == "E5-script-ir-fallback-still-runs-execution-plan-runner");
+        Assert.Equal("source-absence", retiredScriptFallbackProof.Kind);
+        Assert.Equal("retired-fallback", retiredScriptFallbackProof.Claim);
+        Assert.Contains(
+            "no longer call ExecutionPlanRunner.RunScript",
+            retiredScriptFallbackProof.Classification,
+            StringComparison.Ordinal);
         Assert.Equal(
             [
                 "E5d-async-function-declined-body-runner-residue",

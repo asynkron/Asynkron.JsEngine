@@ -2282,7 +2282,7 @@
         {
           "id": "E5-function-runner-fallback-still-constructs-runner",
           "childOwner": "E5d-function-and-resumable-declined-body-runner-retirement",
-          "classification": "ordinary sync function fallback runner construction is retired; no-private ordinary declined-body proofs forbid the classified fallback log and permit only production, dynamic-scope, or classified IR-residue execution; not class-constructor initialization residue",
+          "classification": "ordinary sync function fallback runner construction is retired; no-private ordinary declined-body proofs forbid the classified fallback log and currently route through classified IR-residue execution; not class-constructor initialization residue",
           "claim": "retired-fallback",
           "kind": "source-absence",
           "path": "src/Asynkron.JsEngine/Ast/TypedAstEvaluator.SyncFunctionInvoker.cs",

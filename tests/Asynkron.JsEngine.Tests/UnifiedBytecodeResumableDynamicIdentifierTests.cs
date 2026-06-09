@@ -366,7 +366,7 @@ public sealed class UnifiedBytecodeResumableDynamicIdentifierTests(ITestOutputHe
     }
 
     [Fact(Timeout = 5000)]
-    public async Task AsyncDirectEvalArgumentsParameter_StaysOnIrPathAndResolvesParameter()
+    public async Task AsyncDirectEvalArgumentsParameter_RejectsExplicitUnifiedBytecodeDecline()
     {
         await using var engine = CreateEngine();
         var result = await engine.EvaluateAndAwait("""
@@ -376,11 +376,13 @@ public sealed class UnifiedBytecodeResumableDynamicIdentifierTests(ITestOutputHe
                 return eval("arguments[0]");
             }
 
-            run([42]).then(value => asyncResult = value);
+            run([42]).then(
+                value => asyncResult = "fulfilled:" + value,
+                error => asyncResult = String(error));
             asyncResult;
             """);
 
-        Assert.Equal(42d, result);
+        AssertAsyncFunctionDeclined(result, "run");
         Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(),
             static record => record.Message.Contains(
                 "unified-bytecode-resumable-async-fast-path func=run argc=1",

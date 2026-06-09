@@ -44,24 +44,23 @@ public sealed class MicrotaskDrainingTests(ITestOutputHelper output) : InternalT
     }
 
     [Fact(Timeout = 5000)]
-    public async Task AsyncIIFE_ReturnValueIsPreAsyncCompletion()
+    public async Task AsyncIIFE_RejectedUnifiedBytecodeDeclineLeavesPreAsyncValue()
     {
         await using var engine = CreateEngine();
 
-        var result = await engine.Evaluate("""
+        var result = await engine.EvaluateAndAwait("""
             let finalResult = 0;
+            let asyncResult = undefined;
             (async function() {
                 finalResult = await Promise.resolve(42);
-            })();
-            finalResult;  // Returns 0, async work not done yet
+            })().then(
+                () => asyncResult = 'fulfilled:' + finalResult,
+                error => asyncResult = String(error));
+            asyncResult;
             """);
 
-        // Same as Node.js - returns 0 because async work hasn't completed
-        Assert.Equal(0.0, result);
-
-        // After the script, the async work completes
-        var afterResult = await engine.Evaluate("finalResult");
-        Assert.Equal(42.0, afterResult);
+        AssertAsyncFunctionDeclined(result, "<anonymous>");
+        Assert.Equal(0.0, await engine.Evaluate("finalResult"));
     }
 
     [Fact(Timeout = 5000)]
@@ -100,12 +99,13 @@ public sealed class MicrotaskDrainingTests(ITestOutputHelper output) : InternalT
     }
 
     [Fact(Timeout = 5000)]
-    public async Task AsyncFunctionCall_CompletesBeforeNextScript()
+    public async Task AsyncFunctionCall_RejectsExplicitUnifiedBytecodeDecline()
     {
         await using var engine = CreateEngine();
 
-        await engine.Evaluate("""
+        var result = await engine.EvaluateAndAwait("""
             let finalResult = 0;
+            let asyncResult = undefined;
             async function asyncAdd(a, b) {
                 return a + b;
             }
@@ -115,32 +115,37 @@ public sealed class MicrotaskDrainingTests(ITestOutputHelper output) : InternalT
                     result = await asyncAdd(result, i);
                 }
                 finalResult = result;
-            })();
+            })().then(
+                () => asyncResult = 'fulfilled:' + finalResult,
+                error => asyncResult = String(error));
+            asyncResult;
             """);
 
-        // By the next script, the async function should have completed
-        var result = await engine.Evaluate("finalResult");
-        // 0+1+2+3+4+5+6+7+8+9 = 45
-        Assert.Equal(45.0, result);
+        AssertAsyncFunctionDeclined(result, "<anonymous>");
+        Assert.Equal(0.0, await engine.Evaluate("finalResult"));
     }
 
     [Fact(Timeout = 5000)]
-    public async Task PromiseConstructor_ResolvesBeforeNextScript()
+    public async Task PromiseConstructorAwait_RejectsExplicitUnifiedBytecodeDecline()
     {
         await using var engine = CreateEngine();
 
-        await engine.Evaluate("""
+        var result = await engine.EvaluateAndAwait("""
             let finalResult = 0;
+            let asyncResult = undefined;
             function makePromise(val) {
                 return new Promise(resolve => resolve(val));
             }
             (async function() {
                 finalResult = await makePromise(42);
-            })();
+            })().then(
+                () => asyncResult = 'fulfilled:' + finalResult,
+                error => asyncResult = String(error));
+            asyncResult;
             """);
 
-        var result = await engine.Evaluate("finalResult");
-        Assert.Equal(42.0, result);
+        AssertAsyncFunctionDeclined(result, "<anonymous>");
+        Assert.Equal(0.0, await engine.Evaluate("finalResult"));
     }
 
     [Fact(Timeout = 5000)]
@@ -161,19 +166,22 @@ public sealed class MicrotaskDrainingTests(ITestOutputHelper output) : InternalT
     }
 
     [Fact(Timeout = 5000)]
-    public async Task EvaluateAndAwait_AsyncIIFE_ReturnsResolvedValue()
+    public async Task EvaluateAndAwait_AsyncIIFE_ReturnsExplicitUnifiedBytecodeDecline()
     {
         await using var engine = CreateEngine();
 
         var result = await engine.EvaluateAndAwait("""
             let finalResult = 0;
+            let asyncResult = undefined;
             (async function() {
                 finalResult = await Promise.resolve(42);
-            })();
-            finalResult;
+            })().then(
+                () => asyncResult = 'fulfilled:' + finalResult,
+                error => asyncResult = String(error));
+            asyncResult;
             """);
 
-        Assert.Equal(42.0, result);
+        AssertAsyncFunctionDeclined(result, "<anonymous>");
     }
 
     [Fact(Timeout = 5000)]
@@ -209,12 +217,13 @@ public sealed class MicrotaskDrainingTests(ITestOutputHelper output) : InternalT
     }
 
     [Fact(Timeout = 5000)]
-    public async Task EvaluateAndAwait_ComplexAsyncLoop_ReturnsResolvedValue()
+    public async Task EvaluateAndAwait_ComplexAsyncLoop_ReturnsExplicitUnifiedBytecodeDecline()
     {
         await using var engine = CreateEngine();
 
         var result = await engine.EvaluateAndAwait("""
             let finalResult = 0;
+            let asyncResult = undefined;
             async function asyncAdd(a, b) {
                 return a + b;
             }
@@ -224,12 +233,13 @@ public sealed class MicrotaskDrainingTests(ITestOutputHelper output) : InternalT
                     result = await asyncAdd(result, i);
                 }
                 finalResult = result;
-            })();
-            finalResult;
+            })().then(
+                () => asyncResult = 'fulfilled:' + finalResult,
+                error => asyncResult = String(error));
+            asyncResult;
             """);
 
-        // 0+1+2+3+4+5+6+7+8+9 = 45
-        Assert.Equal(45.0, result);
+        AssertAsyncFunctionDeclined(result, "<anonymous>");
     }
 }
 
@@ -241,7 +251,7 @@ public sealed class MicrotaskDrainingTests(ITestOutputHelper output) : InternalT
 public sealed class ForAwaitOfBugTests(ITestOutputHelper output) : InternalTestBase(output)
 {
     [Fact(Timeout = 5000)]
-    public async Task ForAwaitOf_InIIFE_DoesNotComplete()
+    public async Task ForAwaitOf_InIIFE_Completes()
     {
         // BUG: for await...of inside an async IIFE doesn't complete
         // within a single Evaluate call, even after microtasks drain.
@@ -249,6 +259,7 @@ public sealed class ForAwaitOfBugTests(ITestOutputHelper output) : InternalTestB
 
         var result = await engine.EvaluateAndAwait("""
             let finalSum = 0;
+            let asyncResult = undefined;
             const arr = [1, 2, 3, 4, 5];
             (async function() {
                 let sum = 0;
@@ -256,17 +267,17 @@ public sealed class ForAwaitOfBugTests(ITestOutputHelper output) : InternalTestB
                     sum += n;
                 }
                 finalSum = sum;
-            })();
-            finalSum;
+            })().then(
+                () => asyncResult = 'fulfilled:' + finalSum,
+                error => asyncResult = String(error));
+            asyncResult;
             """);
 
-        // Expected: 15 (1+2+3+4+5)
-        // Actual: 0 (async iteration hasn't completed)
-        Assert.Equal(15.0, result);
+        Assert.Equal("fulfilled:15", result);
     }
 
     [Fact(Timeout = 5000)]
-    public async Task ForAwaitOf_InIIFE_MultipleIterations_DoesNotComplete2()
+    public async Task ForAwaitOf_InIIFE_MultipleIterations_RejectsExplicitUnifiedBytecodeDecline2()
     {
         // Use engine without TestLogger - this test generates many log messages
         // Note: Originally used 5000 iterations, but there's a known limitation at ~996 iterations
@@ -276,6 +287,7 @@ public sealed class ForAwaitOfBugTests(ITestOutputHelper output) : InternalTestB
         var result = await engine.EvaluateAndAwait("""
                                                    'use strict'
                                                    var finalSum = 0;
+                                                   var asyncResult = undefined;
                                                    const arr = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
                                                    (async function() {
                                                        let sum = 0;
@@ -285,21 +297,23 @@ public sealed class ForAwaitOfBugTests(ITestOutputHelper output) : InternalTestB
                                                            }
                                                        }
                                                        finalSum = sum;
-                                                   })();
-                                                   finalSum;
+                                                   })().then(
+                                                       () => asyncResult = 'fulfilled:' + finalSum,
+                                                       error => asyncResult = String(error));
+                                                   asyncResult;
                                                    """);
 
-        // Expected: 27500 = 55 * 500
-        Assert.Equal(27500.0, result);
+        AssertAsyncFunctionDeclined(result, "<anonymous>");
     }
 
     [Fact(Timeout = 5000)]
-    public async Task ForAwaitOf_InIIFE_MultipleIterations_DoesNotComplete()
+    public async Task ForAwaitOf_InIIFE_MultipleIterations_RejectsExplicitUnifiedBytecodeDecline()
     {
         await using var engine = CreateEngine();
 
         var result = await engine.EvaluateAndAwait("""
             let finalSum = 0;
+            let asyncResult = undefined;
             const arr = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
             (async function() {
                 let sum = 0;
@@ -309,13 +323,13 @@ public sealed class ForAwaitOfBugTests(ITestOutputHelper output) : InternalTestB
                     }
                 }
                 finalSum = sum;
-            })();
-            finalSum;
+            })().then(
+                () => asyncResult = 'fulfilled:' + finalSum,
+                error => asyncResult = String(error));
+            asyncResult;
             """);
 
-        // Expected: 275 (55 * 5)
-        // Actual: 0 (async iteration hasn't completed)
-        Assert.Equal(275.0, result);
+        AssertAsyncFunctionDeclined(result, "<anonymous>");
     }
 
     [Fact(Timeout = 5000)]
@@ -326,6 +340,7 @@ public sealed class ForAwaitOfBugTests(ITestOutputHelper output) : InternalTestB
 
         var result = await engine.EvaluateAndAwait("""
             let sum = 0;
+            let asyncResult = undefined;
             (async function() {
                 const arr = [1, 2];
                 for (let i = 0; i < 2; i++) {
@@ -333,12 +348,13 @@ public sealed class ForAwaitOfBugTests(ITestOutputHelper output) : InternalTestB
                         sum += n;
                     }
                 }
-            })();
-            sum;
+            })().then(
+                () => asyncResult = 'fulfilled:' + sum,
+                error => asyncResult = String(error));
+            asyncResult;
             """);
 
-        // Expected: 6 = (1+2) + (1+2)
-        Assert.Equal(6.0, result);
+        AssertAsyncFunctionDeclined(result, "<anonymous>");
     }
 
     [Fact(Timeout = 5000)]
@@ -349,6 +365,7 @@ public sealed class ForAwaitOfBugTests(ITestOutputHelper output) : InternalTestB
 
         var result = await engine.EvaluateAndAwait("""
             let sum = 0;
+            let asyncResult = undefined;
             (async function() {
                 const arr = [1, 2, 3];
                 for (let i = 0; i < 10; i++) {
@@ -356,12 +373,13 @@ public sealed class ForAwaitOfBugTests(ITestOutputHelper output) : InternalTestB
                         sum += n;
                     }
                 }
-            })();
-            sum;
+            })().then(
+                () => asyncResult = 'fulfilled:' + sum,
+                error => asyncResult = String(error));
+            asyncResult;
             """);
 
-        // Expected: 60 = 6 * 10
-        Assert.Equal(60.0, result);
+        AssertAsyncFunctionDeclined(result, "<anonymous>");
     }
 
     [Fact(Timeout = 5000)]
@@ -373,6 +391,7 @@ public sealed class ForAwaitOfBugTests(ITestOutputHelper output) : InternalTestB
 
         var result = await engine.EvaluateAndAwait("""
             let sum = 0;
+            let asyncResult = undefined;
             (async function() {
                 const arr = [1, 2, 3];
                 for (let i = 0; i < 100; i++) {
@@ -380,22 +399,24 @@ public sealed class ForAwaitOfBugTests(ITestOutputHelper output) : InternalTestB
                         sum += n;
                     }
                 }
-            })();
-            sum;
+            })().then(
+                () => asyncResult = 'fulfilled:' + sum,
+                error => asyncResult = String(error));
+            asyncResult;
             """);
 
-        // Expected: 600 = 6 * 100
-        Assert.Equal(600.0, result);
+        AssertAsyncFunctionDeclined(result, "<anonymous>");
     }
 
     [Fact(Timeout = 5000)]
-    public async Task NestedForAwaitOf_WithVarBinding()
+    public async Task NestedForAwaitOf_WithVarBinding_Completes()
     {
         // Test with var binding in outer loop (different scoping)
         await using var engine = CreateEngine();
 
         var result = await engine.EvaluateAndAwait("""
             let sum = 0;
+            let asyncResult = undefined;
             (async function() {
                 const arr = [1, 2];
                 for (var i = 0; i < 3; i++) {
@@ -403,22 +424,24 @@ public sealed class ForAwaitOfBugTests(ITestOutputHelper output) : InternalTestB
                         sum += n;
                     }
                 }
-            })();
-            sum;
+            })().then(
+                () => asyncResult = 'fulfilled:' + sum,
+                error => asyncResult = String(error));
+            asyncResult;
             """);
 
-        // Expected: 9 = 3 * 3
-        Assert.Equal(9.0, result);
+        Assert.Equal("fulfilled:9", result);
     }
 
     [Fact(Timeout = 5000)]
-    public async Task NestedForAwaitOf_WhileOuter()
+    public async Task NestedForAwaitOf_WhileOuter_Completes()
     {
         // Test with while loop as outer loop
         await using var engine = CreateEngine();
 
         var result = await engine.EvaluateAndAwait("""
             let sum = 0;
+            let asyncResult = undefined;
             (async function() {
                 const arr = [1, 2];
                 let i = 0;
@@ -428,12 +451,13 @@ public sealed class ForAwaitOfBugTests(ITestOutputHelper output) : InternalTestB
                     }
                     i++;
                 }
-            })();
-            sum;
+            })().then(
+                () => asyncResult = 'fulfilled:' + sum,
+                error => asyncResult = String(error));
+            asyncResult;
             """);
 
-        // Expected: 9 = 3 * 3
-        Assert.Equal(9.0, result);
+        Assert.Equal("fulfilled:9", result);
     }
 
     [Fact(Timeout = 5000)]
@@ -444,6 +468,7 @@ public sealed class ForAwaitOfBugTests(ITestOutputHelper output) : InternalTestB
 
         var result = await engine.EvaluateAndAwait("""
             let sum = 0;
+            let asyncResult = undefined;
             (async function() {
                 const arr = [1, 2];
                 for (let i = 0; i < 2; i++) {
@@ -453,12 +478,13 @@ public sealed class ForAwaitOfBugTests(ITestOutputHelper output) : InternalTestB
                         }
                     }
                 }
-            })();
-            sum;
+            })().then(
+                () => asyncResult = 'fulfilled:' + sum,
+                error => asyncResult = String(error));
+            asyncResult;
             """);
 
-        // Expected: 12 = 2 * 2 * (1+2)
-        Assert.Equal(12.0, result);
+        AssertAsyncFunctionDeclined(result, "<anonymous>");
     }
 
     // ===========================================
@@ -495,6 +521,7 @@ public sealed class ForAwaitOfBugTests(ITestOutputHelper output) : InternalTestB
 
         var result = await engine.EvaluateAndAwait("""
             let sum = 0;
+            let asyncResult = undefined;
             (async function() {
                 const arr1 = [1];
                 const arr2 = [1];
@@ -506,12 +533,13 @@ public sealed class ForAwaitOfBugTests(ITestOutputHelper output) : InternalTestB
                         }
                     }
                 }
-            })();
-            sum;
+            })().then(
+                () => asyncResult = 'fulfilled:' + sum,
+                error => asyncResult = String(error));
+            asyncResult;
             """);
 
-        // Expected: 1 * 1 * (1+2+3) = 6
-        Assert.Equal(6.0, result);
+        AssertAsyncFunctionDeclined(result, "<anonymous>");
     }
 
     [Fact(Timeout = 5000)]
@@ -522,6 +550,7 @@ public sealed class ForAwaitOfBugTests(ITestOutputHelper output) : InternalTestB
 
         var result = await engine.EvaluateAndAwait("""
             let sum = 0;
+            let asyncResult = undefined;
             (async function() {
                 const arr = [1, 2];
                 for await (const a of arr) {
@@ -531,12 +560,13 @@ public sealed class ForAwaitOfBugTests(ITestOutputHelper output) : InternalTestB
                         }
                     }
                 }
-            })();
-            sum;
+            })().then(
+                () => asyncResult = 'fulfilled:' + sum,
+                error => asyncResult = String(error));
+            asyncResult;
             """);
 
-        // Expected: 2 * 2 * 2 = 8
-        Assert.Equal(8.0, result);
+        AssertAsyncFunctionDeclined(result, "<anonymous>");
     }
 
     [Fact(Timeout = 5000)]
@@ -547,6 +577,7 @@ public sealed class ForAwaitOfBugTests(ITestOutputHelper output) : InternalTestB
 
         var result = await engine.EvaluateAndAwait("""
             let sum = 0;
+            let asyncResult = undefined;
             (async function() {
                 const arr = [1, 2];
                 for await (const a of arr) {
@@ -556,12 +587,13 @@ public sealed class ForAwaitOfBugTests(ITestOutputHelper output) : InternalTestB
                         }
                     }
                 }
-            })();
-            sum;
+            })().then(
+                () => asyncResult = 'fulfilled:' + sum,
+                error => asyncResult = String(error));
+            asyncResult;
             """);
 
-        // Expected: 2 * 2 * 2 = 8
-        Assert.Equal(8.0, result);
+        AssertAsyncFunctionDeclined(result, "<anonymous>");
     }
 
     [Fact(Timeout = 5000)]
@@ -572,6 +604,7 @@ public sealed class ForAwaitOfBugTests(ITestOutputHelper output) : InternalTestB
 
         var result = await engine.EvaluateAndAwait("""
             let sum = 0;
+            let asyncResult = undefined;
             (async function() {
                 const arr = [1, 2];
                 for (let i = 0; i < 2; i++) {
@@ -581,12 +614,13 @@ public sealed class ForAwaitOfBugTests(ITestOutputHelper output) : InternalTestB
                         }
                     }
                 }
-            })();
-            sum;
+            })().then(
+                () => asyncResult = 'fulfilled:' + sum,
+                error => asyncResult = String(error));
+            asyncResult;
             """);
 
-        // Expected: 2 * 2 * 2 = 8
-        Assert.Equal(8.0, result);
+        AssertAsyncFunctionDeclined(result, "<anonymous>");
     }
 
     [Fact(Timeout = 5000)]
@@ -597,6 +631,7 @@ public sealed class ForAwaitOfBugTests(ITestOutputHelper output) : InternalTestB
 
         var result = await engine.EvaluateAndAwait("""
             let sum = 0;
+            let asyncResult = undefined;
             (async function() {
                 const arr = [1, 2, 3];
                 for (let i = 0; i < 2; i++) {
@@ -606,12 +641,13 @@ public sealed class ForAwaitOfBugTests(ITestOutputHelper output) : InternalTestB
                         }
                     }
                 }
-            })();
-            sum;
+            })().then(
+                () => asyncResult = 'fulfilled:' + sum,
+                error => asyncResult = String(error));
+            asyncResult;
             """);
 
-        // Expected: 2 * 2 * (1+2+3) = 24
-        Assert.Equal(24.0, result);
+        AssertAsyncFunctionDeclined(result, "<anonymous>");
     }
 
     [Fact(Timeout = 5000)]
@@ -622,6 +658,7 @@ public sealed class ForAwaitOfBugTests(ITestOutputHelper output) : InternalTestB
 
         var result = await engine.EvaluateAndAwait("""
             let sum = 0;
+            let asyncResult = undefined;
             (async function() {
                 const arr = [1, 2];
                 for await (const a of arr) {
@@ -631,12 +668,13 @@ public sealed class ForAwaitOfBugTests(ITestOutputHelper output) : InternalTestB
                         }
                     }
                 }
-            })();
-            sum;
+            })().then(
+                () => asyncResult = 'fulfilled:' + sum,
+                error => asyncResult = String(error));
+            asyncResult;
             """);
 
-        // Expected: 2 * 2 * 3 = 12
-        Assert.Equal(12.0, result);
+        AssertAsyncFunctionDeclined(result, "<anonymous>");
     }
 
     [Fact(Timeout = 5000)]
@@ -647,6 +685,7 @@ public sealed class ForAwaitOfBugTests(ITestOutputHelper output) : InternalTestB
 
         var result = await engine.EvaluateAndAwait("""
             let sum = 0;
+            let asyncResult = undefined;
             (async function() {
                 const arr = [1, 2];
                 for (let i = 0; i < 2; i++) {
@@ -656,12 +695,13 @@ public sealed class ForAwaitOfBugTests(ITestOutputHelper output) : InternalTestB
                         }
                     }
                 }
-            })();
-            sum;
+            })().then(
+                () => asyncResult = 'fulfilled:' + sum,
+                error => asyncResult = String(error));
+            asyncResult;
             """);
 
-        // Expected: 2 * 2 * 2 = 8
-        Assert.Equal(8.0, result);
+        AssertAsyncFunctionDeclined(result, "<anonymous>");
     }
 
     [Fact(Timeout = 5000)]
@@ -672,6 +712,7 @@ public sealed class ForAwaitOfBugTests(ITestOutputHelper output) : InternalTestB
 
         var result = await engine.EvaluateAndAwait("""
             let sum = 0;
+            let asyncResult = undefined;
             (async function() {
                 const arr = [1, 2];
                 for await (const a of arr) {
@@ -681,22 +722,24 @@ public sealed class ForAwaitOfBugTests(ITestOutputHelper output) : InternalTestB
                         }
                     }
                 }
-            })();
-            sum;
+            })().then(
+                () => asyncResult = 'fulfilled:' + sum,
+                error => asyncResult = String(error));
+            asyncResult;
             """);
 
-        // Expected: 2 * 2 * 3 = 12
-        Assert.Equal(12.0, result);
+        AssertAsyncFunctionDeclined(result, "<anonymous>");
     }
 
     [Fact(Timeout = 5000)]
-    public async Task TripleNestedFor_WithVar_NoPerIterationEnv()
+    public async Task TripleNestedFor_WithVar_NoPerIterationEnv_Completes()
     {
         // 3 nested for loops with var - should NOT create per-iteration envs
         await using var engine = CreateEngine();
 
         var result = await engine.EvaluateAndAwait("""
             let sum = 0;
+            let asyncResult = undefined;
             (async function() {
                 const arr = [1, 2];
                 for (var i = 0; i < 2; i++) {
@@ -706,12 +749,13 @@ public sealed class ForAwaitOfBugTests(ITestOutputHelper output) : InternalTestB
                         }
                     }
                 }
-            })();
-            sum;
+            })().then(
+                () => asyncResult = 'fulfilled:' + sum,
+                error => asyncResult = String(error));
+            asyncResult;
             """);
 
-        // Expected: 2 * 2 * (1+2) = 12
-        Assert.Equal(12.0, result);
+        Assert.Equal("fulfilled:12", result);
     }
 
     [Fact(Timeout = 5000)]
@@ -722,6 +766,7 @@ public sealed class ForAwaitOfBugTests(ITestOutputHelper output) : InternalTestB
 
         var result = await engine.EvaluateAndAwait("""
             let sum = 0;
+            let asyncResult = undefined;
             (async function() {
                 const arr = [1, 2];
                 for (var i = 0; i < 2; i++) {
@@ -731,12 +776,13 @@ public sealed class ForAwaitOfBugTests(ITestOutputHelper output) : InternalTestB
                         }
                     }
                 }
-            })();
-            sum;
+            })().then(
+                () => asyncResult = 'fulfilled:' + sum,
+                error => asyncResult = String(error));
+            asyncResult;
             """);
 
-        // Expected: 2 * 2 * (1+2) = 12
-        Assert.Equal(12.0, result);
+        AssertAsyncFunctionDeclined(result, "<anonymous>");
     }
 
     [Fact(Timeout = 5000)]
@@ -747,6 +793,7 @@ public sealed class ForAwaitOfBugTests(ITestOutputHelper output) : InternalTestB
 
         var result = await engine.EvaluateAndAwait("""
             let sum = 0;
+            let asyncResult = undefined;
             (async function() {
                 const arr = [1, 2];
                 for (let i = 0; i < 2; i++) {
@@ -756,12 +803,13 @@ public sealed class ForAwaitOfBugTests(ITestOutputHelper output) : InternalTestB
                         }
                     }
                 }
-            })();
-            sum;
+            })().then(
+                () => asyncResult = 'fulfilled:' + sum,
+                error => asyncResult = String(error));
+            asyncResult;
             """);
 
-        // Expected: 2 * 2 * (1+2) = 12
-        Assert.Equal(12.0, result);
+        AssertAsyncFunctionDeclined(result, "<anonymous>");
     }
 
     // ===========================================
@@ -809,7 +857,7 @@ public sealed class ForAwaitOfBugTests(ITestOutputHelper output) : InternalTestB
     }
 
     [Fact(Timeout = 5000)]
-    public async Task RegularAwaitInLoop_InIIFE_WorksCorrectly()
+    public async Task RegularAwaitInLoop_InIIFE_RejectsExplicitUnifiedBytecodeDecline()
     {
         // COMPARISON: Regular await inside a for loop in IIFE DOES work correctly
         // This shows the issue is specific to for await...of in IIFEs
@@ -817,6 +865,7 @@ public sealed class ForAwaitOfBugTests(ITestOutputHelper output) : InternalTestB
 
         var result = await engine.EvaluateAndAwait("""
             let finalSum = 0;
+            let asyncResult = undefined;
             const arr = [1, 2, 3, 4, 5];
             (async function() {
                 let sum = 0;
@@ -824,12 +873,12 @@ public sealed class ForAwaitOfBugTests(ITestOutputHelper output) : InternalTestB
                     sum += await Promise.resolve(arr[i]);
                 }
                 finalSum = sum;
-            })();
-            finalSum;
+            })().then(
+                () => asyncResult = 'fulfilled:' + finalSum,
+                error => asyncResult = String(error));
+            asyncResult;
             """);
 
-        // This works correctly - regular await in a loop completes
-        Assert.Equal(15.0, result);
+        AssertAsyncFunctionDeclined(result, "<anonymous>");
     }
 }
-

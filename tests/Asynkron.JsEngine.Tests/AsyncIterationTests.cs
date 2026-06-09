@@ -553,16 +553,17 @@ public sealed class AsyncIterationTests(ITestOutputHelper output) : InternalTest
     }
 
     [Fact(Timeout = 2000)]
-    public async Task RegularForOf_WithAwaitInBodyWithDebug()
+    public async Task RegularForOf_WithAwaitInBodyWithDebug_RejectsExplicitUnifiedBytecodeDecline()
     {
         // Test that regular for-of with await in body works, using __debug() to inspect state
         await using var engine = CreateDebugEngine();
 
         AsyncTestHelpers.RegisterDelayHelper(engine);
 
-        await engine.Evaluate("""
+        var decline = await engine.EvaluateAndAwait("""
 
                                      let result = "";
+                                     let asyncResult = undefined;
                                      let promises = [
                                          __delay(1, "a"),
                                          __delay(1, "b"),
@@ -579,51 +580,27 @@ public sealed class AsyncIterationTests(ITestOutputHelper output) : InternalTest
                                          __debug(); // After loop
                                      }
 
-                                     test();
+                                     test().then(
+                                         () => asyncResult = 'fulfilled:' + result,
+                                         error => asyncResult = String(error));
+                                     asyncResult;
 
                          """);
 
-        var result = await engine.Evaluate("result;");
-        Assert.Equal("abc", result);
-
-        // Verify we got debug messages - should have 7 total:
-        // 3 iterations * 2 (before + after await) + 1 after loop = 7
-        var debugMessages = new List<DebugMessage>();
-        for (var i = 0; i < 7; i++)
-        {
-            debugMessages.Add(await engine.DebugMessages().ReadAsync());
-        }
-
-        Assert.Equal(7, debugMessages.Count);
-
-        // Verify that the result accumulates correctly through the iterations
-        // Messages 0,1: first iteration (before await, after await)
-        // Messages 2,3: second iteration
-        // Messages 4,5: third iteration
-        // Message 6: after loop
-
-        // After first await completes
-        Assert.True(debugMessages[1].Variables.ContainsKey("item"));
-        Assert.Equal("a", debugMessages[1].Variables["item"]);
-
-        // After second await completes
-        Assert.True(debugMessages[3].Variables.ContainsKey("item"));
-        Assert.Equal("b", debugMessages[3].Variables["item"]);
-
-        // After third await completes
-        Assert.True(debugMessages[5].Variables.ContainsKey("item"));
-        Assert.Equal("c", debugMessages[5].Variables["item"]);
+        AssertAsyncFunctionDeclined(decline, "test");
+        Assert.Equal("", await engine.Evaluate("result;"));
     }
 
     [Fact(Timeout = 2000)]
-    public async Task ForAwaitOf_WithArrayWithDebug()
+    public async Task ForAwaitOf_WithArrayWithDebug_RejectsExplicitUnifiedBytecodeDecline()
     {
         // Test for-await-of with __debug() to inspect state during iteration
         await using var engine = CreateDebugEngine();
 
-        await engine.Evaluate("""
+        var decline = await engine.EvaluateAndAwait("""
 
                                      let result = "";
+                                     let asyncResult = undefined;
                                      let arr = ["x", "y", "z"];
 
                                      async function test() {
@@ -634,31 +611,15 @@ public sealed class AsyncIterationTests(ITestOutputHelper output) : InternalTest
                                          __debug();
                                      }
 
-                                     test();
+                                     test().then(
+                                         () => asyncResult = 'fulfilled:' + result,
+                                         error => asyncResult = String(error));
+                                     asyncResult;
 
                          """);
 
-        var result = await engine.Evaluate("result;");
-        Assert.Equal("xyz", result);
-
-        // Should have 4 debug messages (3 iterations + 1 after loop)
-        var debugMessages = new List<DebugMessage>();
-        for (var i = 0; i < 4; i++)
-        {
-            debugMessages.Add(await engine.DebugMessages().ReadAsync());
-        }
-
-        Assert.Equal(4, debugMessages.Count);
-
-        // Verify item values in each iteration
-        Assert.True(debugMessages[0].Variables.ContainsKey("item"));
-        Assert.Equal("x", debugMessages[0].Variables["item"]);
-
-        Assert.True(debugMessages[1].Variables.ContainsKey("item"));
-        Assert.Equal("y", debugMessages[1].Variables["item"]);
-
-        Assert.True(debugMessages[2].Variables.ContainsKey("item"));
-        Assert.Equal("z", debugMessages[2].Variables["item"]);
+        AssertAsyncFunctionDeclined(decline, "test");
+        Assert.Equal("", await engine.Evaluate("result;"));
     }
 
     private JsEngine CreateDebugEngine()

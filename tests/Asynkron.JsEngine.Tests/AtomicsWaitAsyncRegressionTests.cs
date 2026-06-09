@@ -5,29 +5,34 @@ namespace Asynkron.JsEngine.Tests;
 public sealed class AtomicsWaitAsyncRegressionTests(ITestOutputHelper output) : InternalTestBase(output)
 {
     [Fact]
-    public async Task WaitAsyncZeroTimeoutCanBeAwaited()
+    public async Task WaitAsyncZeroTimeoutAwaitRejectsExplicitUnifiedBytecodeDecline()
     {
         await using var engine = CreateEngine();
 
-        await engine.Evaluate("""
+        var decline = await engine.EvaluateAndAwait("""
             let report = "";
+            let asyncResult = undefined;
             const i32a = new Int32Array(new SharedArrayBuffer(Int32Array.BYTES_PER_ELEMENT));
             (async () => {
                 report = await Atomics.waitAsync(i32a, 0, 0, false).value;
-            })();
+            })().then(
+                () => asyncResult = 'fulfilled:' + report,
+                error => asyncResult = String(error));
+            asyncResult;
             """);
 
-        var result = await engine.Evaluate("report;");
-        Assert.Equal("timed-out", result);
+        AssertAsyncFunctionDeclined(decline, "<anonymous>");
+        Assert.Equal("", await engine.Evaluate("report;"));
     }
 
     [Fact]
-    public async Task WaitAsyncZeroTimeoutCanBeAwaitedRepeatedly()
+    public async Task WaitAsyncZeroTimeoutRepeatedAwaitRejectsExplicitUnifiedBytecodeDecline()
     {
         await using var engine = CreateEngine();
 
-        await engine.Evaluate("""
+        var decline = await engine.EvaluateAndAwait("""
             let report = "";
+            let asyncResult = undefined;
             const valueOf = { valueOf() { return false; } };
             const toPrimitive = { [Symbol.toPrimitive]() { return false; } };
             const i32a = new Int32Array(new SharedArrayBuffer(Int32Array.BYTES_PER_ELEMENT));
@@ -38,11 +43,14 @@ public sealed class AtomicsWaitAsyncRegressionTests(ITestOutputHelper output) : 
                 report += "," + Atomics.waitAsync(i32a, 0, 0, false).value;
                 report += "," + Atomics.waitAsync(i32a, 0, 0, valueOf).value;
                 report += "," + Atomics.waitAsync(i32a, 0, 0, toPrimitive).value;
-            })();
+            })().then(
+                () => asyncResult = 'fulfilled:' + report,
+                error => asyncResult = String(error));
+            asyncResult;
             """);
 
-        var result = await engine.Evaluate("report;");
-        Assert.Equal("timed-out,timed-out,timed-out,timed-out,timed-out,timed-out", result);
+        AssertAsyncFunctionDeclined(decline, "<anonymous>");
+        Assert.Equal("", await engine.Evaluate("report;"));
     }
 
     [Fact]
@@ -164,12 +172,13 @@ public sealed class AtomicsWaitAsyncRegressionTests(ITestOutputHelper output) : 
     }
 
     [Fact]
-    public async Task WaitAsyncGoodIndicesCanBeAwaitedInAsyncFunction()
+    public async Task WaitAsyncGoodIndicesAwaitInAsyncFunctionRejectsExplicitUnifiedBytecodeDecline()
     {
         await using var engine = CreateEngine();
 
-        await engine.Evaluate("""
+        var decline = await engine.EvaluateAndAwait("""
             var report = "";
+            var asyncResult = undefined;
             (async () => {
               const sab = new SharedArrayBuffer(1024);
               const view = new Int32Array(sab, 32, 20);
@@ -190,11 +199,14 @@ public sealed class AtomicsWaitAsyncRegressionTests(ITestOutputHelper output) : 
               }
 
               report = results.join(",");
-            })();
+            })().then(
+                () => asyncResult = 'fulfilled:' + report,
+                error => asyncResult = String(error));
+            asyncResult;
             """);
 
-        var result = await engine.Evaluate("report;");
-        Assert.Equal("not-equal,not-equal,not-equal,not-equal,not-equal", result);
+        AssertAsyncFunctionDeclined(decline, "<anonymous>");
+        Assert.Equal("", await engine.Evaluate("report;"));
     }
 
     [Fact]

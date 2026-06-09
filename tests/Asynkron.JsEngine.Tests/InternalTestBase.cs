@@ -39,4 +39,29 @@ public class InternalTestBase
     {
         return new JsEngine(optionsFactory());
     }
+
+    protected static string AssertAsyncFunctionDeclined(
+        object? result,
+        string functionName,
+        string? declineDetail = null)
+    {
+        var rawMessage = Assert.IsType<string>(result);
+        Assert.DoesNotContain("fulfilled:", rawMessage, StringComparison.Ordinal);
+
+        var messageStart = rawMessage.IndexOf("Async-function body '", StringComparison.Ordinal);
+        Assert.True(messageStart >= 0, $"Expected async-function decline message, got: {rawMessage}");
+        var message = rawMessage[messageStart..];
+
+        Assert.StartsWith(
+            $"Async-function body '{functionName}' is not eligible for unified bytecode execution:",
+            message,
+            StringComparison.Ordinal);
+        Assert.Contains(" - ", message, StringComparison.Ordinal);
+        if (declineDetail is not null)
+        {
+            Assert.Contains(declineDetail, message, StringComparison.Ordinal);
+        }
+
+        return message;
+    }
 }

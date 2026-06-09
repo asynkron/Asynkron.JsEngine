@@ -992,11 +992,11 @@ public sealed class ActivationSemanticsProofPackTests(ITestOutputHelper output) 
     }
 
     [Fact(Timeout = 5000)]
-    public async Task AsyncFunctionActivation_PreservesCapturedParameterAcrossAwait()
+    public async Task AsyncFunctionActivation_RejectsExplicitUnifiedBytecodeDecline()
     {
         await using var engine = CreateEngine();
 
-        await engine.Evaluate("""
+        var result = await engine.EvaluateAndAwait("""
             var observed = "";
 
             async function probe(a) {
@@ -1008,12 +1008,14 @@ public sealed class ActivationSemanticsProofPackTests(ITestOutputHelper output) 
             }
 
             probe(41).then(function(value) {
-                observed = value;
+                observed = "fulfilled:" + value;
+            }, function(error) {
+                observed = String(error);
             });
+            observed;
             """);
 
-        var result = await engine.Evaluate("observed;");
-        Assert.Equal("41:42", result);
+        AssertAsyncFunctionDeclined(result, "probe");
     }
 
     [Fact(Timeout = 5000)]

@@ -185,7 +185,7 @@ public sealed class UnifiedBytecodeResumableThisBindingTests(ITestOutputHelper o
         AssertNotGeneratorFastPath("gen");
     }
 
-    // AC-5 negative-fallback: async function using arguments keeps declining the resumable route.
+    // AC-5 negative: async function using arguments keeps declining the resumable route and rejects explicitly.
     [Fact(Timeout = 5000)]
     public async Task AsyncUsingArguments_DeclinesResumableUnifiedBytecodeFastPath()
     {
@@ -197,11 +197,13 @@ public sealed class UnifiedBytecodeResumableThisBindingTests(ITestOutputHelper o
                 return arguments.length;
             }
 
-            run(1, 2, 3).then(value => asyncResult = value);
+            run(1, 2, 3).then(
+                value => asyncResult = 'fulfilled:' + value,
+                error => asyncResult = String(error));
             asyncResult;
             """);
 
-        Assert.Equal(3d, result);
+        AssertAsyncFunctionDeclined(result, "run");
         Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(),
             static record => record.Message.Contains(
                 $"{ResumableAsyncFastPathLog} func=run",

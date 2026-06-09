@@ -12,148 +12,124 @@ public sealed class LanguageCrashRegressionTests(ITestOutputHelper output) : Int
     public async Task AsyncPrivateGeneratorMethod_ObjectPropertyBindingFailsExplicitlyAfterUnifiedDecline()
     {
         await using var engine = CreateEngine();
-        var result = await engine.EvaluateAndAwait("""
+        var exception = await Assert.ThrowsAsync<NotSupportedException>(() => engine.EvaluateAndAwait("""
             var result = null;
 
-            (async function() {
-              var callCount = 0;
-              var sawReferenceError = false;
-              var sawValue = false;
+            var callCount = 0;
+            var sawReferenceError = false;
+            var sawValue = false;
 
-              class C {
-                async * #method({ x: y }) {
-                  sawValue = y === 23;
-                  try {
-                    x;
-                  } catch (e) {
-                    sawReferenceError = e instanceof ReferenceError;
-                  }
-
-                  callCount = callCount + 1;
+            class C {
+              async * #method({ x: y }) {
+                sawValue = y === 23;
+                try {
+                  x;
+                } catch (e) {
+                  sawReferenceError = e instanceof ReferenceError;
                 }
 
-                get method() {
-                  return this.#method;
-                }
+                callCount = callCount + 1;
               }
 
-              await new C().method({ x: 23 }).next();
-              return {
-                callCount,
-                sawValue,
-                sawReferenceError
-              };
-            })().then(function(value) {
+              get method() {
+                return this.#method;
+              }
+            }
+
+            new C().method({ x: 23 }).next().then(function(value) {
               result = value;
             }, function(error) {
               result = String(error);
             });
 
             result;
-            """);
+            """));
 
-        var message = Assert.IsType<string>(result);
-        Assert.Contains("Non-simple async-generator parameter lists", message, StringComparison.Ordinal);
+        Assert.Contains("Non-simple async-generator parameter lists", exception.Message, StringComparison.Ordinal);
     }
 
     [Fact(Timeout = 5000)]
     public async Task AsyncPrivateGeneratorMethod_ObjectPropertyArrayInitializerFailsExplicitlyAfterUnifiedDecline()
     {
         await using var engine = CreateEngine();
-        var result = await engine.EvaluateAndAwait("""
+        var exception = await Assert.ThrowsAsync<NotSupportedException>(() => engine.EvaluateAndAwait("""
             var result = null;
 
-            (async function() {
-              var callCount = 0;
-              var sawValues = false;
-              var sawReferenceError = false;
+            var callCount = 0;
+            var sawValues = false;
+            var sawReferenceError = false;
 
-              class C {
-                async * #method({ w: [x, y, z] = [4, 5, 6] }) {
-                  sawValues = x === 4 && y === 5 && z === 6;
-                  try {
-                    w;
-                  } catch (e) {
-                    sawReferenceError = e instanceof ReferenceError;
-                  }
-
-                  callCount = callCount + 1;
+            class C {
+              async * #method({ w: [x, y, z] = [4, 5, 6] }) {
+                sawValues = x === 4 && y === 5 && z === 6;
+                try {
+                  w;
+                } catch (e) {
+                  sawReferenceError = e instanceof ReferenceError;
                 }
 
-                get method() {
-                  return this.#method;
-                }
+                callCount = callCount + 1;
               }
 
-              await new C().method({}).next();
-              return {
-                callCount,
-                sawValues,
-                sawReferenceError
-              };
-            })().then(function(value) {
+              get method() {
+                return this.#method;
+              }
+            }
+
+            new C().method({}).next().then(function(value) {
               result = value;
             }, function(error) {
               result = String(error);
             });
 
             result;
-            """);
+            """));
 
-        var message = Assert.IsType<string>(result);
-        Assert.Contains("Non-simple async-generator parameter lists", message, StringComparison.Ordinal);
+        Assert.Contains("Non-simple async-generator parameter lists", exception.Message, StringComparison.Ordinal);
     }
 
     [Fact(Timeout = 5000)]
     public async Task AsyncPrivateGeneratorMethod_InClassExpressionObjectPropertyBindingFailsExplicitlyAfterUnifiedDecline()
     {
         await using var engine = CreateEngine();
-        var result = await engine.EvaluateAndAwait("""
+        var exception = await Assert.ThrowsAsync<NotSupportedException>(() => engine.EvaluateAndAwait("""
             var result = null;
 
-            (async function() {
-              var callCount = 0;
-              var sawReferenceError = false;
-              var sawValue = false;
+            var callCount = 0;
+            var sawReferenceError = false;
+            var sawValue = false;
 
-              var C = class {
-                async * #method({ x: y }) {
-                  sawValue = y === 23;
-                  try {
-                    x;
-                  } catch (e) {
-                    sawReferenceError = e instanceof ReferenceError;
-                  }
-
-                  callCount = callCount + 1;
+            var C = class {
+              async * #method({ x: y }) {
+                sawValue = y === 23;
+                try {
+                  x;
+                } catch (e) {
+                  sawReferenceError = e instanceof ReferenceError;
                 }
 
-                get method() {
-                  return this.#method;
-                }
-              };
+                callCount = callCount + 1;
+              }
 
-              await new C().method({ x: 23 }).next();
-              return {
-                callCount,
-                sawValue,
-                sawReferenceError
-              };
-            })().then(function(value) {
+              get method() {
+                return this.#method;
+              }
+            };
+
+            new C().method({ x: 23 }).next().then(function(value) {
               result = value;
             }, function(error) {
               result = String(error);
             });
 
             result;
-            """);
+            """));
 
-        var message = Assert.IsType<string>(result);
-        Assert.Contains("Non-simple async-generator parameter lists", message, StringComparison.Ordinal);
+        Assert.Contains("Non-simple async-generator parameter lists", exception.Message, StringComparison.Ordinal);
     }
 
     [Fact(Timeout = 5000)]
-    public async Task ForAwaitOf_ArrayRestBinding_CopiesIterationValues()
+    public async Task ForAwaitOf_ArrayRestBinding_RejectsExplicitUnifiedBytecodeDecline()
     {
         await using var engine = CreateEngine();
         var result = await engine.EvaluateAndAwait("""
@@ -180,43 +156,14 @@ public sealed class LanguageCrashRegressionTests(ITestOutputHelper output) : Int
               };
             })().then(function(value) {
               result = value;
+            }, function(error) {
+              result = String(error);
             });
 
             result;
             """);
 
-        var obj = Assert.IsType<JsObject>(result);
-        var hasIterCount = obj.TryGetProperty("iterCount", out var iterCount);
-        var hasIsArray = obj.TryGetProperty("isArray", out var isArray);
-        var hasLength = obj.TryGetProperty("length", out var length);
-        var hasFirst = obj.TryGetProperty("first", out var first);
-        var hasSecond = obj.TryGetProperty("second", out var second);
-        var hasThird = obj.TryGetProperty("third", out var third);
-        var hasCopied = obj.TryGetProperty("copied", out var copied);
-        WriteObjectDiagnostics("for-await-of rest binding result", obj);
-        Output.WriteLine(
-            "iterCount={0} isArray={1} length={2} first={3} second={4} third={5} copied={6}",
-            Describe(iterCount),
-            Describe(isArray),
-            Describe(length),
-            Describe(first),
-            Describe(second),
-            Describe(third),
-            Describe(copied));
-        Assert.True(hasIterCount, MissingPropertyMessage("iterCount", obj));
-        Assert.True(hasIsArray, MissingPropertyMessage("isArray", obj));
-        Assert.True(hasLength, MissingPropertyMessage("length", obj));
-        Assert.True(hasFirst, MissingPropertyMessage("first", obj));
-        Assert.True(hasSecond, MissingPropertyMessage("second", obj));
-        Assert.True(hasThird, MissingPropertyMessage("third", obj));
-        Assert.True(hasCopied, MissingPropertyMessage("copied", obj));
-        Assert.Equal(1.0, iterCount.AsDouble());
-        Assert.True(isArray.AsBoolean());
-        Assert.Equal(3.0, length.AsDouble());
-        Assert.Equal(1.0, first.AsDouble());
-        Assert.Equal(2.0, second.AsDouble());
-        Assert.Equal(3.0, third.AsDouble());
-        Assert.True(copied.AsBoolean());
+        AssertAsyncFunctionDeclined(result, "<anonymous>");
     }
 
     [Fact(Timeout = 5000)]

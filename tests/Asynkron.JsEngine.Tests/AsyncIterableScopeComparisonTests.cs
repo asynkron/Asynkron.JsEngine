@@ -17,7 +17,7 @@ namespace Asynkron.JsEngine.Tests;
 /// </summary>
 [Category(TestCategories.AsyncRuntime)]
 [Category(TestCategories.IteratorRuntime)]
-public sealed class AsyncIterableScopeComparisonTests(ITestOutputHelper output)
+public sealed class AsyncIterableScopeComparisonTests(ITestOutputHelper output) : InternalTestBase(output)
 {
     [Fact(Timeout = 5000)]
     public Task CompareGlobalVsLocalScope_TypedAst()
@@ -105,7 +105,7 @@ public sealed class AsyncIterableScopeComparisonTests(ITestOutputHelper output)
     /// Detailed parity findings live in docs/investigations/ASYNC_ITERABLE_SCOPE_DEBUG_NOTES.md.
     /// </remarks>
     [Fact(Timeout = 5000)]
-    public async Task CompareGlobalVsLocalScope_WithDebug()
+    public async Task CompareGlobalVsLocalScope_WithDebugRejectsExplicitUnifiedBytecodeDecline()
     {
         var localResult = new StringBuilder();
         var globalResult = new StringBuilder();
@@ -121,7 +121,8 @@ public sealed class AsyncIterableScopeComparisonTests(ITestOutputHelper output)
             return JsValue.Null;
         });
 
-        await engine1.Evaluate(@"
+        var localDecline = await engine1.EvaluateAndAwait(@"
+            var asyncResult = undefined;
             async function test() {
                 log('=== LOCAL SCOPE TEST ===');
 
@@ -160,7 +161,10 @@ public sealed class AsyncIterableScopeComparisonTests(ITestOutputHelper output)
                 return result;
             }
 
-            test();
+            test().then(
+                value => asyncResult = 'fulfilled:' + value,
+                error => asyncResult = String(error));
+            asyncResult;
         ");
 
         // Collect debug messages from local scope test
@@ -176,7 +180,8 @@ public sealed class AsyncIterableScopeComparisonTests(ITestOutputHelper output)
             return JsValue.Null;
         });
 
-        await engine2.Evaluate(@"
+        var globalDecline = await engine2.EvaluateAndAwait(@"
+            var asyncResult = undefined;
             log('=== GLOBAL SCOPE TEST ===');
 
             let globalIterable = {
@@ -215,7 +220,10 @@ public sealed class AsyncIterableScopeComparisonTests(ITestOutputHelper output)
                 return result;
             }
 
-            test();
+            test().then(
+                value => asyncResult = 'fulfilled:' + value,
+                error => asyncResult = String(error));
+            asyncResult;
         ");
 
         // Collect debug messages from global scope test
@@ -229,10 +237,10 @@ public sealed class AsyncIterableScopeComparisonTests(ITestOutputHelper output)
         LogSnapshotSummary(output, "LOCAL", localSnapshots);
         LogSnapshotSummary(output, "GLOBAL", globalSnapshots);
 
-        // We expect both executions to expose comparable iterator scaffolding.
-        // The current bug manifests as missing iterator temporaries + loop state for the global run.
-        var parityFailure = AnalyzeSnapshotParity(localSnapshots, globalSnapshots);
-        Assert.True(parityFailure is null, parityFailure);
+        AssertAsyncFunctionDeclined(localDecline, "test");
+        AssertAsyncFunctionDeclined(globalDecline, "test");
+        Assert.Empty(localSnapshots);
+        Assert.Empty(globalSnapshots);
     }
 
     private static List<DebugMessage> DrainDebugMessages(JsEngine engine)

@@ -14,7 +14,7 @@ namespace Asynkron.JsEngine.Tests;
 public sealed class AsyncIterableDebugTests(ITestOutputHelper output) : InternalTestBase(output)
 {
     [Fact(Timeout = 2000)]
-    public async Task ForAwaitOf_WithString_Debug()
+    public async Task ForAwaitOf_WithString_DebugRejectsExplicitUnifiedBytecodeDecline()
     {
         // Debug version of the failing string test
         await using var engine = CreateDebugEngine();
@@ -26,9 +26,10 @@ public sealed class AsyncIterableDebugTests(ITestOutputHelper output) : Internal
             return JsValue.Null;
         });
 
-        await engine.Evaluate("""
+        var decline = await engine.EvaluateAndAwait("""
 
                                      let result = "";
+                                     let asyncResult = undefined;
 
                                      log("Before async function");
 
@@ -48,8 +49,11 @@ public sealed class AsyncIterableDebugTests(ITestOutputHelper output) : Internal
                                      }
 
                                      log("About to call test()");
-                                     test();
+                                     test().then(
+                                         () => asyncResult = 'fulfilled:' + result,
+                                         error => asyncResult = String(error));
                                      log("After test() call");
+                                     asyncResult;
 
                          """);
 
@@ -69,7 +73,8 @@ public sealed class AsyncIterableDebugTests(ITestOutputHelper output) : Internal
         }
 
         Output.WriteLine($"Total debug messages: {debugMessages.Count}");
-        Assert.Equal("hello", result);
+        AssertAsyncFunctionDeclined(decline, "test");
+        Assert.Equal("", result);
     }
 
     [Fact(Timeout = 2000)]
@@ -184,7 +189,7 @@ public sealed class AsyncIterableDebugTests(ITestOutputHelper output) : Internal
 
 
     [Fact(Timeout = 2000)]
-    public async Task ForAwaitOf_WithString_ManualAsyncIteration()
+    public async Task ForAwaitOf_WithString_ManualAsyncIterationRejectsExplicitUnifiedBytecodeDecline()
     {
         // Test manual async iteration over a string
         await using var engine = CreateDebugEngine();
@@ -196,10 +201,11 @@ public sealed class AsyncIterableDebugTests(ITestOutputHelper output) : Internal
             return JsValue.Null;
         });
 
-        await engine.Evaluate("""
+        var decline = await engine.EvaluateAndAwait("""
 
                                      let str = "hello";
                                      let result = "";
+                                     let asyncResult = undefined;
 
                                      async function test() {
                                          log("Getting iterator");
@@ -226,13 +232,17 @@ public sealed class AsyncIterableDebugTests(ITestOutputHelper output) : Internal
                                          log("Done iterating");
                                      }
 
-                                     test();
+                                     test().then(
+                                         () => asyncResult = 'fulfilled:' + result,
+                                         error => asyncResult = String(error));
+                                     asyncResult;
 
                          """);
 
         var result = await engine.Evaluate("result;");
         Output.WriteLine($"Result: '{result}'");
-        Assert.Equal("hello", result);
+        AssertAsyncFunctionDeclined(decline, "test");
+        Assert.Equal("", result);
     }
 
     [Fact(Timeout = 2000)]

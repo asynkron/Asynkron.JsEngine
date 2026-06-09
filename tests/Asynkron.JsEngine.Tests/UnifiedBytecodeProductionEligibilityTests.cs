@@ -1261,6 +1261,58 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
+    public void EvaluateResumable_BlockScopedFunctionDeclaration_DeclinesUntilDeclarationEnvironmentOwned()
+    {
+        var plan = GetFunctionPlan("""
+            async function run() {
+                {
+                    function inner() {
+                        return 42;
+                    }
+
+                    await Promise.resolve();
+                    return inner();
+                }
+            }
+            """,
+            "run");
+
+        var result = UnifiedBytecodeProductionEligibility.EvaluateResumable(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor(IsAsyncLike: true));
+
+        Assert.False(result.IsEligible);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.UnsupportedPlanShape, result.Code);
+        Assert.Contains("materialized declaration environment", result.Reason, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void EvaluateResumable_BlockScopedFunctionDeclarationCapturingActivation_Declines()
+    {
+        var plan = GetFunctionPlan("""
+            async function run(value) {
+                {
+                    function inner() {
+                        return value;
+                    }
+
+                    await Promise.resolve();
+                    return inner();
+                }
+            }
+            """,
+            "run");
+
+        var result = UnifiedBytecodeProductionEligibility.EvaluateResumable(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor(IsAsyncLike: true));
+
+        Assert.False(result.IsEligible);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.UnsupportedPlanShape, result.Code);
+        Assert.Contains("materialized declaration environment", result.Reason, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task Execute_BlockFunctionDeclarationBlockedByBodyLexicalName_DoesNotApplyAnnexBUpdate()
     {
         await using var engine = CreateEngine();

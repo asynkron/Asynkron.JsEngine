@@ -1421,6 +1421,10 @@ internal static class UnifiedBytecodeProductionEligibility
                     classDeclaration.Descriptor,
                     activationSlots,
                     out declineReason);
+            case FunctionDeclarationInstruction { Descriptor: { } }:
+                declineReason =
+                    "Descriptor-backed block-scoped function declarations require a materialized declaration environment and Annex B blocked-name setup before resumable unified bytecode routing.";
+                return false;
             // B36 narrow slice: function-scoped declarations lower as no-op IR records because the
             // resumable invoker has already populated their flat slots during activation setup. The
             // activation flag is set only after the invoker proves every direct root declaration is

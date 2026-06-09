@@ -86,30 +86,11 @@ public sealed class AsyncAwaitTests(ITestOutputHelper output) : InternalTestBase
     public async Task AsyncFunction_BlockScopedFunctionDeclaration_UsesClassifiedDeclinedBodyRunner()
     {
         await using var engine = CreateEngine();
-        var result = "";
-        var error = "";
-
-        engine.SetGlobalFunction("captureResult", args =>
-        {
-            if (args.Count > 0)
-            {
-                result = args[0].ToObject()?.ToString() ?? "";
-            }
-            return JsValue.Null;
-        });
-
-        engine.SetGlobalFunction("captureError", args =>
-        {
-            if (args.Count > 0)
-            {
-                error = args[0].ToObject()?.ToString() ?? "";
-            }
-            return JsValue.Null;
-        });
 
         ExecutionPlanDiagnostics.Reset();
-        var exception = await Record.ExceptionAsync(() => engine.Evaluate("""
+        var result = await engine.EvaluateAndAwait("""
             "use strict";
+            var asyncResult = "";
             async function run() {
                 let value;
                 {
@@ -121,13 +102,109 @@ public sealed class AsyncAwaitTests(ITestOutputHelper output) : InternalTestBase
                 return value;
             }
             run()
-                .then(function(value) { captureResult(value); })
-                .catch(function(error) { captureError(String(error)); });
-            """));
+                .then(
+                    function(value) { asyncResult = String(value); },
+                    function(error) { asyncResult = String(error); });
+            asyncResult;
+            """);
 
-        Assert.Null(exception);
         Assert.Equal("42", result);
-        Assert.True(string.IsNullOrEmpty(error));
+        var logs = CurrentLogger!.Collector.Snapshot();
+        Assert.Contains(
+            logs,
+            static record => record.Message.Contains(
+                "classified-async-function-declined-body-runner-residue",
+                StringComparison.Ordinal));
+        Assert.DoesNotContain(
+            logs,
+            static record => record.Message.Contains(
+                "unified-bytecode-resumable-async-fast-path func=run argc=0",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task AsyncFunction_StrictBlockScopedFunctionDeclaration_DoesNotLeakPastBlock()
+    {
+        await using var engine = CreateEngine();
+
+        ExecutionPlanDiagnostics.Reset();
+        var result = await engine.EvaluateAndAwait("""
+            "use strict";
+            var asyncResult = "";
+            async function run() {
+                let inside;
+                {
+                    function f() { return 42; }
+                    inside = f();
+                    await Promise.resolve();
+                }
+
+                let leak;
+                try {
+                    f;
+                    leak = "leaked";
+                } catch (error) {
+                    leak = error.name;
+                }
+
+                return inside + ":" + leak;
+            }
+            run()
+                .then(
+                    function(value) { asyncResult = String(value); },
+                    function(error) { asyncResult = "reject:" + error.name; });
+            asyncResult;
+            """);
+
+        Assert.Equal("42:ReferenceError", result);
+        var logs = CurrentLogger!.Collector.Snapshot();
+        Assert.Contains(
+            logs,
+            static record => record.Message.Contains(
+                "classified-async-function-declined-body-runner-residue",
+                StringComparison.Ordinal));
+        Assert.DoesNotContain(
+            logs,
+            static record => record.Message.Contains(
+                "unified-bytecode-resumable-async-fast-path func=run argc=0",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task AsyncFunction_SloppyBlockFunctionBlockedByParameter_DoesNotLeakGlobal()
+    {
+        await using var engine = CreateEngine();
+
+        ExecutionPlanDiagnostics.Reset();
+        var result = await engine.EvaluateAndAwait("""
+            var asyncResult = "";
+            async function run(f) {
+                {
+                    function f() { return "inner"; }
+                    await Promise.resolve();
+                }
+
+                return f + ":" + typeof globalThis.f;
+            }
+            run("param")
+                .then(
+                    function(value) { asyncResult = String(value); },
+                    function(error) { asyncResult = "reject:" + error.name; });
+            asyncResult;
+            """);
+
+        Assert.Equal("param:undefined", result);
+        var logs = CurrentLogger!.Collector.Snapshot();
+        Assert.Contains(
+            logs,
+            static record => record.Message.Contains(
+                "classified-async-function-declined-body-runner-residue",
+                StringComparison.Ordinal));
+        Assert.DoesNotContain(
+            logs,
+            static record => record.Message.Contains(
+                "unified-bytecode-resumable-async-fast-path func=run argc=1",
+                StringComparison.Ordinal));
     }
 
     [Fact(Timeout = 2000)]

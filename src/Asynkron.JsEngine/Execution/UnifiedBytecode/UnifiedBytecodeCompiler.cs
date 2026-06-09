@@ -4895,7 +4895,9 @@ internal static class UnifiedBytecodeCompiler
         if (TryAppendFirstBoundaryOptionalNamedPropertyRead(
                 expressionProgram,
                 activationSlots,
+                allowsDynamicIdentifiers,
                 unified,
+                literalConstants,
                 stringConstants,
                 out reason))
         {
@@ -4910,7 +4912,9 @@ internal static class UnifiedBytecodeCompiler
         if (TryAppendFirstBoundaryOptionalNamedPropertyReadChain(
                 expressionProgram,
                 activationSlots,
+                allowsDynamicIdentifiers,
                 unified,
+                literalConstants,
                 stringConstants,
                 out reason))
         {
@@ -4925,6 +4929,7 @@ internal static class UnifiedBytecodeCompiler
         if (TryAppendFirstBoundaryOptionalNamedThenComputed(
                 expressionProgram,
                 activationSlots,
+                allowsDynamicIdentifiers,
                 unified,
                 literalConstants,
                 stringConstants,
@@ -4941,6 +4946,7 @@ internal static class UnifiedBytecodeCompiler
         if (TryAppendFirstBoundaryOptionalComputedPropertyReadChain(
                 expressionProgram,
                 activationSlots,
+                allowsDynamicIdentifiers,
                 unified,
                 literalConstants,
                 stringConstants,
@@ -6838,7 +6844,8 @@ internal static class UnifiedBytecodeCompiler
                 stringConstants,
                 startInclusive: keyStartIndex,
                 endExclusive: callTargetIndexInProgram,
-                out reason))
+                out reason,
+                allowsDynamicIdentifiers))
         {
             return false;
         }
@@ -7062,8 +7069,10 @@ internal static class UnifiedBytecodeCompiler
                 expressionProgram.GetOperation(keyIndex),
                 expressionProgram,
                 activationSlots,
+                allowsDynamicIdentifiers,
                 unified,
                 literalConstants,
+                stringConstants,
                 out reason))
         {
             return false;
@@ -7102,7 +7111,7 @@ internal static class UnifiedBytecodeCompiler
     }
 
     // Case 6: a?.b[k](args) — optional-start chain, computed plain non-optional call.
-    // Lowers to: LoadSlot(base), JumpIfNullishReplaceUndefined(end), GetNamedProperty(b),
+    // Lowers to: base-load, JumpIfNullishReplaceUndefined(end), GetNamedProperty(b),
     //            key-load, PrepareComputedCallTarget, args, (end:)
     private static bool TryAppendOptionalChainComputedPlainCallTarget(
         ExpressionProgram expressionProgram,
@@ -7120,11 +7129,14 @@ internal static class UnifiedBytecodeCompiler
         var activationSlots = slotLayout.ActivationSlots;
         var expressionStringConstants = expressionProgram.StringConstants.AsSpan();
 
-        if (!TryAppendActivationValueLoad(
+        if (!TryAppendSimpleOperandLoadWithDynamic(
                 expressionProgram.GetOperation(0),
                 expressionProgram,
                 activationSlots,
+                allowsDynamicIdentifiers,
                 unified,
+                literalConstants,
+                stringConstants,
                 out reason))
         {
             return false;
@@ -7150,8 +7162,10 @@ internal static class UnifiedBytecodeCompiler
                 expressionProgram.GetOperation(keyIndex),
                 expressionProgram,
                 activationSlots,
+                allowsDynamicIdentifiers,
                 unified,
                 literalConstants,
+                stringConstants,
                 out reason))
         {
             return false;
@@ -7186,7 +7200,7 @@ internal static class UnifiedBytecodeCompiler
     }
 
     // Case 7 (A30): o?.[k](args) — optional-computed-START chain, plain non-optional computed call.
-    // Lowers to: LoadSlot(base), JumpIfNullishReplaceUndefined(end), key-load,
+    // Lowers to: base-load, JumpIfNullishReplaceUndefined(end), key-load,
     //            PrepareComputedCallTarget, args, (end:). A nullish receiver short-circuits the
     //            whole call to undefined (the call is never made).
     private static bool TryAppendOptionalComputedStartPlainCallTarget(
@@ -7204,11 +7218,14 @@ internal static class UnifiedBytecodeCompiler
     {
         var activationSlots = slotLayout.ActivationSlots;
 
-        if (!TryAppendActivationValueLoad(
+        if (!TryAppendSimpleOperandLoadWithDynamic(
                 expressionProgram.GetOperation(0),
                 expressionProgram,
                 activationSlots,
+                allowsDynamicIdentifiers,
                 unified,
+                literalConstants,
+                stringConstants,
                 out reason))
         {
             return false;
@@ -7222,8 +7239,10 @@ internal static class UnifiedBytecodeCompiler
                 expressionProgram.GetOperation(keyIndex),
                 expressionProgram,
                 activationSlots,
+                allowsDynamicIdentifiers,
                 unified,
                 literalConstants,
+                stringConstants,
                 out reason))
         {
             return false;
@@ -7259,7 +7278,7 @@ internal static class UnifiedBytecodeCompiler
 
     // Case 8 (A30): a?.b?.[k](args) — double-optional chain (optional-named start, optional-computed
     // continuation), plain non-optional call. Computed-key twin of Case 5's a?.b?.c(args).
-    // Lowers to: LoadSlot(base), JumpIfNullishReplaceUndefined(end), GetNamedProperty(b),
+    // Lowers to: base-load, JumpIfNullishReplaceUndefined(end), GetNamedProperty(b),
     //            JumpIfNullishReplaceUndefined(end), key-load, PrepareComputedCallTarget, args, (end:).
     // Either nullish hop short-circuits the whole call to undefined (the call is never made).
     private static bool TryAppendOptionalChainComputedReceiverOptionalCallTarget(
@@ -7279,11 +7298,14 @@ internal static class UnifiedBytecodeCompiler
         var expressionStringConstants = expressionProgram.StringConstants.AsSpan();
 
         // Emit base load.
-        if (!TryAppendActivationValueLoad(
+        if (!TryAppendSimpleOperandLoadWithDynamic(
                 expressionProgram.GetOperation(0),
                 expressionProgram,
                 activationSlots,
+                allowsDynamicIdentifiers,
                 unified,
+                literalConstants,
+                stringConstants,
                 out reason))
         {
             return false;
@@ -7316,8 +7338,10 @@ internal static class UnifiedBytecodeCompiler
                 expressionProgram.GetOperation(keyIndex),
                 expressionProgram,
                 activationSlots,
+                allowsDynamicIdentifiers,
                 unified,
                 literalConstants,
+                stringConstants,
                 out reason))
         {
             return false;
@@ -7447,7 +7471,7 @@ internal static class UnifiedBytecodeCompiler
     }
 
     // Case 5: a?.b?.c(args) — double-optional chain, receiver-optional call.
-    // Lowers to: LoadSlot(base), JumpIfNullishReplaceUndefined(end), GetNamedProperty(b),
+    // Lowers to: base-load, JumpIfNullishReplaceUndefined(end), GetNamedProperty(b),
     //            PrepareNamedOptionalCallTarget(c, end), args, (end:)
     private static bool TryAppendOptionalChainReceiverOptionalCallTarget(
         ExpressionProgram expressionProgram,
@@ -7466,11 +7490,14 @@ internal static class UnifiedBytecodeCompiler
         var expressionStringConstants = expressionProgram.StringConstants.AsSpan();
 
         // Emit base load
-        if (!TryAppendActivationValueLoad(
+        if (!TryAppendSimpleOperandLoadWithDynamic(
                 expressionProgram.GetOperation(0),
                 expressionProgram,
                 activationSlots,
+                allowsDynamicIdentifiers,
                 unified,
+                literalConstants,
+                stringConstants,
                 out reason))
         {
             return false;
@@ -16215,12 +16242,14 @@ internal static class UnifiedBytecodeCompiler
         return true;
     }
 
-    // Handles: [activation-resolved base, GetNamedProperty(IsOptional:true, !ShortCircuitOnNullishTarget)]
-    // Emits: LoadSlot, GetNamedPropertyOptional
+    // Handles: [simple/dynamic base, GetNamedProperty(IsOptional:true, !ShortCircuitOnNullishTarget)]
+    // Emits: base load, GetNamedPropertyOptional
     private static bool TryAppendFirstBoundaryOptionalNamedPropertyRead(
         ExpressionProgram expressionProgram,
         ActivationSlotShape activationSlots,
+        bool allowsDynamicIdentifiers,
         ImmutableArray<UnifiedBytecodeInstruction>.Builder unified,
+        ImmutableArray<JsValue>.Builder literalConstants,
         ImmutableArray<string>.Builder stringConstants,
         out string reason)
     {
@@ -16241,7 +16270,15 @@ internal static class UnifiedBytecodeCompiler
             return false;
         }
 
-        if (!TryAppendActivationValueLoad(baseLoad, expressionProgram, activationSlots, unified, out reason))
+        if (!TryAppendSimpleOperandLoadWithDynamic(
+                baseLoad,
+                expressionProgram,
+                activationSlots,
+                allowsDynamicIdentifiers,
+                unified,
+                literalConstants,
+                stringConstants,
+                out reason))
         {
             return false;
         }
@@ -16254,7 +16291,7 @@ internal static class UnifiedBytecodeCompiler
     }
 
     // Handles multi-hop optional named chains a?.b.c and a?.b?.c:
-    //   [activation-resolved base,
+    //   [simple/dynamic base,
     //    GetNamedProperty(non-optional, non-private)*,
     //    GetNamedProperty(IsOptional:true, !ShortCircuitOnNullishTarget, non-private),
     //    GetNamedProperty(ShortCircuitOnNullishTarget:true, non-private)+]
@@ -16270,7 +16307,9 @@ internal static class UnifiedBytecodeCompiler
     private static bool TryAppendFirstBoundaryOptionalNamedPropertyReadChain(
         ExpressionProgram expressionProgram,
         ActivationSlotShape activationSlots,
+        bool allowsDynamicIdentifiers,
         ImmutableArray<UnifiedBytecodeInstruction>.Builder unified,
+        ImmutableArray<JsValue>.Builder literalConstants,
         ImmutableArray<string>.Builder stringConstants,
         out string reason)
     {
@@ -16334,11 +16373,14 @@ internal static class UnifiedBytecodeCompiler
             }
         }
 
-        if (!TryAppendActivationValueLoad(
+        if (!TryAppendSimpleOperandLoadWithDynamic(
                 expressionProgram.GetOperation(0),
                 expressionProgram,
                 activationSlots,
+                allowsDynamicIdentifiers,
                 unified,
+                literalConstants,
+                stringConstants,
                 out reason))
         {
             return false;
@@ -16378,13 +16420,14 @@ internal static class UnifiedBytecodeCompiler
         return true;
     }
 
-    // Handles: [activation-resolved base, GetNamedProperty(non-optional, non-private)*,
+    // Handles: [simple/dynamic base, GetNamedProperty(non-optional, non-private)*,
     // GetNamedProperty(IsOptional:true, !SC, non-private), key..., GetComputedProperty(SC:true), GetNamedProperty(SC:true)*]
-    // Emits: LoadSlot, GetNamedProperty*, JumpIfNullishReplaceUndefined(end), GetNamedProperty(b),
+    // Emits: base-load, GetNamedProperty*, JumpIfNullishReplaceUndefined(end), GetNamedProperty(b),
     // key..., GetComputedProperty, GetNamedProperty*
     private static bool TryAppendFirstBoundaryOptionalNamedThenComputed(
         ExpressionProgram expressionProgram,
         ActivationSlotShape activationSlots,
+        bool allowsDynamicIdentifiers,
         ImmutableArray<UnifiedBytecodeInstruction>.Builder unified,
         ImmutableArray<JsValue>.Builder literalConstants,
         ImmutableArray<string>.Builder stringConstants,
@@ -16470,7 +16513,15 @@ internal static class UnifiedBytecodeCompiler
         var literalCount = literalConstants.Count;
         var stringCount = stringConstants.Count;
 
-        if (!TryAppendActivationValueLoad(baseLoad, expressionProgram, activationSlots, unified, out reason))
+        if (!TryAppendSimpleOperandLoadWithDynamic(
+                baseLoad,
+                expressionProgram,
+                activationSlots,
+                allowsDynamicIdentifiers,
+                unified,
+                literalConstants,
+                stringConstants,
+                out reason))
         {
             RollBackUnifiedBuilder(unified, unifiedCount);
             RollBackUnifiedBuilder(literalConstants, literalCount);
@@ -16501,7 +16552,8 @@ internal static class UnifiedBytecodeCompiler
                 stringConstants,
                 startInclusive: optionalStartIndex + 1,
                 endExclusive: computedIndex,
-                out reason))
+                out reason,
+                allowsDynamicIdentifiers))
         {
             RollBackUnifiedBuilder(unified, unifiedCount);
             RollBackUnifiedBuilder(literalConstants, literalCount);
@@ -16523,12 +16575,13 @@ internal static class UnifiedBytecodeCompiler
         return true;
     }
 
-    // Handles: [activation-resolved base, GetNamedProperty(non-optional, non-private)*,
+    // Handles: [simple/dynamic base, GetNamedProperty(non-optional, non-private)*,
     // JumpIfNullish(ReplaceWithUndefined:true), key..., GetComputedProperty(!SC),
     // GetNamedProperty(SC:true)*].
     private static bool TryAppendFirstBoundaryOptionalComputedPropertyReadChain(
         ExpressionProgram expressionProgram,
         ActivationSlotShape activationSlots,
+        bool allowsDynamicIdentifiers,
         ImmutableArray<UnifiedBytecodeInstruction>.Builder unified,
         ImmutableArray<JsValue>.Builder literalConstants,
         ImmutableArray<string>.Builder stringConstants,
@@ -16642,7 +16695,8 @@ internal static class UnifiedBytecodeCompiler
                     expressionProgram,
                     activationSlots,
                     startInclusive: keyStart,
-                    endExclusive: hopComputedIndex))
+                    endExclusive: hopComputedIndex,
+                    allowsDynamicIdentifiers))
             {
                 reason = "Unsupported computed property key span.";
                 return false;
@@ -16665,11 +16719,14 @@ internal static class UnifiedBytecodeCompiler
         var literalCount = literalConstants.Count;
         var stringCount = stringConstants.Count;
 
-        if (!TryAppendActivationValueLoad(
+        if (!TryAppendSimpleOperandLoadWithDynamic(
                 expressionProgram.GetOperation(0),
                 expressionProgram,
                 activationSlots,
+                allowsDynamicIdentifiers,
                 unified,
+                literalConstants,
+                stringConstants,
                 out reason))
         {
             RollBackUnifiedBuilder(unified, unifiedCount);
@@ -16704,7 +16761,8 @@ internal static class UnifiedBytecodeCompiler
                     stringConstants,
                     startInclusive: hopKeyStart,
                     endExclusive: hopComputedIndex,
-                    out reason))
+                    out reason,
+                    allowsDynamicIdentifiers))
             {
                 RollBackUnifiedBuilder(unified, unifiedCount);
                 RollBackUnifiedBuilder(literalConstants, literalCount);

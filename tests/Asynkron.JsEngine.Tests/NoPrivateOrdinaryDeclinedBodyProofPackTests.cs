@@ -39,6 +39,77 @@ public sealed class NoPrivateOrdinaryDeclinedBodyProofPackTests(ITestOutputHelpe
     }
 
     [Fact(Timeout = 5000)]
+    public async Task GlobalPropertyReadPayloads_PreserveLiveDynamicLookup()
+    {
+        await AssertOrdinaryDeclinedBodyAsync(
+            """
+            globalThis.dynamicPayload = { value: 1, nested: { value: 3 } };
+
+            function globalLivePropertyPayload() {
+                eval("var forcedDecline = 1;");
+                const first = dynamicPayload.value;
+                const nested = dynamicPayload?.nested?.value;
+                globalThis.dynamicPayload = { value: 2, nested: null };
+                const second = dynamicPayload.value;
+                const missing = dynamicPayload?.nested?.value;
+
+                return [first, nested, second, String(missing)].join("|");
+            }
+
+            globalLivePropertyPayload();
+            """,
+            "1|3|2|undefined",
+            "globalLivePropertyPayload");
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task GlobalCallTargetPayloads_PreserveLiveDynamicLookupAndOptionalCalls()
+    {
+        await AssertOrdinaryDeclinedBodyAsync(
+            """
+            globalThis.dynamicPayloadCall = function(value) { return "first:" + value; };
+            globalThis.maybeDynamicPayloadCall = null;
+
+            function globalDynamicCallPayload() {
+                eval("var forcedDecline = 1;");
+                const first = dynamicPayloadCall("a");
+                const skipped = maybeDynamicPayloadCall?.("skip");
+                globalThis.dynamicPayloadCall = function(value) { return "second:" + value; };
+                globalThis.maybeDynamicPayloadCall = function(value) { return "optional:" + value; };
+                const second = dynamicPayloadCall("b");
+                const optional = maybeDynamicPayloadCall?.("c");
+
+                return [first, String(skipped), second, optional].join("|");
+            }
+
+            globalDynamicCallPayload();
+            """,
+            "first:a|undefined|second:b|optional:c",
+            "globalDynamicCallPayload");
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task WithScopedCallTargetPayloads_PreserveBindingObjectReceiver()
+    {
+        await AssertOrdinaryDeclinedBodyAsync(
+            """
+            function withScopedDynamicCallPayload(box) {
+                eval("var forcedDecline = 1;");
+                with (box) {
+                    return read();
+                }
+            }
+
+            withScopedDynamicCallPayload({
+                value: 42,
+                read: function() { return this.value; }
+            });
+            """,
+            "42",
+            "withScopedDynamicCallPayload");
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task ComputedLogicalPropertyWrites_PreserveCurrentFallbackSemantics()
     {
         await AssertOrdinaryDeclinedBodyAsync(

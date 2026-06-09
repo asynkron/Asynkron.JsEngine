@@ -202,12 +202,18 @@ fallback or cleanup.
     allowance. Class `extends`, computed class member names, computed class
     field names, and class field initializers are E4 class-definition standalone
     payloads when their caches expose lowered `ExpressionProgram` values.
-    Preserve the adjacent static-block `ExecutionPlanRunner.RunScript(...)`
-    fallback as E5/static-block runner-retirement residue unless a separate
-    proof shows that body routing has moved. Issue #3377 / PR #3438 added this
+    After PR #3538, the adjacent static-block
+    `ExecutionPlanRunner.RunScript(...)` fallback is retired and should remain a
+    source-absence tombstone in `ClassDefinitionExtensions.cs`; declined
+    static-block bodies stay E5/static-block residue through the
+    production-decline log and legacy block evaluator path, not through the
+    ordinary script runner fallback. Issue #3377 / PR #3438 added this
     rule after the finite bytecode retirement inventory needed to separate
     class-definition payload execution from static-block body fallback
-    ownership.
+    ownership. Faktorial issue
+    `planitem-planitem-gh3495-shared-context-e5b-runner-entry-point-tombstones-after-e-d73f08d6db`
+    / PR #3538 later supplied the separate proof that moved static-block body
+    routing off `ExecutionPlanRunner.RunScript(...)`.
 30. When rebaselining the now-retired dynamic `ExecuteDynamic(...)` bridge,
     treat approved source files and per-file call counts as historical boundary
     evidence that must become source absence after retirement. Assert that every
@@ -241,8 +247,9 @@ fallback or cleanup.
     tail-call operands, switch operands, throw operands, and `with` object
     operands. Future source gates should compare the full call-site inventory
     when an allowlist is still open, and should keep non-expression statement IR
-    fallback, static-block/script runner fallback, and resumable runner fallback
-    in the E5 owner rows unless a separate proof changes those boundaries. Issue
+    fallback, static-block declined residue, script runner fallback, and
+    resumable runner fallback in the E5 owner rows unless a separate proof
+    changes those boundaries. Issue
     #3377 / PR #3447 added this rule after the finite
     bytecode retirement inventory needed to separate statement/loop dynamic
     expression payload residue from broader runner-retirement residue. WHY:
@@ -263,10 +270,11 @@ fallback or cleanup.
     residue, anchor the manifest row on the semantic fallback helper that owns
     the residue, not on a broad constructor token such as
     `new ExecutionPlanRunner(`. Split ordinary sync function, class
-    constructor, script/static-block, and resumable fallback construction into
-    named owner helpers before updating the proof manifest, so one remaining
-    family cannot keep another family's retirement row open by sharing the same
-    raw construction site. Issue #3377 / PRs #3451 and #3454 added this rule
+    constructor, script fallback, retired static-block fallback ownership, and
+    resumable fallback construction into named owner helpers or tombstone rows
+    before updating the proof manifest, so one remaining family cannot keep
+    another family's retirement row open by sharing the same raw construction
+    site. Issue #3377 / PRs #3451 and #3454 added this rule
     after the E5 rebaseline had to classify ordinary sync function runner
     residue through `CreateClassifiedOrdinarySyncFunctionFallbackRunner(...)`
     while keeping class constructor residue separately owned through
@@ -700,6 +708,16 @@ after production eligibility declines is explicit declined static-block residue,
 not ordinary E5c script fallback retirement. Keep the manifest child owner and
 classification text executable-tested so future checklist refreshes cannot hide
 that static-block residue by merging it back into the script fallback owner.
+
+Issue
+`planitem-planitem-gh3495-shared-context-e5b-runner-entry-point-tombstones-after-e-d73f08d6db`
+/ PR #3538 retired that specific static-block `ExecutionPlanRunner.RunScript(...)`
+fallback. The durable lesson is that a retired static-block runner edge should
+move from classified source-presence to source-absence while preserving the
+static-block production-decline log and the B24h/B36 residue split. Do not
+reintroduce the runner call, and do not treat the remaining declined static-block
+body path as ordinary E5c script fallback just because it still computes through
+legacy block evaluation.
 
 PR #2729 completed full deletion of `EvaluateLegacyAstExpression` and its
 sibling methods from `Ast/Legacy/ExpressionNodeExtensions.cs`. The build-stage

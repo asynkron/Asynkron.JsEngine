@@ -347,11 +347,13 @@ all-or-nothing until a separate routing issue proves production readiness.
     proof manifest, and expansion contract together. Related ADR:
     `docs/adrs/0366-keep-a51k1-simple-value-operand-span-inventory-separate.md`.
 9j. Keep class static-block IR fallback classified by the production decline
-    that caused it. `ClassDefinitionExtensions.ExecuteStaticBlock` may still
-    delegate to `ExecutionPlanRunner.RunScript` for non-production static-block
-    plans, but only after `TryExecuteStaticBlockViaUnifiedBytecode(...)`
-    attempts production unified bytecode and logs the stable decline code and
-    reason. The accepted static-block section must execute through
+    that caused it. `ClassDefinitionExtensions.ExecuteStaticBlock` must attempt
+    production unified bytecode through `TryExecuteStaticBlockViaUnifiedBytecode(...)`
+    before any declined-body path, and that attempt must log the stable decline
+    code and reason. After PR #3538, the declined static-block path must not
+    delegate to `ExecutionPlanRunner.RunScript`; it stays classified by the
+    production-decline log while executing through the existing legacy block
+    evaluator path. The accepted static-block section must execute through
     `UnifiedBytecodeVirtualMachine.Execute` without runner, expression-program,
     or AST delegation. Runtime-source direct eval and otherwise
     non-production-eligible static-block plans stay B24h/B36 residue until the
@@ -362,7 +364,8 @@ all-or-nothing until a separate routing issue proves production readiness.
     shared classified static-block IR fallback instead of one broad
     static-block residue bucket. Future widening must pair a static-block route
     hit with nearby classified fallback/no-route proof; do not replace the
-    precise decline with a generic runner edge or a VM-side fallback. WHY:
+    precise decline with a generic runner edge, ordinary script fallback, or a
+    VM-side fallback. WHY:
     Faktorial issue
     `planitem-planitem-planmanual1780730299657353000-unified-bytecode-remaining-burndo-bbaf44ae93`
     / PR #3372 ratcheted the E5 class static-block bridge by proving eligible
@@ -398,6 +401,15 @@ all-or-nothing until a separate routing issue proves production readiness.
     rows open, and records any retained compiler decline template in the
     expansion contract. Related ADR:
     `docs/adrs/0375-admit-static-block-super-property-route-through-descriptor-owned-this-writes.md`.
+    Faktorial issue
+    `planitem-planitem-gh3495-shared-context-e5b-runner-entry-point-tombstones-after-e-d73f08d6db`
+    / PR #3538 retired the static-block `ExecutionPlanRunner.RunScript`
+    fallback itself. Future E5b source gates should treat
+    `ExecutionPlanRunner.RunScript(` in `ClassDefinitionExtensions.cs` as a
+    source-absence tombstone while keeping B24h/B36 non-production static-block
+    plans and runtime-source direct eval visible as static-block residue, not
+    ordinary script fallback. Related ADR:
+    `docs/adrs/0364-keep-class-static-block-ir-fallback-classified-by-production-decline.md`.
 9k. Treat E4/E5 owner inventories as classification evidence, not closure
     claims. When docs, issue summaries, ADRs, or PR text describe remaining
     `ExpressionProgram` or `ExecutionPlanRunner` reachability, keep the

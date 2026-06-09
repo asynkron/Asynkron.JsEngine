@@ -1421,21 +1421,14 @@ internal static class UnifiedBytecodeProductionEligibility
                     classDeclaration.Descriptor,
                     activationSlots,
                     out declineReason);
-            case FunctionDeclarationInstruction { Descriptor: { } descriptor }:
-                if (FunctionCapturesActivationSlot(descriptor.Function, activationSlots, out var capturedName))
-                {
-                    declineReason =
-                        $"Descriptor-backed block-scoped function declaration captures activation binding '{capturedName}' and is not eligible for resumable unified bytecode routing until the VM owns that materialized closure shape.";
-                    return false;
-                }
-
-                declineReason = string.Empty;
-                return true;
+            case FunctionDeclarationInstruction { Descriptor: { } }:
+                declineReason =
+                    "Descriptor-backed block-scoped function declarations require a materialized declaration environment and Annex B blocked-name setup before resumable unified bytecode routing.";
+                return false;
             // B36 narrow slice: function-scoped declarations lower as no-op IR records because the
             // resumable invoker has already populated their flat slots during activation setup. The
             // activation flag is set only after the invoker proves every direct root declaration is
-            // non-capturing and slot-mapped. Non-capturing descriptor-backed block declarations lower to
-            // DeclareFunction, which the resumable VM owns without storing extra resume state.
+            // non-capturing and slot-mapped; descriptor-backed block declarations remain declined by A43.
             case FunctionDeclarationInstruction { Descriptor: null } when activation.AllowsRootFunctionDeclarationInstructions:
             case SimpleVariableDeclarationInstruction { AwaitedProgram: null, InitializerProgram: { } }:
             case SimpleVariableDeclarationInstruction { AwaitedProgram: null, InitializerProgram: null }:
@@ -3138,10 +3131,6 @@ internal static class UnifiedBytecodeProductionEligibility
                 // Accepted class expressions materialize through the same class-definition program cache and
                 // private-name machinery as the sync VM, with the live calling environment available so owned
                 // field initializers and private-brand checks close over the correct lexical scope.
-                // Non-capturing block function declarations materialize through DeclareFunction. The
-                // instruction-level gate above rejects activation-capturing declarations before this opcode
-                // allowlist, and the VM handler declares against the current resumable environment.
-                UnifiedBytecodeOpCode.DeclareFunction or
                 UnifiedBytecodeOpCode.LoadClassLiteral or
                 UnifiedBytecodeOpCode.LoadFunctionLiteral or
                 UnifiedBytecodeOpCode.EnsureHasName or

@@ -68,6 +68,7 @@ public sealed class ExpressionProgramCoverageMapTests
     [
         "DeclareDynamicLexical",
         "DeclareDynamicVar",
+        "DeclareFunction",
         "InitializeDynamicLexical",
         "SuperConstructInvocationBoundary"
     ];

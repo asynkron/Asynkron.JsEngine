@@ -1261,7 +1261,7 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
-    public void EvaluateResumable_BlockScopedFunctionDeclaration_AdmitsNonCapturingDeclareFunction()
+    public void EvaluateResumable_BlockScopedFunctionDeclaration_DeclinesUntilDeclarationEnvironmentOwned()
     {
         var plan = GetFunctionPlan("""
             async function run() {
@@ -1281,10 +1281,9 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
             plan,
             new UnifiedBytecodeProductionActivationDescriptor(IsAsyncLike: true));
 
-        Assert.True(result.IsEligible, result.Reason);
-        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
-        Assert.Contains(result.Program.Instructions, static instruction =>
-            instruction.OpCode == UnifiedBytecodeOpCode.DeclareFunction);
+        Assert.False(result.IsEligible);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.UnsupportedPlanShape, result.Code);
+        Assert.Contains("materialized declaration environment", result.Reason, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -1310,7 +1309,7 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
 
         Assert.False(result.IsEligible);
         Assert.Equal(UnifiedBytecodeProductionDeclineCode.UnsupportedPlanShape, result.Code);
-        Assert.Contains("captures activation binding 'value'", result.Reason, StringComparison.Ordinal);
+        Assert.Contains("materialized declaration environment", result.Reason, StringComparison.Ordinal);
     }
 
     [Fact]

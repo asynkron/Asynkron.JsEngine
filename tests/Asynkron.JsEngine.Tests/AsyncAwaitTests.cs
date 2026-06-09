@@ -83,7 +83,7 @@ public sealed class AsyncAwaitTests(ITestOutputHelper output) : InternalTestBase
     }
 
     [Fact(Timeout = 2000)]
-    public async Task AsyncFunction_BlockScopedFunctionDeclaration_RoutesResumableUnifiedBytecode()
+    public async Task AsyncFunction_BlockScopedFunctionDeclaration_UsesClassifiedDeclinedBodyRunner()
     {
         await using var engine = CreateEngine();
 
@@ -109,15 +109,101 @@ public sealed class AsyncAwaitTests(ITestOutputHelper output) : InternalTestBase
             """);
 
         Assert.Equal("42", result);
+        var logs = CurrentLogger!.Collector.Snapshot();
         Assert.Contains(
-            CurrentLogger!.Collector.Snapshot(),
+            logs,
+            static record => record.Message.Contains(
+                "classified-async-function-declined-body-runner-residue",
+                StringComparison.Ordinal));
+        Assert.DoesNotContain(
+            logs,
             static record => record.Message.Contains(
                 "unified-bytecode-resumable-async-fast-path func=run argc=0",
                 StringComparison.Ordinal));
-        Assert.DoesNotContain(
-            CurrentLogger!.Collector.Snapshot(),
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task AsyncFunction_StrictBlockScopedFunctionDeclaration_DoesNotLeakPastBlock()
+    {
+        await using var engine = CreateEngine();
+
+        ExecutionPlanDiagnostics.Reset();
+        var result = await engine.EvaluateAndAwait("""
+            "use strict";
+            var asyncResult = "";
+            async function run() {
+                let inside;
+                {
+                    function f() { return 42; }
+                    inside = f();
+                    await Promise.resolve();
+                }
+
+                let leak;
+                try {
+                    f;
+                    leak = "leaked";
+                } catch (error) {
+                    leak = error.name;
+                }
+
+                return inside + ":" + leak;
+            }
+            run()
+                .then(
+                    function(value) { asyncResult = String(value); },
+                    function(error) { asyncResult = "reject:" + error.name; });
+            asyncResult;
+            """);
+
+        Assert.Equal("42:ReferenceError", result);
+        var logs = CurrentLogger!.Collector.Snapshot();
+        Assert.Contains(
+            logs,
             static record => record.Message.Contains(
                 "classified-async-function-declined-body-runner-residue",
+                StringComparison.Ordinal));
+        Assert.DoesNotContain(
+            logs,
+            static record => record.Message.Contains(
+                "unified-bytecode-resumable-async-fast-path func=run argc=0",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task AsyncFunction_SloppyBlockFunctionBlockedByParameter_DoesNotLeakGlobal()
+    {
+        await using var engine = CreateEngine();
+
+        ExecutionPlanDiagnostics.Reset();
+        var result = await engine.EvaluateAndAwait("""
+            var asyncResult = "";
+            async function run(f) {
+                {
+                    function f() { return "inner"; }
+                    await Promise.resolve();
+                }
+
+                return f + ":" + typeof globalThis.f;
+            }
+            run("param")
+                .then(
+                    function(value) { asyncResult = String(value); },
+                    function(error) { asyncResult = "reject:" + error.name; });
+            asyncResult;
+            """);
+
+        Assert.Equal("param:undefined", result);
+        var logs = CurrentLogger!.Collector.Snapshot();
+        Assert.Contains(
+            logs,
+            static record => record.Message.Contains(
+                "classified-async-function-declined-body-runner-residue",
+                StringComparison.Ordinal));
+        Assert.DoesNotContain(
+            logs,
+            static record => record.Message.Contains(
+                "unified-bytecode-resumable-async-fast-path func=run argc=1",
                 StringComparison.Ordinal));
     }
 

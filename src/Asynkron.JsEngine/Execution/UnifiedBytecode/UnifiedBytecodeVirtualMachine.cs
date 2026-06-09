@@ -4447,39 +4447,6 @@ internal static class UnifiedBytecodeVirtualMachine
                         break;
                     }
 
-                case UnifiedBytecodeOpCode.DeclareFunction:
-                    {
-                        var functionDeclarationEnvironment = RequireDynamicEnvironment(currentEnvironment);
-                        SyncUnifiedSlotsToEnvironment(
-                            program,
-                            slots,
-                            slotEnvironments,
-                            functionDeclarationEnvironment);
-                        DeclareFunction(
-                            program,
-                            instruction.Operand,
-                            functionDeclarationEnvironment,
-                            context);
-                        SyncEnvironmentToUnifiedSlots(
-                            program,
-                            slots,
-                            slotEnvironments,
-                            functionDeclarationEnvironment);
-                        if (context.ShouldStopEvaluation)
-                        {
-                            if (TryHandleResumableContextThrow())
-                            {
-                                break;
-                            }
-
-                            state.IsCompleted = true;
-                            return UnifiedBytecodeStepResult.Throw(context.FlowValue);
-                        }
-
-                        programCounter++;
-                        break;
-                    }
-
                 case UnifiedBytecodeOpCode.ApplyBindingTarget:
                     {
                         // Assignment destructuring (`({x: y} = source)`) inside a resumable body. The value is

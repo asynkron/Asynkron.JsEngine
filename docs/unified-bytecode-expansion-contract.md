@@ -448,6 +448,7 @@ the admitted subset stays 1:1 with `UnifiedBytecodeVirtualMachine.ExecuteResumab
 
 - `DeclareDynamicLexical`
 - `DeclareDynamicVar`
+- `DeclareFunction`
 - `InitializeDynamicLexical`
 - `SuperConstructInvocationBoundary`
 
@@ -1038,14 +1039,12 @@ predicates and proof tests.
     proof lane; it must not be inherited by B24h or used to close the broader
     declaration binding, static-block declaration instantiation, or
     runtime-source direct-eval bridge.
-    `DeclareFunction` is now on the resumable opcode allowlist for
-    non-capturing block/Annex B declarations whose materialized declaration
-    environment is owned by the resumable VM. Direct root
+    `DeclareFunction` remains off the resumable opcode allowlist because
+    descriptor-backed block/Annex B declarations still need persisted
+    materialized block environments across suspension; direct root
     `FunctionDeclarationInstruction` remains conditionally guarded by the
-    invoker-proof activation flag and compiles to a no-op after pre-population,
-    while activation-capturing block declarations still decline before VM entry.
-    The boundary is pinned by `UnifiedBytecodeResumableNestedFunctionTests` and
-    the async block-function route tests.
+    invoker-proof activation flag and compiles to a no-op after pre-population.
+    The boundary is pinned by `UnifiedBytecodeResumableNestedFunctionTests`.
 - Captured function scopes outside the simple-return captured-closure route,
   unresolved non-with dynamic activation, arrow lexical `this` / `new.target`,
   and class-constructor activation outside the bounded constructor routes.

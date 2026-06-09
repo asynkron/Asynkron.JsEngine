@@ -330,6 +330,45 @@ rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~Activ
     durable delivery was to promote the route contract into
     `ActivationSemanticsProofPackTests` and let future production-bytecode
     admission replace the classified fallback without failing the proof.
+28. When rebaselining no-private ordinary declined-body proof families after
+    ordinary sync fallback runner retirement, replace the disjunctive OR
+    assertion in `NoPrivateOrdinaryDeclinedBodyProofPackTests` with a pinned
+    `OrdinaryRouteClass` value. Once `CreateClassifiedOrdinarySyncFunctionFallbackRunner`
+    is confirmed retired (source-absence tombstone), ordinary declined bodies
+    route deterministically through `SyncIrResidue`; the pre-retirement disjunctive
+    check that accepted any of `ProductionFastPath`, `DynamicScopeExecutor`, or
+    `SyncIrResidue` is a pre-retirement artifact that masks the completion
+    signal. Pin each test fact to `OrdinaryRouteClass.SyncIrResidue` and update
+    the manifest classification in `bytecode-proof-manifest.json` to name the
+    specific current route. Also update the burndown checklist entry to reference
+    the no-private ordinary proof families that explicitly forbid the retired
+    classified-fallback log. The `OrdinaryRouteClass` enum is the owned route
+    vocabulary for these test assertions; add enum variants only when a new route
+    is provably reachable and paired with a positive test case. WHY: Faktorial
+    issue `planitem-planitem-planitem-gh3495-shared-context-e5b-runner-entry-point-tombstone-7aab772e90`
+    / PR #3588 rebaselined eight `NoPrivateOrdinaryDeclinedBodyProofPackTests`
+    facts from disjunctive assertions to pinned `OrdinaryRouteClass.SyncIrResidue`
+    claims after the ordinary sync fallback helper was confirmed retired; the
+    disjunctive OR assertion would have continued to pass even if the retired
+    fallback path somehow returned, making it an inadequate regression gate.
+29. When defining or narrowing a source-allowlist proof (kind `source-allowlist`)
+    for `new ExecutionPlanRunner(` construction sites, scope `allowedPaths` to
+    the specific residual non-Core invoker files that own classified call sites
+    pending retirement. Do not include `TypedAstEvaluator.ExecutionPlanRunner.Core.cs`
+    or other broad engine infrastructure files in the allowedPaths. Core.cs
+    construction sites belong to the separate E5c/E5d child proofs that own
+    script and sync-function declined-body routes; adding Core.cs to the E5b
+    allowlist would permit any new runner construction added to Core.cs to pass
+    through the proof undetected and pad the accounting as sibling sites retire.
+    Pair the narrowed proof with an explicit `BytecodeProofManifestTests` assertion
+    that Core.cs is NOT present in `allowedPaths`, so the exclusion is enforced
+    by the verifier rather than relying on post-hoc review. WHY: Faktorial issue
+    `planitem-planitem-gh3495-shared-context-e5b-runner-entry-point-tombstones-after-e-925968aa78`
+    / PR #3593 removed Core.cs from the E5-ir-runner-type-still-present allowedPaths
+    and added a negative assertion in `BytecodeProofManifestTests`; the prior
+    broad allowlist had been tracking Core.cs sync-function and script construction
+    paths that are properly owned by E5c/E5d proofs, obscuring the retirement
+    accounting for the non-Core async-function and sync-generator residue.
 
 ## Why
 
@@ -625,3 +664,19 @@ already in place.
 
 Related ADR:
 `docs/adrs/0280-keep-simple-ir-fast-path-eligibility-ir-observability-guarded.md`.
+
+Issue `planitem-planitem-planitem-gh3495-shared-context-e5b-runner-entry-point-tombstone-7aab772e90`
+/ PR #3588 rebaselined eight `NoPrivateOrdinaryDeclinedBodyProofPackTests` facts
+after `CreateClassifiedOrdinarySyncFunctionFallbackRunner` was confirmed retired
+via a source-absence tombstone. The pre-retirement disjunctive assertion accepted
+`ProductionFastPath`, `DynamicScopeExecutor`, or `SyncIrResidue` as equally
+valid route outcomes, which masked the retirement signal — any one of those
+routes passing would satisfy the test. The fix introduced `OrdinaryRouteClass`
+as the owned route vocabulary, pinned all eight test facts to
+`OrdinaryRouteClass.SyncIrResidue`, and updated the manifest classification to
+state the specific current route rather than listing all three. The burndown
+checklist entry was also expanded to name the proof families that forbid the
+retired classified-fallback log. The PR was a merge-repair delivery because a
+sibling E5b reconciliation commit (`a1e386afb`) had landed on main while the
+task branch was in flight, requiring synthesis that preserved both the tombstone
+annotations and the new proof-families context.

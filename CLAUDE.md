@@ -22,15 +22,15 @@ Use these task-specific guides while working in the repo. MUST READ AND UNDERSTA
 - **Pre-PR checklist**: Use `/pre-pr` skill before any PR — runs roslynator fix, tests, quickdup, format
 
 ## Experimental Memory Evaluation
-- Mem0 CLI is available for evaluation via the local skill at [`.claude/skills/mem0-cli/SKILL.md`](.claude/skills/mem0-cli/SKILL.md) and mirrored for other agents at [`.agents/skills/mem0-cli/SKILL.md`](.agents/skills/mem0-cli/SKILL.md).
+- Mem0 CLI is available for evaluation via the local skill at [`.agents/skills/mem0-cli/SKILL.md`](.agents/skills/mem0-cli/SKILL.md) and [`.claude/skills/mem0-cli/SKILL.md`](.claude/skills/mem0-cli/SKILL.md).
 - Use it only when the task explicitly needs Mem0 memory operations or the user asks to evaluate `mem0`/`mem0-cli`; GitHub issues and repo docs remain the durable project memory by default.
-- Prefer structured output for agent use: `mem0 ... --json` or `mem0 ... --agent`.
-- For evaluation setup, use agent mode such as `mem0 init --agent --agent-caller claude-code --json`; never commit API keys, `.env`, or `~/.mem0/config.json`.
+- Prefer structured output for agent use: `rtk mem0 ... --json` or `rtk mem0 ... --agent`.
+- For evaluation setup, use agent mode such as `rtk mem0 init --agent --agent-caller <agent-name> --json`; never commit API keys, `.env`, or `~/.mem0/config.json`.
 
 ## JsValue and Performance Patterns
 - [JsValue usage and evaluator overload pattern](agents/how-to-jsvalue-usage.md)
 - [Comparing to Jint (do/don't language)](agents/how-to-compare-jint.md)
-- Quick ProfileRunner/Jint matrix: run `./benchmark.sh` for timing, `./benchmark.sh --allocations` for timing plus managed allocation comparison, and `./benchmark.sh --smoke` for the short set. See [Benchmarking and Asynkron/Jint allocation comparisons](agents/how-to-benchmark.md).
+- Quick ProfileRunner/Jint matrix: run `rtk ./benchmark.sh` for timing, `rtk ./benchmark.sh --allocations` for timing plus managed allocation comparison, and `rtk ./benchmark.sh --smoke` for the short set. See [Benchmarking and Asynkron/Jint allocation comparisons](agents/how-to-benchmark.md).
 
 ## Debugging & Test Strategies
 - [Debugging aids (logger assertions, slot metadata)](agents/how-to-debugging.md)

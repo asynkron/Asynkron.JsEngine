@@ -174,6 +174,36 @@ public sealed partial class BytecodeProofManifestTests(ITestOutputHelper output)
             scriptEntryProof.ClassifiedCallSites,
             static callSite => callSite.ChildOwner == "E5-static-block-declined-residue");
         Assert.Equal("E5d-function-and-constructor-runner-fallback", proofs["E5-ir-runner-sync-entry-still-present"].ChildOwner);
+
+        var runnerTypeProof = proofs["E5-ir-runner-type-still-present"];
+        var syncGeneratorRoute = Assert.Single(
+            runnerTypeProof.ClassifiedCallSites,
+            static callSite => callSite.ChildOwner == "E5d-sync-generator-ir-route-selection");
+        Assert.Equal(
+            "src/Asynkron.JsEngine/Ast/TypedAstEvaluator.IrSyncGeneratorInvoker.cs",
+            syncGeneratorRoute.Path);
+        Assert.Equal(1, syncGeneratorRoute.CallCount);
+        Assert.Contains(
+            "creation-time IR sync-generator route",
+            syncGeneratorRoute.Classification,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "not the retired EvaluateResumable declined-residue bridge",
+            syncGeneratorRoute.Classification,
+            StringComparison.Ordinal);
+
+        var syncGeneratorDeclinedResidueProof = LoadManifest()
+            .Items
+            .Single(static item => item.Id == "E5d")
+            .Proofs
+            .Single(static proof => proof.Id == "E5-sync-generator-declined-residue-runner-still-present");
+        Assert.DoesNotContain(
+            "E5d-sync-generator-ir-route-selection",
+            syncGeneratorDeclinedResidueProof.Classification,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain(
+            syncGeneratorDeclinedResidueProof.ClassifiedCallSites,
+            static callSite => callSite.ChildOwner == "E5d-sync-generator-ir-route-selection");
     }
 
     [Fact]

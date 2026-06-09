@@ -1894,53 +1894,21 @@ TryCreateSimpleNumericSelfRecursionFastPath(
                         if (IsClassConstructor)
                         {
                             RealmState.Logger?.LogInformation(
-                                "class-constructor production bytecode declined; falling through to dynamic-scope executor func={Function}",
+                                "class-constructor production bytecode declined; falling through to classified IR residue func={Function}",
                                 _function.Name?.Name ?? "<anonymous>");
                         }
-                        else
-                        {
-                            // For arrow functions, use lexically captured this and new.target
-                            var effectiveThisValue = thisValue;
-                            var effectiveNewTarget = newTarget;
-                            if (IsArrowFunction)
-                            {
-                                var lexicalThis = _lexicalThis;
-                                if (_lexicalThisEnvironment is not null &&
-                                    _lexicalThisEnvironment.TryFindBindingJsValue(Symbol.This, true, out _, out var envThis))
-                                {
-                                    lexicalThis = envThis;
-                                }
 
-                                effectiveThisValue = lexicalThis.IsUninitialized ? JsValue.Undefined : lexicalThis;
-
-                                // Arrow functions inherit new.target from the enclosing function
-                                if (effectiveNewTarget.IsUndefined && !_lexicalNewTarget.IsUndefined)
-                                {
-                                    effectiveNewTarget = _lexicalNewTarget;
-                                }
-                            }
-
-                            try
-                            {
-                                var runner = CreateClassifiedOrdinarySyncFunctionFallbackRunner(
-                                    arguments,
-                                    effectiveThisValue,
-                                    effectiveNewTarget,
-                                    plan,
-                                    context,
-                                    constructErrorRealm);
-
-                                return runner.RunSync();
-                            }
-                            catch (ThrowSignal signal) when (callingContext is not null)
-                            {
-                                callingContext.SetThrow(signal.ThrownValue);
-                                return signal.ThrownValue;
-                            }
-                        }
+                        return ExecuteClassifiedSyncFunctionIrResidue(
+                            arguments,
+                            thisValue,
+                            newTarget,
+                            plan,
+                            context,
+                            callingContext,
+                            constructErrorRealm);
                     }
 
-                    if (!IsClassConstructor)
+                    if (!IsClassConstructor && plan is null)
                     {
                         throw new NotSupportedException(
                             $"IR plan generation failed for function: {failureReason}");
@@ -2671,6 +2639,81 @@ TryCreateSimpleNumericSelfRecursionFastPath(
             }
         }
 
+        private JsValue ExecuteClassifiedSyncFunctionIrResidue<TArgs>(
+            TArgs arguments,
+            JsValue thisValue,
+            JsValue newTarget,
+            ExecutionPlan plan,
+            EvaluationContext context,
+            EvaluationContext? callingContext,
+            RealmState constructErrorRealm)
+            where TArgs : IReadOnlyList<JsValue>
+        {
+            var effectiveThisValue = thisValue;
+            var effectiveNewTarget = newTarget;
+            if (IsArrowFunction)
+            {
+                var lexicalThis = _lexicalThis;
+                if (_lexicalThisEnvironment is not null &&
+                    _lexicalThisEnvironment.TryFindBindingJsValue(Symbol.This, true, out _, out var envThis))
+                {
+                    lexicalThis = envThis;
+                }
+
+                effectiveThisValue = lexicalThis.IsUninitialized ? JsValue.Undefined : lexicalThis;
+                if (effectiveNewTarget.IsUndefined && !_lexicalNewTarget.IsUndefined)
+                {
+                    effectiveNewTarget = _lexicalNewTarget;
+                }
+            }
+
+            RealmState.Logger?.LogInformation(
+                "classified-sync-function-ir-residue reason=production-unified-bytecode-declined func={Function} argc={ArgumentCount} classConstructor={ClassConstructor} privateNameResidue={PrivateNameResidue}",
+                _function.Name?.Name ?? "<anonymous>",
+                arguments.Count,
+                IsClassConstructor,
+                PrivateNameScope is not null || !_capturedPrivateNameScopes.IsDefaultOrEmpty);
+
+            try
+            {
+                return ExecutionPlanRunner.ExecuteClassifiedSyncFunctionIrResidue(
+                    _function,
+                    _closure,
+                    arguments,
+                    effectiveThisValue,
+                    this,
+                    RealmState,
+                    _isStrict,
+                    _hasFunctionNameEnvironment,
+                    _homeObject,
+                    PrivateNameScope,
+                    _capturedPrivateNameScopes,
+                    effectiveNewTarget,
+                    _lexicalThisEnvironment,
+                    _superConstructor,
+                    _superPrototype,
+                    context,
+                    constructErrorRealm,
+                    plan,
+                    _planSeed.Failure);
+            }
+            catch (ThrowSignal signal) when (callingContext is not null)
+            {
+                var thrownValue = signal.ThrownValue;
+                if (_isDerivedClassConstructor)
+                {
+                    var normalized = NormalizeDerivedClassRealmError(signal, callingContext);
+                    if (!normalized.IsUndefined)
+                    {
+                        thrownValue = normalized;
+                    }
+                }
+
+                callingContext.SetThrow(thrownValue);
+                return thrownValue;
+            }
+        }
+
         [MethodImpl(JsEngineConstants.Inlining)]
         private bool TryInvokeIrFast<TArgs>(
             TArgs arguments,
@@ -2763,41 +2806,6 @@ TryCreateSimpleNumericSelfRecursionFastPath(
             }
 
             return CanUseCachedOrEvaluateProductionUnifiedBytecodeFastPath(plan, newTarget);
-        }
-
-        private ExecutionPlanRunner CreateClassifiedOrdinarySyncFunctionFallbackRunner<TArgs>(
-            TArgs arguments,
-            JsValue thisValue,
-            JsValue newTarget,
-            ExecutionPlan plan,
-            EvaluationContext context,
-            RealmState constructErrorRealm)
-            where TArgs : IReadOnlyList<JsValue>
-        {
-            RealmState.Logger?.LogInformation(
-                "classified-ordinary-sync-function-fallback reason=production-unified-bytecode-declined func={Function} argc={ArgumentCount}",
-                _function.Name?.Name ?? "<anonymous>",
-                arguments.Count);
-            return new ExecutionPlanRunner(
-                _function,
-                _closure,
-                arguments,
-                thisValue,
-                this,
-                RealmState,
-                _isStrict,
-                _hasFunctionNameEnvironment,
-                _homeObject,
-                PrivateNameScope,
-                _capturedPrivateNameScopes,
-                newTarget,
-                _lexicalThisEnvironment,
-                _superConstructor,
-                _superPrototype,
-                context,
-                derivedClassErrorRealm: constructErrorRealm,
-                planOverride: plan,
-                planFailureOverride: _planSeed.Failure);
         }
 
         private bool TryInvokeProductionUnifiedBytecode<TArgs>(

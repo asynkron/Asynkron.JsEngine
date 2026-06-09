@@ -252,7 +252,7 @@ public sealed class ClassStatementTests(ITestOutputHelper output) : InternalTest
     }
 
     [Fact(Timeout = 2000)]
-    public async Task ClassConstructorCreatedInsideWithCapturedClosure_UsesDynamicScopeConstructorEvaluator()
+    public async Task ClassConstructorCreatedInsideWithCapturedClosure_UsesClassifiedIrResidue()
     {
         var logger = new TestLogger(output, "ClassConstructorWithClosure", minLogLevel: LogLevel.Debug);
         await using var engine = CreateEngine(() => new JsEngineOptions
@@ -282,7 +282,10 @@ public sealed class ClassStatementTests(ITestOutputHelper output) : InternalTest
         Assert.Contains(
             logger.Collector.Snapshot(),
             static record => record.Message.Contains(
-                "Executing sync function via dynamic-scope executor",
+                "classified-sync-function-ir-residue",
+                StringComparison.Ordinal) &&
+                             record.Message.Contains(
+                                 "classConstructor=True",
                 StringComparison.Ordinal));
     }
 
@@ -315,7 +318,7 @@ public sealed class ClassStatementTests(ITestOutputHelper output) : InternalTest
     }
 
     [Fact(Timeout = 2000)]
-    public async Task ClassConstructorWithDirectEval_UsesDynamicScopeConstructorEvaluator()
+    public async Task ClassConstructorWithDirectEval_UsesClassifiedIrResidue()
     {
         var logger = new TestLogger(output, "ClassConstructorDirectEval", minLogLevel: LogLevel.Debug);
         await using var engine = CreateEngine(() => new JsEngineOptions
@@ -338,7 +341,10 @@ public sealed class ClassStatementTests(ITestOutputHelper output) : InternalTest
         Assert.Contains(
             logger.Collector.Snapshot(),
             static record => record.Message.Contains(
-                "Executing sync function via dynamic-scope executor",
+                "classified-sync-function-ir-residue",
+                StringComparison.Ordinal) &&
+                             record.Message.Contains(
+                                 "classConstructor=True",
                 StringComparison.Ordinal));
     }
 

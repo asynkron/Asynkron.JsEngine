@@ -1094,7 +1094,7 @@ public sealed class AstFreeExecutionAssertionTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task AssertNoAstEvaluation_Enabled_RejectsWithScopedClassConstructorCapturedDynamicScopeExecution()
+    public async Task AssertNoAstEvaluation_Enabled_AllowsWithScopedClassConstructorCapturedDynamicScopeExecution()
     {
         var originalValue = EvaluationContext.AssertNoAstEvaluation;
 
@@ -1126,10 +1126,10 @@ public sealed class AstFreeExecutionAssertionTests : IAsyncLifetime
             await _engine.Evaluate(program);
 
             EvaluationContext.AssertNoAstEvaluation = true;
-            var exception = await Assert.ThrowsAsync<InvalidOperationException>(() => _engine.Evaluate("""
+            var result = await _engine.Evaluate("""
                 new globalThis.WithScopedCtorBox().total;
-                """));
-            Assert.Contains("AST evaluation invoked", exception.Message, StringComparison.Ordinal);
+                """);
+            Assert.Equal(42d, result);
         }
         finally
         {

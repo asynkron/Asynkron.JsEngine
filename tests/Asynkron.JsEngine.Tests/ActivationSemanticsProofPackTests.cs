@@ -21,6 +21,7 @@ public sealed class ActivationSemanticsProofPackTests(ITestOutputHelper output) 
     private const string UnifiedBytecodeProductionFastPathLog = "unified-bytecode-production-fast-path";
     private const string ClassifiedOrdinarySyncFunctionFallbackLog = "classified-ordinary-sync-function-fallback";
     private const string DynamicScopeExecutorLog = "Executing sync function via dynamic-scope executor";
+    private const string ClassifiedSyncFunctionIrResidueLog = "classified-sync-function-ir-residue";
 
     [Fact(Timeout = 5000)]
     public async Task SimpleSyncFunction_DoesNotUseCallerBinaryOrSimpleReturnFastPaths()
@@ -242,7 +243,7 @@ public sealed class ActivationSemanticsProofPackTests(ITestOutputHelper output) 
     }
 
     [Fact(Timeout = 5000)]
-    public async Task DirectEvalFunctionDeclarationParameterDefault_UsesIrOrProductionRoute()
+    public async Task DirectEvalFunctionDeclarationParameterDefault_UsesNonFallbackRoute()
     {
         var logger = new TestLogger(output, "DirectEvalDefaultRoute", minLogLevel: LogLevel.Debug);
         await using var engine = CreateEngine(() => new JsEngineOptions
@@ -263,12 +264,13 @@ public sealed class ActivationSemanticsProofPackTests(ITestOutputHelper output) 
         Assert.Equal(42d, result);
         Assert.DoesNotContain(records,
             static record => record.Message.Contains(
-                DynamicScopeExecutorLog + " func=read",
+                ClassifiedOrdinarySyncFunctionFallbackLog + " reason=production-unified-bytecode-declined func=read",
                 StringComparison.Ordinal));
         Assert.Contains(records,
             static record =>
+                record.Message.Contains(DynamicScopeExecutorLog + " func=read", StringComparison.Ordinal) ||
                 record.Message.Contains(
-                    ClassifiedOrdinarySyncFunctionFallbackLog + " reason=production-unified-bytecode-declined func=read",
+                    ClassifiedSyncFunctionIrResidueLog + " reason=production-unified-bytecode-declined func=read",
                     StringComparison.Ordinal) ||
                 record.Message.Contains(
                     UnifiedBytecodeProductionFastPathLog + " func=read",

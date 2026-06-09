@@ -193,20 +193,20 @@ public sealed partial class BytecodeProofManifestTests(ITestOutputHelper output)
             StringComparison.Ordinal);
 
         var runnerTypeProof = proofs["E5-ir-runner-type-still-present"];
-        var syncFunctionIrResidueRoute = Assert.Single(
-            runnerTypeProof.ClassifiedCallSites,
-            static callSite => callSite.ChildOwner == "E5d-function-and-resumable-declined-body-runner-retirement");
-        Assert.Equal(
+        Assert.DoesNotContain(
             "src/Asynkron.JsEngine/Ast/TypedAstEvaluator.ExecutionPlanRunner.Core.cs",
-            syncFunctionIrResidueRoute.Path);
-        Assert.Equal(1, syncFunctionIrResidueRoute.CallCount);
+            runnerTypeProof.AllowedPaths,
+            StringComparer.Ordinal);
+        var asyncFunctionRoute = Assert.Single(
+            runnerTypeProof.ClassifiedCallSites,
+            static callSite => callSite.ChildOwner == "E5d-async-function-declined-body-runner-residue");
+        Assert.Equal(
+            "src/Asynkron.JsEngine/Ast/TypedAstEvaluator.AsyncFunctionInvoker.cs",
+            asyncFunctionRoute.Path);
+        Assert.Equal(1, asyncFunctionRoute.CallCount);
         Assert.Contains(
-            "classified sync-function IR-residue construction",
-            syncFunctionIrResidueRoute.Classification,
-            StringComparison.Ordinal);
-        Assert.Contains(
-            "retired ordinary fallback runner",
-            syncFunctionIrResidueRoute.Classification,
+            "async declined-body runner construction",
+            asyncFunctionRoute.Classification,
             StringComparison.Ordinal);
         var syncGeneratorRoute = Assert.Single(
             runnerTypeProof.ClassifiedCallSites,

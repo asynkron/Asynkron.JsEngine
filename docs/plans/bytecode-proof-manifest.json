@@ -2294,6 +2294,15 @@
           "pattern": "CreateClassifiedOrdinarySyncFunctionFallbackRunner"
         },
         {
+          "id": "E5-ordinary-sync-dynamic-scope-helper-is-not-runner-backed",
+          "childOwner": "E5d-function-and-resumable-declined-body-runner-retirement",
+          "classification": "ordinary sync declined-body dynamic-scope executor is owned by SyncFunctionInvoker fallthrough; no Core helper may construct ExecutionPlanRunner or call RunSync on behalf of ordinary sync declines",
+          "claim": "retired-fallback",
+          "kind": "source-absence",
+          "path": "src/Asynkron.JsEngine/Ast/TypedAstEvaluator.ExecutionPlanRunner.Core.cs",
+          "pattern": "ExecuteOrdinarySyncDynamicScopeExecutor"
+        },
+        {
           "id": "E5-class-constructor-runner-fallback-still-constructs-runner",
           "childOwner": "E5d-class-constructor-initialization-residue",
           "classification": "class-constructor fallback runner construction is retired; production unified bytecode attempts first and declined constructors fall through to the existing dynamic-scope constructor evaluator that owns base/derived this, new.target, private brand, and instance-field initialization; not ordinary sync function fallback retirement",

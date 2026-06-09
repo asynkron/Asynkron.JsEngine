@@ -45,7 +45,8 @@ This step is **critical** - agent investigation findings are lost if not documen
     `Slice check:`, and `Scope note:`. The `Sibling check:` line must name
     the reviewed sibling issues or state that lookup was unavailable so
     evidence gates can verify overlap avoidance.
-- In Faktorial issue-stage runs, keep in-flight progress updates as plain prose; reserve machine-readable structured schema output for the actual final stage result.
+- In Faktorial issue-stage runs, follow the output-boundary rule in
+  `docs/rules/agent-context-issues.md`.
 - For each session, update an existing issue or create one if none fit.
 - Local/manual `gh` examples (non-Faktorial runtime):
   - Find/confirm an issue: `rtk gh issue list -S "keyword"` and `rtk gh issue view <number>`

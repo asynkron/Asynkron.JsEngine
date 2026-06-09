@@ -1,4 +1,5 @@
 using Asynkron.JsEngine.Tests.Helpers;
+using Microsoft.Extensions.Logging;
 using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
@@ -18,6 +19,8 @@ public sealed class ActivationSemanticsProofPackTests(ITestOutputHelper output) 
     private const string SimpleIrParameterBinaryChainFastPathLog = "simple-ir-parameter-binary-chain-fast-path";
     private const string SimpleIrReturnFastPathLog = "simple-ir-return-fast-path";
     private const string UnifiedBytecodeProductionFastPathLog = "unified-bytecode-production-fast-path";
+    private const string ClassifiedOrdinarySyncFunctionFallbackLog = "classified-ordinary-sync-function-fallback";
+    private const string DynamicScopeExecutorLog = "Executing sync function via dynamic-scope executor";
 
     [Fact(Timeout = 5000)]
     public async Task SimpleSyncFunction_DoesNotUseCallerBinaryOrSimpleReturnFastPaths()
@@ -236,6 +239,40 @@ public sealed class ActivationSemanticsProofPackTests(ITestOutputHelper output) 
             static record => record.Message.Contains("simple-ir-return-fast-path func=probe argc=0", StringComparison.Ordinal));
         Assert.Contains(CurrentLogger!.Collector.Snapshot(),
             static record => record.Message.Contains(UnifiedBytecodeProductionFastPathLog, StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task DirectEvalFunctionDeclarationParameterDefault_UsesIrOrProductionRoute()
+    {
+        var logger = new TestLogger(output, "DirectEvalDefaultRoute", minLogLevel: LogLevel.Debug);
+        await using var engine = CreateEngine(() => new JsEngineOptions
+        {
+            DebugMode = true,
+            Logger = logger
+        });
+
+        var result = await engine.Evaluate("""
+            function read(value = eval("40 + 2")) {
+                return value;
+            }
+
+            read();
+            """);
+
+        var records = logger.Collector.Snapshot();
+        Assert.Equal(42d, result);
+        Assert.DoesNotContain(records,
+            static record => record.Message.Contains(
+                DynamicScopeExecutorLog + " func=read",
+                StringComparison.Ordinal));
+        Assert.Contains(records,
+            static record =>
+                record.Message.Contains(
+                    ClassifiedOrdinarySyncFunctionFallbackLog + " reason=production-unified-bytecode-declined func=read",
+                    StringComparison.Ordinal) ||
+                record.Message.Contains(
+                    UnifiedBytecodeProductionFastPathLog + " func=read",
+                    StringComparison.Ordinal));
     }
 
     [Fact(Timeout = 5000)]

@@ -120,6 +120,7 @@ public static partial class TypedAstEvaluator
         private byte _syncIrTrampolineEligibility;
         private ExecutionPlan? _unifiedBytecodeProductionEligibilityPlan;
         private byte _unifiedBytecodeProductionEligibility;
+        private bool _unifiedBytecodeProductionEligibilityNewTargetIsUndefined;
         private UnifiedBytecodeProgram? _unifiedBytecodeProductionProgram;
         private JsValue[]? _productionUnifiedBytecodeSlotStorage;
         private int _productionUnifiedBytecodeSlotStorageInUse;
@@ -1858,7 +1859,7 @@ TryCreateSimpleNumericSelfRecursionFastPath(
                 if (plan is not null)
                 {
                     if (IsClassConstructor &&
-                        CanUseProductionUnifiedBytecodeFastPath(plan, newTarget) &&
+                        CanUseCachedOrEvaluateProductionUnifiedBytecodeFastPath(plan, newTarget) &&
                         TryInvokeProductionUnifiedBytecode(
                             arguments,
                             thisValue,
@@ -2752,7 +2753,7 @@ TryCreateSimpleNumericSelfRecursionFastPath(
         {
             result = JsValue.Undefined;
 
-            if (CanUseProductionUnifiedBytecodeFastPath(plan, newTarget) &&
+            if (CanUseCachedOrEvaluateProductionUnifiedBytecodeFastPath(plan, newTarget) &&
                 TryInvokeProductionUnifiedBytecode(arguments, thisValue, newTarget, plan, context, callingContext, out result))
             {
                 return true;
@@ -2830,7 +2831,7 @@ TryCreateSimpleNumericSelfRecursionFastPath(
                 return _unifiedBytecodeProductionEligibility == UnifiedBytecodeEligibilityAccepted;
             }
 
-            return CanUseProductionUnifiedBytecodeFastPath(plan, newTarget);
+            return CanUseCachedOrEvaluateProductionUnifiedBytecodeFastPath(plan, newTarget);
         }
 
         private bool TryInvokeSimpleDerivedClassConstructorFastPath<TArgs>(
@@ -2850,7 +2851,7 @@ TryCreateSimpleNumericSelfRecursionFastPath(
                 return false;
             }
 
-            if (CanUseProductionUnifiedBytecodeFastPath(plan, newTarget) &&
+            if (CanUseCachedOrEvaluateProductionUnifiedBytecodeFastPath(plan, newTarget) &&
                 TryInvokeProductionUnifiedBytecode(
                     arguments,
                     thisValue,
@@ -3370,7 +3371,8 @@ TryCreateSimpleNumericSelfRecursionFastPath(
             }
 
             if (ReferenceEquals(_unifiedBytecodeProductionEligibilityPlan, plan) &&
-                _unifiedBytecodeProductionEligibility != UnifiedBytecodeEligibilityUnknown)
+                _unifiedBytecodeProductionEligibility != UnifiedBytecodeEligibilityUnknown &&
+                _unifiedBytecodeProductionEligibilityNewTargetIsUndefined == newTarget.IsUndefined)
             {
                 program = _unifiedBytecodeProductionProgram!;
                 return _unifiedBytecodeProductionEligibility == UnifiedBytecodeEligibilityAccepted;
@@ -3407,6 +3409,7 @@ TryCreateSimpleNumericSelfRecursionFastPath(
             }
 
             _unifiedBytecodeProductionEligibilityPlan = plan;
+            _unifiedBytecodeProductionEligibilityNewTargetIsUndefined = newTarget.IsUndefined;
             _unifiedBytecodeProductionEligibility = result.IsEligible
                 ? UnifiedBytecodeEligibilityAccepted
                 : UnifiedBytecodeEligibilityRejected;
@@ -3414,6 +3417,28 @@ TryCreateSimpleNumericSelfRecursionFastPath(
 
             program = result.Program;
             return result.IsEligible;
+        }
+
+        [MethodImpl(JsEngineConstants.Inlining)]
+        private bool CanUseCachedOrEvaluateProductionUnifiedBytecodeFastPath(
+            ExecutionPlan plan,
+            JsValue newTarget)
+        {
+            if (ReferenceEquals(_unifiedBytecodeProductionEligibilityPlan, plan) &&
+                _unifiedBytecodeProductionEligibility != UnifiedBytecodeEligibilityUnknown &&
+                _unifiedBytecodeProductionEligibilityNewTargetIsUndefined == newTarget.IsUndefined)
+            {
+                return _unifiedBytecodeProductionEligibility == UnifiedBytecodeEligibilityAccepted;
+            }
+
+            return CanUseProductionUnifiedBytecodeFastPath(plan, newTarget);
+        }
+
+        private void InvalidateProductionUnifiedBytecodeEligibilityCache()
+        {
+            _unifiedBytecodeProductionEligibilityPlan = null;
+            _unifiedBytecodeProductionEligibility = UnifiedBytecodeEligibilityUnknown;
+            _unifiedBytecodeProductionProgram = null;
         }
 
         private static bool IsPlanStructuralDecline(UnifiedBytecodeProductionDeclineCode code)
@@ -4902,6 +4927,7 @@ TryCreateSimpleNumericSelfRecursionFastPath(
         public void SetPrivateNameScope(PrivateNameScope? scope)
         {
             PrivateNameScope = scope;
+            InvalidateProductionUnifiedBytecodeEligibilityCache();
             if (scope is not null)
             {
                 _canUseFastPathBase = false;
@@ -4912,6 +4938,7 @@ TryCreateSimpleNumericSelfRecursionFastPath(
         public void SetCapturedPrivateNameScopes(ImmutableArray<PrivateNameScope> scopes)
         {
             _capturedPrivateNameScopes = scopes;
+            InvalidateProductionUnifiedBytecodeEligibilityCache();
             if (!scopes.IsDefaultOrEmpty)
             {
                 _canUseFastPathBase = false;
@@ -4923,6 +4950,7 @@ TryCreateSimpleNumericSelfRecursionFastPath(
         {
             _superConstructor = superConstructor;
             _superPrototype = superPrototype;
+            InvalidateProductionUnifiedBytecodeEligibilityCache();
             if (superConstructor is not null || superPrototype is not null)
             {
                 _canUseFastPathBase = false;
@@ -4933,6 +4961,7 @@ TryCreateSimpleNumericSelfRecursionFastPath(
         public void SetHomeObject(IJsObjectLike homeObject)
         {
             _homeObject = homeObject;
+            InvalidateProductionUnifiedBytecodeEligibilityCache();
             _canUseFastPathBase = false;
             _canUseSimpleIrActivationFastBase = false;
         }
@@ -4947,6 +4976,7 @@ TryCreateSimpleNumericSelfRecursionFastPath(
             _prototypeObject = null;
             _properties.DeleteOwnProperty("prototype");
             _isConstructorEnabled = false;
+            InvalidateProductionUnifiedBytecodeEligibilityCache();
         }
 
         public void SetPrototypeObject(JsObject prototype)
@@ -4958,6 +4988,7 @@ TryCreateSimpleNumericSelfRecursionFastPath(
         {
             IsClassConstructor = true;
             _isDerivedClassConstructor = isDerived;
+            InvalidateProductionUnifiedBytecodeEligibilityCache();
             _canUseFastPathBase = false;
             _canUseSimpleIrActivationFastBase = false;
         }
@@ -4965,6 +4996,7 @@ TryCreateSimpleNumericSelfRecursionFastPath(
         internal void SetInstanceFields(ImmutableArray<ResolvedClassField> fields)
         {
             _instanceFields = fields;
+            InvalidateProductionUnifiedBytecodeEligibilityCache();
         }
 
         /// <summary>

@@ -10141,7 +10141,7 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
             "plan.SimpleReturnParameterBinaryChain",
             StringComparison.Ordinal);
         var unifiedBytecodeIndex = routeSource.IndexOf(
-            "CanUseProductionUnifiedBytecodeFastPath(plan, newTarget)",
+            "CanUseCachedOrEvaluateProductionUnifiedBytecodeFastPath(plan, newTarget)",
             StringComparison.Ordinal);
         var syncIrTrampolineIndex = routeSource.IndexOf(
             "SyncIrCallTrampoline.TryInvoke(",
@@ -10263,6 +10263,48 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
 
         var vmSource = File.ReadAllText(vmPath);
         AssertUnifiedBytecodeAcceptedSectionDoesNotDelegate(vmSource, "unified bytecode VM");
+    }
+
+    [Fact]
+    public void SourceGate_ProductionUnifiedBytecodeRoute_ReusesNewTargetAwareEligibilityCache()
+    {
+        var repositoryRoot = FindRepositoryRootForSourceGate();
+        var invokerPath = Path.Combine(
+            repositoryRoot.FullName,
+            "src",
+            "Asynkron.JsEngine",
+            "Ast",
+            "TypedAstEvaluator.SyncFunctionInvoker.cs");
+
+        Assert.True(File.Exists(invokerPath), $"Expected sync invoker source at '{invokerPath}'.");
+        var invokerSource = File.ReadAllText(invokerPath);
+        var routeSource = ExtractRequiredSourceSection(
+            invokerSource,
+            "private bool TryInvokeIrFast<TArgs>(",
+            "private bool TryInvokeSimpleDerivedClassConstructorFastPath<TArgs>(",
+            "ordinary sync route");
+        var cacheHelperSource = ExtractRequiredSourceSection(
+            invokerSource,
+            "private bool CanUseCachedOrEvaluateProductionUnifiedBytecodeFastPath(",
+            "private void InvalidateProductionUnifiedBytecodeEligibilityCache()",
+            "production unified bytecode cached eligibility helper");
+
+        Assert.Contains(
+            "CanUseCachedOrEvaluateProductionUnifiedBytecodeFastPath(plan, newTarget)",
+            routeSource,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain(
+            "CanUseProductionUnifiedBytecodeFastPath(plan, newTarget) &&",
+            routeSource,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "_unifiedBytecodeProductionEligibilityNewTargetIsUndefined == newTarget.IsUndefined",
+            cacheHelperSource,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "_unifiedBytecodeProductionEligibility == UnifiedBytecodeEligibilityAccepted",
+            cacheHelperSource,
+            StringComparison.Ordinal);
     }
 
     [Fact]

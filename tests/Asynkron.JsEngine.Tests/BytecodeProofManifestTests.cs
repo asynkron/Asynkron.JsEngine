@@ -153,8 +153,8 @@ public sealed partial class BytecodeProofManifestTests(ITestOutputHelper output)
             proofs.Keys.Order(StringComparer.Ordinal).ToArray());
 
         var asyncStepProof = proofs["E5-ir-runner-async-step-entry-still-present"];
-        Assert.Equal("source-presence", asyncStepProof.Kind);
-        Assert.Equal("open", asyncStepProof.Claim);
+        Assert.Equal("source-absence", asyncStepProof.Kind);
+        Assert.Equal("retired-fallback", asyncStepProof.Claim);
         Assert.Equal("E5d-async-function-declined-body-runner-residue", asyncStepProof.ChildOwner);
         Assert.Equal(".ExecuteAsyncStep(", asyncStepProof.Pattern);
 
@@ -169,13 +169,8 @@ public sealed partial class BytecodeProofManifestTests(ITestOutputHelper output)
 
         var scriptEntryProof = proofs["E5-ir-runner-script-entry-still-present"];
         Assert.Equal("E5c-script-fallback-retirement", scriptEntryProof.ChildOwner);
-        Assert.DoesNotContain(
-            "src/Asynkron.JsEngine/Ast/ClassDefinitionExtensions.cs",
-            scriptEntryProof.AllowedPaths,
-            StringComparer.Ordinal);
-        Assert.DoesNotContain(
-            scriptEntryProof.ClassifiedCallSites,
-            static callSite => callSite.ChildOwner == "E5-static-block-declined-residue");
+        Assert.Equal("source-absence", scriptEntryProof.Kind);
+        Assert.Equal("retired-fallback", scriptEntryProof.Claim);
         Assert.Equal(
             "E5d-function-and-resumable-declined-body-runner-retirement",
             proofs["E5-ir-runner-sync-entry-still-present"].ChildOwner);
@@ -255,20 +250,13 @@ public sealed partial class BytecodeProofManifestTests(ITestOutputHelper output)
             {
                 Assert.Equal("source-allowlist", proof.Kind);
                 Assert.Equal("open", proof.Claim);
-                if (proof.Id == "E5-ir-runner-script-entry-still-present")
-                {
-                    Assert.Contains(
-                        "ordinary script declines no longer use this E5b runner entry",
-                        proof.Classification,
-                        StringComparison.Ordinal);
-                }
             });
         Assert.Single(
             items["E5b"].Proofs,
             static proof =>
                 proof.Id == "E5-ir-runner-async-step-entry-still-present" &&
-                proof.Kind == "source-presence" &&
-                proof.Claim == "open");
+                proof.Kind == "source-absence" &&
+                proof.Claim == "retired-fallback");
 
         Assert.Equal(
             [

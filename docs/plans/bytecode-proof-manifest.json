@@ -2172,22 +2172,11 @@
         {
           "id": "E5-ir-runner-script-entry-still-present",
           "childOwner": "E5c-script-fallback-retirement",
-          "classification": "classified RunScript call-site allowlist for terminal dynamic/eval script residue; ordinary script declines no longer use this E5b runner entry; static-block declined bodies no longer enter ExecutionPlanRunner.RunScript; not a broad E5b entry-presence blocker",
-          "claim": "open",
-          "kind": "source-allowlist",
+          "classification": "ordinary RunScript entry is retired; terminal dynamic/eval script residue remains classified outside E5b runner retirement after E5c declines; not a broad E5b entry-presence blocker",
+          "claim": "retired-fallback",
+          "kind": "source-absence",
           "paths": [
             "src/Asynkron.JsEngine/Ast"
-          ],
-          "allowedPaths": [
-            "src/Asynkron.JsEngine/Ast/Legacy/StatementNodeExtensions.cs"
-          ],
-          "classifiedCallSites": [
-            {
-              "childOwner": "E5c-terminal-dynamic-script-residue",
-              "classification": "terminal dynamic direct-eval and eval execution-kind script residue classified outside ordinary E5 runner retirement after production unified bytecode declines",
-              "path": "src/Asynkron.JsEngine/Ast/Legacy/StatementNodeExtensions.cs",
-              "callCount": 2
-            }
           ],
           "pattern": "ExecutionPlanRunner.RunScript("
         },
@@ -2205,10 +2194,12 @@
         {
           "id": "E5-ir-runner-async-step-entry-still-present",
           "childOwner": "E5d-async-function-declined-body-runner-residue",
-          "classification": "classified async-function declined-body runner call site preserves legacy async semantics after resumable unified bytecode declines; not a broad E5b entry-presence blocker",
-          "claim": "open",
-          "kind": "source-presence",
-          "path": "src/Asynkron.JsEngine/Ast/TypedAstEvaluator.AsyncFunctionInvoker.cs",
+          "classification": "async-function declined-body ExecuteAsyncStep entry is retired; classified async-function runner residue remains explicitly scoped to resumable unified bytecode declines; not a broad E5b entry-presence blocker",
+          "claim": "retired-fallback",
+          "kind": "source-absence",
+          "paths": [
+            "src/Asynkron.JsEngine/Ast"
+          ],
           "pattern": ".ExecuteAsyncStep("
         }
       ]

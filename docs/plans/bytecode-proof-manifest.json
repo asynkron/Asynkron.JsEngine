@@ -2322,6 +2322,23 @@
           "pattern": "CreateClassifiedClassConstructorFallbackRunner"
         },
         {
+          "id": "E5-sync-generator-creation-time-ir-route-runs-without-declined-residue",
+          "childOwner": "E5d-sync-generator-ir-route-selection",
+          "classification": "executable simple-parameter sync generator body remains valid while intentionally selecting the creation-time IR route; it does not enter the accepted resumable VM fast path and does not use the retired declined-residue bridge",
+          "claim": "admitted",
+          "kind": "runtime",
+          "source": "function* values(o, k) {\n  yield 1;\n  yield o?.[k]();\n}\nvar iterator = values({ m() { return 2; } }, 'm');\nvar first = iterator.next();\nvar second = iterator.next();\nString(first.value) + ':' + first.done + ':' + second.value + ':' + second.done;",
+          "expectedResult": "1:false:2:false",
+          "requiredLogs": [
+            "sync-generator-creation-time-ir-route func=values argc=2"
+          ],
+          "forbiddenLogs": [
+            "unified-bytecode-resumable-generator-fast-path func=values",
+            "classified-sync-generator-ir-fallback",
+            "classified-sync-generator-declined-residue"
+          ]
+        },
+        {
           "id": "E5-sync-generator-declined-residue-runner-still-present",
           "childOwner": "E5d-sync-generator-declined-residue",
           "classification": "sync generator declined-residue runner bridge is retired; simple-parameter bodies whose existing plan is not resumable-VM eligible use the classified creation-time IR route, pre-gate non-simple parameter declines still fail explicitly, and no generic declined-body runner remains",

@@ -1558,6 +1558,10 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
         Assert.Equal(2d, steps.Items[2].AsDouble());
         Assert.False(steps.Items[3].AsBoolean());
         var snapshot = CurrentLogger!.Collector.Snapshot();
+        Assert.Contains(snapshot,
+            static record => record.Message.Contains(
+                "sync-generator-creation-time-ir-route func=values argc=2",
+                StringComparison.Ordinal));
         Assert.DoesNotContain(snapshot,
             static record => record.Message.Contains("classified-sync-generator-ir-fallback", StringComparison.Ordinal));
         Assert.DoesNotContain(snapshot,

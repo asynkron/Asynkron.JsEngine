@@ -76,7 +76,11 @@ The JsEngine has two separate generator execution paths:
    `new ExecutionPlanRunner(` occurrences, keep the `IrSyncGeneratorInvoker`
    call site under a route-selection owner such as
    `E5d-sync-generator-ir-route-selection` and assert that retired
-   declined-residue tombstones do not carry that owner.
+   declined-residue tombstones do not carry that owner. Pair that source
+   allowlist with a focused runtime proof for at least one valid simple-
+   parameter shape that emits `sync-generator-creation-time-ir-route` while
+   forbidding both the accepted resumable VM fast-path log and retired
+   declined-residue markers.
 5. When an async-generator fallback bridge is retired, update the stale tests in
    the same slice to assert explicit decline failure instead of fallback
    success. Rename affected tests away from `FallsBack...`, assert that the

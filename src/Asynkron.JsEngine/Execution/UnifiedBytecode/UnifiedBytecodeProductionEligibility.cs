@@ -84,8 +84,14 @@ internal static class UnifiedBytecodeProductionEligibility
 
     internal static bool ContainsOnlyImplicitArgumentsObjectDynamicIdentifierDependency(ExecutionPlan plan)
     {
+        if (plan.TryGetContainsOnlyImplicitArgumentsObjectDynamicIdentifierDependency(out var cachedResult))
+        {
+            return cachedResult;
+        }
+
         if (plan.ActivationSlots is not { } activationSlots)
         {
+            plan.SetContainsOnlyImplicitArgumentsObjectDynamicIdentifierDependency(false);
             return false;
         }
 
@@ -134,6 +140,7 @@ internal static class UnifiedBytecodeProductionEligibility
             }
         }
 
+        plan.SetContainsOnlyImplicitArgumentsObjectDynamicIdentifierDependency(foundArgumentsDependency);
         return foundArgumentsDependency;
     }
 
@@ -153,6 +160,11 @@ internal static class UnifiedBytecodeProductionEligibility
 
     internal static bool ContainsOrdinaryDynamicIdentifierDependency(ExecutionPlan plan)
     {
+        if (plan.TryGetContainsOrdinaryDynamicIdentifierDependency(out var cachedResult))
+        {
+            return cachedResult;
+        }
+
         if (plan.ActivationSlots is not { } activationSlots ||
             !UnifiedBytecodeWithDepthAnalysis.TryBuildActiveWithDepths(
                 plan.Instructions,
@@ -160,6 +172,7 @@ internal static class UnifiedBytecodeProductionEligibility
                 out var activeWithDepths,
                 out _))
         {
+            plan.SetContainsOrdinaryDynamicIdentifierDependency(false);
             return false;
         }
 
@@ -173,6 +186,7 @@ internal static class UnifiedBytecodeProductionEligibility
             var instruction = plan.Instructions[instructionIndex];
             if (HasOrdinaryDynamicInstructionDependency(instruction, activationSlots))
             {
+                plan.SetContainsOrdinaryDynamicIdentifierDependency(true);
                 return true;
             }
 
@@ -180,6 +194,7 @@ internal static class UnifiedBytecodeProductionEligibility
                 (HasOrdinaryDynamicExpressionDependency(program, activationSlots) ||
                  HasOrdinaryDynamicCallTargetDependency(program, activationSlots)))
             {
+                plan.SetContainsOrdinaryDynamicIdentifierDependency(true);
                 return true;
             }
         }
@@ -195,6 +210,7 @@ internal static class UnifiedBytecodeProductionEligibility
                 out _,
                 includeZeroDepthExceptionRegions: true))
         {
+            plan.SetContainsOrdinaryDynamicIdentifierDependency(false);
             return false;
         }
 
@@ -209,6 +225,7 @@ internal static class UnifiedBytecodeProductionEligibility
             var instruction = plan.Instructions[instructionIndex];
             if (HasOrdinaryDynamicPlainAssignmentInstructionDependency(instruction, activationSlots))
             {
+                plan.SetContainsOrdinaryDynamicIdentifierDependency(true);
                 return true;
             }
 
@@ -221,10 +238,12 @@ internal static class UnifiedBytecodeProductionEligibility
                 HasOrdinaryDynamicTypeOfDependency(program, activationSlots) ||
                 HasOrdinaryDynamicCallTargetDependency(program, activationSlots))
             {
+                plan.SetContainsOrdinaryDynamicIdentifierDependency(true);
                 return true;
             }
         }
 
+        plan.SetContainsOrdinaryDynamicIdentifierDependency(false);
         return false;
     }
 

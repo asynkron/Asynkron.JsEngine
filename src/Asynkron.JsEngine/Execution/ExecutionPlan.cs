@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using System.Threading;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.Execution.Instructions;
 using Asynkron.JsEngine.JsTypes;
@@ -129,6 +130,8 @@ internal sealed record ExecutionPlan(
     /// SyncFunctionInvoker instance for the same FunctionExpression can skip the re-evaluation.
     /// </summary>
     private volatile bool _productionEligibilityPermanentDecline;
+    private int _containsOrdinaryDynamicIdentifierDependency;
+    private int _containsOnlyImplicitArgumentsObjectDynamicIdentifierDependency;
 
     internal bool IsProductionEligibilityPermanentDecline => _productionEligibilityPermanentDecline;
 
@@ -136,6 +139,47 @@ internal sealed record ExecutionPlan(
     {
         _productionEligibilityPermanentDecline = true;
     }
+
+    internal bool TryGetContainsOrdinaryDynamicIdentifierDependency(out bool value) =>
+        TryReadCachedBoolean(ref _containsOrdinaryDynamicIdentifierDependency, out value);
+
+    internal void SetContainsOrdinaryDynamicIdentifierDependency(bool value)
+    {
+        Volatile.Write(
+            ref _containsOrdinaryDynamicIdentifierDependency,
+            ToCachedBoolean(value));
+    }
+
+    internal bool TryGetContainsOnlyImplicitArgumentsObjectDynamicIdentifierDependency(out bool value) =>
+        TryReadCachedBoolean(ref _containsOnlyImplicitArgumentsObjectDynamicIdentifierDependency, out value);
+
+    internal void SetContainsOnlyImplicitArgumentsObjectDynamicIdentifierDependency(bool value)
+    {
+        Volatile.Write(
+            ref _containsOnlyImplicitArgumentsObjectDynamicIdentifierDependency,
+            ToCachedBoolean(value));
+    }
+
+    private static bool TryReadCachedBoolean(ref int cached, out bool value)
+    {
+        var state = Volatile.Read(ref cached);
+        switch (state)
+        {
+            case 1:
+                value = false;
+                return true;
+
+            case 2:
+                value = true;
+                return true;
+
+            default:
+                value = false;
+                return false;
+        }
+    }
+
+    private static int ToCachedBoolean(bool value) => value ? 2 : 1;
 
     public CompactStatementStorageBoundary CreateCompactStatementStorageBoundary() =>
         CompactStatementStorageBoundary ?? CompactStatementStorage.CreateBoundary(

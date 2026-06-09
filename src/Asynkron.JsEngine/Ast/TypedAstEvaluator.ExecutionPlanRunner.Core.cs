@@ -159,6 +159,14 @@ public static partial class TypedAstEvaluator
             return RunScriptCore(plan, environment, context);
         }
 
+        public static JsValue ExecuteClassifiedOrdinaryScriptFallback(
+            ExecutionPlan plan,
+            JsEnvironment environment,
+            EvaluationContext context)
+        {
+            return RunScriptCore(plan, environment, context);
+        }
+
         private static JsValue RunScriptCore(
             ExecutionPlan plan,
             JsEnvironment environment,

@@ -2277,7 +2277,7 @@
         {
           "id": "E5-script-ir-fallback-still-runs-execution-plan-runner",
           "childOwner": "E5c-script-fallback-retirement",
-          "classification": "ordinary script IR fallback runner entry is retired; non-terminal ordinary production declines no longer call ExecutionPlanRunner.RunScript or renamed runner wrappers such as RunOrdinaryDeclinedScript",
+          "classification": "ordinary script RunScript entry is retired; non-terminal ordinary production declines no longer call ExecutionPlanRunner.RunScript or the tombstoned RunOrdinaryDeclinedScript wrapper",
           "claim": "retired-fallback",
           "kind": "source-absence",
           "path": "src/Asynkron.JsEngine/Ast/Legacy/StatementNodeExtensions.cs",

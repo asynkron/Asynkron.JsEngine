@@ -10287,11 +10287,11 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
         var evalHelperSection = ExtractRequiredSourceSection(
             source,
             "private static JsValue RunEvalScriptViaIrFallback(",
-            "private static JsValue RunOrdinaryScriptViaClassifiedLegacyAstFallback(",
+            "private static JsValue RunOrdinaryScriptViaClassifiedRunnerFallback(",
             "eval script IR fallback");
         var ordinaryFallbackSection = ExtractRequiredSourceSection(
             source,
-            "private static JsValue RunOrdinaryScriptViaClassifiedLegacyAstFallback(",
+            "private static JsValue RunOrdinaryScriptViaClassifiedRunnerFallback(",
             "private static bool IsTerminalDynamicScriptResidue(",
             "ordinary script fallback");
         var sourceOutsideClassifiedHelpers = source
@@ -10305,12 +10305,11 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
 
         Assert.Contains("IsTerminalDynamicScriptResidue(eligibility)", scriptRouteSection, StringComparison.Ordinal);
         Assert.Contains("return RunTerminalDynamicScriptResidueViaIrFallback(", scriptRouteSection, StringComparison.Ordinal);
-        Assert.Contains("return RunOrdinaryScriptViaClassifiedLegacyAstFallback(", scriptRouteSection, StringComparison.Ordinal);
+        Assert.Contains("return RunOrdinaryScriptViaClassifiedRunnerFallback(", scriptRouteSection, StringComparison.Ordinal);
         Assert.DoesNotContain("return ExecutionPlanRunner.RunScript(", sourceOutsideClassifiedHelpers, StringComparison.Ordinal);
         Assert.DoesNotContain("ExecutionPlanRunner.RunScript(", scriptRouteSection, StringComparison.Ordinal);
-        Assert.Contains("ordinary-script-classified-legacy-ast-fallback", ordinaryFallbackSection, StringComparison.Ordinal);
-        Assert.Contains("EvaluateBlockJsValue(", ordinaryFallbackSection, StringComparison.Ordinal);
-        Assert.DoesNotContain("ExecutionPlanRunner.", ordinaryFallbackSection, StringComparison.Ordinal);
+        Assert.Contains("ordinary-script-classified-runner-fallback", ordinaryFallbackSection, StringComparison.Ordinal);
+        Assert.Contains("ExecuteClassifiedOrdinaryScriptFallback(", ordinaryFallbackSection, StringComparison.Ordinal);
         Assert.DoesNotContain("RunOrdinaryDeclinedScript(", ordinaryFallbackSection, StringComparison.Ordinal);
         Assert.DoesNotContain("RunScriptCore(", ordinaryFallbackSection, StringComparison.Ordinal);
         Assert.DoesNotContain("ExecutionPlanRunner.RunScript(", ordinaryFallbackSection, StringComparison.Ordinal);

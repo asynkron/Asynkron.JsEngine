@@ -275,6 +275,18 @@ optimization.
     `forloop --memory` matched current-main behavior at about `968 MB`.
     Related ADR:
     `docs/adrs/0374-keep-classdef-production-slot-storage-cache-invoker-owned.md`.
+6n. Do not retry local copies of derived-constructor internal metadata
+    (`LexicalThisEnvironment`, `new.target`, or `ActiveFunction`) in the body
+    environment as a `classdef` shortcut. The idea is semantically narrow if it
+    leaves `Super` and mutable `this` on the existing owner, but repeated
+    focused rows did not improve after the extra bindings were added
+    (`1250 ms`, `1283 ms` against a `1250 ms` selected baseline), and the
+    follow-up profile still showed constructor/super dispatch plus activation
+    setup as the owner. Future work should avoid this metadata-locality shape
+    unless a fresh profile names the enclosing-chain metadata lookup itself as
+    dominant. WHY: issue `autrun-dj4lvy4v71a0-ea18e8a874` documented the
+    reverted trial in
+    `docs/performance/failed-classdef-derived-super-internal-binding-locality.md`.
 7. For expression-bytecode arithmetic optimization, narrow from a broad
    benchmark table to the profile that actually owns the hot path before
    changing the runner. Use `rtk ./tools/profile <profile> --cpu` to confirm

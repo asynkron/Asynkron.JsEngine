@@ -86,6 +86,64 @@ An additional post-change profile no longer showed `SharedArrayPool<JsValue>`
 rent/return as the constructor hot subtree. Remaining costs were constructor
 and `super()` dispatch, property stores, and `Array.map` callback invocation.
 
+## Current-main Residual Reprofile
+
+On 2026-06-09, issue #3531 reprofiled `classdef` after PR #3505 and ADR 0374
+were already on `origin/main` (`0cdac63ed`). The task branch matched
+`origin/main` before profiling, so the evidence is current-main evidence rather
+than branch-local evidence.
+
+The refreshed selected row was:
+
+```text
+profile                 asynkron_ms  jint_ms  delta
+classdef                        858      255  Jint 3.36x faster
+```
+
+The CPU profile kept the largest residual family in constructor and `super()`
+dispatch, not in the slot-cache rent/return owner that PR #3505 removed:
+
+```text
+ExecuteInstructionLoop
+  HandleEvaluateAndDiscard
+    EvaluateExpressionProgram
+      ExecuteProgramConstruct
+        ExecuteProgramConstructNoSpread
+          ReflectHelper.Construct
+            SyncFunctionInvoker.InvokeWithContextSlow
+              TryInvokeProductionUnifiedBytecode
+                TryGetProductionUnifiedBytecodeProgram
+                  UnifiedBytecodeProductionEligibility.Evaluate
+                    UnifiedBytecodeCompiler.TryCompile
+                UnifiedBytecodeVirtualMachine.Execute
+                  ExecutePreparedSuperConstruct
+                    ConstructNoSpread
+```
+
+The sampled residual split under that owner was:
+
+- `TryGetProductionUnifiedBytecodeProgram` / eligibility / compile:
+  `30.80 ms`, `17.5%` of the `ExecuteInstructionLoop` root.
+- `ExecutePreparedSuperConstruct` / `ConstructNoSpread`: `21.79 ms`, `12.4%`.
+- Simple derived-constructor environment creation: `10.50 ms`, `6.0%`.
+
+The same profile also showed the `Array.prototype.map` callback tail
+(`ArrayPrototype.Map` / `InvokeArrayIterationCallback`, `30.25 ms`, `17.2%`)
+as a separate residual family. Keep that separate from constructor/super
+dispatch unless a future profile chooses callback invocation as the single
+bounded owner.
+
+A descriptor-keyed accepted-program cache on `ExecutionPlan` was trialed
+locally because the first profile sampled eligibility/compile under
+constructor dispatch. It was not retained: rebuilt patched timing rows were
+`887 ms`, `902 ms`, and `834 ms` against the current-main `858 ms` row, and the
+follow-up profile still showed the expensive compile sample as a first-hit
+per-plan effect rather than a repeatable loop owner.
+
+Future work should therefore keep ADR 0374 intact and treat the next measured
+constructor/super slice as invocation/environment/super-dispatch work, not as
+a broader slot-storage cache or a plan-level accepted-program cache.
+
 ## Verification
 
 ```bash

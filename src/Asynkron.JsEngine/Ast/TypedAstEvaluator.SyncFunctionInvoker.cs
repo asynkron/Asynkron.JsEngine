@@ -1836,9 +1836,9 @@ TryCreateSimpleNumericSelfRecursionFastPath(
                      (_hasHoistableDeclarations && _isStrict) ||
                      (_hasNonParameterCalleeCall && (!_isStrict || _hasHoistableDeclarations)));
                 if (hasFunctionCodeIrSeam &&
-                    _hasDirectEvalInBodyOrParameters &&
+                    !IsClassConstructor &&
                     plan is not null &&
-                    CanUseProductionUnifiedBytecodeFastPath(plan, JsValue.Undefined))
+                    CanUseProductionUnifiedBytecodeFastPath(plan, newTarget))
                 {
                     hasFunctionCodeIrSeam = false;
                 }

@@ -104,6 +104,9 @@ public sealed partial class BytecodeProofManifestTests(ITestOutputHelper output)
         Assert.Equal(
             "CreateClassifiedOrdinarySyncFunctionFallbackRunner",
             ordinaryProof.Pattern);
+        Assert.Equal("source-absence", ordinaryProof.Kind);
+        Assert.Equal("retired-fallback", ordinaryProof.Claim);
+        Assert.Contains("dynamic-scope executor route", ordinaryProof.Classification, StringComparison.Ordinal);
         Assert.Contains("not class-constructor initialization residue", ordinaryProof.Classification, StringComparison.Ordinal);
 
         Assert.Equal("E5d-class-constructor-initialization-residue", classConstructorProof.ChildOwner);
@@ -180,7 +183,25 @@ public sealed partial class BytecodeProofManifestTests(ITestOutputHelper output)
             "E5d-function-and-resumable-declined-body-runner-retirement",
             proofs["E5-ir-runner-sync-entry-still-present"].ChildOwner);
 
+        var syncEntryProof = proofs["E5-ir-runner-sync-entry-still-present"];
+        Assert.Equal("source-absence", syncEntryProof.Kind);
+        Assert.Equal("retired-fallback", syncEntryProof.Claim);
+        Assert.Equal("runner.RunSync();", syncEntryProof.Pattern);
+        Assert.Contains("dynamic-scope executor route", syncEntryProof.Classification, StringComparison.Ordinal);
+
         var runnerTypeProof = proofs["E5-ir-runner-type-still-present"];
+        var runnerConstructionMatches = FindExecutionPlanRunnerConstructionMatches(runnerTypeProof);
+        var allowedRunnerConstructionPaths = runnerTypeProof.AllowedPaths.ToHashSet(StringComparer.Ordinal);
+        var disallowedRunnerConstructions = runnerConstructionMatches
+            .Where(match => !allowedRunnerConstructionPaths.Contains(match.relativePath))
+            .Select(match => $"{match.relativePath}:{match.LineNumber}:{match.Text}")
+            .ToArray();
+        Assert.True(
+            disallowedRunnerConstructions.Length == 0,
+            "E5-ir-runner-type-still-present: unclassified ExecutionPlanRunner construction detected:\n" +
+            string.Join('\n', disallowedRunnerConstructions));
+        VerifyClassifiedCallSites(runnerTypeProof, runnerConstructionMatches);
+
         var syncGeneratorRoute = Assert.Single(
             runnerTypeProof.ClassifiedCallSites,
             static callSite => callSite.ChildOwner == "E5d-sync-generator-ir-route-selection");
@@ -299,7 +320,7 @@ public sealed partial class BytecodeProofManifestTests(ITestOutputHelper output)
             dynamicDeleteProof.Classification,
             StringComparison.Ordinal);
         Assert.Contains(
-            "classified ordinary sync fallback runner",
+            "ordinary sync dynamic-scope executor",
             dynamicDeleteProof.Classification,
             StringComparison.Ordinal);
         Assert.Contains(
@@ -307,19 +328,36 @@ public sealed partial class BytecodeProofManifestTests(ITestOutputHelper output)
             dynamicDeleteProof.RequiredLogs,
             StringComparer.Ordinal);
         Assert.Contains(
+            "ordinary-sync-declined-body-dynamic-scope-executor reason=production-unified-bytecode-declined func=deleteImplicitGlobal",
+            dynamicDeleteProof.ForbiddenLogs,
+            StringComparer.Ordinal);
+        Assert.Contains(
             "classified-ordinary-sync-function-fallback reason=production-unified-bytecode-declined func=deleteImplicitGlobal",
             dynamicDeleteProof.ForbiddenLogs,
             StringComparer.Ordinal);
 
         var remainingFallbackProof = proofs["E5-function-runner-fallback-still-constructs-runner"];
-        Assert.Equal("open", remainingFallbackProof.Claim);
+        Assert.Equal("source-absence", remainingFallbackProof.Kind);
+        Assert.Equal("retired-fallback", remainingFallbackProof.Claim);
         Assert.Contains(
-            "remaining ordinary sync function fallback runner construction anchor",
+            "ordinary sync function fallback runner construction is retired",
             remainingFallbackProof.Classification,
             StringComparison.Ordinal);
         Assert.Contains(
-            "after zero-depth dynamic identifier delete routes through production unified bytecode",
+            "dynamic-scope executor route",
             remainingFallbackProof.Classification,
+            StringComparison.Ordinal);
+
+        var ordinaryHelperProof = proofs["E5-ordinary-sync-dynamic-scope-helper-is-not-runner-backed"];
+        Assert.Equal("source-absence", ordinaryHelperProof.Kind);
+        Assert.Equal("retired-fallback", ordinaryHelperProof.Claim);
+        Assert.Equal(
+            "src/Asynkron.JsEngine/Ast/TypedAstEvaluator.ExecutionPlanRunner.Core.cs",
+            ordinaryHelperProof.Path);
+        Assert.Equal("ExecuteOrdinarySyncDynamicScopeExecutor", ordinaryHelperProof.Pattern);
+        Assert.Contains(
+            "no Core helper may construct ExecutionPlanRunner",
+            ordinaryHelperProof.Classification,
             StringComparison.Ordinal);
     }
 
@@ -624,6 +662,28 @@ public sealed partial class BytecodeProofManifestTests(ITestOutputHelper output)
             $"{proof.Id}: source allowlist drift detected for '{pattern}':\n" + string.Join('\n', disallowed));
 
         VerifyClassifiedCallSites(proof, matches);
+    }
+
+    private static (string relativePath, int LineNumber, string Text)[] FindExecutionPlanRunnerConstructionMatches(
+        ProofManifestProof proof)
+    {
+        var repositoryRoot = FindRepositoryRoot();
+        Assert.NotEmpty(proof.Paths);
+        var scannedFiles = proof.Paths
+            .SelectMany(path => EnumerateManifestSourceFiles(repositoryRoot, proof.Id, path))
+            .ToArray();
+
+        Assert.NotEmpty(scannedFiles);
+        return scannedFiles
+            .SelectMany(file =>
+            {
+                var relativePath = NormalizeManifestPath(repositoryRoot, file);
+                return File.ReadAllLines(file)
+                    .Select((line, index) => new { line, index })
+                    .Where(entry => ExecutionPlanRunnerConstructionPattern().IsMatch(entry.line))
+                    .Select(entry => (relativePath, LineNumber: entry.index + 1, Text: entry.line.Trim()));
+            })
+            .ToArray();
     }
 
     private static void VerifyClassifiedCallSites(
@@ -1019,6 +1079,11 @@ public sealed partial class BytecodeProofManifestTests(ITestOutputHelper output)
 
     [GeneratedRegex(@"^- \[(?<mark>x| )\] \*\*(?<id>[A-Z][0-9]+[a-z]?(?:[0-9]+)?)\*\*", RegexOptions.Multiline)]
     private static partial Regex ChecklistRowPattern();
+
+    [GeneratedRegex(
+        @"(?<![A-Za-z0-9_.])new\s+ExecutionPlanRunner\s*\(|\bExecutionPlanRunner\s+[A-Za-z_][A-Za-z0-9_]*\s*=\s*new\s*\(",
+        RegexOptions.CultureInvariant)]
+    private static partial Regex ExecutionPlanRunnerConstructionPattern();
 
     private sealed class ProofManifest
     {

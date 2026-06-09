@@ -1899,7 +1899,6 @@ TryCreateSimpleNumericSelfRecursionFastPath(
                         }
                         else
                         {
-                            // For arrow functions, use lexically captured this and new.target
                             var effectiveThisValue = thisValue;
                             var effectiveNewTarget = newTarget;
                             if (IsArrowFunction)
@@ -1912,35 +1911,22 @@ TryCreateSimpleNumericSelfRecursionFastPath(
                                 }
 
                                 effectiveThisValue = lexicalThis.IsUninitialized ? JsValue.Undefined : lexicalThis;
-
-                                // Arrow functions inherit new.target from the enclosing function
                                 if (effectiveNewTarget.IsUndefined && !_lexicalNewTarget.IsUndefined)
                                 {
                                     effectiveNewTarget = _lexicalNewTarget;
                                 }
                             }
 
-                            try
-                            {
-                                var runner = CreateClassifiedOrdinarySyncFunctionFallbackRunner(
-                                    arguments,
-                                    effectiveThisValue,
-                                    effectiveNewTarget,
-                                    plan,
-                                    context,
-                                    constructErrorRealm);
-
-                                return runner.RunSync();
-                            }
-                            catch (ThrowSignal signal) when (callingContext is not null)
-                            {
-                                callingContext.SetThrow(signal.ThrownValue);
-                                return signal.ThrownValue;
-                            }
+                            RealmState.Logger?.LogInformation(
+                                "ordinary-sync-declined-body-dynamic-scope-executor reason=production-unified-bytecode-declined func={Function} argc={ArgumentCount}",
+                                _function.Name?.Name ?? "<anonymous>",
+                                arguments.Count);
+                            thisValue = effectiveThisValue;
+                            newTarget = effectiveNewTarget;
                         }
                     }
 
-                    if (!IsClassConstructor)
+                    if (!IsClassConstructor && plan is null)
                     {
                         throw new NotSupportedException(
                             $"IR plan generation failed for function: {failureReason}");
@@ -2763,41 +2749,6 @@ TryCreateSimpleNumericSelfRecursionFastPath(
             }
 
             return CanUseCachedOrEvaluateProductionUnifiedBytecodeFastPath(plan, newTarget);
-        }
-
-        private ExecutionPlanRunner CreateClassifiedOrdinarySyncFunctionFallbackRunner<TArgs>(
-            TArgs arguments,
-            JsValue thisValue,
-            JsValue newTarget,
-            ExecutionPlan plan,
-            EvaluationContext context,
-            RealmState constructErrorRealm)
-            where TArgs : IReadOnlyList<JsValue>
-        {
-            RealmState.Logger?.LogInformation(
-                "classified-ordinary-sync-function-fallback reason=production-unified-bytecode-declined func={Function} argc={ArgumentCount}",
-                _function.Name?.Name ?? "<anonymous>",
-                arguments.Count);
-            return new ExecutionPlanRunner(
-                _function,
-                _closure,
-                arguments,
-                thisValue,
-                this,
-                RealmState,
-                _isStrict,
-                _hasFunctionNameEnvironment,
-                _homeObject,
-                PrivateNameScope,
-                _capturedPrivateNameScopes,
-                newTarget,
-                _lexicalThisEnvironment,
-                _superConstructor,
-                _superPrototype,
-                context,
-                derivedClassErrorRealm: constructErrorRealm,
-                planOverride: plan,
-                planFailureOverride: _planSeed.Failure);
         }
 
         private bool TryInvokeProductionUnifiedBytecode<TArgs>(

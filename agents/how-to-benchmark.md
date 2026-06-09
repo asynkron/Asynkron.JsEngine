@@ -188,11 +188,12 @@ create a new engine for each measured iteration.
 
 ## Profile Inventory
 
-List available profiles through the underlying runner:
+List available profiles through the maintained profile wrapper:
 
 ```bash
-rtk ./tools/ProfileRunner/bin/Release/net10.0/ProfileRunner list
+rtk ./tools/profile list
 ```
 
-Profile definitions live in `tools/profile-manifest.json`; scripts live in
-`tools/profile-scripts/`.
+The wrapper builds ProfileRunner when needed, then lists the manifest-backed
+inventory. Profile definitions live in `tools/profile-manifest.json`; scripts
+live in `tools/profile-scripts/`.

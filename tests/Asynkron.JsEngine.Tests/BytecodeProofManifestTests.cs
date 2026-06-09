@@ -179,8 +179,19 @@ public sealed partial class BytecodeProofManifestTests(ITestOutputHelper output)
         Assert.Equal(
             "E5d-function-and-resumable-declined-body-runner-retirement",
             proofs["E5-ir-runner-sync-entry-still-present"].ChildOwner);
+        var syncEntryProof = proofs["E5-ir-runner-sync-entry-still-present"];
+        Assert.Equal("source-absence", syncEntryProof.Kind);
+        Assert.Equal("retired-fallback", syncEntryProof.Claim);
+        Assert.Equal(".RunSync(", syncEntryProof.Pattern);
+        Assert.Contains(
+            "ordinary sync function declined-body ExecutionPlanRunner.RunSync route is retired",
+            syncEntryProof.Classification,
+            StringComparison.Ordinal);
 
         var runnerTypeProof = proofs["E5-ir-runner-type-still-present"];
+        Assert.DoesNotContain(
+            runnerTypeProof.ClassifiedCallSites,
+            static callSite => callSite.ChildOwner == "E5d-function-and-resumable-declined-body-runner-retirement");
         var syncGeneratorRoute = Assert.Single(
             runnerTypeProof.ClassifiedCallSites,
             static callSite => callSite.ChildOwner == "E5d-sync-generator-ir-route-selection");
@@ -311,15 +322,12 @@ public sealed partial class BytecodeProofManifestTests(ITestOutputHelper output)
             dynamicDeleteProof.ForbiddenLogs,
             StringComparer.Ordinal);
 
-        var remainingFallbackProof = proofs["E5-function-runner-fallback-still-constructs-runner"];
-        Assert.Equal("open", remainingFallbackProof.Claim);
+        var ordinaryFallbackProof = proofs["E5-function-runner-fallback-still-constructs-runner"];
+        Assert.Equal("retired-fallback", ordinaryFallbackProof.Claim);
+        Assert.Equal("source-absence", ordinaryFallbackProof.Kind);
         Assert.Contains(
-            "remaining ordinary sync function fallback runner construction anchor",
-            remainingFallbackProof.Classification,
-            StringComparison.Ordinal);
-        Assert.Contains(
-            "after zero-depth dynamic identifier delete routes through production unified bytecode",
-            remainingFallbackProof.Classification,
+            "ordinary sync function fallback runner construction is retired",
+            ordinaryFallbackProof.Classification,
             StringComparison.Ordinal);
     }
 

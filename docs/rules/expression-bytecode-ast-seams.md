@@ -378,23 +378,25 @@ fallback or cleanup.
     making a partial route retirement look like broader fallback retirement.
     Related ADR:
     `docs/adrs/0376-keep-e5d-ordinary-sync-runner-allowlists-member-classified.md`.
-40. Before removing or tombstoning the no-private ordinary sync declined-body
-    fallback surface, keep a focused runtime proof pack for the replacement
-    surface. The pack should assert observable behavior, require the classified
-    ordinary sync fallback log, and forbid the subject function's production
-    fast-path log for representative global/free property-read payloads,
-    computed logical property writes, direct-eval FunctionCode preservation,
-    simple `CreateArray` operand payloads, and nested ordinary-call stack
-    stability. A later replacement-route slice may flip a family to
-    route/no-fallback proof only when that family has current executable route
-    evidence. Do not use a manifest-only source tombstone as proof that this
-    surface is safe to delete. Issue
+40. For the no-private ordinary sync declined-body replacement surface, keep a
+    focused runtime proof pack that asserts observable behavior and forbids the
+    retired classified ordinary sync fallback log for representative
+    global/free property-read payloads, computed logical property writes,
+    direct-eval FunctionCode preservation, simple `CreateArray` operand
+    payloads, and nested ordinary-call stack stability. The pack may accept the
+    production fast path or the existing dynamic-scope executor for still-open
+    declined shapes, but it must not let the tombstoned classified fallback
+    runner reappear. Do not use a manifest-only source tombstone as proof that
+    this surface is safe to delete. Issue
     `planitem-gh3560-batch-1-pin-the-replacement-surface-add-a-focused-noprivateordina-294c3d48cf`
     / PR #3562 added this rule after an earlier tombstone attempt could satisfy
     the manifest while broad quality still needed no-private ordinary declined
-    bodies to execute through an existing fallback. WHY: source gates can pass
-    while the runtime replacement surface still contains ordinary sync semantics
-    that no production route owns yet. Related ADR:
+    bodies to execute through an existing fallback. The later batch-6 tombstone
+    flipped the executable pack to no-fallback proof after the ordinary sync
+    runner helper was deleted and declined ordinary plans fell through to the
+    existing dynamic-scope executor. WHY: source gates can pass while the
+    runtime replacement surface still contains ordinary sync semantics that no
+    production route owns yet. Related ADR:
     `docs/adrs/0381-pin-no-private-ordinary-declined-body-replacement-surface.md`.
 41. When admitting dynamic identifier expression payloads from the no-private
     ordinary declined-body replacement surface, keep the fix in the standalone

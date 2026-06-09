@@ -8,9 +8,8 @@ namespace Asynkron.JsEngine.Tests;
 [Category(TestCategories.RuntimeSemantics)]
 public sealed class NoPrivateOrdinaryDeclinedBodyProofPackTests(ITestOutputHelper output) : InternalTestBase(output)
 {
-    private const string OrdinarySyncFallbackLog =
-        "classified-ordinary-sync-function-fallback reason=production-unified-bytecode-declined";
-
+    private const string OrdinarySyncFallbackLog = "classified-ordinary-sync-function-fallback";
+    private const string DynamicScopeExecutorLog = "Executing sync function via dynamic-scope executor";
     private const string ProductionFastPathLog = "unified-bytecode-production-fast-path";
 
     [Fact(Timeout = 5000)]
@@ -199,15 +198,15 @@ public sealed class NoPrivateOrdinaryDeclinedBodyProofPackTests(ITestOutputHelpe
         Assert.Equal(expectedResult, result?.ToString());
 
         var snapshot = CurrentLogger!.Collector.Snapshot();
-        Assert.Contains(
-            snapshot,
-            record => record.Message.Contains(
-                $"{OrdinarySyncFallbackLog} func={functionName}",
-                StringComparison.Ordinal));
         Assert.DoesNotContain(
             snapshot,
             record => record.Message.Contains(
-                $"{ProductionFastPathLog} func={functionName}",
+                OrdinarySyncFallbackLog,
                 StringComparison.Ordinal));
+        Assert.Contains(
+            snapshot,
+            record =>
+                record.Message.Contains($"{ProductionFastPathLog} func={functionName}", StringComparison.Ordinal) ||
+                record.Message.Contains($"{DynamicScopeExecutorLog} func={functionName}", StringComparison.Ordinal));
     }
 }

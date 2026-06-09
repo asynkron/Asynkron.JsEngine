@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted
+Accepted; amended by PR #3540.
 
 ## Context
 
@@ -35,31 +35,42 @@ still decline production routing for explicit safety reasons, so forcing those
 declines to throw before `ExecutionPlanRunner.RunScript` would break valid
 current execution rather than retire an unreachable seam.
 
+Faktorial issue
+`planitem-planitem-gh3495-shared-context-e5b-runner-entry-point-tombstones-after-e-54f613f240`
+and delivery PR #3540 found the next narrower boundary. Ordinary script
+declines still need a classified runner fallback for correctness, but they no
+longer need to enter through the direct `ExecutionPlanRunner.RunScript` call
+site that E5b tracks. Direct script runner calls can now be limited to terminal
+dynamic direct-eval residue and eval execution-kind residue while ordinary
+script declines use a named classified ordinary fallback entry.
+
 ## Decision
 
-Keep the remaining top-level script IR fallback centralized behind
-`RunScriptViaClassifiedIrFallback`, and pass through the production
-`UnifiedBytecodeProductionEligibility.EvaluateScript(...)` result when a script
-declines.
+Keep top-level script production routing decline-first, but split the fallback
+by semantic owner instead of one shared `RunScriptViaClassifiedIrFallback`
+helper.
 
 - The accepted path still runs all-or-nothing through
   `TryRunScriptViaProductionUnifiedBytecode` and
   `UnifiedBytecodeVirtualMachine.Execute`.
-- The non-accepted path may still delegate to `ExecutionPlanRunner.RunScript`,
-  but only through the classified helper.
-- The helper log must include the stable decline code and detail from the
-  production eligibility result: `code={DeclineCode}` and
-  `detail={DeclineReason}`.
-- While ordinary non-dynamic script declines still exist, keep them behind the
-  same classified helper. Do not recast the helper as terminal-dynamic-only
-  until the proof manifest has executable route-hit and no-route evidence that
-  those ordinary declines are gone.
-- The helper log must include `terminalDynamicResidue={TerminalDynamicResidue}`
-  so terminal dynamic residue remains explicit without hiding ordinary E5c
-  runner-retirement work.
-- A non-script execution kind that reuses the script runner must synthesize an
-  explicit unsupported-plan decline instead of appearing as an ordinary
-  production script decline.
+- Terminal dynamic direct-eval script residue may still delegate to
+  `ExecutionPlanRunner.RunScript`, but only through
+  `RunTerminalDynamicScriptResidueViaIrFallback`. Its log must include the
+  stable production decline code, decline detail, and
+  `terminalDynamicResidue={TerminalDynamicResidue}` marker.
+- Eval execution kinds may reuse the script runner only through
+  `RunEvalScriptViaIrFallback`, with an explicit unsupported-plan decline so
+  they do not appear as ordinary production script declines.
+- Ordinary script production declines must use
+  `RunOrdinaryScriptViaClassifiedRunnerFallback` and
+  `ExecutionPlanRunner.ExecuteClassifiedOrdinaryScriptFallback`. They should log
+  `ordinary-script-classified-runner-fallback` with the production decline code
+  and detail, but must not call `ExecutionPlanRunner.RunScript` directly or
+  resurrect the deleted `RunOrdinaryDeclinedScript` wrapper.
+- `RunScriptCore` may remain the shared implementation behind the public runner
+  entries, but E5b source proofs should classify call sites and deleted wrappers
+  rather than treating the shared implementation method as ordinary script
+  residue.
 - Future script-route widening should delete or narrow the classified fallback
   only after route-hit and no-route proof demonstrates that the relevant script
   family is VM-owned. It should not replace this boundary with an unclassified
@@ -67,18 +78,20 @@ declines.
 
 ## Consequences
 
-- Route logs can distinguish "script declined for a known production gate" from
-  "script never tried production bytecode" while the runner remains alive.
+- Route logs can distinguish terminal dynamic direct-eval residue, eval
+  execution-kind residue, and ordinary script production declines while the
+  runner implementation remains alive.
 - Non-residue ratchets can assert the exact decline family for script safety
   cases instead of merely asserting absence of a fast-path route.
-- Source gates should keep `ExecutionPlanRunner.RunScript` isolated to the
-  helper until E5 removes the script runner edge entirely.
-- The docs should continue calling this classification-only E5 progress, not a
-  retirement claim; `RunScriptViaClassifiedIrFallback` still delegates to the
-  tier-2 IR runner.
-- The proof manifest should keep E5c open while the script fallback is needed
-  for non-admitted ordinary scripts, even when terminal dynamic residue is
-  separately excluded from ordinary E5 retirement.
+- Source gates should keep direct `ExecutionPlanRunner.RunScript` calls isolated
+  to the terminal dynamic and eval helpers, and should block ordinary script
+  fallback from reusing that direct entry.
+- The docs should continue calling this ordinary script fallback work E5c
+  runner-retirement progress, not total E5 closure; the named ordinary fallback
+  still executes the tier-2 IR runner through a classified entry.
+- The proof manifest should keep E5c open while ordinary script fallback is
+  needed for non-admitted scripts, even though direct `RunScript` call sites are
+  no longer ordinary script fallback anchors.
 
 ## Evidence
 
@@ -110,6 +123,20 @@ declines.
     after the repair.
   - `rtk git diff --check` passed.
   - the AST-eval seam scan had no hits.
+- Delivery PR #3540 merged as commit
+  `e4f06e36ee084fbfa76d0068a88d8d6a16f06e84`.
+- PR #3540 changed:
+  - `docs/plans/bytecode-burndown-checklist.md`
+  - `docs/plans/bytecode-proof-manifest.json`
+  - `src/Asynkron.JsEngine/Ast/Legacy/StatementNodeExtensions.cs`
+  - `src/Asynkron.JsEngine/Ast/TypedAstEvaluator.ExecutionPlanRunner.Core.cs`
+  - `tests/Asynkron.JsEngine.Tests/BytecodeProofManifestTests.cs`
+  - `tests/Asynkron.JsEngine.Tests/UnifiedBytecodeProductionInvocationTests.cs`
+- PR #3540 build-stage proof recorded:
+  - `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter FullyQualifiedName~BytecodeProofManifestTests` passed 234 tests.
+  - `rtk git diff --check` passed.
+  - the targeted stale-phrase search found no remaining
+    `RunScriptViaClassifiedIrFallback` E5c wording.
 
 ## Related
 
@@ -119,5 +146,6 @@ declines.
 - ADR 0201: `docs/adrs/0201-keep-unified-bytecode-production-routing-decline-first.md`
 - ADR 0204: `docs/adrs/0204-keep-unified-bytecode-sync-production-routing-slot-bridged.md`
 - ADR 0246: `docs/adrs/0246-keep-unified-bytecode-expansion-contract-source-of-truth-and-drift-guarded.md`
+- ADR 0371: `docs/adrs/0371-keep-e5b-runner-entry-anchors-as-classified-allowlists.md`
 - `src/Asynkron.JsEngine/Ast/Legacy/StatementNodeExtensions.cs`
 - `tests/Asynkron.JsEngine.Tests/UnifiedBytecodeProductionInvocationTests.cs`

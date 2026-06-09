@@ -82,6 +82,50 @@ public static partial class TypedAstEvaluator
             _programCounter = _plan.EntryPoint;
         }
 
+        public static ExecutionPlanRunner CreateDeclinedOrdinarySyncPlan<TArgs>(
+            FunctionExpression function,
+            JsEnvironment closure,
+            TArgs arguments,
+            JsValue thisValue,
+            IJsCallable callable,
+            RealmState realmState,
+            bool isLexicallyStrict,
+            bool hasFunctionNameEnvironment,
+            IJsObjectLike? homeObject,
+            PrivateNameScope? privateNameScope,
+            ImmutableArray<PrivateNameScope> capturedPrivateNameScopes,
+            JsValue newTarget,
+            JsEnvironment? lexicalThisEnvironment,
+            IJsEnvironmentAwareCallable? superConstructor,
+            IJsPropertyAccessor? superPrototype,
+            EvaluationContext context,
+            RealmState derivedClassErrorRealm,
+            ExecutionPlan plan,
+            ExecutionPlanBuildFailure? planFailure)
+            where TArgs : IReadOnlyList<JsValue>
+        {
+            return new ExecutionPlanRunner(
+                function,
+                closure,
+                arguments,
+                thisValue,
+                callable,
+                realmState,
+                isLexicallyStrict,
+                hasFunctionNameEnvironment,
+                homeObject,
+                privateNameScope,
+                capturedPrivateNameScopes,
+                newTarget,
+                lexicalThisEnvironment,
+                superConstructor,
+                superPrototype,
+                context,
+                derivedClassErrorRealm: derivedClassErrorRealm,
+                planOverride: plan,
+                planFailureOverride: planFailure);
+        }
+
         /// <summary>
         /// Private constructor for script execution mode.
         /// Used by RunScript() to create a minimal runner without function context.

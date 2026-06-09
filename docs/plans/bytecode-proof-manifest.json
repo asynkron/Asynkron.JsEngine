@@ -2149,6 +2149,12 @@
               "callCount": 2
             },
             {
+              "childOwner": "E5d-declined-ordinary-sync-plan-route",
+              "classification": "runner-owner construction for the unclassified declined ordinary sync plan route; the classified ordinary sync fallback helper and SyncFunctionInvoker call-site remain retired",
+              "path": "src/Asynkron.JsEngine/Ast/TypedAstEvaluator.ExecutionPlanRunner.Core.cs",
+              "callCount": 1
+            },
+            {
               "childOwner": "E5d-async-function-declined-body-runner-residue",
               "classification": "async declined-body runner construction",
               "path": "src/Asynkron.JsEngine/Ast/TypedAstEvaluator.AsyncFunctionInvoker.cs",

@@ -197,11 +197,8 @@ maintenance pass, keep the run small, repo-local, and directly reviewable.
   finalizing. If review only catches a stale or wrong evidence path after the
   runtime slice is complete, correct the evidence artifact only and keep the
   delivery-source lifecycle intact.
-- Keep recurring-child progress updates plain and bounded while work is in
-  flight. Reserve machine-readable structured schema output for the actual
-  final stage result only; avoid emitting final-response-shaped interim status
-  messages
-  that can be misclassified as failed stage outcomes in issue logs.
+- Keep recurring-child progress updates aligned with the general Faktorial
+  output-boundary rule in `docs/rules/agent-context-issues.md`.
 - When a recurring documentation slice updates agent/operator workflow commands,
   align command examples with the current agent invocation contract and
   canonical local gate, including example README run/smoke snippets. In this
@@ -712,11 +709,10 @@ ownership split in the existing rule and leave accepted ADR detail intact,
 rather than creating another ADR or duplicating every helper-specific decision
 in the rule.
 
-Issue #1534 added an output-boundary lesson from recurring-child runtime
-evidence: when interim progress messages mimic final structured responses, the
-issue log can record false `success=false` stage events before implementation
-completes. The durable policy is to keep interim updates plain and bounded, and
-emit structured schema output only for the actual final stage response.
+Issue #1534 added recurring-child traceability for the general Faktorial
+output-boundary rule now owned by `docs/rules/agent-context-issues.md`: when
+interim progress messages mimic final structured responses, the issue log can
+record false `success=false` stage events before implementation completes.
 
 Issue #1757 / PR #1761 applied that output-boundary policy to the operational
 checklist in `agents/how-to-build-and-test.md` after the same issue log shape

@@ -83,6 +83,84 @@ A post-change profile no longer listed
 remaining cost is still under production call dispatch, expression program
 lookup, dynamic identifier call target preparation, and fresh-engine setup.
 
+## Post-PR #3547 route-cache reprofile
+
+On 2026-06-09, local task `agentmanual1780998418927155000` reprofiled current
+`origin/main` at `2864b309d`, after PR #3547 / ADR 0379 cached the
+invoker-owned production route-admission decision on `SyncFunctionInvoker`.
+This is current-main evidence, not a branch-local optimization result.
+
+Focused comparison rows stayed below parity and were timing-noisy, so the
+current run treats them as residual-owner evidence rather than a speedup claim:
+
+```text
+command                                      functioncalls     classdef
+rtk ./benchmark.sh functioncalls classdef    4578 vs 2017 ms   850 vs 483 ms
+rtk ./benchmark.sh --no-build ...            4643 vs 2133 ms   798 vs 279 ms
+rtk ./benchmark.sh --no-build ...            6639 vs 2231 ms   828 vs 263 ms
+```
+
+Route-hit probes confirmed both workloads still enter the production
+unified-bytecode fast path:
+
+```text
+rtk ./tools/profile functioncalls --route-hits
+Route hits: unified-bytecode-production-fast-path=8000010
+
+rtk dotnet tools/ProfileRunner/bin/Release/net10.0/ProfileRunner.dll \
+  --route-hits --fresh-engine-per-iteration --wrap-iife classdef
+Route hits: unified-bytecode-production-fast-path=120020
+```
+
+The direct `ProfileRunner` command is intentional for `classdef`: `benchmark.sh`
+wraps `classdef` in an IIFE through `tools/compare-jint-profiles`, while
+`tools/profile` only forwards that wrapper for `simplearithmetic`.
+
+The current `functioncalls` CPU profile no longer names the plan-pure
+dependency scans or the full invoker route-admission check as the main owner.
+With `UnifiedBytecodeVirtualMachine.Execute` as the call-tree root, the sampled
+residual was:
+
+```text
+UnifiedBytecodeVirtualMachine.Execute                 5743.26 ms
+  Buffer.BulkMoveWithWriteBarrier                     5315.97 ms  92.6%
+  PrepareDynamicIdentifierCallTarget                   369.23 ms   6.4%
+    JsEnvironment.TryGetIdentifierJsValueAfterWithMiss 369.23 ms
+      Dictionary<...,ResolvedIdentifierBinding>.Resize 338.37 ms
+```
+
+`UnifiedBytecodeProductionEligibility.EvaluateCore` remained visible only as a
+small setup/top-function sample (`58.34 ms` in the same run). That keeps the
+post-#3547 owner split clear: the retained invoker route cache removed the
+route-admission scan as the large repeat owner, while the remaining
+`functioncalls` work sits in production VM execution, runtime data movement,
+dynamic identifier lookup/cache growth, and still-unseparated call-dispatch or
+call-argument surfaces. The dynamic identifier call-target subtree was below
+the retry threshold recorded in
+`docs/performance/failed-functioncalls-dynamic-symbol-cache.md`.
+
+The wrapped `classdef` CPU profile stayed in the existing constructor/super and
+callback/runner families, not in the `functioncalls` route-cache owner:
+
+```text
+TypedAstEvaluator.SyncFunctionInvoker.InvokeWithContextSlow 3814.99 ms
+UnifiedBytecodeVirtualMachine.Execute                       3063.63 ms
+UnifiedBytecodeVirtualMachine.ExecutePreparedCall           2305.24 ms
+TypedAstEvaluator.ExecutionPlanRunner.ExecuteInstructionLoop 1904.22 ms
+
+ExecuteInstructionLoop root:
+  ExecuteProgramConstructNoSpread -> ReflectHelper.Construct 818.63 ms 44.9%
+  ExecutePreparedSuperConstruct -> ConstructNoSpread         476.89 ms 26.2%
+  CreateSimpleBaseClassConstructorEnvironment                 92.65 ms  5.1%
+  TryGetProductionUnifiedBytecodeProgram / eligibility        19.24 ms  1.1%
+```
+
+This preserves the no-parity boundary: PR #3547 is evidence for the invoker
+route-cache slice only. Future `functioncalls` and `classdef` performance work
+should continue to split descriptor/runtime dispatch, call-argument,
+dynamic-identifier lookup, constructor/super dispatch, property-store, and
+callback owners before retaining another runtime change.
+
 ## Commands run
 
 ```bash

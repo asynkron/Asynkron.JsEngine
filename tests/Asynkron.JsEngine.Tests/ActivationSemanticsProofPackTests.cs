@@ -242,7 +242,7 @@ public sealed class ActivationSemanticsProofPackTests(ITestOutputHelper output) 
     }
 
     [Fact(Timeout = 5000)]
-    public async Task DirectEvalFunctionDeclarationParameterDefault_UsesIrOrProductionRoute()
+    public async Task DirectEvalFunctionDeclarationParameterDefault_PreservesSemanticsWithoutOrdinaryRunnerFallback()
     {
         var logger = new TestLogger(output, "DirectEvalDefaultRoute", minLogLevel: LogLevel.Debug);
         await using var engine = CreateEngine(() => new JsEngineOptions
@@ -263,12 +263,12 @@ public sealed class ActivationSemanticsProofPackTests(ITestOutputHelper output) 
         Assert.Equal(42d, result);
         Assert.DoesNotContain(records,
             static record => record.Message.Contains(
-                DynamicScopeExecutorLog + " func=read",
+                ClassifiedOrdinarySyncFunctionFallbackLog + " reason=production-unified-bytecode-declined func=read",
                 StringComparison.Ordinal));
         Assert.Contains(records,
             static record =>
                 record.Message.Contains(
-                    ClassifiedOrdinarySyncFunctionFallbackLog + " reason=production-unified-bytecode-declined func=read",
+                    DynamicScopeExecutorLog + " func=read",
                     StringComparison.Ordinal) ||
                 record.Message.Contains(
                     UnifiedBytecodeProductionFastPathLog + " func=read",

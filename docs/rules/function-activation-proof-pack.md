@@ -315,21 +315,26 @@ rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~Activ
     observable `arguments`, legacy restart reset, and strict block-function
     shapes were incorrectly treated as production-UBC-safe. Related ADR:
     `docs/adrs/0380-retire-class-constructor-runner-fallback-through-dynamic-constructor-evaluator.md`.
-27. When pinning ordinary FunctionCode/direct-eval replacement surfaces after
+27. When pinning ordinary FunctionCode/direct-eval replacement surfaces around
     runner-removal work, keep the route assertion owned by the activation proof
     pack, not only a feature-local eval test. Assert the observable JavaScript
-    result, reject `Executing sync function via dynamic-scope executor`, and
-    accept either `classified-ordinary-sync-function-fallback` with a production
-    unified-bytecode decline reason or `unified-bytecode-production-fast-path`
-    when both routes preserve the intended IR/unified-bytecode-owned boundary.
-    Do not lock the proof to one currently selected owned route unless the
-    issue specifically changes that routing choice. WHY: Faktorial issue
+    result and name the currently accepted post-decline route explicitly. Before
+    the ordinary sync runner tombstone, the accepted routes were
+    `classified-ordinary-sync-function-fallback` with a production
+    unified-bytecode decline reason or `unified-bytecode-production-fast-path`,
+    while `Executing sync function via dynamic-scope executor` was rejected.
+    After the ordinary sync runner tombstone, the same proof must instead reject
+    the retired classified ordinary sync fallback log and accept the current
+    replacement route (`Executing sync function via dynamic-scope executor`) or
+    a later `unified-bytecode-production-fast-path`. Do not lock the proof to one
+    currently selected owned route unless the issue specifically changes that
+    routing choice. WHY: Faktorial issue
     `planitem-gh3560-batch-1-pin-the-replacement-surface-batch-4-function-code-and-act-e772459f34`
-    / PR #3576 found that current `origin/main` already avoided the dynamic
-    scope executor for `DirectEvalFunctionDeclarationParameterDefault`, so the
-    durable delivery was to promote the route contract into
-    `ActivationSemanticsProofPackTests` and let future production-bytecode
-    admission replace the classified fallback without failing the proof.
+    / PR #3576 promoted the route contract into
+    `ActivationSemanticsProofPackTests`; batch 6 later tombstoned the ordinary
+    sync runner, so the durable contract became "no retired runner fallback"
+    while still allowing future production-bytecode admission to replace the
+    dynamic-scope route without failing the proof.
 
 ## Why
 

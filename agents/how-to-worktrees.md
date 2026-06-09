@@ -78,14 +78,3 @@ When launching a background coder agent for a big task:
    ```
 
 This workflow ensures all big changes go through PR review.
-
-## Quick Minimal Template (old flow)
-If you need a very quick setup, you can also:
-1. Ask for the task ($TASK) and extract a short name ($NAME).
-2. `rtk git worktree add ../jsengine-$NAME -b jsengine-$NAME`
-3. `cd ../jsengine-$NAME`
-4. Create `todo.md` with:
-   ```
-   # $NAME
-   $TASK
-   ```

@@ -107,7 +107,15 @@ public sealed partial class BytecodeProofManifestTests(ITestOutputHelper output)
         Assert.Equal(
             "CreateClassifiedOrdinarySyncFunctionFallbackRunner",
             ordinaryProof.Pattern);
+        Assert.Equal(
+            [
+                "CreateClassifiedOrdinarySyncFunctionFallbackRunner",
+                "RunDeclinedOrdinarySyncPlan",
+                "CreateDeclinedOrdinarySyncPlan"
+            ],
+            ordinaryProof.Patterns);
         Assert.Contains("ordinary sync function fallback runner construction is retired", ordinaryProof.Classification, StringComparison.Ordinal);
+        Assert.Contains("dynamic-scope executor", ordinaryProof.Classification, StringComparison.Ordinal);
         Assert.Contains("not class-constructor initialization residue", ordinaryProof.Classification, StringComparison.Ordinal);
 
         Assert.Equal("E5d-class-constructor-initialization-residue", classConstructorProof.ChildOwner);
@@ -185,8 +193,8 @@ public sealed partial class BytecodeProofManifestTests(ITestOutputHelper output)
         Assert.Equal("E5d-function-and-resumable-declined-body-runner-retirement", syncEntryProof.ChildOwner);
         Assert.Equal("source-absence", syncEntryProof.Kind);
         Assert.Equal("retired-fallback", syncEntryProof.Claim);
-        Assert.Equal("runner.RunSync();", syncEntryProof.Pattern);
-        Assert.Contains("ordinary sync function declined-body runner.RunSync fallback is retired", syncEntryProof.Classification, StringComparison.Ordinal);
+        Assert.Equal(".RunSync(", syncEntryProof.Pattern);
+        Assert.Contains("ordinary sync function declined-body .RunSync fallback is retired", syncEntryProof.Classification, StringComparison.Ordinal);
 
         var runnerTypeProof = proofs["E5-ir-runner-type-still-present"];
         Assert.DoesNotContain(
@@ -196,6 +204,9 @@ public sealed partial class BytecodeProofManifestTests(ITestOutputHelper output)
         Assert.DoesNotContain(
             runnerTypeProof.ClassifiedCallSites,
             static callSite => callSite.ChildOwner == "E5d-function-and-resumable-declined-body-runner-retirement");
+        Assert.DoesNotContain(
+            runnerTypeProof.ClassifiedCallSites,
+            static callSite => callSite.ChildOwner == "E5d-declined-ordinary-sync-plan-route");
         var syncGeneratorRoute = Assert.Single(
             runnerTypeProof.ClassifiedCallSites,
             static callSite => callSite.ChildOwner == "E5d-sync-generator-ir-route-selection");

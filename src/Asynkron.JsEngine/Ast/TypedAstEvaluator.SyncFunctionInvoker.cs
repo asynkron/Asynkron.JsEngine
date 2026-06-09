@@ -1897,42 +1897,6 @@ TryCreateSimpleNumericSelfRecursionFastPath(
                                 "class-constructor production bytecode declined; falling through to dynamic-scope executor func={Function}",
                                 _function.Name?.Name ?? "<anonymous>");
                         }
-                        else
-                        {
-                            var effectiveThisValue = thisValue;
-                            var effectiveNewTarget = newTarget;
-                            if (IsArrowFunction)
-                            {
-                                var lexicalThis = _lexicalThis;
-                                if (_lexicalThisEnvironment is not null &&
-                                    _lexicalThisEnvironment.TryFindBindingJsValue(Symbol.This, true, out _, out var envThis))
-                                {
-                                    lexicalThis = envThis;
-                                }
-
-                                effectiveThisValue = lexicalThis.IsUninitialized ? JsValue.Undefined : lexicalThis;
-                                if (effectiveNewTarget.IsUndefined && !_lexicalNewTarget.IsUndefined)
-                                {
-                                    effectiveNewTarget = _lexicalNewTarget;
-                                }
-                            }
-
-                            try
-                            {
-                                return RunDeclinedOrdinarySyncPlan(
-                                    arguments,
-                                    effectiveThisValue,
-                                    effectiveNewTarget,
-                                    plan,
-                                    context,
-                                    constructErrorRealm);
-                            }
-                            catch (ThrowSignal signal) when (callingContext is not null)
-                            {
-                                callingContext.SetThrow(signal.ThrownValue);
-                                return signal.ThrownValue;
-                            }
-                        }
                     }
 
                     if (!IsClassConstructor && plan is null)
@@ -2758,43 +2722,6 @@ TryCreateSimpleNumericSelfRecursionFastPath(
             }
 
             return CanUseCachedOrEvaluateProductionUnifiedBytecodeFastPath(plan, newTarget);
-        }
-
-        private JsValue RunDeclinedOrdinarySyncPlan<TArgs>(
-            TArgs arguments,
-            JsValue thisValue,
-            JsValue newTarget,
-            ExecutionPlan plan,
-            EvaluationContext context,
-            RealmState constructErrorRealm)
-            where TArgs : IReadOnlyList<JsValue>
-        {
-            RealmState.Logger?.LogInformation(
-                "declined-ordinary-sync-plan-route reason=production-unified-bytecode-declined func={Function} argc={ArgumentCount}",
-                _function.Name?.Name ?? "<anonymous>",
-                arguments.Count);
-            var executionPlan = ExecutionPlanRunner.CreateDeclinedOrdinarySyncPlan(
-                _function,
-                _closure,
-                arguments,
-                thisValue,
-                this,
-                RealmState,
-                _isStrict,
-                _hasFunctionNameEnvironment,
-                _homeObject,
-                PrivateNameScope,
-                _capturedPrivateNameScopes,
-                newTarget,
-                _lexicalThisEnvironment,
-                _superConstructor,
-                _superPrototype,
-                context,
-                constructErrorRealm,
-                plan,
-                _planSeed.Failure);
-
-            return executionPlan.RunSync();
         }
 
         private bool TryInvokeProductionUnifiedBytecode<TArgs>(

@@ -351,6 +351,24 @@ rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~Activ
     claims after the ordinary sync fallback helper was confirmed retired; the
     disjunctive OR assertion would have continued to pass even if the retired
     fallback path somehow returned, making it an inadequate regression gate.
+29. When defining or narrowing a source-allowlist proof (kind `source-allowlist`)
+    for `new ExecutionPlanRunner(` construction sites, scope `allowedPaths` to
+    the specific residual non-Core invoker files that own classified call sites
+    pending retirement. Do not include `TypedAstEvaluator.ExecutionPlanRunner.Core.cs`
+    or other broad engine infrastructure files in the allowedPaths. Core.cs
+    construction sites belong to the separate E5c/E5d child proofs that own
+    script and sync-function declined-body routes; adding Core.cs to the E5b
+    allowlist would permit any new runner construction added to Core.cs to pass
+    through the proof undetected and pad the accounting as sibling sites retire.
+    Pair the narrowed proof with an explicit `BytecodeProofManifestTests` assertion
+    that Core.cs is NOT present in `allowedPaths`, so the exclusion is enforced
+    by the verifier rather than relying on post-hoc review. WHY: Faktorial issue
+    `planitem-planitem-gh3495-shared-context-e5b-runner-entry-point-tombstones-after-e-925968aa78`
+    / PR #3593 removed Core.cs from the E5-ir-runner-type-still-present allowedPaths
+    and added a negative assertion in `BytecodeProofManifestTests`; the prior
+    broad allowlist had been tracking Core.cs sync-function and script construction
+    paths that are properly owned by E5c/E5d proofs, obscuring the retirement
+    accounting for the non-Core async-function and sync-generator residue.
 
 ## Why
 

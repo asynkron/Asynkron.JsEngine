@@ -10,8 +10,8 @@ public sealed class NoPrivateOrdinaryDeclinedBodyProofPackTests(ITestOutputHelpe
 {
     private const string OrdinarySyncFallbackLog =
         "classified-ordinary-sync-function-fallback reason=production-unified-bytecode-declined";
-
-    private const string ProductionFastPathLog = "unified-bytecode-production-fast-path";
+    private const string DynamicScopeExecutorLog = "Executing sync function via dynamic-scope executor";
+    private const string UnifiedBytecodeProductionFastPathLog = "unified-bytecode-production-fast-path";
 
     [Fact(Timeout = 5000)]
     public async Task GlobalPropertyReadPayloads_PreserveSetViewAndOptionalChainSemantics()
@@ -110,7 +110,7 @@ public sealed class NoPrivateOrdinaryDeclinedBodyProofPackTests(ITestOutputHelpe
     }
 
     [Fact(Timeout = 5000)]
-    public async Task ComputedLogicalPropertyWrites_PreserveCurrentFallbackSemantics()
+    public async Task ComputedLogicalPropertyWrites_PreserveCurrentSemantics()
     {
         await AssertOrdinaryDeclinedBodyAsync(
             """
@@ -199,15 +199,15 @@ public sealed class NoPrivateOrdinaryDeclinedBodyProofPackTests(ITestOutputHelpe
         Assert.Equal(expectedResult, result?.ToString());
 
         var snapshot = CurrentLogger!.Collector.Snapshot();
-        Assert.Contains(
+        Assert.DoesNotContain(
             snapshot,
             record => record.Message.Contains(
                 $"{OrdinarySyncFallbackLog} func={functionName}",
                 StringComparison.Ordinal));
-        Assert.DoesNotContain(
+        Assert.Contains(
             snapshot,
-            record => record.Message.Contains(
-                $"{ProductionFastPathLog} func={functionName}",
-                StringComparison.Ordinal));
+            record =>
+                record.Message.Contains($"{DynamicScopeExecutorLog} func={functionName}", StringComparison.Ordinal) ||
+                record.Message.Contains($"{UnifiedBytecodeProductionFastPathLog} func={functionName}", StringComparison.Ordinal));
     }
 }

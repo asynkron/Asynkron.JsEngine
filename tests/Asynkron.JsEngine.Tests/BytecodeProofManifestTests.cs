@@ -91,7 +91,7 @@ public sealed partial class BytecodeProofManifestTests(ITestOutputHelper output)
     }
 
     [Fact]
-    public void Manifest_ClassConstructorFallback_IsRetiredButSplitFromOrdinarySyncFunctionFallback()
+    public void Manifest_OrdinarySyncAndClassConstructorFallbacks_AreRetiredButSplit()
     {
         var proofs = LoadManifest()
             .Items
@@ -101,9 +101,13 @@ public sealed partial class BytecodeProofManifestTests(ITestOutputHelper output)
         var ordinaryProof = proofs["E5-function-runner-fallback-still-constructs-runner"];
         var classConstructorProof = proofs["E5-class-constructor-runner-fallback-still-constructs-runner"];
 
+        Assert.Equal("E5d-function-and-resumable-declined-body-runner-retirement", ordinaryProof.ChildOwner);
+        Assert.Equal("source-absence", ordinaryProof.Kind);
+        Assert.Equal("retired-fallback", ordinaryProof.Claim);
         Assert.Equal(
             "CreateClassifiedOrdinarySyncFunctionFallbackRunner",
             ordinaryProof.Pattern);
+        Assert.Contains("ordinary sync function fallback runner construction is retired", ordinaryProof.Classification, StringComparison.Ordinal);
         Assert.Contains("not class-constructor initialization residue", ordinaryProof.Classification, StringComparison.Ordinal);
 
         Assert.Equal("E5d-class-constructor-initialization-residue", classConstructorProof.ChildOwner);
@@ -176,11 +180,25 @@ public sealed partial class BytecodeProofManifestTests(ITestOutputHelper output)
         Assert.DoesNotContain(
             scriptEntryProof.ClassifiedCallSites,
             static callSite => callSite.ChildOwner == "E5-static-block-declined-residue");
-        Assert.Equal(
-            "E5d-function-and-resumable-declined-body-runner-retirement",
-            proofs["E5-ir-runner-sync-entry-still-present"].ChildOwner);
+
+        var syncEntryProof = proofs["E5-ir-runner-sync-entry-still-present"];
+        Assert.Equal("E5d-function-and-resumable-declined-body-runner-retirement", syncEntryProof.ChildOwner);
+        Assert.Equal("source-absence", syncEntryProof.Kind);
+        Assert.Equal("retired-fallback", syncEntryProof.Claim);
+        Assert.Equal(".RunSync(", syncEntryProof.Pattern);
+        Assert.Contains("ordinary sync function declined-body ExecutionPlanRunner.RunSync route is retired", syncEntryProof.Classification, StringComparison.Ordinal);
 
         var runnerTypeProof = proofs["E5-ir-runner-type-still-present"];
+        Assert.DoesNotContain(
+            "src/Asynkron.JsEngine/Ast/TypedAstEvaluator.SyncFunctionInvoker.cs",
+            runnerTypeProof.AllowedPaths,
+            StringComparer.Ordinal);
+        Assert.DoesNotContain(
+            runnerTypeProof.ClassifiedCallSites,
+            static callSite => callSite.ChildOwner == "E5d-function-and-resumable-declined-body-runner-retirement");
+        Assert.DoesNotContain(
+            runnerTypeProof.ClassifiedCallSites,
+            static callSite => callSite.ChildOwner == "E5d-declined-ordinary-sync-plan-route");
         var syncGeneratorRoute = Assert.Single(
             runnerTypeProof.ClassifiedCallSites,
             static callSite => callSite.ChildOwner == "E5d-sync-generator-ir-route-selection");
@@ -312,13 +330,14 @@ public sealed partial class BytecodeProofManifestTests(ITestOutputHelper output)
             StringComparer.Ordinal);
 
         var remainingFallbackProof = proofs["E5-function-runner-fallback-still-constructs-runner"];
-        Assert.Equal("open", remainingFallbackProof.Claim);
+        Assert.Equal("source-absence", remainingFallbackProof.Kind);
+        Assert.Equal("retired-fallback", remainingFallbackProof.Claim);
         Assert.Contains(
-            "remaining ordinary sync function fallback runner construction anchor",
+            "ordinary sync function fallback runner construction is retired",
             remainingFallbackProof.Classification,
             StringComparison.Ordinal);
         Assert.Contains(
-            "after zero-depth dynamic identifier delete routes through production unified bytecode",
+            "not class-constructor initialization residue",
             remainingFallbackProof.Classification,
             StringComparison.Ordinal);
     }

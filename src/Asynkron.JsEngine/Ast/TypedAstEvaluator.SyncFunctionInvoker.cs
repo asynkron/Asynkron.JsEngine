@@ -2699,8 +2699,18 @@ TryCreateSimpleNumericSelfRecursionFastPath(
             }
             catch (ThrowSignal signal) when (callingContext is not null)
             {
-                callingContext.SetThrow(signal.ThrownValue);
-                return signal.ThrownValue;
+                var thrownValue = signal.ThrownValue;
+                if (_isDerivedClassConstructor)
+                {
+                    var normalized = NormalizeDerivedClassRealmError(signal, callingContext);
+                    if (!normalized.IsUndefined)
+                    {
+                        thrownValue = normalized;
+                    }
+                }
+
+                callingContext.SetThrow(thrownValue);
+                return thrownValue;
             }
         }
 

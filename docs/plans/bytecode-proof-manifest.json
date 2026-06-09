@@ -2156,10 +2156,10 @@
               "callCount": 1
             },
             {
-              "childOwner": "E5d-function-and-constructor-runner-fallback",
-              "classification": "ordinary sync function and class-constructor declined-body fallback runner construction",
+              "childOwner": "E5d-function-and-resumable-declined-body-runner-retirement",
+              "classification": "ordinary sync function declined-body fallback runner construction; class-constructor fallback runner construction is retired",
               "path": "src/Asynkron.JsEngine/Ast/TypedAstEvaluator.SyncFunctionInvoker.cs",
-              "callCount": 2
+              "callCount": 1
             },
             {
               "childOwner": "E5d-sync-generator-ir-route-selection",
@@ -2194,8 +2194,8 @@
         },
         {
           "id": "E5-ir-runner-sync-entry-still-present",
-          "childOwner": "E5d-function-and-constructor-runner-fallback",
-          "classification": "classified RunSync call-site allowlist for ordinary sync function and class-constructor declined-body fallbacks; not a broad E5b entry-presence blocker",
+          "childOwner": "E5d-function-and-resumable-declined-body-runner-retirement",
+          "classification": "classified RunSync call-site allowlist for ordinary sync function declined-body fallback; class-constructor RunSync fallback entries are retired; not a broad E5b entry-presence blocker",
           "claim": "open",
           "kind": "source-allowlist",
           "paths": [
@@ -2206,22 +2206,10 @@
           ],
           "classifiedCallSites": [
             {
-              "childOwner": "E5d-function-and-constructor-runner-fallback",
+              "childOwner": "E5d-function-and-resumable-declined-body-runner-retirement",
               "classification": "remaining ordinary sync declined-body fallback runner execution in the outer slow path after TryInvokeIrFast declines and zero-depth dynamic identifier delete retired to production unified bytecode",
               "path": "src/Asynkron.JsEngine/Ast/TypedAstEvaluator.SyncFunctionInvoker.cs",
               "enclosingMember": "InvokeWithContextSlow"
-            },
-            {
-              "childOwner": "E5d-class-constructor-initialization-residue",
-              "classification": "simple derived class-constructor fallback runner execution",
-              "path": "src/Asynkron.JsEngine/Ast/TypedAstEvaluator.SyncFunctionInvoker.cs",
-              "enclosingMember": "TryInvokeSimpleDerivedClassConstructorFastPath"
-            },
-            {
-              "childOwner": "E5d-class-constructor-initialization-residue",
-              "classification": "simple base class-constructor fallback runner execution",
-              "path": "src/Asynkron.JsEngine/Ast/TypedAstEvaluator.SyncFunctionInvoker.cs",
-              "enclosingMember": "TryInvokeSimpleBaseClassConstructorFastPath"
             }
           ],
           "pattern": "runner.RunSync();"
@@ -2327,9 +2315,9 @@
         {
           "id": "E5-class-constructor-runner-fallback-still-constructs-runner",
           "childOwner": "E5d-class-constructor-initialization-residue",
-          "classification": "explicit class-constructor fallback runner construction residue preserving base/derived this, new.target, private brand, and instance-field initialization; not ordinary sync function fallback retirement",
-          "claim": "open",
-          "kind": "source-presence",
+          "classification": "class-constructor fallback runner construction is retired; production unified bytecode attempts first and declined constructors fall through to the existing dynamic-scope constructor evaluator that owns base/derived this, new.target, private brand, and instance-field initialization; not ordinary sync function fallback retirement",
+          "claim": "retired-fallback",
+          "kind": "source-absence",
           "path": "src/Asynkron.JsEngine/Ast/TypedAstEvaluator.SyncFunctionInvoker.cs",
           "pattern": "CreateClassifiedClassConstructorFallbackRunner"
         },

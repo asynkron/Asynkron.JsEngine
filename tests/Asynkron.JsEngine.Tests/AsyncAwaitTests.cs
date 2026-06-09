@@ -83,33 +83,14 @@ public sealed class AsyncAwaitTests(ITestOutputHelper output) : InternalTestBase
     }
 
     [Fact(Timeout = 2000)]
-    public async Task AsyncFunction_BlockScopedFunctionDeclaration_UsesClassifiedDeclinedBodyRunner()
+    public async Task AsyncFunction_BlockScopedFunctionDeclaration_RoutesResumableUnifiedBytecode()
     {
         await using var engine = CreateEngine();
-        var result = "";
-        var error = "";
-
-        engine.SetGlobalFunction("captureResult", args =>
-        {
-            if (args.Count > 0)
-            {
-                result = args[0].ToObject()?.ToString() ?? "";
-            }
-            return JsValue.Null;
-        });
-
-        engine.SetGlobalFunction("captureError", args =>
-        {
-            if (args.Count > 0)
-            {
-                error = args[0].ToObject()?.ToString() ?? "";
-            }
-            return JsValue.Null;
-        });
 
         ExecutionPlanDiagnostics.Reset();
-        var exception = await Record.ExceptionAsync(() => engine.Evaluate("""
+        var result = await engine.EvaluateAndAwait("""
             "use strict";
+            var asyncResult = "";
             async function run() {
                 let value;
                 {
@@ -121,13 +102,23 @@ public sealed class AsyncAwaitTests(ITestOutputHelper output) : InternalTestBase
                 return value;
             }
             run()
-                .then(function(value) { captureResult(value); })
-                .catch(function(error) { captureError(String(error)); });
-            """));
+                .then(
+                    function(value) { asyncResult = String(value); },
+                    function(error) { asyncResult = String(error); });
+            asyncResult;
+            """);
 
-        Assert.Null(exception);
         Assert.Equal("42", result);
-        Assert.True(string.IsNullOrEmpty(error));
+        Assert.Contains(
+            CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-resumable-async-fast-path func=run argc=0",
+                StringComparison.Ordinal));
+        Assert.DoesNotContain(
+            CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "classified-async-function-declined-body-runner-residue",
+                StringComparison.Ordinal));
     }
 
     [Fact(Timeout = 2000)]

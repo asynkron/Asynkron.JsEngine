@@ -1261,6 +1261,59 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
+    public void EvaluateResumable_BlockScopedFunctionDeclaration_AdmitsNonCapturingDeclareFunction()
+    {
+        var plan = GetFunctionPlan("""
+            async function run() {
+                {
+                    function inner() {
+                        return 42;
+                    }
+
+                    await Promise.resolve();
+                    return inner();
+                }
+            }
+            """,
+            "run");
+
+        var result = UnifiedBytecodeProductionEligibility.EvaluateResumable(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor(IsAsyncLike: true));
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, static instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.DeclareFunction);
+    }
+
+    [Fact]
+    public void EvaluateResumable_BlockScopedFunctionDeclarationCapturingActivation_Declines()
+    {
+        var plan = GetFunctionPlan("""
+            async function run(value) {
+                {
+                    function inner() {
+                        return value;
+                    }
+
+                    await Promise.resolve();
+                    return inner();
+                }
+            }
+            """,
+            "run");
+
+        var result = UnifiedBytecodeProductionEligibility.EvaluateResumable(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor(IsAsyncLike: true));
+
+        Assert.False(result.IsEligible);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.UnsupportedPlanShape, result.Code);
+        Assert.Contains("captures activation binding 'value'", result.Reason, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task Execute_BlockFunctionDeclarationBlockedByBodyLexicalName_DoesNotApplyAnnexBUpdate()
     {
         await using var engine = CreateEngine();

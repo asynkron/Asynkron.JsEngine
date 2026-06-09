@@ -10364,9 +10364,17 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
         Assert.Contains("terminalDynamicResidue={TerminalDynamicResidue}", terminalResidueHelperSection, StringComparison.Ordinal);
         Assert.Contains("eligibility.Code", terminalResidueHelperSection, StringComparison.Ordinal);
         Assert.Contains("eligibility.Reason", terminalResidueHelperSection, StringComparison.Ordinal);
-        Assert.Contains("ExecutionPlanRunner.RunScript(", terminalResidueHelperSection, StringComparison.Ordinal);
+        Assert.DoesNotContain("ExecutionPlanRunner.RunScript(", terminalResidueHelperSection, StringComparison.Ordinal);
+        Assert.Contains(
+            "ExecutionPlanRunner.ExecuteClassifiedTerminalDynamicScriptResidue(",
+            terminalResidueHelperSection,
+            StringComparison.Ordinal);
         Assert.Contains("classified-eval-script-ir-fallback", evalHelperSection, StringComparison.Ordinal);
-        Assert.Contains("ExecutionPlanRunner.RunScript(", evalHelperSection, StringComparison.Ordinal);
+        Assert.DoesNotContain("ExecutionPlanRunner.RunScript(", evalHelperSection, StringComparison.Ordinal);
+        Assert.Contains(
+            "ExecutionPlanRunner.ExecuteClassifiedEvalScriptFallback(",
+            evalHelperSection,
+            StringComparison.Ordinal);
     }
 
     [Fact]
@@ -10525,7 +10533,8 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
         var source = File.ReadAllText(sourcePath);
         Assert.Contains("CreateClassifiedAsyncDeclinedBodyRunner", source, StringComparison.Ordinal);
         Assert.Contains("ExecutionPlanRunner", source, StringComparison.Ordinal);
-        Assert.Contains(".ExecuteAsyncStep(", source, StringComparison.Ordinal);
+        Assert.DoesNotContain(".ExecuteAsyncStep(", source, StringComparison.Ordinal);
+        Assert.Contains(".ExecuteClassifiedAsyncDeclinedBodyStep(", source, StringComparison.Ordinal);
         Assert.Contains(
             "classified-async-function-declined-body-runner-residue",
             source,
@@ -10659,6 +10668,9 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
             ".RunSync(",
             "ExpressionProgram",
             ".ExecuteAsyncStep(",
+            ".ExecuteClassifiedAsyncDeclinedBodyStep(",
+            ".ExecuteClassifiedTerminalDynamicScriptResidue(",
+            ".ExecuteClassifiedEvalScriptFallback(",
             ".RunScriptInternal(",
             "EvaluateExpression(",
             "EvaluateExpressionProgram(",

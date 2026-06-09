@@ -5016,9 +5016,21 @@ internal static class UnifiedBytecodeProductionEligibility
                 continue;
             }
 
-            if (operation.Kind is ExpressionOpKind.Call or ExpressionOpKind.Construct or ExpressionOpKind.SuperConstruct)
+            if (operation.Kind is ExpressionOpKind.Call or ExpressionOpKind.SuperConstruct)
             {
                 hasCallDependency = true;
+                continue;
+            }
+
+            if (operation.Kind == ExpressionOpKind.Construct)
+            {
+                // Construct boundaries over owned activation operands are admitted: the
+                // constructor target and arguments resolve through the synthesized
+                // class-literal environment (or the live materialized body environment),
+                // and a construct cannot mutate this frame's activation slots without an
+                // activation-capturing closure (which forces the materialized
+                // body-environment route) or direct eval (which still declines through
+                // the call lane below).
                 continue;
             }
 
@@ -5050,11 +5062,7 @@ internal static class UnifiedBytecodeProductionEligibility
             hasActivationReference = true;
             if (!IsOwnedClassComputedNameActivationOperation(operation.Kind))
             {
-                dependencyReason = operation.Kind switch
-                {
-                    ExpressionOpKind.DeleteIdentifier => "activation binding delete",
-                    _ => $"unsupported {operation.Kind} operation"
-                };
+                dependencyReason = $"unsupported {operation.Kind} operation";
                 return true;
             }
         }
@@ -5164,7 +5172,12 @@ internal static class UnifiedBytecodeProductionEligibility
             ExpressionOpKind.ResolveIdentifierReference or
             ExpressionOpKind.StoreResolvedIdentifier or
             ExpressionOpKind.StoreIdentifier or
-            ExpressionOpKind.UpdateIdentifier;
+            ExpressionOpKind.UpdateIdentifier or
+            // Activation binding deletes are owned: the synthesized class-literal
+            // environment (and the materialized body environment) both resolve the
+            // binding as a non-deletable declarative slot, so DeleteDynamicIdentifier
+            // returns false without removing the slot value, matching the IR runner.
+            ExpressionOpKind.DeleteIdentifier;
 
     private static bool IsB24dStaticBlockClassLiteral(
         ClassDefinition definition,

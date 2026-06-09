@@ -367,7 +367,7 @@ public static partial class TypedAstEvaluator
 
             try
             {
-                var step = _inner!.ExecuteAsyncStep(mode, argument);
+                var step = _inner!.ExecuteClassifiedAsyncDeclinedBodyStep(mode, argument);
 
                 switch (step.Kind)
                 {

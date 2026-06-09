@@ -447,6 +447,7 @@ public sealed class UnifiedBytecodeAsyncGeneratorRouteTests(ITestOutputHelper ou
         {
             "_inner",
             "ExecuteAsyncStep(",
+            "ExecuteClassifiedAsyncDeclinedBodyStep(",
             "new ExecutionPlanRunner(",
             "EvaluateDynamicExpressionProgram(",
             "EvaluateStandaloneExpressionProgram(",
@@ -490,6 +491,7 @@ public sealed class UnifiedBytecodeAsyncGeneratorRouteTests(ITestOutputHelper ou
             "_fallbackRunner",
             "ExecuteFallbackRunnerStep",
             "ExecuteAsyncStep(",
+            "ExecuteClassifiedAsyncDeclinedBodyStep(",
             "async-generator-runner-fallback",
             "ExecutionPlanRunner.ResumeMode",
             "CreateClassifiedAsyncGeneratorDeclinedBodyRunner"

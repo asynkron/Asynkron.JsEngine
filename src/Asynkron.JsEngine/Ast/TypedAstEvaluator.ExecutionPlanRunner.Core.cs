@@ -84,7 +84,7 @@ public static partial class TypedAstEvaluator
 
         /// <summary>
         /// Private constructor for script execution mode.
-        /// Used by RunScript() to create a minimal runner without function context.
+        /// Used by the classified script residue/fallback entry points to create a minimal runner without function context.
         /// </summary>
         /// <param name="plan">The execution plan to run.</param>
         /// <param name="environment">The pre-configured script environment.</param>
@@ -110,7 +110,7 @@ public static partial class TypedAstEvaluator
                 : JsValue.Undefined;
             _derivedClassErrorRealm = _realmState;
             _isStrict = environment.IsStrict;
-            _isAsync = false; // Scripts run via RunScript are synchronous
+            _isAsync = false; // Scripts run via the classified script entry points are synchronous
             _isGenerator = false; // Scripts are not generators
             _allowIdentifierCache = context.AllowIdentifierCache;
             _capturedPrivateNameScopes = ImmutableArray<PrivateNameScope>.Empty;
@@ -143,7 +143,9 @@ public static partial class TypedAstEvaluator
         }
 
         /// <summary>
-        /// Runs an execution plan for script-level code.
+        /// Runs an execution plan for terminal dynamic script residue (direct eval
+        /// declaration shapes, eval-injected bindings, and other classified D-residue
+        /// script plans that intentionally stay on the IR runner).
         /// This is a lightweight path that skips generator/async machinery setup.
         /// The environment is already configured with hoisted declarations.
         /// </summary>
@@ -151,7 +153,23 @@ public static partial class TypedAstEvaluator
         /// <param name="environment">The pre-configured script environment with hoisted bindings.</param>
         /// <param name="context">The evaluation context.</param>
         /// <returns>The completion value of the script.</returns>
-        public static JsValue RunScript(
+        public static JsValue ExecuteClassifiedTerminalDynamicScriptResidue(
+            ExecutionPlan plan,
+            JsEnvironment environment,
+            EvaluationContext context)
+        {
+            return RunScriptCore(plan, environment, context);
+        }
+
+        /// <summary>
+        /// Runs an execution plan for classified eval-script fallback (eval execution
+        /// kinds that decline production unified bytecode routing).
+        /// </summary>
+        /// <param name="plan">The execution plan to run.</param>
+        /// <param name="environment">The pre-configured script environment with hoisted bindings.</param>
+        /// <param name="context">The evaluation context.</param>
+        /// <returns>The completion value of the script.</returns>
+        public static JsValue ExecuteClassifiedEvalScriptFallback(
             ExecutionPlan plan,
             JsEnvironment environment,
             EvaluationContext context)
@@ -501,7 +519,7 @@ public static partial class TypedAstEvaluator
             return _realmState.GeneratorPrototype ?? _realmState.ObjectPrototype;
         }
 
-        internal AsyncGeneratorStepResult ExecuteAsyncStep(ResumeMode mode, JsValue resumeValue)
+        internal AsyncGeneratorStepResult ExecuteClassifiedAsyncDeclinedBodyStep(ResumeMode mode, JsValue resumeValue)
         {
             // Reuse the existing ExecutePlan logic but translate its iterator
             // result / exceptions into a structured step result that async

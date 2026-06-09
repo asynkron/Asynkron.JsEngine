@@ -2652,7 +2652,7 @@ public static partial class TypedAstEvaluator
             eligibility.Reason,
             IsTerminalDynamicScriptResidue(eligibility),
             scriptPlan.Instructions.Length);
-        return ExecutionPlanRunner.RunScript(
+        return ExecutionPlanRunner.ExecuteClassifiedTerminalDynamicScriptResidue(
             scriptPlan,
             executionEnvironment,
             context);
@@ -2669,7 +2669,7 @@ public static partial class TypedAstEvaluator
             eligibility.Code,
             eligibility.Reason,
             scriptPlan.Instructions.Length);
-        return ExecutionPlanRunner.RunScript(
+        return ExecutionPlanRunner.ExecuteClassifiedEvalScriptFallback(
             scriptPlan,
             executionEnvironment,
             context);

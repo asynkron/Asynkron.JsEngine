@@ -933,26 +933,24 @@
           ]
         },
         {
-          "id": "B24h-computed-name-activation-delete-declines",
-          "claim": "open",
-          "kind": "eligibility",
-          "subject": "resumable-generator",
-          "functionName": "g",
-          "source": "function* g(key) {\n  yield 'ready';\n  var C = class {\n    [delete key]() { return 1; }\n  };\n  return C;\n}",
-          "expectedEligible": false,
-          "declineCode": "UnsupportedPlanShape",
-          "reasonContains": "activation binding delete"
+          "id": "B24h-computed-name-activation-delete-routes",
+          "claim": "admitted",
+          "kind": "runtime",
+          "source": "function* g(key) {\n  yield 'ready';\n  var C = class {\n    [delete key]() { return 1; }\n  };\n  return C;\n}\nvar iterator = g('seed');\nvar first = iterator.next();\nvar error = '';\ntry {\n  iterator.next();\n} catch (e) {\n  error = e.name + ':' + (e instanceof SyntaxError);\n}\nfirst.value + ':' + first.done + '|' + error;",
+          "expectedResult": "ready:false|SyntaxError:true",
+          "requiredLogs": [
+            "unified-bytecode-resumable-generator-fast-path func=g"
+          ]
         },
         {
-          "id": "B24h-computed-field-name-activation-delete-declines",
-          "claim": "open",
-          "kind": "eligibility",
-          "subject": "resumable-generator",
-          "functionName": "g",
-          "source": "function* g(key) {\n  yield 'ready';\n  var C = class {\n    [delete key] = 42;\n  };\n  return C;\n}",
-          "expectedEligible": false,
-          "declineCode": "UnsupportedPlanShape",
-          "reasonContains": "activation binding delete"
+          "id": "B24h-computed-field-name-activation-delete-routes",
+          "claim": "admitted",
+          "kind": "runtime",
+          "source": "function* g(key) {\n  yield 'ready';\n  var C = class {\n    [delete key] = 42;\n  };\n  return C;\n}\nvar iterator = g('seed');\nvar first = iterator.next();\nvar error = '';\ntry {\n  iterator.next();\n} catch (e) {\n  error = e.name + ':' + (e instanceof SyntaxError);\n}\nfirst.value + ':' + first.done + '|' + error;",
+          "expectedResult": "ready:false|SyntaxError:true",
+          "requiredLogs": [
+            "unified-bytecode-resumable-generator-fast-path func=g"
+          ]
         },
         {
           "id": "B24h-computed-name-immediate-iife-capture-routes",
@@ -1250,37 +1248,34 @@
           ]
         },
         {
-          "id": "B24h-computed-name-activation-construct-declines",
-          "claim": "open",
-          "kind": "eligibility",
-          "subject": "resumable-generator",
-          "functionName": "g",
-          "source": "function MakeName() {\n}\nMakeName.prototype.toString = function() {\n  return 'value';\n};\nfunction* g(MakeName) {\n  yield 'ready';\n  var C = class {\n    [new MakeName()]() { return 42; }\n  };\n  return C;\n}",
-          "expectedEligible": false,
-          "declineCode": "UnsupportedPlanShape",
-          "reasonContains": "activation-dependent call or construct"
+          "id": "B24h-computed-name-activation-construct-routes",
+          "claim": "admitted",
+          "kind": "runtime",
+          "source": "function MakeName() {\n}\nMakeName.prototype.toString = function() {\n  return 'value';\n};\nfunction* g(MakeName) {\n  yield 'ready';\n  var C = class {\n    [new MakeName()]() { return 42; }\n  };\n  return C;\n}\nvar iterator = g(MakeName);\nvar first = iterator.next();\nvar second = iterator.next();\nvar C = second.value;\nfirst.value + ':' + first.done + '|' + new C().value() + ':' + second.done;",
+          "expectedResult": "ready:false|42:true",
+          "requiredLogs": [
+            "unified-bytecode-resumable-generator-fast-path func=g"
+          ]
         },
         {
-          "id": "B24h-computed-name-activation-construct-argument-declines",
-          "claim": "open",
-          "kind": "eligibility",
-          "subject": "resumable-generator",
-          "functionName": "g",
-          "source": "function MakeName(name) {\n  this.name = name;\n}\nMakeName.prototype.toString = function() {\n  return this.name;\n};\nfunction* g(MakeName, key) {\n  yield 'ready';\n  var C = class {\n    [new MakeName(key)]() { return 42; }\n  };\n  return C;\n}",
-          "expectedEligible": false,
-          "declineCode": "UnsupportedPlanShape",
-          "reasonContains": "activation-dependent call or construct"
+          "id": "B24h-computed-name-activation-construct-argument-routes",
+          "claim": "admitted",
+          "kind": "runtime",
+          "source": "function MakeName(name) {\n  this.name = name;\n}\nMakeName.prototype.toString = function() {\n  return this.name;\n};\nfunction* g(MakeName, key) {\n  yield 'ready';\n  var C = class {\n    [new MakeName(key)]() { return 42; }\n  };\n  return C;\n}\nvar iterator = g(MakeName, 'value');\nvar first = iterator.next();\nvar second = iterator.next();\nvar C = second.value;\nfirst.value + ':' + first.done + '|' + new C().value() + ':' + second.done;",
+          "expectedResult": "ready:false|42:true",
+          "requiredLogs": [
+            "unified-bytecode-resumable-generator-fast-path func=g"
+          ]
         },
         {
-          "id": "B24h-computed-name-activation-construct-spread-declines",
-          "claim": "open",
-          "kind": "eligibility",
-          "subject": "resumable-generator",
-          "functionName": "g",
-          "source": "function MakeName(prefix, suffix) {\n  this.name = prefix + suffix;\n}\nMakeName.prototype.toString = function() {\n  return this.name;\n};\nfunction* g(MakeName, args) {\n  yield 'ready';\n  var C = class {\n    [new MakeName(...args)]() { return 42; }\n  };\n  return C;\n}",
-          "expectedEligible": false,
-          "declineCode": "UnsupportedPlanShape",
-          "reasonContains": "activation-dependent call or construct"
+          "id": "B24h-computed-name-activation-construct-spread-routes",
+          "claim": "admitted",
+          "kind": "runtime",
+          "source": "function MakeName(prefix, suffix) {\n  this.name = prefix + suffix;\n}\nMakeName.prototype.toString = function() {\n  return this.name;\n};\nfunction* g(MakeName, args) {\n  yield 'ready';\n  var C = class {\n    [new MakeName(...args)]() { return 42; }\n  };\n  return C;\n}\nvar iterator = g(MakeName, ['val', 'ue']);\nvar first = iterator.next();\nvar second = iterator.next();\nvar C = second.value;\nfirst.value + ':' + first.done + '|' + new C().value() + ':' + second.done;",
+          "expectedResult": "ready:false|42:true",
+          "requiredLogs": [
+            "unified-bytecode-resumable-generator-fast-path func=g"
+          ]
         },
         {
           "id": "B24h-computed-static-block-direct-eval-literal-routes",

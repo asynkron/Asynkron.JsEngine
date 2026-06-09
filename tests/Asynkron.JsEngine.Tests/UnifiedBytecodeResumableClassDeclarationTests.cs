@@ -133,7 +133,7 @@ public sealed class UnifiedBytecodeResumableClassDeclarationTests(ITestOutputHel
     }
 
     [Fact]
-    public void EvaluateResumable_ClassDeclarationComputedNameActivationDelete_DeclinesDeclareClass()
+    public void EvaluateResumable_ClassDeclarationComputedNameActivationDelete_AdmitsDeclareClass()
     {
         var plan = GetFunctionPlan("""
             function* g(key) {
@@ -152,12 +152,41 @@ public sealed class UnifiedBytecodeResumableClassDeclarationTests(ITestOutputHel
             plan,
             new UnifiedBytecodeProductionActivationDescriptor(IsGenerator: true));
 
-        Assert.False(result.IsEligible, result.Reason);
-        Assert.Equal(UnifiedBytecodeProductionDeclineCode.UnsupportedPlanShape, result.Code);
-        Assert.Contains("activation binding delete", result.Reason, StringComparison.Ordinal);
-        Assert.DoesNotContain(
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(
             result.Program.Instructions,
             static instruction => instruction.OpCode == UnifiedBytecodeOpCode.DeclareClass);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task GeneratorClassDeclarationComputedNameActivationDelete_RoutesResumableAndThrowsStrictModeSyntaxError()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function* g(key) {
+                yield "ready";
+                class Box {
+                    [delete key]() {
+                        return 42;
+                    }
+                }
+                yield typeof Box;
+            }
+
+            var iterator = g("seed");
+            var first = iterator.next();
+            var error = "";
+            try {
+                iterator.next();
+            } catch (e) {
+                error = e.name + ":" + (e instanceof SyntaxError);
+            }
+            first.value + ":" + first.done + "|" + error;
+            """);
+
+        Assert.Equal("ready:false|SyntaxError:true", result);
+        AssertGeneratorFastPath("g", argc: 1);
     }
 
     [Fact]

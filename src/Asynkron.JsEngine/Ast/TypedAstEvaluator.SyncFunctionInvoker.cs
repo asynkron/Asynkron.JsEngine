@@ -1833,6 +1833,7 @@ TryCreateSimpleNumericSelfRecursionFastPath(
                     context.ExecutionKind == ExecutionKind.Script &&
                     _allowIdentifierCache &&
                     (_hasFunctionDeclarationParameterConflict ||
+                     (_hasHoistableDeclarations && _isStrict) ||
                      (_hasNonParameterCalleeCall && (!_isStrict || _hasHoistableDeclarations)));
                 if (hasFunctionCodeIrSeam &&
                     _hasDirectEvalInBodyOrParameters &&
@@ -2497,6 +2498,17 @@ TryCreateSimpleNumericSelfRecursionFastPath(
                                 {
                                     if (functionEnvironment.TryGetJsValue(Symbol.This, out var currentThis))
                                     {
+                                        if (_isDerivedClassConstructor &&
+                                            (currentThis.IsUninitialized ||
+                                             ReferenceEquals(currentThis.ObjectValue, JsEnvironment.Uninitialized)))
+                                        {
+                                            var errorObject = StandardLibrary.CreateReferenceError(
+                                                "ReferenceError: this is not defined - must call super() in derived class constructor",
+                                                context,
+                                                constructErrorRealm);
+                                            throw new ThrowSignal(errorObject);
+                                        }
+
                                         RealmState.Logger?.LogInformation(
                                             "Class constructor returning this={This}",
                                             DescribeValue(currentThis.ObjectValue));

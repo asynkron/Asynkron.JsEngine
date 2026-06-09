@@ -251,7 +251,7 @@ public sealed class ClassStatementTests(ITestOutputHelper output) : InternalTest
     }
 
     [Fact(Timeout = 2000)]
-    public async Task ClassConstructorCreatedInsideWithCapturedClosure_UsesIrPlanInsteadOfDynamicScopeExecutor()
+    public async Task ClassConstructorCreatedInsideWithCapturedClosure_UsesDynamicScopeConstructorEvaluator()
     {
         var logger = new TestLogger(output, "ClassConstructorWithClosure", minLogLevel: LogLevel.Debug);
         await using var engine = CreateEngine(() => new JsEngineOptions
@@ -278,7 +278,7 @@ public sealed class ClassStatementTests(ITestOutputHelper output) : InternalTest
             """);
 
         Assert.Equal(42d, result);
-        Assert.DoesNotContain(
+        Assert.Contains(
             logger.Collector.Snapshot(),
             static record => record.Message.Contains(
                 "Executing sync function via dynamic-scope executor",
@@ -314,7 +314,7 @@ public sealed class ClassStatementTests(ITestOutputHelper output) : InternalTest
     }
 
     [Fact(Timeout = 2000)]
-    public async Task ClassConstructorWithDirectEval_UsesIrPlanInsteadOfDynamicScopeExecutor()
+    public async Task ClassConstructorWithDirectEval_UsesDynamicScopeConstructorEvaluator()
     {
         var logger = new TestLogger(output, "ClassConstructorDirectEval", minLogLevel: LogLevel.Debug);
         await using var engine = CreateEngine(() => new JsEngineOptions
@@ -334,7 +334,7 @@ public sealed class ClassStatementTests(ITestOutputHelper output) : InternalTest
             """);
 
         Assert.Equal(42d, result);
-        Assert.DoesNotContain(
+        Assert.Contains(
             logger.Collector.Snapshot(),
             static record => record.Message.Contains(
                 "Executing sync function via dynamic-scope executor",

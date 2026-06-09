@@ -64,7 +64,10 @@ parse-phase redeclaration checks scoped to the correct syntactic container.
     declaration executes. Slot ownership and `DeclareFunction` lowering are not
     enough: body lexical names, parameters, non-simple catch names, parameter
     expression block-function names, and observable `arguments` must still block
-    sloppy Annex B outer-binding updates.
+    sloppy Annex B outer-binding updates. For async/resumable routes, also keep
+    descriptor-backed block declarations declined until the route owns a
+    materialized declaration environment that survives suspension together with
+    the same blocked-name setup.
 
 ## Why
 
@@ -115,3 +118,14 @@ once `DeclareFunction` can run on the VM route, the fast activation var
 environment must carry the same blocked names before runtime block-function
 updates happen. Related ADR:
 `docs/adrs/0337-keep-annex-b-blocked-names-shared-for-unified-fast-activation.md`.
+
+Faktorial issue
+`planitem-planitem-gh3495-shared-context-e5b-runner-entry-point-tombstones-after-e-bd02e19f7d`
+/ PR #3550 applied the same ownership lesson to async-function resumable
+routing. The first build admitted descriptor-backed async block declarations by
+adding a resumable `DeclareFunction` handler, but review showed that the VM did
+not yet own the materialized declaration environment or Annex B blocked-name
+setup across suspension. The repaired delivery kept the bodies on the
+classified async declined-body runner and added strict no-leak plus
+parameter-blocked Annex B no-global-leak regressions. Related ADR:
+`docs/adrs/0383-keep-async-block-function-declarations-classified-until-resumable-environment-ownership.md`.

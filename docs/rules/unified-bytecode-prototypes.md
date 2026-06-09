@@ -429,6 +429,19 @@ all-or-nothing until a separate routing issue proves production readiness.
     / PR #3381 corrected the retrospective documentation after classification
     wording risked reading as E5 retirement progress and blurred true terminal
     dynamic residue with ordinary class-definition and runner-retirement work.
+    Faktorial issue
+    `planitem-planitem-gh3495-shared-context-e5b-runner-entry-point-tombstones-after-e-54f613f240`
+    / PR #3540 narrowed ordinary script fallback after the E5b runner-entry
+    inventory had already been classified: ordinary script production declines
+    must not call `ExecutionPlanRunner.RunScript(` directly or recreate the
+    deleted `RunOrdinaryDeclinedScript(` wrapper. Keep them behind
+    `RunOrdinaryScriptViaClassifiedRunnerFallback` and
+    `ExecuteClassifiedOrdinaryScriptFallback` with an
+    `ordinary-script-classified-runner-fallback` log. Terminal dynamic
+    direct-eval residue and eval execution-kind residue are the only script
+    `RunScript` call-site allowlists until their separate proof rows are
+    retired. Related ADR:
+    `docs/adrs/0346-keep-script-ir-fallback-classified-with-production-decline-details.md`.
 9l. Keep A51h literal/span inventory lanes decomposed during rebaselines.
     `A51h` owns non-container method/accessor/private/name-inference
     restrictions plus logical-control and conditional consequent/alternate

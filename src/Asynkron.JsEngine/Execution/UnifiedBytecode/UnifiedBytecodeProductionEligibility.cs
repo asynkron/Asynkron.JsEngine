@@ -3819,23 +3819,39 @@ internal static class UnifiedBytecodeProductionEligibility
             return false;
         }
 
-        if (definition.StaticElements.IsDefaultOrEmpty ||
-            definition.StaticElements.Length != definition.Fields.Length)
+        var staticFieldCount = 0;
+        foreach (var field in definition.Fields)
+        {
+            if (field.IsComputed)
+            {
+                return false;
+            }
+
+            if (field.IsStatic)
+            {
+                staticFieldCount++;
+            }
+        }
+
+        if (staticFieldCount == 0 ||
+            definition.StaticElements.IsDefaultOrEmpty ||
+            definition.StaticElements.Length != staticFieldCount)
         {
             return false;
         }
 
-        foreach (var field in definition.Fields)
+        foreach (var member in definition.Members)
         {
-            if (!field.IsStatic || field.IsPrivate || field.IsComputed)
+            if (member.IsComputed)
             {
                 return false;
             }
-        }
 
-        foreach (var member in definition.Members)
-        {
-            if (!member.IsStatic || member.IsPrivate || member.IsComputed)
+            if (member.IsPrivate &&
+                member.Kind is not (
+                    ClassMemberKind.Method or
+                    ClassMemberKind.Getter or
+                    ClassMemberKind.Setter))
             {
                 return false;
             }

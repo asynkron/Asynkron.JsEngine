@@ -1890,11 +1890,14 @@
           "pattern": "classified-static-block-ir-fallback reason=production-unified-bytecode-declined"
         },
         {
-          "id": "B36-class-declaration-static-field-shape-guard-stays-open",
-          "claim": "open",
-          "kind": "source-presence",
-          "path": "src/Asynkron.JsEngine/Execution/UnifiedBytecode/UnifiedBytecodeProductionEligibility.cs",
-          "pattern": "if (!field.IsStatic || field.IsPrivate || field.IsComputed)"
+          "id": "B36-class-declaration-static-field-shape-guard-routes",
+          "claim": "admitted",
+          "kind": "runtime",
+          "source": "function* g(seed) {\n  yield 'ready';\n  class Box {\n    static #stored = seed + 1;\n    static read() {\n      return this.#stored;\n    }\n  }\n  seed = 100;\n  yield Box.read();\n}\nvar iterator = g(41);\niterator.next();\n'' + iterator.next().value;",
+          "expectedResult": "42",
+          "requiredLogs": [
+            "unified-bytecode-resumable-generator-fast-path func=g"
+          ]
         },
         {
           "id": "B36-deferred-class-definition-environment-bridge-stays-open",
@@ -1904,11 +1907,14 @@
           "pattern": "class-declaration computed-name activation-call admission is an explicit B36"
         },
         {
-          "id": "B36-class-declaration-static-member-shape-guard-stays-open",
-          "claim": "open",
-          "kind": "source-presence",
-          "path": "src/Asynkron.JsEngine/Execution/UnifiedBytecode/UnifiedBytecodeProductionEligibility.cs",
-          "pattern": "if (!member.IsStatic || member.IsPrivate || member.IsComputed)"
+          "id": "B36-class-declaration-static-member-shape-guard-routes",
+          "claim": "admitted",
+          "kind": "runtime",
+          "source": "function* g() {\n  yield 'ready';\n  class Box {\n    static D = 20;\n    static #half() {\n      return this.D / 2;\n    }\n    static half() {\n      return this.#half();\n    }\n    describe() {\n      return 'd:' + Box.half();\n    }\n  }\n  var box = new Box();\n  yield box.describe();\n}\nvar iterator = g();\niterator.next();\niterator.next().value;",
+          "expectedResult": "d:10",
+          "requiredLogs": [
+            "unified-bytecode-resumable-generator-fast-path func=g"
+          ]
         },
         {
           "id": "B36-class-declaration-computed-member-activation-capture-routes",

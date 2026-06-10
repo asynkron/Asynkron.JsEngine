@@ -398,8 +398,6 @@ public sealed partial class BytecodeProofManifestTests(ITestOutputHelper output)
                 "B36-class-declaration-non-production-static-block-stays-open",
                 "B36-class-declaration-static-block-ir-fallback-stays-open",
                 "B36-class-declaration-static-block-runtime-source-direct-eval-declines",
-                "B36-class-declaration-static-field-shape-guard-stays-open",
-                "B36-class-declaration-static-member-shape-guard-stays-open",
                 "B36-deferred-class-definition-environment-bridge-stays-open",
                 "B36-resumable-arguments-eval-helper-decline-stays-open",
                 "B36-resumable-dynamic-eval-helper-activation-decline-stays-open",

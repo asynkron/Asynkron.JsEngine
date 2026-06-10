@@ -1139,6 +1139,237 @@ public sealed class UnifiedBytecodeResumableClassDeclarationTests(ITestOutputHel
     }
 
     [Fact]
+    public void EvaluateResumable_ClassDeclarationStaticFieldWithInstanceMethod_AdmitsDeclareClass()
+    {
+        var plan = GetFunctionPlan("""
+            function* g() {
+                yield "ready";
+                class Box {
+                    static D = 41;
+
+                    read() {
+                        return Box.D + 1;
+                    }
+                }
+                var box = new Box();
+                yield box.read();
+            }
+            """,
+            "g");
+
+        var result = UnifiedBytecodeProductionEligibility.EvaluateResumable(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor(IsGenerator: true));
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(
+            result.Program.Instructions,
+            static instruction => instruction.OpCode == UnifiedBytecodeOpCode.DeclareClass);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task GeneratorPrivateStaticFieldClassDeclaration_RoutesResumableAndReadsThroughStaticMethod()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function* g() {
+                yield "ready";
+                class Box {
+                    static #count = 7;
+
+                    static read() {
+                        return this.#count;
+                    }
+                }
+                yield Box.read();
+            }
+
+            var iterator = g();
+            iterator.next();
+            iterator.next().value;
+            """);
+
+        Assert.Equal(7d, result);
+        AssertGeneratorFastPath("g", argc: 0);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task GeneratorPrivateStaticFieldCapturingInitializer_RunsAtDeclarationTime()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function* g(seed) {
+                yield "ready";
+                class Box {
+                    static #stored = seed + 1;
+
+                    static read() {
+                        return this.#stored;
+                    }
+                }
+                seed = 100;
+                yield Box.read();
+            }
+
+            var iterator = g(41);
+            iterator.next();
+            iterator.next().value;
+            """);
+
+        Assert.Equal(42d, result);
+        AssertGeneratorFastPath("g", argc: 1);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task GeneratorPrivateStaticFieldClassDeclaration_BrandCheckTypeErrorIsCatchable()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function* g() {
+                yield "ready";
+                class Box {
+                    static #count = 1;
+
+                    static read() {
+                        return this.#count;
+                    }
+                }
+                var outcome;
+                try {
+                    Box.read.call({});
+                    outcome = "no-throw";
+                } catch (error) {
+                    outcome = error instanceof TypeError ? "TypeError" : "other";
+                }
+                yield outcome;
+            }
+
+            var iterator = g();
+            iterator.next();
+            iterator.next().value;
+            """);
+
+        Assert.Equal("TypeError", result);
+        AssertGeneratorFastPath("g", argc: 0);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task GeneratorStaticFieldWithInstanceMethod_RoutesResumable()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function* g() {
+                yield "ready";
+                class Box {
+                    static D = 41;
+
+                    read() {
+                        return Box.D + 1;
+                    }
+                }
+                var box = new Box();
+                yield box.read();
+            }
+
+            var iterator = g();
+            iterator.next();
+            iterator.next().value;
+            """);
+
+        Assert.Equal(42d, result);
+        AssertGeneratorFastPath("g", argc: 0);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task GeneratorStaticFieldWithInstanceFieldAndMethod_RoutesResumable()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function* g() {
+                yield "ready";
+                class Box {
+                    static D = 40;
+
+                    x = 2;
+
+                    sum() {
+                        return Box.D + this.x;
+                    }
+                }
+                var box = new Box();
+                yield box.sum();
+            }
+
+            var iterator = g();
+            iterator.next();
+            iterator.next().value;
+            """);
+
+        Assert.Equal(42d, result);
+        AssertGeneratorFastPath("g", argc: 0);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task GeneratorStaticFieldWithPrivateStaticAndInstanceMix_RoutesResumable()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function* g() {
+                yield "ready";
+                class Box {
+                    static D = 20;
+
+                    static #half() {
+                        return this.D / 2;
+                    }
+
+                    static half() {
+                        return this.#half();
+                    }
+
+                    describe() {
+                        return "d:" + Box.half();
+                    }
+                }
+                var box = new Box();
+                yield box.describe();
+            }
+
+            var iterator = g();
+            iterator.next();
+            iterator.next().value;
+            """);
+
+        Assert.Equal("d:10", result);
+        AssertGeneratorFastPath("g", argc: 0);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task GeneratorStaticFieldOrdering_LaterInitializerSeesEarlierPrivateStaticField()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function* g() {
+                yield "ready";
+                class Box {
+                    static #base = 40;
+
+                    static total = Box.#base + 2;
+                }
+                yield Box.total;
+            }
+
+            var iterator = g();
+            iterator.next();
+            iterator.next().value;
+            """);
+
+        Assert.Equal(42d, result);
+        AssertGeneratorFastPath("g", argc: 0);
+    }
+
+    [Fact]
     public void EvaluateResumable_ClassDeclarationComputedNeighborChainedConstructCall_StillDeclinesViaCallLane()
     {
         var plan = GetFunctionPlan("""

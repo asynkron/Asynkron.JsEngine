@@ -2621,11 +2621,70 @@ internal static class UnifiedBytecodeProductionEligibility
                 return true;
             }
 
+            if (InstructionSlotTargetReferencesOuterActivation(
+                    instruction,
+                    nestedActivationSlots,
+                    activationSlots,
+                    out capturedName))
+            {
+                return true;
+            }
+
             if (instruction is FunctionDeclarationInstruction { Descriptor: { } descriptor } &&
                 FunctionCapturesActivationSlot(descriptor.Function, activationSlots, out capturedName))
             {
                 return true;
             }
+        }
+
+        return false;
+    }
+
+    private static bool InstructionSlotTargetReferencesOuterActivation(
+        ExecutionInstruction instruction,
+        ActivationSlotShape nestedActivationSlots,
+        ActivationSlotShape outerActivationSlots,
+        out string capturedName)
+    {
+        // Slot-target mutation instructions carry the written identifier as instruction
+        // metadata, not as an expression-program op, so a nested function whose ONLY
+        // reference to an outer binding is a write (`p = 9`, `p += 2`, `p++`) is invisible
+        // to the expression-program walk above. Treat an outer-resolved target symbol as a
+        // capture so write-only closures get the materialized body environment too.
+        capturedName = string.Empty;
+        IdentifierOperand target;
+        switch (instruction)
+        {
+            case AssignmentSlotInstruction assignment:
+                target = new IdentifierOperand(
+                    assignment.TargetSymbol, assignment.ScopeId, assignment.SlotIndex, assignment.FlatSlotId);
+                break;
+            case CompoundAssignmentSlotInstruction compound:
+                target = new IdentifierOperand(
+                    compound.TargetSymbol, compound.ScopeId, compound.SlotIndex, compound.FlatSlotId);
+                break;
+            case LogicalCompoundAssignmentSlotInstruction logical:
+                target = new IdentifierOperand(
+                    logical.TargetSymbol, logical.ScopeId, logical.SlotIndex, logical.FlatSlotId);
+                break;
+            case IncrementSlotInstruction increment:
+                target = new IdentifierOperand(
+                    increment.TargetSymbol, increment.ScopeId, increment.SlotIndex, increment.FlatSlotId);
+                break;
+            default:
+                return false;
+        }
+
+        if (ResolvesToActivationSlot(target, nestedActivationSlots))
+        {
+            return false;
+        }
+
+        if (target.ScopeId == outerActivationSlots.ScopeId ||
+            target.FlatSlotId < 0 && outerActivationSlots.SlotMap.ContainsKey(target.Name))
+        {
+            capturedName = target.Name.Name;
+            return true;
         }
 
         return false;

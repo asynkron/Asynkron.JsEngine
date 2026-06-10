@@ -7277,9 +7277,9 @@ internal static class UnifiedBytecodeVirtualMachine
                     {
                         // Synchronous call dispatch from inside the resumable frame. ExecutePreparedCall
                         // runs the callee to completion (its own suspension, if any, is a separate resumable
-                        // frame) and returns a value. slotEnvironments is null because eligible resumable
-                        // programs have no environment-backed slots; the calling environment is threaded for
-                        // caller-context-sensitive callees (e.g. environment-aware host functions).
+                        // frame) and returns a value. slotEnvironments stays null at this boundary because
+                        // any callee-visible binding state lives in the materialized body environment, which
+                        // is re-synced into the flat slots below after the call returns.
                         stackPointer = ExecutePreparedCall(
                             DecodeCallBoundaryArgumentCount(instruction.Operand),
                             DecodeCallBoundarySpreadMask(program, instruction.Operand),
@@ -7294,6 +7294,15 @@ internal static class UnifiedBytecodeVirtualMachine
                         // Clear the flag on the call result slot, matching the sync VM. A non-short-circuited
                         // call result must never inherit a stale short-circuit flag from a prior chain.
                         SetResumableShortCircuitFlag(stackPointer - 1, false);
+                        if (slotEnvironments is not null && currentEnvironment is { } callSyncEnvironment)
+                        {
+                            // Materialized body environments are the source of truth for closures created
+                            // against this frame (hoisted helpers, class members, constructors). The callee
+                            // may have written captured bindings through that environment, so pull the
+                            // environment state back into the flat slots before the next slot read.
+                            SyncEnvironmentToUnifiedSlots(program, slots, slotEnvironments, callSyncEnvironment);
+                        }
+
                         if (context.ShouldStopEvaluation)
                         {
                             if (TryHandleResumableContextThrow())
@@ -7319,9 +7328,10 @@ internal static class UnifiedBytecodeVirtualMachine
                         // runs [[Construct]] to completion (using the constructor itself as new.target, the
                         // `new C()` semantics) and replaces the constructor slot with the result, reusing the
                         // sync VM handler verbatim so this-binding/prototype wiring and the non-constructor
-                        // TypeError are identical. slotEnvironments is null because eligible resumable programs
-                        // have no environment-backed slots. A thrown constructor (ThrowSignal) is translated to
-                        // the resumable Throw step exactly like the call boundary.
+                        // TypeError are identical. slotEnvironments stays null at this boundary because any
+                        // callee-visible binding state lives in the materialized body environment, which is
+                        // re-synced into the flat slots below. A thrown constructor (ThrowSignal) is translated
+                        // to the resumable Throw step exactly like the call boundary.
                         stackPointer = ExecutePreparedConstruct(
                             DecodeCallBoundaryArgumentCount(instruction.Operand),
                             DecodeCallBoundarySpreadMask(program, instruction.Operand),
@@ -7333,6 +7343,13 @@ internal static class UnifiedBytecodeVirtualMachine
                         // Clear the flag on the construct result slot, matching the sync VM. A construct result
                         // must never inherit a stale short-circuit flag from a prior chain on the reused slot.
                         SetResumableShortCircuitFlag(stackPointer - 1, false);
+                        if (slotEnvironments is not null && currentEnvironment is { } constructSyncEnvironment)
+                        {
+                            // Constructor bodies and instance field initializers may write captured bindings
+                            // through the materialized body environment; pull them back into the flat slots.
+                            SyncEnvironmentToUnifiedSlots(program, slots, slotEnvironments, constructSyncEnvironment);
+                        }
+
                         if (context.ShouldStopEvaluation)
                         {
                             if (TryHandleResumableContextThrow())

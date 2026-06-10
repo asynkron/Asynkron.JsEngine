@@ -1599,14 +1599,14 @@
           ]
         },
         {
-          "id": "B36-class-declaration-private-instance-method-computed-neighbor-declines",
-          "claim": "open",
-          "kind": "eligibility",
-          "subject": "resumable-generator",
-          "functionName": "g",
-          "source": "function* g(key) {\n  yield 'ready';\n  class Box {\n    #value() {\n      return 1;\n    }\n    [key]() {\n      return this.#value();\n    }\n  }\n  yield new Box().value();\n}",
-          "expectedEligible": false,
-          "declineCode": "CallDependency"
+          "id": "B36-class-declaration-private-instance-method-computed-neighbor-routes",
+          "claim": "admitted",
+          "kind": "runtime",
+          "source": "function* g(key) {\n  yield 'ready';\n  class Box {\n    #value() {\n      return 1;\n    }\n    [key]() {\n      return this.#value();\n    }\n  }\n  var box = new Box();\n  yield box.value();\n}\nvar iterator = g('value');\nvar first = iterator.next();\nvar second = iterator.next();\nfirst.value + ':' + first.done + '|' + second.value + ':' + second.done;",
+          "expectedResult": "ready:false|1:false",
+          "requiredLogs": [
+            "unified-bytecode-resumable-generator-fast-path func=g"
+          ]
         },
         {
           "id": "B36-class-declaration-extends-public-super-method-routes",

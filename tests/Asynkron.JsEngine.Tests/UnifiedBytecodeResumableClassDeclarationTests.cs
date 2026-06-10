@@ -946,7 +946,125 @@ public sealed class UnifiedBytecodeResumableClassDeclarationTests(ITestOutputHel
     }
 
     [Fact]
-    public void EvaluateResumable_ClassDeclarationPrivateInstanceMethodWithComputedNeighbor_StillDeclines()
+    public void EvaluateResumable_ClassDeclarationPrivateInstanceMethodWithComputedNeighbor_AdmitsDeclareClass()
+    {
+        var plan = GetFunctionPlan("""
+            function* g(key) {
+                yield "ready";
+                class Box {
+                    #value() {
+                        return 1;
+                    }
+
+                    [key]() {
+                        return this.#value();
+                    }
+                }
+                var box = new Box();
+                yield box.value();
+            }
+            """,
+            "g");
+
+        var result = UnifiedBytecodeProductionEligibility.EvaluateResumable(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor(IsGenerator: true));
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(
+            result.Program.Instructions,
+            static instruction => instruction.OpCode == UnifiedBytecodeOpCode.DeclareClass);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task GeneratorComputedPublicMemberWithPrivateNeighbor_RoutesResumable()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function* g(key) {
+                yield "ready";
+                class Box {
+                    #value() {
+                        return 1;
+                    }
+
+                    [key]() {
+                        return this.#value();
+                    }
+                }
+                var box = new Box();
+                yield box.value();
+            }
+
+            var iterator = g("value");
+            var first = iterator.next();
+            var second = iterator.next();
+            first.value + ":" + first.done + "|" + second.value + ":" + second.done;
+            """);
+
+        Assert.Equal("ready:false|1:false", result);
+        AssertGeneratorFastPath("g", argc: 1);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task GeneratorComputedPublicMemberWithPrivateFieldNeighbor_RoutesResumable()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function* g(key) {
+                yield "ready";
+                class Box {
+                    #stored = 40;
+
+                    [key]() {
+                        return this.#stored + 2;
+                    }
+                }
+                var box = new Box();
+                yield box.read();
+            }
+
+            var iterator = g("read");
+            iterator.next();
+            iterator.next().value;
+            """);
+
+        Assert.Equal(42d, result);
+        AssertGeneratorFastPath("g", argc: 1);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task GeneratorComputedPublicAccessorWithPrivateAccessorNeighbor_RoutesResumable()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function* g(key) {
+                yield "ready";
+                class Box {
+                    get #stored() {
+                        return 21;
+                    }
+
+                    get [key]() {
+                        return this.#stored * 2;
+                    }
+                }
+                var box = new Box();
+                yield box.doubled;
+            }
+
+            var iterator = g("doubled");
+            iterator.next();
+            iterator.next().value;
+            """);
+
+        Assert.Equal(42d, result);
+        AssertGeneratorFastPath("g", argc: 1);
+    }
+
+    [Fact]
+    public void EvaluateResumable_ClassDeclarationComputedNeighborChainedConstructCall_StillDeclinesViaCallLane()
     {
         var plan = GetFunctionPlan("""
             function* g(key) {

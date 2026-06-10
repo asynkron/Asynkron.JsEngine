@@ -4535,7 +4535,12 @@ internal static class UnifiedBytecodeProductionEligibility
         {
             if (field.IsPrivate)
             {
-                return false;
+                if (field.IsComputed)
+                {
+                    return false;
+                }
+
+                continue;
             }
 
             if (field.IsComputed)
@@ -4548,7 +4553,17 @@ internal static class UnifiedBytecodeProductionEligibility
         {
             if (member.IsPrivate)
             {
-                return false;
+                if (member.IsStatic ||
+                    member.IsComputed ||
+                    member.Kind is not (
+                        ClassMemberKind.Method or
+                        ClassMemberKind.Getter or
+                        ClassMemberKind.Setter))
+                {
+                    return false;
+                }
+
+                continue;
             }
 
             if (member.IsComputed)

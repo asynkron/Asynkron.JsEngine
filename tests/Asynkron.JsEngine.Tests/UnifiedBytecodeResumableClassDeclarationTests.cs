@@ -1063,6 +1063,81 @@ public sealed class UnifiedBytecodeResumableClassDeclarationTests(ITestOutputHel
         AssertGeneratorFastPath("g", argc: 1);
     }
 
+    [Fact(Timeout = 5000)]
+    public async Task GeneratorComputedMemberBodyCapturesActivation_RoutesResumableAndObservesMutation()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function* g(key, seed) {
+                yield "ready";
+                class Box {
+                    [key]() {
+                        return seed;
+                    }
+                }
+                var box = new Box();
+                var before = box.read();
+                seed = seed * 2;
+                yield before + ":" + box.read();
+            }
+
+            var iterator = g("read", 21);
+            iterator.next();
+            iterator.next().value;
+            """);
+
+        Assert.Equal("21:42", result);
+        AssertGeneratorFastPath("g", argc: 2);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task GeneratorComputedFieldInitializerCapturesActivation_ReadsLiveBindingAtConstructTime()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function* g(key, seed) {
+                yield "ready";
+                class Box {
+                    [key] = seed;
+                }
+                var early = new Box();
+                seed = seed + 1;
+                var late = new Box();
+                yield early.value + ":" + late.value;
+            }
+
+            var iterator = g("value", 6);
+            iterator.next();
+            iterator.next().value;
+            """);
+
+        Assert.Equal("6:7", result);
+        AssertGeneratorFastPath("g", argc: 2);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task GeneratorComputedStaticFieldInitializerCapturesActivation_RoutesResumable()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function* g(key, seed) {
+                yield "ready";
+                class Box {
+                    static [key] = seed + 1;
+                }
+                seed = 100;
+                yield Box.value;
+            }
+
+            var iterator = g("value", 41);
+            iterator.next();
+            iterator.next().value;
+            """);
+
+        Assert.Equal(42d, result);
+        AssertGeneratorFastPath("g", argc: 2);
+    }
+
     [Fact]
     public void EvaluateResumable_ClassDeclarationComputedNeighborChainedConstructCall_StillDeclinesViaCallLane()
     {

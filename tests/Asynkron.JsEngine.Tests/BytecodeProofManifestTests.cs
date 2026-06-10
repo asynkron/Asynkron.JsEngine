@@ -395,8 +395,6 @@ public sealed partial class BytecodeProofManifestTests(ITestOutputHelper output)
         Assert.Equal("open", b36.Status);
         Assert.Equal(
             [
-                "B36-class-declaration-computed-field-activation-capture-stays-open",
-                "B36-class-declaration-computed-member-activation-capture-stays-open",
                 "B36-class-declaration-non-production-static-block-stays-open",
                 "B36-class-declaration-static-block-ir-fallback-stays-open",
                 "B36-class-declaration-static-block-runtime-source-direct-eval-declines",

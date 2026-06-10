@@ -4644,20 +4644,22 @@ internal static class UnifiedBytecodeProductionEligibility
         for (var i = 0; i < cache.FieldInitializerPrograms.Length; i++)
         {
             if (cache.FieldInitializerPrograms[i] is { } initializerProgram &&
-                ExpressionProgramReferencesActivationSlot(initializerProgram, activationSlots, out var capturedName))
+                ExpressionProgramReferencesActivationSlot(initializerProgram, activationSlots, out var capturedName) &&
+                !IsMaterializedResumableBodyEnvironmentCapture(capturedName))
             {
                 declineReason =
-                    $"Class declaration computed field initializer captures activation binding '{capturedName}' and is not supported by B24h resumable production routing until the resume state owns a materialized body environment.";
+                    $"Class declaration computed field initializer captures synthetic binding '{capturedName}' outside the materialized body environment route.";
                 return false;
             }
         }
 
         foreach (var member in definition.Members)
         {
-            if (FunctionCapturesActivationSlot(member.Callable.Function, activationSlots, out var capturedName))
+            if (FunctionCapturesActivationSlot(member.Callable.Function, activationSlots, out var capturedName) &&
+                !IsMaterializedResumableBodyEnvironmentCapture(capturedName))
             {
                 declineReason =
-                    $"Class declaration computed member body captures activation binding '{capturedName}' and needs the materialized body environment route.";
+                    $"Class declaration computed member body captures synthetic binding '{capturedName}' outside the materialized body environment route.";
                 return false;
             }
         }

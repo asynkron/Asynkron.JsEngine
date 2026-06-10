@@ -1911,18 +1911,24 @@
           "pattern": "if (!member.IsStatic || member.IsPrivate || member.IsComputed)"
         },
         {
-          "id": "B36-class-declaration-computed-member-activation-capture-stays-open",
-          "claim": "open",
-          "kind": "source-presence",
-          "path": "src/Asynkron.JsEngine/Execution/UnifiedBytecode/UnifiedBytecodeProductionEligibility.cs",
-          "pattern": "Class declaration computed member body captures activation binding"
+          "id": "B36-class-declaration-computed-member-activation-capture-routes",
+          "claim": "admitted",
+          "kind": "runtime",
+          "source": "function* g(key, seed) {\n  yield 'ready';\n  class Box {\n    [key]() {\n      return seed;\n    }\n  }\n  var box = new Box();\n  var before = box.read();\n  seed = seed * 2;\n  yield before + ':' + box.read();\n}\nvar iterator = g('read', 21);\niterator.next();\niterator.next().value;",
+          "expectedResult": "21:42",
+          "requiredLogs": [
+            "unified-bytecode-resumable-generator-fast-path func=g"
+          ]
         },
         {
-          "id": "B36-class-declaration-computed-field-activation-capture-stays-open",
-          "claim": "open",
-          "kind": "source-presence",
-          "path": "src/Asynkron.JsEngine/Execution/UnifiedBytecode/UnifiedBytecodeProductionEligibility.cs",
-          "pattern": "Class declaration computed field initializer captures activation binding"
+          "id": "B36-class-declaration-computed-field-activation-capture-routes",
+          "claim": "admitted",
+          "kind": "runtime",
+          "source": "function* g(key, seed) {\n  yield 'ready';\n  class Box {\n    [key] = seed;\n  }\n  var early = new Box();\n  seed = seed + 1;\n  var late = new Box();\n  yield early.value + ':' + late.value;\n}\nvar iterator = g('value', 6);\niterator.next();\niterator.next().value;",
+          "expectedResult": "6:7",
+          "requiredLogs": [
+            "unified-bytecode-resumable-generator-fast-path func=g"
+          ]
         }
       ]
     },

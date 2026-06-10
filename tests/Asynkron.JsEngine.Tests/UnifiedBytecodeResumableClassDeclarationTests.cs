@@ -3624,6 +3624,253 @@ public sealed class UnifiedBytecodeResumableClassDeclarationTests(ITestOutputHel
         AssertGeneratorFastPath("g", argc: 1);
     }
 
+    [Fact]
+    public void EvaluateResumable_ClassDeclarationComputedMemberCapturingConstructor_AdmitsDeclareClass()
+    {
+        var plan = GetFunctionPlan("""
+            function* g(seed, key) {
+                class Box {
+                    constructor(v) {
+                        this.value = v + seed;
+                    }
+                    [key]() {
+                        return this.value * seed;
+                    }
+                }
+                var b = new Box(2);
+                yield b[key]();
+            }
+            """,
+            "g");
+
+        var result = UnifiedBytecodeProductionEligibility.EvaluateResumable(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor(IsGenerator: true));
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(
+            result.Program.Instructions,
+            static instruction => instruction.OpCode == UnifiedBytecodeOpCode.DeclareClass);
+        Assert.True(UnifiedBytecodeProductionEligibility.PlanNeedsMaterializedResumableClassDeclarationEnvironment(plan));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task GeneratorClassDeclarationComputedMemberCapturingConstructor_RoutesResumable()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function* g(seed, key) {
+                class Box {
+                    constructor(v) {
+                        this.value = v + seed;
+                    }
+                    [key]() {
+                        return this.value * seed;
+                    }
+                }
+                var b = new Box(2);
+                yield b[key]();
+                seed = seed + 1;
+                var c = new Box(2);
+                yield c[key]();
+            }
+            var iterator = g(3, "read");
+            var first = iterator.next();
+            var second = iterator.next();
+            first.value + ":" + first.done + "|" + second.value + ":" + second.done;
+            """);
+
+        Assert.Equal("15:false|24:false", result?.ToString());
+        AssertGeneratorFastPath("g", argc: 2);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task GeneratorClassDeclarationComputedFieldCapturingConstructor_RoutesResumable()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function* g(seed, key) {
+                yield "ready";
+                class Box {
+                    [key] = seed;
+                    constructor() {
+                        this.extra = seed;
+                    }
+                }
+                var early = new Box();
+                seed = seed + 1;
+                var late = new Box();
+                yield early.value + ":" + early.extra + "|" + late.value + ":" + late.extra;
+            }
+            var iterator = g(6, "value");
+            iterator.next();
+            var second = iterator.next();
+            second.value + ":" + second.done;
+            """);
+
+        Assert.Equal("6:6|7:7:false", result?.ToString());
+        AssertGeneratorFastPath("g", argc: 2);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task GeneratorClassDeclarationExtendsComputedMemberCapturingSuperConstructor_RoutesResumable()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function* g(seed, key) {
+                class Base {
+                    base() {
+                        return 10;
+                    }
+                }
+                class Sub extends Base {
+                    constructor() {
+                        super();
+                        this.v = seed;
+                    }
+                    [key]() {
+                        return this.base() + this.v;
+                    }
+                }
+                var s = new Sub();
+                yield s[key]() + ":" + (s instanceof Base);
+                seed = seed + 4;
+                var t = new Sub();
+                yield t[key]();
+            }
+            var iterator = g(5, "total");
+            var first = iterator.next();
+            var second = iterator.next();
+            first.value + "|" + second.value + ":" + second.done;
+            """);
+
+        Assert.Equal("15:true|19:false", result?.ToString());
+        AssertGeneratorFastPath("g", argc: 2);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task GeneratorClassDeclarationComputedCapturingConstructorWritesBackToOuterBinding_RoutesResumable()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function* g(seed) {
+                var total = 0;
+                class Box {
+                    constructor(v) {
+                        total = seed + v;
+                    }
+                    ["m" + "k"]() {
+                        return total;
+                    }
+                }
+                var b = new Box(3);
+                yield total + ":" + b.mk();
+                total = total + 100;
+                yield b.mk();
+            }
+            var iterator = g(2);
+            var first = iterator.next();
+            var second = iterator.next();
+            first.value + "|" + second.value;
+            """);
+
+        Assert.Equal("5:5|105", result?.ToString());
+        AssertGeneratorFastPath("g", argc: 1);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task GeneratorClassDeclarationComputedKeyThrowsBeforeBindingInitializes_RoutesResumable()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function* g(seed) {
+                class Box {
+                    constructor() {
+                        this.v = seed;
+                    }
+                    [(() => { throw new Error("boom"); })()]() {
+                        return 1;
+                    }
+                }
+                yield "unreachable";
+            }
+            var iterator = g(9);
+            var observed;
+            try {
+                iterator.next();
+                observed = "no-throw";
+            } catch (e) {
+                observed = e.message;
+            }
+            observed;
+            """);
+
+        Assert.Equal("boom", result?.ToString());
+        AssertGeneratorFastPath("g", argc: 1);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task GeneratorClassDeclarationComputedMemberCapturingConstructor_TdzBeforeDeclaration_RoutesResumable()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function* g(seed, key) {
+                var observed = "none";
+                try {
+                    new Box(1);
+                    observed = "no-throw";
+                } catch (e) {
+                    observed = e instanceof ReferenceError ? "reference-error" : "other";
+                }
+                class Box {
+                    constructor(v) {
+                        this.v = v + seed;
+                    }
+                    [key]() {
+                        return this.v;
+                    }
+                }
+                var b = new Box(2);
+                yield observed + "|" + b[key]();
+            }
+            var iterator = g(1, "read");
+            var first = iterator.next();
+            first.value + ":" + first.done;
+            """);
+
+        Assert.Equal("reference-error|3:false", result?.ToString());
+        AssertGeneratorFastPath("g", argc: 2);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task GeneratorClassDeclarationComputedCapturingConstructor_DeclarationTimeKeyVsConstructTimeRead_RoutesResumable()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function* g(seed, key) {
+                class Box {
+                    [key]() {
+                        return this.v;
+                    }
+                    constructor() {
+                        this.v = seed;
+                    }
+                }
+                key = "changed";
+                seed = 42;
+                var b = new Box();
+                yield b.fixed() + ":" + (b.changed === undefined);
+            }
+            var iterator = g(1, "fixed");
+            var first = iterator.next();
+            first.value + ":" + first.done;
+            """);
+
+        Assert.Equal("42:true:false", result?.ToString());
+        AssertGeneratorFastPath("g", argc: 2);
+    }
+
     private void AssertGeneratorFastPath(string functionName, int argc)
     {
         var snapshot = CurrentLogger!.Collector.Snapshot();

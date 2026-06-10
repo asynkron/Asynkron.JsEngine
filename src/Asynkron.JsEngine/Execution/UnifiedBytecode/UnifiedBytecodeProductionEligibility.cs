@@ -4642,13 +4642,12 @@ internal static class UnifiedBytecodeProductionEligibility
         }
 
         candidate = true;
-        if (FunctionCapturesActivationSlot(definition.Constructor.Function, activationSlots, out var constructorCapturedName))
-        {
-            declineReason =
-                $"Class declaration is outside B24h: constructor body captures activation binding '{constructorCapturedName}' and needs the materialized body environment route.";
-            return false;
-        }
-
+        // Constructor-body activation captures are admitted here: every admitted
+        // resumable class declaration forces the materialized body environment
+        // route, so the constructor closes over the live body environment exactly
+        // like the already-admitted computed member bodies and computed field
+        // initializers (commits 5bb6997cc..736da25cb proved the sequencing
+        // concern obsolete).
         for (var i = 0; i < cache.MemberNamePrograms.Length; i++)
         {
             if (!definition.Members[i].IsComputed)

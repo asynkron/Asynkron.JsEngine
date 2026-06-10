@@ -1985,6 +1985,36 @@
           "requiredLogs": [
             "unified-bytecode-resumable-generator-fast-path func=g"
           ]
+        },
+        {
+          "id": "B36-class-declaration-computed-member-capturing-constructor-routes",
+          "claim": "admitted",
+          "kind": "runtime",
+          "source": "function* g(seed, key) {\n  class Box {\n    constructor(v) {\n      this.value = v + seed;\n    }\n    [key]() {\n      return this.value * seed;\n    }\n  }\n  var b = new Box(2);\n  yield b[key]();\n  seed = seed + 1;\n  var c = new Box(2);\n  yield c[key]();\n}\nvar iterator = g(3, 'read');\nvar first = iterator.next();\nvar second = iterator.next();\nfirst.value + ':' + first.done + '|' + second.value + ':' + second.done;",
+          "expectedResult": "15:false|24:false",
+          "requiredLogs": [
+            "unified-bytecode-resumable-generator-fast-path func=g"
+          ]
+        },
+        {
+          "id": "B36-class-declaration-computed-field-capturing-constructor-routes",
+          "claim": "admitted",
+          "kind": "runtime",
+          "source": "function* g(seed, key) {\n  yield 'ready';\n  class Box {\n    [key] = seed;\n    constructor() {\n      this.extra = seed;\n    }\n  }\n  var early = new Box();\n  seed = seed + 1;\n  var late = new Box();\n  yield early.value + ':' + early.extra + '|' + late.value + ':' + late.extra;\n}\nvar iterator = g(6, 'value');\niterator.next();\niterator.next().value;",
+          "expectedResult": "6:6|7:7",
+          "requiredLogs": [
+            "unified-bytecode-resumable-generator-fast-path func=g"
+          ]
+        },
+        {
+          "id": "B36-class-declaration-extends-computed-member-capturing-super-constructor-routes",
+          "claim": "admitted",
+          "kind": "runtime",
+          "source": "function* g(seed, key) {\n  class Base {\n    base() {\n      return 10;\n    }\n  }\n  class Sub extends Base {\n    constructor() {\n      super();\n      this.v = seed;\n    }\n    [key]() {\n      return this.base() + this.v;\n    }\n  }\n  var s = new Sub();\n  yield s[key]() + ':' + (s instanceof Base);\n  seed = seed + 4;\n  var t = new Sub();\n  yield t[key]();\n}\nvar iterator = g(5, 'total');\nvar first = iterator.next();\nvar second = iterator.next();\nfirst.value + '|' + second.value + ':' + second.done;",
+          "expectedResult": "15:true|19:false",
+          "requiredLogs": [
+            "unified-bytecode-resumable-generator-fast-path func=g"
+          ]
         }
       ]
     },

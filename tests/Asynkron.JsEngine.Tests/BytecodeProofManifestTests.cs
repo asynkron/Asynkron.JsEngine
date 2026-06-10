@@ -399,7 +399,6 @@ public sealed partial class BytecodeProofManifestTests(ITestOutputHelper output)
                 "B36-class-declaration-computed-member-activation-capture-stays-open",
                 "B36-class-declaration-non-production-static-block-stays-open",
                 "B36-class-declaration-private-instance-method-computed-neighbor-declines",
-                "B36-class-declaration-private-static-method-declines",
                 "B36-class-declaration-static-block-ir-fallback-stays-open",
                 "B36-class-declaration-static-block-runtime-source-direct-eval-declines",
                 "B36-class-declaration-static-field-shape-guard-stays-open",

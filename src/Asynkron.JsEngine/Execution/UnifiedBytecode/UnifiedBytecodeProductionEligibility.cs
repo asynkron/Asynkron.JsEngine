@@ -3561,10 +3561,10 @@ internal static class UnifiedBytecodeProductionEligibility
             }
 
             candidate = true;
-            if (member.IsStatic || member.IsComputed)
+            if (member.IsComputed)
             {
                 declineReason =
-                    "Class declaration private member is outside B36: private static or computed members remain owned by later class-definition slices.";
+                    "Class declaration private member is outside B36: private computed members remain owned by later class-definition slices.";
                 return false;
             }
         }

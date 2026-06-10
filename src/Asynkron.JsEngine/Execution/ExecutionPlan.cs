@@ -67,12 +67,14 @@ internal sealed record ExecutionPlan(
     ///     per-iteration LOOP scope of this function.
     /// </summary>
     /// <remarks>
+    /// <para>
     ///     Option B (Stage 5) narrowing. The captured-name miscompile (a captured enclosing name stamped to
     ///     a SHADOWING nested-scope flat slot by SlotAssignmentRewriter's unscoped fallback, design §1.3) is
     ///     now fixed AT THE SOURCE for plain lexical { } BLOCK scopes: the rewriter never resolves a captured
     ///     read to an off-stack block scope (it lowers to a dynamic-identifier op walking the env chain). So
     ///     block-shadow collisions route AND compute correctly and no longer need a guard.
-    ///
+    /// </para>
+    /// <para>
     ///     The rewriter fix is UNSOUND for two non-block env-bearing scope kinds that never enter the active
     ///     scope stack at their lexical position during rewriting: CATCH bindings and per-iteration LOOP
     ///     bindings (which are legitimately resolved via the same unscoped fallback for their own local
@@ -81,11 +83,13 @@ internal sealed record ExecutionPlan(
     ///     function's scopes, which the inner rewriter does not have). This guard therefore still DECLINES a
     ///     captured-name collision with a catch / per-iteration-loop binding, keeping those shapes on the IR
     ///     runner where they compute correctly.
-    ///
+    /// </para>
+    /// <para>
     ///     nonBlockNestedBoundNames := names bound by an <see cref="EnterCatchInstruction" /> (catch scope)
     ///     or carried as <see cref="PushEnvironmentInstruction.PerIterationBindings" /> (per-iteration loop
     ///     scope). Plain block-scope let/const names are deliberately EXCLUDED — the rewriter handles them.
-    ///
+    /// </para>
+    /// <para>
     ///     A read of a nonBlockNestedBoundName collides (declines) if EITHER detector fires (union;
     ///     over-decline is safe, under-decline is the only unsound direction):
     ///     - (1) the identifier OPERATION resolves to NEITHER a flat slot (FlatSlotId &gt;= 0) NOR a slot in
@@ -94,6 +98,7 @@ internal sealed record ExecutionPlan(
     ///     - (2) the read is STAMPED to one of this plan's own nested scopes S, but a forward MUST-active
     ///       scope dataflow (intersected at CFG joins) shows S is NOT guaranteed active where the read
     ///       occurs — the mis-stamp symptom (design §1.3).
+    /// </para>
     /// </remarks>
     public bool HasNoCapturedNameShadowedByNonBlockNestedScope { get; } =
         ComputeHasNoCapturedNameShadowedByNonBlockNestedScope(

@@ -3597,34 +3597,32 @@ public sealed class JsEnvironment : IRentable
 
     internal readonly struct ResolvedIdentifierBinding
     {
-        private readonly JsEnvironment _environment;
-        private readonly Symbol _name;
 
         internal ResolvedIdentifierBinding(JsEnvironment environment, Symbol name)
         {
-            _environment = environment;
-            _name = name;
+            Environment = environment;
+            Name = name;
         }
 
-        internal JsEnvironment Environment => _environment;
+        internal JsEnvironment Environment { get; }
 
-        internal Symbol Name => _name;
+        internal Symbol Name { get; }
 
         /// <summary>
         /// Reads the binding value as JsValue, avoiding boxing for primitives.
         /// </summary>
         internal JsValue ReadJsValue(EvaluationContext context)
         {
-            ref var slot = ref _environment.TryGetSlotRef(_name);
+            ref var slot = ref Environment.TryGetSlotRef(Name);
             if (Unsafe.IsNullRef(ref slot))
             {
-                throw new InvalidOperationException($"Binding for {_name.Name} not found");
+                throw new InvalidOperationException($"Binding for {Name.Name} not found");
             }
 
             if (slot.IsUninitialized)
             {
                 throw new ThrowSignal(StandardLibrary.CreateReferenceError(
-                    $"Cannot access '{_name.Name}' before initialization",
+                    $"Cannot access '{Name.Name}' before initialization",
                     context,
                     context.RealmState));
             }
@@ -3635,15 +3633,15 @@ public sealed class JsEnvironment : IRentable
             }
 
             // For global scope non-lexical bindings, check global object
-            if (_environment.IsGlobalFunctionScope && !slot.IsLexical)
+            if (Environment.IsGlobalFunctionScope && !slot.IsLexical)
             {
-                var globalObject = _environment.GetRootGlobalObject();
-                if (globalObject is not null && globalObject.TryGetJsValue(_name.Name, out var globalValue))
+                var globalObject = Environment.GetRootGlobalObject();
+                if (globalObject is not null && globalObject.TryGetJsValue(Name.Name, out var globalValue))
                 {
                     return globalValue;
                 }
 
-                if (globalObject is not null && globalObject.TryGetProperty(_name.Name, out globalValue))
+                if (globalObject is not null && globalObject.TryGetProperty(Name.Name, out globalValue))
                 {
                     return globalValue;
                 }
@@ -3658,18 +3656,18 @@ public sealed class JsEnvironment : IRentable
         /// </summary>
         internal void WriteJsValue(JsValue value, bool isStrictContext)
         {
-            ref var slot = ref _environment.TryGetSlotRef(_name);
+            ref var slot = ref Environment.TryGetSlotRef(Name);
             if (Unsafe.IsNullRef(ref slot))
             {
-                throw new InvalidOperationException($"Binding for {_name.Name} not found");
+                throw new InvalidOperationException($"Binding for {Name.Name} not found");
             }
 
             if (slot.IsUninitialized && slot.IsLexical)
             {
                 throw new ThrowSignal(StandardLibrary.CreateReferenceError(
-                    $"Cannot access '{_name.Name}' before initialization",
+                    $"Cannot access '{Name.Name}' before initialization",
                     null,
-                    _environment.RealmState));
+                    Environment.RealmState));
             }
 
             // Const bindings always throw TypeError on reassignment per ES spec,
@@ -3677,8 +3675,8 @@ public sealed class JsEnvironment : IRentable
             if (slot.IsConst && !slot.IsUninitialized)
             {
                 throw new ThrowSignal(StandardLibrary.CreateTypeError(
-                    $"Assignment to constant variable '{_name.Name}'.",
-                    realm: _environment.RealmState));
+                    $"Assignment to constant variable '{Name.Name}'.",
+                    realm: Environment.RealmState));
             }
 
             if (slot.IsImmutableBinding)
@@ -3686,8 +3684,8 @@ public sealed class JsEnvironment : IRentable
                 if (isStrictContext)
                 {
                     throw new ThrowSignal(StandardLibrary.CreateTypeError(
-                        $"Assignment to constant variable '{_name.Name}'.",
-                        realm: _environment.RealmState));
+                        $"Assignment to constant variable '{Name.Name}'.",
+                        realm: Environment.RealmState));
                 }
 
                 return;
@@ -3704,13 +3702,13 @@ public sealed class JsEnvironment : IRentable
 
             // For non-lexical bindings (var) in global scope, also update the global object
             // This mirrors the behavior of AssignJsValue which syncs with the global object
-            if (!slot.IsLexical && _environment.IsGlobalFunctionScope)
+            if (!slot.IsLexical && Environment.IsGlobalFunctionScope)
             {
-                var globalObject = _environment.GetRootGlobalObject();
-                SetGlobalObjectProperty(globalObject, _name, value);
+                var globalObject = Environment.GetRootGlobalObject();
+                SetGlobalObjectProperty(globalObject, Name, value);
             }
 
-            _environment.NotifyBindingObservers(_name, value);
+            Environment.NotifyBindingObservers(Name, value);
         }
     }
 

@@ -4,20 +4,24 @@ using Asynkron.JsEngine.Ast;
 namespace Asynkron.JsEngine.Execution;
 
 /// <summary>
+/// <para>
 /// Detects whether a script body references a block-scoped lexical binding from outside the block
 /// (or for-loop head) that declares it.
-///
+/// </para>
+/// <para>
 /// On the script-root-slot fast path (issue #3084) block-scoped <c>let</c>/<c>const</c> bindings are
 /// allocated flat slots, but those slots are not invalidated when their block exits. A reference to
 /// such a binding from outside its block — e.g. <c>typeof i</c> or <c>i</c> after a
 /// <c>for (let i ...)</c> loop — would therefore read the binding's stale value instead of resolving
 /// against the live scope chain and reporting it as undeclared. Scripts matching this shape must
 /// decline the fast path and run via the scope-chain-aware path instead.
-///
+/// </para>
+/// <para>
 /// The analysis is deliberately conservative: it may decline a script that would in fact be safe,
 /// but it never admits a leaking shape. It walks each <c>for</c> head and each nested block,
 /// collecting the lexical binding names they introduce, then reports a leak if any of those names is
 /// referenced anywhere in the body outside the declaring construct.
+/// </para>
 /// </summary>
 internal static class ScriptFastPathBlockBindingLeakDetector
 {

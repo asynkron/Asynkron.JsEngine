@@ -1027,15 +1027,24 @@
           ]
         },
         {
-          "id": "B24h-computed-member-constructor-captures-activation-declines",
-          "claim": "open",
-          "kind": "eligibility",
-          "subject": "resumable-generator",
-          "functionName": "g",
-          "source": "function* g(seed) {\n  yield 'ready';\n  var current = seed;\n  var C = class Box {\n    ['read']() { return this.value; }\n    constructor() { this.value = current; }\n  };\n  current = seed + 1;\n  var c = new C();\n  yield c.read();\n}",
-          "expectedEligible": false,
-          "declineCode": "UnsupportedPlanShape",
-          "reasonContains": "broader class-definition environment bridge"
+          "id": "B24h-computed-member-constructor-captures-activation-routes",
+          "claim": "admitted",
+          "kind": "runtime",
+          "source": "function* g(seed) {\n  yield 'ready';\n  var current = seed;\n  var C = class Box {\n    ['read']() { return this.value; }\n    constructor() { this.value = current; }\n  };\n  current = seed + 1;\n  var c = new C();\n  yield c.read();\n}\nvar iterator = g(41);\nvar first = iterator.next();\nvar second = iterator.next();\nfirst.value + ':' + first.done + '|' + second.value + ':' + second.done;",
+          "expectedResult": "ready:false|42:false",
+          "requiredLogs": [
+            "unified-bytecode-resumable-generator-fast-path func=g"
+          ]
+        },
+        {
+          "id": "B24h-computed-member-constructor-activation-write-back-routes",
+          "claim": "admitted",
+          "kind": "runtime",
+          "source": "function* g(seed) {\n  yield 'ready';\n  var count = 0;\n  var C = class Box {\n    constructor() { count = count + seed; }\n    ['noop']() { return 0; }\n  };\n  new C();\n  new C();\n  yield count;\n}\nvar iterator = g(21);\nvar first = iterator.next();\nvar second = iterator.next();\nfirst.value + ':' + first.done + '|' + second.value + ':' + second.done;",
+          "expectedResult": "ready:false|42:false",
+          "requiredLogs": [
+            "unified-bytecode-resumable-generator-fast-path func=g"
+          ]
         },
         {
           "id": "B24h-computed-member-super-routes",

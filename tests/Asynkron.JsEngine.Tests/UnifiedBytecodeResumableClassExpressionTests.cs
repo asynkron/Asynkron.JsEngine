@@ -2173,7 +2173,7 @@ public sealed class UnifiedBytecodeResumableClassExpressionTests(ITestOutputHelp
     }
 
     [Fact]
-    public void EvaluateResumable_ClassExpressionComputedMemberConstructorCapturesActivation_DeclinesBeforeVm()
+    public void EvaluateResumable_ClassExpressionComputedMemberConstructorCapturesActivation_AdmitsLoadClassLiteral()
     {
         var plan = GetFunctionPlan("""
         function* g(seed) {
@@ -2191,15 +2191,16 @@ public sealed class UnifiedBytecodeResumableClassExpressionTests(ITestOutputHelp
             plan,
             new UnifiedBytecodeProductionActivationDescriptor(IsGenerator: true));
 
-        Assert.False(result.IsEligible);
-        Assert.Equal(UnifiedBytecodeProductionDeclineCode.UnsupportedPlanShape, result.Code);
-        Assert.Contains("B24h", result.Reason, StringComparison.Ordinal);
-        Assert.Contains("broader class-definition environment bridge", result.Reason, StringComparison.Ordinal);
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(
+            result.Program.Instructions,
+            static instruction => instruction.OpCode == UnifiedBytecodeOpCode.LoadClassLiteral);
         Assert.True(UnifiedBytecodeProductionEligibility.PlanNeedsMaterializedResumableBodyEnvironment(plan));
     }
 
     [Fact(Timeout = 5000)]
-    public async Task GeneratorClassExpressionComputedMemberConstructorCapturesActivation_FallsBackAndReadsLaterMutation()
+    public async Task GeneratorClassExpressionComputedMemberConstructorCapturesActivation_RoutesResumableAndReadsLaterMutation()
     {
         await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
@@ -2222,10 +2223,93 @@ public sealed class UnifiedBytecodeResumableClassExpressionTests(ITestOutputHelp
             """);
 
         Assert.Equal("ready:false|42:false", result);
-        Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(),
-            static record => record.Message.Contains(
-                $"{ResumableGeneratorFastPathLog} func=g argc=1",
-                StringComparison.Ordinal));
+        AssertGeneratorFastPath("g", argc: 1);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task GeneratorClassExpressionComputedMemberConstructorWritesCapturedBinding_RoutesResumable()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function* g(seed) {
+                yield "ready";
+                var count = 0;
+                var C = class Box {
+                    constructor() { count = count + seed; }
+                    ["noop"]() { return 0; }
+                };
+                new C();
+                new C();
+                yield count;
+            }
+
+            var iterator = g(21);
+            var first = iterator.next();
+            var second = iterator.next();
+            first.value + ":" + first.done + "|" + second.value + ":" + second.done;
+            """);
+
+        Assert.Equal("ready:false|42:false", result);
+        AssertGeneratorFastPath("g", argc: 1);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task GeneratorClassExpressionComputedMemberConstructorThrows_CapturedBindingKeepsLastWrite()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function* g(seed) {
+                yield "ready";
+                var count = 0;
+                var C = class Box {
+                    constructor() {
+                        count = count + seed;
+                        throw new Error("boom:" + count);
+                    }
+                    ["noop"]() { return 0; }
+                };
+                var message = "";
+                try {
+                    new C();
+                } catch (e) {
+                    message = e.message;
+                }
+                yield message + "|" + count;
+            }
+
+            var iterator = g(21);
+            var first = iterator.next();
+            var second = iterator.next();
+            first.value + ":" + first.done + "|" + second.value + ":" + second.done;
+            """);
+
+        Assert.Equal("ready:false|boom:21|21:false", result);
+        AssertGeneratorFastPath("g", argc: 1);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task GeneratorClassExpressionCallArgumentComputedNameConstructorCapturesActivation_RoutesResumable()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function* g(read, helper) {
+                yield "ready";
+                var C = class {
+                    constructor(v) { this.value = helper(read) + ":" + v; }
+                    [helper(read)]() { return this.value; }
+                };
+                var c = new C(7);
+                yield c.size();
+            }
+
+            var iterator = g(() => "size", reader => reader());
+            var first = iterator.next();
+            var second = iterator.next();
+            first.value + ":" + first.done + "|" + second.value + ":" + second.done;
+            """);
+
+        Assert.Equal("ready:false|size:7:false", result);
+        AssertGeneratorFastPath("g", argc: 2);
     }
 
     [Fact]

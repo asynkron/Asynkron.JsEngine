@@ -7567,7 +7567,7 @@ internal static class UnifiedBytecodeVirtualMachine
         out JsValue disposeValue)
     {
         disposeValue = value;
-        if (environment is null || !environment.HasDisposableResources)
+        if (environment?.HasDisposableResources != true)
         {
             return false;
         }
@@ -9296,12 +9296,7 @@ internal static class UnifiedBytecodeVirtualMachine
                 argument,
                 JsValue.FromObjectUnsafe(iterator),
                 context);
-            if (context.IsThrow)
-            {
-                return false;
-            }
-
-            return true;
+            return !context.IsThrow;
         }
         catch (ThrowSignal signal)
         {
@@ -9439,22 +9434,17 @@ internal static class UnifiedBytecodeVirtualMachine
                         out stepResult);
                 }
 
-                if (!TryValidateResumableIteratorCloseResult(
+                return TryValidateResumableIteratorCloseResult(
                         resumedCloseResult,
                         slotIndex,
                         slots,
                         state,
                         context,
                         resumeState,
-                        out stepResult))
-                {
-                    return false;
-                }
-
-                return true;
+                        out stepResult);
             }
 
-            if (!TryStartResumableIteratorClose(
+            return TryStartResumableIteratorClose(
                     iterator,
                     slotIndex,
                     slots,
@@ -9464,12 +9454,7 @@ internal static class UnifiedBytecodeVirtualMachine
                     currentProgramCounter,
                     stackPointer,
                     preserveExistingThrow,
-                    out stepResult))
-            {
-                return false;
-            }
-
-            return true;
+                    out stepResult);
         }
 
         CompleteIteratorDriverState(slotIndex, slots, slotEnvironments: null, state);
@@ -9592,12 +9577,7 @@ internal static class UnifiedBytecodeVirtualMachine
                 [],
                 JsValue.FromObjectUnsafe(iterator),
                 context);
-            if (context.IsThrow)
-            {
-                return false;
-            }
-
-            return true;
+            return !context.IsThrow;
         }
         catch (ThrowSignal signal)
         {
@@ -10237,7 +10217,7 @@ internal static class UnifiedBytecodeVirtualMachine
 
     private static bool DisposeEnvironmentResources(JsEnvironment? environment, EvaluationContext context)
     {
-        if (environment is null || !environment.HasDisposableResources)
+        if (environment?.HasDisposableResources != true)
         {
             return true;
         }
@@ -11933,7 +11913,7 @@ internal static class UnifiedBytecodeVirtualMachine
             return null;
         }
 
-        if (binding is null || binding.ThisValue.IsUndefined || binding.ThisValue.IsUninitialized)
+        if (binding?.ThisValue.IsUndefined != false || binding.ThisValue.IsUninitialized)
         {
             context.SetThrow(StandardLibrary.CreateReferenceError(
                 "Super is not available in this context.",

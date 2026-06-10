@@ -798,6 +798,16 @@ all-or-nothing until a separate routing issue proves production readiness.
      focused route-widening slice proves construction-time closure state end to
      end. Related ADR:
      `docs/adrs/0367-keep-b24h-constructor-body-activation-captures-open.md`.
+     Superseded 2026-06-10: that focused route-widening slice landed —
+     `ExpressionProgramHasActivationCapturingClassLiteralCallable` already
+     walked `definition.Constructor` and forced the materialized body
+     environment, and the resumable call/construct boundaries re-sync the
+     environment into flat slots, so the row flipped to
+     `B24h-computed-member-constructor-captures-activation-routes` plus
+     `B24h-computed-member-constructor-activation-write-back-routes` with
+     construction-time closure state proven end to end (live-binding read
+     across mutation, write-back, throw edge). See the dated row in
+     `docs/bytecode-progress.md`.
      Issue
      `planitem-planitem-planitem-gh3377-rebaseline-the-finite-bytecode-retirement-inven-02ad521859`
      / PR #3418 corrected the same B24h proof-manifest discipline for

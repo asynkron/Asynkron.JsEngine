@@ -3848,9 +3848,9 @@ internal static class UnifiedBytecodeCompiler
             new UnifiedBytecodeDriverDescriptor(
                 stateSlot,
                 ValueSlot: valueSlot,
-                IteratorKind: iteratorKind,
                 NextTarget: unified.Count + 1,
                 ContinueTarget: unified.Count,
+                IteratorKind: iteratorKind,
                 MoveNextTarget: unified.Count));
         unified.Add(new UnifiedBytecodeInstruction(opCode, descriptorIndex));
 
@@ -7655,31 +7655,6 @@ internal static class UnifiedBytecodeCompiler
         bool allowsDynamicIdentifiers)
     {
         return allowsDynamicIdentifiers && slotLayout.ScriptCompletionSlot >= 0;
-    }
-
-    private static bool TryAppendCallArguments(
-        ExpressionProgram expressionProgram,
-        UnifiedBytecodeSlotLayout slotLayout,
-        ImmutableArray<UnifiedBytecodeInstruction>.Builder unified,
-        ImmutableArray<JsValue>.Builder literalConstants,
-        ImmutableArray<string>.Builder stringConstants,
-        ImmutableArray<UnifiedBytecodeCallTarget>.Builder callTargetConstants,
-        int argsStartIndex,
-        PackedExpressionOp call,
-        out string reason)
-    {
-        return TryAppendCallArguments(
-            expressionProgram,
-            slotLayout,
-            unified,
-            literalConstants,
-            stringConstants,
-            callTargetConstants,
-            argsStartIndex,
-            call,
-            expressionProgram.OperationCount - 1,
-            allowsDynamicIdentifiers: false,
-            out reason);
     }
 
     private static bool TryAppendCallArguments(
@@ -14198,7 +14173,7 @@ internal static class UnifiedBytecodeCompiler
         // region (everything after the base) up front via the eligibility walker BEFORE
         // emitting the base load, so a non-matching shape declines without leaving a stray
         // operand load for the general loop to double (overflowing MaxStackDepth).
-        var rhsStart = 1;
+        const int rhsStart = 1;
         var rhsEnd = expressionProgram.OperationCount - 2;
         var setNamedIndex = expressionProgram.OperationCount - 1;
         var rhsIsSingleSimpleOperand = rhsStart == rhsEnd;
@@ -15979,7 +15954,7 @@ internal static class UnifiedBytecodeCompiler
             return false;
         }
 
-        var jumpIndex = 2;
+        const int jumpIndex = 2;
         var deleteIndex = expressionProgram.OperationCount - 4;
         var endJumpIndexInProgram = expressionProgram.OperationCount - 3;
         var popIndex = expressionProgram.OperationCount - 2;
@@ -18104,46 +18079,6 @@ internal static class UnifiedBytecodeCompiler
         return true;
     }
 
-    private static bool IsSupportedDeclarationBindingTarget(BindingTargetProgram target)
-    {
-        switch (target)
-        {
-            case IdentifierBindingTargetProgram:
-                return true;
-
-            case ArrayBindingTargetProgram arrayBinding:
-                foreach (var element in arrayBinding.Elements)
-                {
-                    if (element.DefaultProgram is not null ||
-                        element.Target is { } elementTarget &&
-                        !IsSupportedDeclarationBindingTarget(elementTarget))
-                    {
-                        return false;
-                    }
-                }
-
-                return arrayBinding.RestElement is null ||
-                       IsSupportedDeclarationBindingTarget(arrayBinding.RestElement);
-
-            case ObjectBindingTargetProgram objectBinding:
-                foreach (var property in objectBinding.Properties)
-                {
-                    if (property.DefaultProgram is not null ||
-                        property.NameProgram is not null ||
-                        !IsSupportedDeclarationBindingTarget(property.Target))
-                    {
-                        return false;
-                    }
-                }
-
-                return objectBinding.RestElement is null ||
-                       IsSupportedDeclarationBindingTarget(objectBinding.RestElement);
-
-            default:
-                return false;
-        }
-    }
-
     private static int EncodeDefineObjectPropertyOperand(int stringConstantIndex, PackedExpressionOp defineProperty)
     {
         var flags = defineProperty.IsPrototypeMutation ? DefineObjectPropertyPrototypeMutationFlag : 0;
@@ -18582,12 +18517,6 @@ internal static class UnifiedBytecodeCompiler
         slotIndex = -1;
         return false;
     }
-
-    private static bool IsImplicitArgumentsIdentifier(
-        IdentifierOperand identifier,
-        UnifiedBytecodeSlotLayout slotLayout) =>
-        ReferenceEquals(identifier.Name, Symbol.Arguments) &&
-        !TryResolveActivationSlot(identifier, slotLayout, out _);
 
     private static bool TryResolveActivationSlot(
         IdentifierOperand identifier,

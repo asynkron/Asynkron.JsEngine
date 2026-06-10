@@ -209,7 +209,9 @@ internal static class DeclarationEmitter
 
         if (AstShapeAnalyzer.ContainsAwait(declarator.Initializer) ||
             AstShapeAnalyzer.ContainsYield(declarator.Initializer))
+        {
             return false;
+        }
 
         return declarator.Target switch
         {

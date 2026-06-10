@@ -4203,15 +4203,10 @@ internal static class UnifiedBytecodeProductionEligibility
         }
 
         candidate = true;
-        if (!IsB36AdmittedPlainExtendsConstructor(
+        return IsB36AdmittedPlainExtendsConstructor(
                 definition.Constructor,
                 activationSlots,
-                out declineReason))
-        {
-            return false;
-        }
-
-        return true;
+                out declineReason);
     }
 
     private static bool TryAdmitB36PublicStaticSuperMemberExtendsClassDeclaration(
@@ -4244,15 +4239,10 @@ internal static class UnifiedBytecodeProductionEligibility
         }
 
         candidate = true;
-        if (!IsB36AdmittedPlainExtendsConstructor(
+        return IsB36AdmittedPlainExtendsConstructor(
                 definition.Constructor,
                 activationSlots,
-                out declineReason))
-        {
-            return false;
-        }
-
-        return true;
+                out declineReason);
     }
 
     private static bool TryAdmitB36PublicInstanceSuperFieldExtendsClassDeclaration(
@@ -4847,10 +4837,11 @@ internal static class UnifiedBytecodeProductionEligibility
             return false;
         }
 
-        if (FunctionCapturesActivationSlot(definition.Constructor, activationSlots, out var constructorCapturedName))
+        if (FunctionCapturesActivationSlot(definition.Constructor, activationSlots, out var constructorCapturedName) &&
+            !IsMaterializedResumableBodyEnvironmentCapture(constructorCapturedName))
         {
             declineReason =
-                $"Class literal is outside B24h: constructor body captures activation binding '{constructorCapturedName}' and needs the broader class-definition environment bridge.";
+                $"Class literal is outside B24h: constructor body captures activation binding '{constructorCapturedName}' and needs the materialized body environment route.";
             return false;
         }
 
@@ -7886,8 +7877,8 @@ internal static class UnifiedBytecodeProductionEligibility
     /// <c>({a:1})['a']</c>, <c>[x][0].a['b']</c>. The whole program is validated with one
     /// stack-discipline walk: <c>CreateObject</c>/<c>CreateArray</c> roots the base, the literal's
     /// own construction ops balance back to a single value, and the trailing hops are plain named
-    /// reads and computed reads (<c>key…, RequireObjectCoercible(Depth: 1), ResolvePropertyKey,
-    /// GetComputedProperty</c>). Any call, write, optional/short-circuit read, private name, method,
+    /// reads and computed reads (<code>key…, RequireObjectCoercible(Depth: 1), ResolvePropertyKey,
+    /// GetComputedProperty</code>). Any call, write, optional/short-circuit read, private name, method,
     /// accessor, or name-inferred define falls outside the vocabulary and declines, so a getter in
     /// the chain is invoked exactly once per hop (matching the interpreter) and the base stays pure.
     /// </summary>
@@ -8058,6 +8049,7 @@ internal static class UnifiedBytecodeProductionEligibility
     }
 
     /// <summary>
+    /// <para>
     /// A19 write-past-boundary widening: admits a PURE deep property WRITE whose base is a simple
     /// object/array literal and whose terminal store is NAMED, e.g. <c>({ a: { b: 0 } }).a.b = 1</c>,
     /// <c>({ a: {} }).a.b.c = v</c>, and the array-literal / computed-prefix analog <c>[box][0].a = v</c>.
@@ -8067,18 +8059,21 @@ internal static class UnifiedBytecodeProductionEligibility
     /// the literal's own construction ops balance the stack back to a single value, the receiver-prefix
     /// is plain named/computed reads, the assigned value is a simple operand sub-expression, and the
     /// program ends on EXACTLY ONE <c>SetNamedProperty</c>.
-    ///
+    /// </para>
+    /// <para>
     /// The <c>SetComputedProperty</c> terminal off a literal base (<c>({a:{}}).a['b'] = v</c>) is
     /// deliberately NOT admitted here: the compiler's computed-write lowering only recognizes an
     /// activation-resolved / named-prefix receiver and currently bails on a literal base with
     /// "Unsupported computed property key span." Admitting it would require compiler foundation work, so
     /// it stays declined rather than half-correct.
-    ///
+    /// </para>
+    /// <para>
     /// Anything outside the named-terminal vocabulary — a call anywhere in the chain, a compound/logical
     /// write (<c>DuplicateTop</c>), a chained assignment (a second non-terminal <c>Set*</c>), an
     /// optional/short-circuit read, a private name, a method/accessor, or a name-inferred define — falls
     /// through to the default reject. So any setter in the chain runs exactly once (matching the
     /// interpreter) and the base stays pure.
+    /// </para>
     /// </summary>
     private static bool TryIsFirstBoundaryLiteralBasePropertyWriteChainCandidate(
         ExpressionProgram program,
@@ -8985,7 +8980,7 @@ internal static class UnifiedBytecodeProductionEligibility
             return false;
         }
 
-        var jumpIndex = 2;
+        const int jumpIndex = 2;
         var deleteIndex = program.OperationCount - 4;
         var endJumpIndex = program.OperationCount - 3;
         var popIndex = program.OperationCount - 2;
@@ -11469,15 +11464,10 @@ internal static class UnifiedBytecodeProductionEligibility
 
             case ExpressionOpKind.GetNamedProperty:
                 // receiver -> value: net 0. Reject private/optional/short-circuit reads.
-                if (depthBefore < 1 ||
-                    op.IsOptional ||
-                    op.ShortCircuitOnNullishTarget ||
-                    op.GetString(stringConstants).IsPrivateName())
-                {
-                    return false;
-                }
-
-                return true;
+                return depthBefore >= 1 &&
+                    !op.IsOptional &&
+                    !op.ShortCircuitOnNullishTarget &&
+                    !op.GetString(stringConstants).IsPrivateName();
 
             case ExpressionOpKind.GetComputedProperty:
                 // receiver, key -> value: net -1. Reject optional/short-circuit reads.
@@ -11661,12 +11651,7 @@ internal static class UnifiedBytecodeProductionEligibility
 
             case ExpressionOpKind.LoadComputedCallTarget:
                 // pop key, keep receiver as `this`, push callee: net 0. Reject optional.
-                if (depthBefore < 2 || op.IsOptional || op.ShortCircuitOnNullishTarget)
-                {
-                    return false;
-                }
-
-                return true;
+                return depthBefore >= 2 && !op.IsOptional && !op.ShortCircuitOnNullishTarget;
 
             case ExpressionOpKind.LoadNamedSuperCallTarget:
                 // Pushes <super receiver, callee>: net +2. Reject private names.
@@ -14712,7 +14697,7 @@ internal static class UnifiedBytecodeProductionEligibility
                 allowsDynamicIdentifiers,
                 allowsThisPropertyWrites))
         {
-            var rhsStart = 1;
+            const int rhsStart = 1;
             var rhsEnd = program.OperationCount - 2;
 
             if (rhsStart == rhsEnd)
@@ -15212,12 +15197,7 @@ internal static class UnifiedBytecodeProductionEligibility
             }
         }
 
-        if (hasPrivateReceiverPrefix && program.OperationCount != 3)
-        {
-            return false;
-        }
-
-        return true;
+        return !hasPrivateReceiverPrefix || program.OperationCount == 3;
     }
 
     // Nested named receiver-prefix computed property update

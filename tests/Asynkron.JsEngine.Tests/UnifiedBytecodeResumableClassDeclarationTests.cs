@@ -569,7 +569,7 @@ public sealed class UnifiedBytecodeResumableClassDeclarationTests(ITestOutputHel
     }
 
     [Fact]
-    public void EvaluateResumable_ClassDeclarationPrivateInstanceField_StillDeclines()
+    public void EvaluateResumable_ClassDeclarationPrivateInstanceField_AdmitsDeclareClass()
     {
         var plan = GetFunctionPlan("""
             function* g() {
@@ -581,7 +581,8 @@ public sealed class UnifiedBytecodeResumableClassDeclarationTests(ITestOutputHel
                         return this.#value;
                     }
                 }
-                yield typeof Box;
+                var box = new Box();
+                yield box.read();
             }
             """,
             "g");
@@ -590,19 +591,15 @@ public sealed class UnifiedBytecodeResumableClassDeclarationTests(ITestOutputHel
             plan,
             new UnifiedBytecodeProductionActivationDescriptor(IsGenerator: true));
 
-        Assert.False(result.IsEligible);
-        Assert.NotEqual(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
         Assert.Contains(
-            "private field is outside B36",
-            result.Reason,
-            StringComparison.Ordinal);
-        Assert.DoesNotContain(
             result.Program.Instructions,
             static instruction => instruction.OpCode == UnifiedBytecodeOpCode.DeclareClass);
     }
 
     [Fact]
-    public void EvaluateResumable_ClassDeclarationPrivateInstanceMethodCapturesActivation_StillDeclines()
+    public void EvaluateResumable_ClassDeclarationPrivateInstanceMethodCapturesActivation_AdmitsDeclareClass()
     {
         var plan = GetFunctionPlan("""
             function* g(seed) {
@@ -616,7 +613,8 @@ public sealed class UnifiedBytecodeResumableClassDeclarationTests(ITestOutputHel
                         return this.#value();
                     }
                 }
-                yield typeof Box;
+                var box = new Box();
+                yield box.read();
             }
             """,
             "g");
@@ -625,19 +623,15 @@ public sealed class UnifiedBytecodeResumableClassDeclarationTests(ITestOutputHel
             plan,
             new UnifiedBytecodeProductionActivationDescriptor(IsGenerator: true));
 
-        Assert.False(result.IsEligible);
-        Assert.NotEqual(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
         Assert.Contains(
-            "private member body captures activation binding 'seed'",
-            result.Reason,
-            StringComparison.Ordinal);
-        Assert.DoesNotContain(
             result.Program.Instructions,
             static instruction => instruction.OpCode == UnifiedBytecodeOpCode.DeclareClass);
     }
 
     [Fact]
-    public void EvaluateResumable_ClassDeclarationPrivateInstanceFieldCapturesActivation_StillDeclines()
+    public void EvaluateResumable_ClassDeclarationPrivateInstanceFieldCapturesActivation_AdmitsDeclareClass()
     {
         var plan = GetFunctionPlan("""
             function* g(seed) {
@@ -649,7 +643,8 @@ public sealed class UnifiedBytecodeResumableClassDeclarationTests(ITestOutputHel
                         return this.#value;
                     }
                 }
-                yield typeof Box;
+                var box = new Box();
+                yield box.read();
             }
             """,
             "g");
@@ -658,15 +653,135 @@ public sealed class UnifiedBytecodeResumableClassDeclarationTests(ITestOutputHel
             plan,
             new UnifiedBytecodeProductionActivationDescriptor(IsGenerator: true));
 
-        Assert.False(result.IsEligible);
-        Assert.NotEqual(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
         Assert.Contains(
-            "private field is outside B36",
-            result.Reason,
-            StringComparison.Ordinal);
-        Assert.DoesNotContain(
             result.Program.Instructions,
             static instruction => instruction.OpCode == UnifiedBytecodeOpCode.DeclareClass);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task GeneratorPrivateInstanceFieldClassDeclaration_RoutesResumableAndInitializesField()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function* g() {
+                yield "ready";
+                class Box {
+                    #value = 1;
+
+                    read() {
+                        return this.#value;
+                    }
+                }
+                var box = new Box();
+                yield box.read();
+            }
+
+            var iterator = g();
+            var first = iterator.next();
+            var second = iterator.next();
+            first.value + ":" + first.done + "|" + second.value + ":" + second.done;
+            """);
+
+        Assert.Equal("ready:false|1:false", result);
+        AssertGeneratorFastPath("g", argc: 0);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task GeneratorPrivateFieldCapturingInitializer_ReadsLiveBindingAtConstructTime()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function* g(seed) {
+                yield "ready";
+                class Box {
+                    #value = seed;
+
+                    read() {
+                        return this.#value;
+                    }
+                }
+                var early = new Box();
+                seed = seed + 1;
+                var late = new Box();
+                seed = 100;
+                yield early.read() + ":" + late.read();
+            }
+
+            var iterator = g(6);
+            var first = iterator.next();
+            var second = iterator.next();
+            first.value + ":" + first.done + "|" + second.value + ":" + second.done;
+            """);
+
+        Assert.Equal("ready:false|6:7:false", result);
+        AssertGeneratorFastPath("g", argc: 1);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task GeneratorCapturingPrivateMethod_ObservesPostDeclarationMutation()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function* g(seed) {
+                yield "ready";
+                class Box {
+                    #current() {
+                        return seed;
+                    }
+
+                    read() {
+                        return this.#current();
+                    }
+                }
+                var box = new Box();
+                var before = box.read();
+                seed = seed * 2;
+                yield before + ":" + box.read();
+            }
+
+            var iterator = g(21);
+            var first = iterator.next();
+            var second = iterator.next();
+            first.value + ":" + first.done + "|" + second.value + ":" + second.done;
+            """);
+
+        Assert.Equal("ready:false|21:42:false", result);
+        AssertGeneratorFastPath("g", argc: 1);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task GeneratorPrivateFieldClassDeclaration_BrandCheckTypeErrorIsCatchable()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function* g() {
+                yield "ready";
+                class Box {
+                    #value = 1;
+
+                    read() {
+                        return this.#value;
+                    }
+                }
+                var outcome;
+                try {
+                    Box.prototype.read.call({});
+                    outcome = "no-throw";
+                } catch (error) {
+                    outcome = error instanceof TypeError ? "TypeError" : "other";
+                }
+                yield outcome;
+            }
+
+            var iterator = g();
+            iterator.next();
+            iterator.next().value;
+            """);
+
+        Assert.Equal("TypeError", result);
+        AssertGeneratorFastPath("g", argc: 0);
     }
 
     [Fact]

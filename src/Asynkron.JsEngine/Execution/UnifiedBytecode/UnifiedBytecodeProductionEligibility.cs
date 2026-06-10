@@ -3545,9 +3545,12 @@ internal static class UnifiedBytecodeProductionEligibility
             }
 
             candidate = true;
-            declineReason =
-                "Class declaration private field is outside B36: private fields remain owned by later class-definition slices.";
-            return false;
+            if (field.IsStatic || field.IsComputed)
+            {
+                declineReason =
+                    "Class declaration private field is outside B36: private static or computed fields remain owned by later class-definition slices.";
+                return false;
+            }
         }
 
         foreach (var member in definition.Members)
@@ -3597,39 +3600,18 @@ internal static class UnifiedBytecodeProductionEligibility
                 continue;
             }
 
-            if (ExpressionProgramReferencesActivationSlot(
-                    initializerProgram,
-                    activationSlots,
-                    out var capturedName))
-            {
-                var fieldKind = definition.Fields[i].IsPrivate ? "private field" : "field";
-                declineReason =
-                    $"Class declaration {fieldKind} initializer captures activation binding '{capturedName}' and is outside B36 until the materialized body environment route owns that dependency.";
-                return false;
-            }
-
+            // Activation-capturing initializers and member bodies are admitted here:
+            // every admitted resumable class declaration forces the materialized body
+            // environment route, the same lane the public default path already uses.
             if (!UnifiedBytecodeCompiler.TryCompileStandaloneExpressionProgram(
                     initializerProgram,
                     allowsDynamicIdentifiers: true,
                     out _,
                     out var initializerReason))
             {
+                var fieldKind = definition.Fields[i].IsPrivate ? "private field" : "field";
                 declineReason =
-                    $"Class declaration private field initializer is outside B36 production routing: {initializerReason}";
-                return false;
-            }
-        }
-
-        foreach (var member in definition.Members)
-        {
-            if (FunctionCapturesActivationSlot(
-                    member.Callable.Function,
-                    activationSlots,
-                    out var capturedName))
-            {
-                var memberKind = member.IsPrivate ? "private member" : "member";
-                declineReason =
-                    $"Class declaration {memberKind} body captures activation binding '{capturedName}' and is outside B36 until the materialized body environment route owns that dependency.";
+                    $"Class declaration {fieldKind} initializer is outside B36 production routing: {initializerReason}";
                 return false;
             }
         }

@@ -4643,6 +4643,11 @@ internal static class UnifiedBytecodeVirtualMachine
                         context));
                     if (context.ShouldStopEvaluation)
                     {
+                        if (TryHandleResumableContextThrow())
+                        {
+                            break;
+                        }
+
                         state.IsCompleted = true;
                         return UnifiedBytecodeStepResult.Throw(context.FlowValue);
                     }
@@ -4691,6 +4696,11 @@ internal static class UnifiedBytecodeVirtualMachine
                             : JsValue.Undefined);
                     if (context.ShouldStopEvaluation)
                     {
+                        if (TryHandleResumableContextThrow())
+                        {
+                            break;
+                        }
+
                         state.IsCompleted = true;
                         return UnifiedBytecodeStepResult.Throw(context.FlowValue);
                     }
@@ -4709,6 +4719,11 @@ internal static class UnifiedBytecodeVirtualMachine
                         context));
                     if (context.ShouldStopEvaluation)
                     {
+                        if (TryHandleResumableContextThrow())
+                        {
+                            break;
+                        }
+
                         state.IsCompleted = true;
                         return UnifiedBytecodeStepResult.Throw(context.FlowValue);
                     }
@@ -4731,6 +4746,11 @@ internal static class UnifiedBytecodeVirtualMachine
                         : JsValue.Undefined);
                     if (context.ShouldStopEvaluation)
                     {
+                        if (TryHandleResumableContextThrow())
+                        {
+                            break;
+                        }
+
                         state.IsCompleted = true;
                         return UnifiedBytecodeStepResult.Throw(context.FlowValue);
                     }
@@ -4756,6 +4776,11 @@ internal static class UnifiedBytecodeVirtualMachine
                         state.IsStrict);
                     if (context.ShouldStopEvaluation)
                     {
+                        if (TryHandleResumableContextThrow())
+                        {
+                            break;
+                        }
+
                         state.IsCompleted = true;
                         return UnifiedBytecodeStepResult.Throw(context.FlowValue);
                     }
@@ -4777,6 +4802,11 @@ internal static class UnifiedBytecodeVirtualMachine
                     var resumableComputedSetName = JsOps.GetRequiredPropertyName(resumableComputedSetKey, context);
                     if (context.ShouldStopEvaluation)
                     {
+                        if (TryHandleResumableContextThrow())
+                        {
+                            break;
+                        }
+
                         state.IsCompleted = true;
                         return UnifiedBytecodeStepResult.Throw(context.FlowValue);
                     }
@@ -4790,6 +4820,11 @@ internal static class UnifiedBytecodeVirtualMachine
                         allowPrivate: false);
                     if (context.ShouldStopEvaluation)
                     {
+                        if (TryHandleResumableContextThrow())
+                        {
+                            break;
+                        }
+
                         state.IsCompleted = true;
                         return UnifiedBytecodeStepResult.Throw(context.FlowValue);
                     }
@@ -4818,6 +4853,11 @@ internal static class UnifiedBytecodeVirtualMachine
                         context));
                     if (context.ShouldStopEvaluation)
                     {
+                        if (TryHandleResumableContextThrow())
+                        {
+                            break;
+                        }
+
                         state.IsCompleted = true;
                         return UnifiedBytecodeStepResult.Throw(context.FlowValue);
                     }
@@ -4833,6 +4873,11 @@ internal static class UnifiedBytecodeVirtualMachine
                         context));
                     if (context.ShouldStopEvaluation)
                     {
+                        if (TryHandleResumableContextThrow())
+                        {
+                            break;
+                        }
+
                         state.IsCompleted = true;
                         return UnifiedBytecodeStepResult.Throw(context.FlowValue);
                     }
@@ -4851,6 +4896,11 @@ internal static class UnifiedBytecodeVirtualMachine
                         state.IsStrict));
                     if (context.ShouldStopEvaluation)
                     {
+                        if (TryHandleResumableContextThrow())
+                        {
+                            break;
+                        }
+
                         state.IsCompleted = true;
                         return UnifiedBytecodeStepResult.Throw(context.FlowValue);
                     }
@@ -4870,6 +4920,11 @@ internal static class UnifiedBytecodeVirtualMachine
                         state.IsStrict));
                     if (context.ShouldStopEvaluation)
                     {
+                        if (TryHandleResumableContextThrow())
+                        {
+                            break;
+                        }
+
                         state.IsCompleted = true;
                         return UnifiedBytecodeStepResult.Throw(context.FlowValue);
                     }
@@ -4887,6 +4942,11 @@ internal static class UnifiedBytecodeVirtualMachine
                         state.IsStrict));
                     if (context.ShouldStopEvaluation)
                     {
+                        if (TryHandleResumableContextThrow())
+                        {
+                            break;
+                        }
+
                         state.IsCompleted = true;
                         return UnifiedBytecodeStepResult.Throw(context.FlowValue);
                     }
@@ -4905,6 +4965,11 @@ internal static class UnifiedBytecodeVirtualMachine
                         state.IsStrict));
                     if (context.ShouldStopEvaluation)
                     {
+                        if (TryHandleResumableContextThrow())
+                        {
+                            break;
+                        }
+
                         state.IsCompleted = true;
                         return UnifiedBytecodeStepResult.Throw(context.FlowValue);
                     }
@@ -4932,6 +4997,11 @@ internal static class UnifiedBytecodeVirtualMachine
                         state.IsStrict));
                     if (context.ShouldStopEvaluation)
                     {
+                        if (TryHandleResumableContextThrow())
+                        {
+                            break;
+                        }
+
                         state.IsCompleted = true;
                         return UnifiedBytecodeStepResult.Throw(context.FlowValue);
                     }
@@ -4962,6 +5032,11 @@ internal static class UnifiedBytecodeVirtualMachine
                         JsOps.GetRequiredPropertyName(resumableComputedUpdateKey, context);
                     if (context.ShouldStopEvaluation)
                     {
+                        if (TryHandleResumableContextThrow())
+                        {
+                            break;
+                        }
+
                         state.IsCompleted = true;
                         return UnifiedBytecodeStepResult.Throw(context.FlowValue);
                     }
@@ -4976,6 +5051,11 @@ internal static class UnifiedBytecodeVirtualMachine
                         allowPrivate: false));
                     if (context.ShouldStopEvaluation)
                     {
+                        if (TryHandleResumableContextThrow())
+                        {
+                            break;
+                        }
+
                         state.IsCompleted = true;
                         return UnifiedBytecodeStepResult.Throw(context.FlowValue);
                     }
@@ -4998,6 +5078,11 @@ internal static class UnifiedBytecodeVirtualMachine
                         : JsValue.False);
                     if (context.ShouldStopEvaluation)
                     {
+                        if (TryHandleResumableContextThrow())
+                        {
+                            break;
+                        }
+
                         state.IsCompleted = true;
                         return UnifiedBytecodeStepResult.Throw(context.FlowValue);
                     }
@@ -5019,6 +5104,11 @@ internal static class UnifiedBytecodeVirtualMachine
                         : JsValue.False);
                     if (context.ShouldStopEvaluation)
                     {
+                        if (TryHandleResumableContextThrow())
+                        {
+                            break;
+                        }
+
                         state.IsCompleted = true;
                         return UnifiedBytecodeStepResult.Throw(context.FlowValue);
                     }
@@ -5070,6 +5160,11 @@ internal static class UnifiedBytecodeVirtualMachine
                             context));
                         if (context.ShouldStopEvaluation)
                         {
+                            if (TryHandleResumableContextThrow())
+                            {
+                                break;
+                            }
+
                             state.IsCompleted = true;
                             return UnifiedBytecodeStepResult.Throw(context.FlowValue);
                         }
@@ -5108,6 +5203,11 @@ internal static class UnifiedBytecodeVirtualMachine
                             : JsValue.False);
                         if (context.ShouldStopEvaluation)
                         {
+                            if (TryHandleResumableContextThrow())
+                            {
+                                break;
+                            }
+
                             state.IsCompleted = true;
                             return UnifiedBytecodeStepResult.Throw(context.FlowValue);
                         }
@@ -5121,6 +5221,11 @@ internal static class UnifiedBytecodeVirtualMachine
                     stack[stackPointer - 1] = new JsValue(JsOps.ToNumber(in resumablePlusOperand, context));
                     if (context.ShouldStopEvaluation)
                     {
+                        if (TryHandleResumableContextThrow())
+                        {
+                            break;
+                        }
+
                         state.IsCompleted = true;
                         return UnifiedBytecodeStepResult.Throw(context.FlowValue);
                     }
@@ -5132,6 +5237,11 @@ internal static class UnifiedBytecodeVirtualMachine
                     stack[stackPointer - 1] = TypedAstEvaluator.NegateValue(stack[stackPointer - 1], context);
                     if (context.ShouldStopEvaluation)
                     {
+                        if (TryHandleResumableContextThrow())
+                        {
+                            break;
+                        }
+
                         state.IsCompleted = true;
                         return UnifiedBytecodeStepResult.Throw(context.FlowValue);
                     }
@@ -5148,6 +5258,11 @@ internal static class UnifiedBytecodeVirtualMachine
                     stack[stackPointer - 1] = TypedAstEvaluator.BitwiseNot(stack[stackPointer - 1], context);
                     if (context.ShouldStopEvaluation)
                     {
+                        if (TryHandleResumableContextThrow())
+                        {
+                            break;
+                        }
+
                         state.IsCompleted = true;
                         return UnifiedBytecodeStepResult.Throw(context.FlowValue);
                     }
@@ -5209,6 +5324,11 @@ internal static class UnifiedBytecodeVirtualMachine
                     stack[stackPointer - 1] = ResolvePropertyKey(stack[stackPointer - 1], context);
                     if (context.ShouldStopEvaluation)
                     {
+                        if (TryHandleResumableContextThrow())
+                        {
+                            break;
+                        }
+
                         state.IsCompleted = true;
                         return UnifiedBytecodeStepResult.Throw(context.FlowValue);
                     }
@@ -5309,6 +5429,11 @@ internal static class UnifiedBytecodeVirtualMachine
 
                     if (context.ShouldStopEvaluation)
                     {
+                        if (TryHandleResumableContextThrow())
+                        {
+                            break;
+                        }
+
                         state.IsCompleted = true;
                         return UnifiedBytecodeStepResult.Throw(context.FlowValue);
                     }
@@ -5370,6 +5495,11 @@ internal static class UnifiedBytecodeVirtualMachine
                         JsOps.GetRequiredPropertyName(resumableComputedObjectPropertyKey, context);
                     if (context.ShouldStopEvaluation)
                     {
+                        if (TryHandleResumableContextThrow())
+                        {
+                            break;
+                        }
+
                         state.IsCompleted = true;
                         return UnifiedBytecodeStepResult.Throw(context.FlowValue);
                     }
@@ -5414,6 +5544,11 @@ internal static class UnifiedBytecodeVirtualMachine
                         JsOps.GetRequiredPropertyName(resumableComputedMethodKey, context);
                     if (context.ShouldStopEvaluation)
                     {
+                        if (TryHandleResumableContextThrow())
+                        {
+                            break;
+                        }
+
                         state.IsCompleted = true;
                         return UnifiedBytecodeStepResult.Throw(context.FlowValue);
                     }
@@ -5460,6 +5595,11 @@ internal static class UnifiedBytecodeVirtualMachine
                         JsOps.GetRequiredPropertyName(resumableComputedAccessorKey, context);
                     if (context.ShouldStopEvaluation)
                     {
+                        if (TryHandleResumableContextThrow())
+                        {
+                            break;
+                        }
+
                         state.IsCompleted = true;
                         return UnifiedBytecodeStepResult.Throw(context.FlowValue);
                     }
@@ -5487,6 +5627,11 @@ internal static class UnifiedBytecodeVirtualMachine
                     ApplyObjectLiteralSpread(resumableObjectSpreadTarget, resumableObjectSpreadValue, context);
                     if (context.ShouldStopEvaluation)
                     {
+                        if (TryHandleResumableContextThrow())
+                        {
+                            break;
+                        }
+
                         state.IsCompleted = true;
                         return UnifiedBytecodeStepResult.Throw(context.FlowValue);
                     }
@@ -5646,6 +5791,11 @@ internal static class UnifiedBytecodeVirtualMachine
 
                         if (context.ShouldStopEvaluation)
                         {
+                            if (TryHandleResumableContextThrow())
+                            {
+                                break;
+                            }
+
                             state.IsCompleted = true;
                             return UnifiedBytecodeStepResult.Throw(context.FlowValue);
                         }
@@ -6129,6 +6279,11 @@ internal static class UnifiedBytecodeVirtualMachine
                             slots);
                         if (context.ShouldStopEvaluation)
                         {
+                            if (TryHandleResumableContextThrow())
+                            {
+                                break;
+                            }
+
                             state.IsCompleted = true;
                             return UnifiedBytecodeStepResult.Throw(context.FlowValue);
                         }
@@ -6161,6 +6316,11 @@ internal static class UnifiedBytecodeVirtualMachine
                             slots);
                         if (context.ShouldStopEvaluation)
                         {
+                            if (TryHandleResumableContextThrow())
+                            {
+                                break;
+                            }
+
                             state.IsCompleted = true;
                             return UnifiedBytecodeStepResult.Throw(context.FlowValue);
                         }
@@ -6180,6 +6340,11 @@ internal static class UnifiedBytecodeVirtualMachine
                             preserveExistingThrow: false);
                         if (context.ShouldStopEvaluation)
                         {
+                            if (TryHandleResumableContextThrow())
+                            {
+                                break;
+                            }
+
                             state.IsCompleted = true;
                             return UnifiedBytecodeStepResult.Throw(context.FlowValue);
                         }
@@ -6234,6 +6399,11 @@ internal static class UnifiedBytecodeVirtualMachine
                             slots);
                         if (context.ShouldStopEvaluation)
                         {
+                            if (TryHandleResumableContextThrow())
+                            {
+                                break;
+                            }
+
                             state.IsCompleted = true;
                             return UnifiedBytecodeStepResult.Throw(context.FlowValue);
                         }
@@ -6266,6 +6436,11 @@ internal static class UnifiedBytecodeVirtualMachine
                             slots);
                         if (context.ShouldStopEvaluation)
                         {
+                            if (TryHandleResumableContextThrow())
+                            {
+                                break;
+                            }
+
                             state.IsCompleted = true;
                             return UnifiedBytecodeStepResult.Throw(context.FlowValue);
                         }
@@ -6800,6 +6975,11 @@ internal static class UnifiedBytecodeVirtualMachine
                             context));
                         if (context.ShouldStopEvaluation)
                         {
+                            if (TryHandleResumableContextThrow())
+                            {
+                                break;
+                            }
+
                             state.IsCompleted = true;
                             return UnifiedBytecodeStepResult.Throw(context.FlowValue);
                         }
@@ -6833,6 +7013,11 @@ internal static class UnifiedBytecodeVirtualMachine
                             context));
                         if (context.ShouldStopEvaluation)
                         {
+                            if (TryHandleResumableContextThrow())
+                            {
+                                break;
+                            }
+
                             state.IsCompleted = true;
                             return UnifiedBytecodeStepResult.Throw(context.FlowValue);
                         }
@@ -6856,6 +7041,11 @@ internal static class UnifiedBytecodeVirtualMachine
                         SetResumableShortCircuitFlag(stackPointer - 2, false);
                         if (context.ShouldStopEvaluation)
                         {
+                            if (TryHandleResumableContextThrow())
+                            {
+                                break;
+                            }
+
                             state.IsCompleted = true;
                             return UnifiedBytecodeStepResult.Throw(context.FlowValue);
                         }
@@ -6879,6 +7069,11 @@ internal static class UnifiedBytecodeVirtualMachine
                         SetResumableShortCircuitFlag(stackPointer - 2, false);
                         if (context.ShouldStopEvaluation)
                         {
+                            if (TryHandleResumableContextThrow())
+                            {
+                                break;
+                            }
+
                             state.IsCompleted = true;
                             return UnifiedBytecodeStepResult.Throw(context.FlowValue);
                         }
@@ -6952,6 +7147,11 @@ internal static class UnifiedBytecodeVirtualMachine
                                 context));
                             if (context.ShouldStopEvaluation)
                             {
+                                if (TryHandleResumableContextThrow())
+                                {
+                                    break;
+                                }
+
                                 state.IsCompleted = true;
                                 return UnifiedBytecodeStepResult.Throw(context.FlowValue);
                             }
@@ -6966,6 +7166,11 @@ internal static class UnifiedBytecodeVirtualMachine
                                 context);
                             if (context.ShouldStopEvaluation)
                             {
+                                if (TryHandleResumableContextThrow())
+                                {
+                                    break;
+                                }
+
                                 state.IsCompleted = true;
                                 return UnifiedBytecodeStepResult.Throw(context.FlowValue);
                             }
@@ -7002,6 +7207,11 @@ internal static class UnifiedBytecodeVirtualMachine
                         var optComputedCallee = GetComputedCallTargetValue(optComputedReceiver, optComputedKey, context);
                         if (context.ShouldStopEvaluation)
                         {
+                            if (TryHandleResumableContextThrow())
+                            {
+                                break;
+                            }
+
                             state.IsCompleted = true;
                             return UnifiedBytecodeStepResult.Throw(context.FlowValue);
                         }
@@ -7041,6 +7251,11 @@ internal static class UnifiedBytecodeVirtualMachine
                         SetResumableShortCircuitFlag(stackPointer - 2, false);
                         if (context.ShouldStopEvaluation)
                         {
+                            if (TryHandleResumableContextThrow())
+                            {
+                                break;
+                            }
+
                             state.IsCompleted = true;
                             return UnifiedBytecodeStepResult.Throw(context.FlowValue);
                         }
@@ -7081,6 +7296,11 @@ internal static class UnifiedBytecodeVirtualMachine
                         SetResumableShortCircuitFlag(stackPointer - 1, false);
                         if (context.ShouldStopEvaluation)
                         {
+                            if (TryHandleResumableContextThrow())
+                            {
+                                break;
+                            }
+
                             state.IsCompleted = true;
                             return UnifiedBytecodeStepResult.Throw(context.FlowValue);
                         }
@@ -7115,6 +7335,11 @@ internal static class UnifiedBytecodeVirtualMachine
                         SetResumableShortCircuitFlag(stackPointer - 1, false);
                         if (context.ShouldStopEvaluation)
                         {
+                            if (TryHandleResumableContextThrow())
+                            {
+                                break;
+                            }
+
                             state.IsCompleted = true;
                             return UnifiedBytecodeStepResult.Throw(context.FlowValue);
                         }

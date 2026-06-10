@@ -89,6 +89,129 @@ public sealed class UnifiedBytecodeResumableTryCatchTests(ITestOutputHelper outp
         AssertGeneratorFastPath("recover", argc: 0);
     }
 
+    [Fact(Timeout = 5000)]
+    public async Task GeneratorThrowingCallInsideTry_RoutesResumableAndBindsCatch()
+    {
+        // Pins the resumable VM's call-boundary throw dispatch: a throw raised INSIDE a
+        // callee (surfacing as context flow at the CallInvocationBoundary) must unwind to
+        // the generator body's own try frames instead of completing the resumable with an
+        // escaping Throw step.
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function boom() {
+                throw new TypeError("boom");
+            }
+
+            function* recover() {
+                yield "ready";
+                var outcome;
+                try {
+                    boom();
+                    outcome = "no-throw";
+                } catch (error) {
+                    outcome = error instanceof TypeError ? "caught:" + error.message : "other";
+                }
+                yield outcome;
+            }
+
+            var iterator = recover();
+            iterator.next();
+            iterator.next().value;
+            """);
+
+        Assert.Equal("caught:boom", result);
+        AssertGeneratorFastPath("recover", argc: 0);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task GeneratorThrowingConstructInsideTry_RoutesResumableAndBindsCatch()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function Boom() {
+                throw new RangeError("ctor");
+            }
+
+            function* recover() {
+                yield "ready";
+                var outcome;
+                try {
+                    new Boom();
+                    outcome = "no-throw";
+                } catch (error) {
+                    outcome = error instanceof RangeError ? "caught:" + error.message : "other";
+                }
+                yield outcome;
+            }
+
+            var iterator = recover();
+            iterator.next();
+            iterator.next().value;
+            """);
+
+        Assert.Equal("caught:ctor", result);
+        AssertGeneratorFastPath("recover", argc: 0);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task GeneratorThrowingPropertyReadInsideTry_RoutesResumableAndBindsCatch()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function* recover(box) {
+                yield "ready";
+                var outcome;
+                try {
+                    var value = box.missing.deeper;
+                    outcome = "no-throw:" + value;
+                } catch (error) {
+                    outcome = error instanceof TypeError ? "caught" : "other";
+                }
+                yield outcome;
+            }
+
+            var iterator = recover({});
+            iterator.next();
+            iterator.next().value;
+            """);
+
+        Assert.Equal("caught", result);
+        AssertGeneratorFastPath("recover", argc: 1);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task GeneratorThrowingCallInsideTryFinally_RunsCleanupAndBindsCatch()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function boom() {
+                throw "inner";
+            }
+
+            function* recover() {
+                yield "ready";
+                var log = "";
+                try {
+                    try {
+                        boom();
+                    } finally {
+                        log = log + "finally";
+                    }
+                } catch (error) {
+                    log = log + "|caught:" + error;
+                }
+                yield log;
+            }
+
+            var iterator = recover();
+            iterator.next();
+            iterator.next().value;
+            """);
+
+        Assert.Equal("finally|caught:inner", result);
+        AssertGeneratorFastPath("recover", argc: 0);
+    }
+
     private void AssertGeneratorFastPath(string functionName, int argc) =>
         Assert.Contains(CurrentLogger!.Collector.Snapshot(),
             record => record.Message.Contains(

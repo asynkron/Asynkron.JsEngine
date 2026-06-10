@@ -3322,6 +3322,161 @@ public sealed class UnifiedBytecodeResumableClassDeclarationTests(ITestOutputHel
                 StringComparison.Ordinal));
     }
 
+    [Fact]
+    public void EvaluateResumable_ClassDeclarationPrivateInstanceConstructorCapturesActivation_AdmitsDeclareClass()
+    {
+        var plan = GetFunctionPlan("""
+            function* g(seed) {
+                class Box {
+                    #value = seed;
+                    constructor(v) {
+                        this.#value = v + seed;
+                    }
+                    read() {
+                        return this.#value;
+                    }
+                }
+                var box = new Box(2);
+                yield box.read();
+            }
+            """,
+            "g");
+
+        var result = UnifiedBytecodeProductionEligibility.EvaluateResumable(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor(IsGenerator: true));
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(
+            result.Program.Instructions,
+            static instruction => instruction.OpCode == UnifiedBytecodeOpCode.DeclareClass);
+        Assert.True(UnifiedBytecodeProductionEligibility.PlanNeedsMaterializedResumableClassDeclarationEnvironment(plan));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task GeneratorClassDeclarationPrivateConstructorCapturesActivation_RoutesResumable()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function* g(seed) {
+                class Box {
+                    #value = seed;
+                    constructor(v) {
+                        this.#value = v + seed;
+                    }
+                    read() {
+                        return this.#value;
+                    }
+                }
+                var early = new Box(2);
+                yield early.read();
+                seed = seed + 10;
+                var late = new Box(2);
+                yield late.read();
+            }
+            var iterator = g(1);
+            var first = iterator.next();
+            var second = iterator.next();
+            first.value + ":" + first.done + "|" + second.value + ":" + second.done;
+            """);
+
+        Assert.Equal("3:false|13:false", result?.ToString());
+        AssertGeneratorFastPath("g", argc: 1);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task GeneratorClassDeclarationCapturingConstructorWritesBackToOuterBinding_RoutesResumable()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function* g(seed) {
+                var total = 0;
+                class Box {
+                    constructor(v) {
+                        total = seed + v;
+                    }
+                    #tag() { return 0; }
+                }
+                var b = new Box(3);
+                yield total;
+            }
+            var iterator = g(2);
+            var first = iterator.next();
+            first.value + ":" + first.done;
+            """);
+
+        Assert.Equal("5:false", result?.ToString());
+        AssertGeneratorFastPath("g", argc: 1);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task GeneratorClassDeclarationCapturingConstructorBrandCheck_RoutesResumableAndThrowsTypeError()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function* g(seed) {
+                class Box {
+                    #value = seed;
+                    constructor(v) {
+                        this.#value = v + seed;
+                    }
+                    read() {
+                        return this.#value;
+                    }
+                }
+                var box = new Box(1);
+                var ok = box.read();
+                try {
+                    Box.prototype.read.call({});
+                    yield "no-throw";
+                } catch (e) {
+                    yield (e instanceof TypeError) + "|" + ok;
+                }
+            }
+            var iterator = g(1);
+            var first = iterator.next();
+            first.value + ":" + first.done;
+            """);
+
+        Assert.Equal("true|2:false", result?.ToString());
+        AssertGeneratorFastPath("g", argc: 1);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task GeneratorClassDeclarationCapturingConstructorTdzReference_RoutesResumableAndThrowsReferenceError()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function* g(seed) {
+                var observed = "none";
+                try {
+                    new Box(1);
+                    observed = "no-throw";
+                } catch (e) {
+                    observed = e instanceof ReferenceError ? "reference-error" : "other";
+                }
+                class Box {
+                    #value = seed;
+                    constructor(v) {
+                        this.#value = v + seed;
+                    }
+                    read() {
+                        return this.#value;
+                    }
+                }
+                var box = new Box(2);
+                yield observed + "|" + box.read();
+            }
+            var iterator = g(1);
+            var first = iterator.next();
+            first.value + ":" + first.done;
+            """);
+
+        Assert.Equal("reference-error|3:false", result?.ToString());
+        AssertGeneratorFastPath("g", argc: 1);
+    }
+
     private void AssertGeneratorFastPath(string functionName, int argc)
     {
         var snapshot = CurrentLogger!.Collector.Snapshot();

@@ -3564,7 +3564,6 @@ internal static class UnifiedBytecodeProductionEligibility
 
         if (TryAdmitB36PrivateInstanceClassDeclaration(
                 cache,
-                activationSlots,
                 out var privateInstanceCandidate,
                 out declineReason))
         {
@@ -3582,7 +3581,6 @@ internal static class UnifiedBytecodeProductionEligibility
 
     private static bool TryAdmitB36PrivateInstanceClassDeclaration(
         ClassDefinitionProgramCache cache,
-        ActivationSlotShape activationSlots,
         out bool candidate,
         out string declineReason)
     {
@@ -3633,16 +3631,11 @@ internal static class UnifiedBytecodeProductionEligibility
             return false;
         }
 
-        if (FunctionCapturesActivationSlot(
-                definition.Constructor.Function,
-                activationSlots,
-                out var constructorCapturedName))
-        {
-            declineReason =
-                $"Class declaration private-instance constructor body captures activation binding '{constructorCapturedName}' and is outside B36 until the materialized body environment route owns that dependency.";
-            return false;
-        }
-
+        // Constructor-body activation captures are admitted here: every admitted
+        // resumable class declaration forces the materialized body environment
+        // route, so the constructor closes over the live body environment exactly
+        // like the already-admitted member bodies and field initializers
+        // (commits 5bb6997cc..736da25cb proved the sequencing concern obsolete).
         if (!definition.Fields.IsDefaultOrEmpty &&
             (cache.FieldInitializerPrograms.IsDefaultOrEmpty ||
              cache.FieldInitializerPrograms.Length != definition.Fields.Length))

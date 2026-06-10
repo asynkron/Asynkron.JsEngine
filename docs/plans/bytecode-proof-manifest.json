@@ -1579,6 +1579,26 @@
           ]
         },
         {
+          "id": "B36-class-declaration-private-constructor-captures-activation-routes",
+          "claim": "admitted",
+          "kind": "runtime",
+          "source": "function* g(seed) {\n  class Box {\n    #value = seed;\n    constructor(v) {\n      this.#value = v + seed;\n    }\n    read() {\n      return this.#value;\n    }\n  }\n  var early = new Box(2);\n  yield early.read();\n  seed = seed + 10;\n  var late = new Box(2);\n  yield late.read();\n}\nvar iterator = g(1);\nvar first = iterator.next();\nvar second = iterator.next();\nfirst.value + ':' + first.done + '|' + second.value + ':' + second.done;",
+          "expectedResult": "3:false|13:false",
+          "requiredLogs": [
+            "unified-bytecode-resumable-generator-fast-path func=g"
+          ]
+        },
+        {
+          "id": "B36-class-declaration-private-constructor-activation-write-back-routes",
+          "claim": "admitted",
+          "kind": "runtime",
+          "source": "function* g(seed) {\n  var total = 0;\n  class Box {\n    constructor(v) {\n      total = seed + v;\n    }\n    #tag() { return 0; }\n  }\n  var b = new Box(3);\n  yield total;\n}\nvar iterator = g(2);\nvar first = iterator.next();\nfirst.value + ':' + first.done;",
+          "expectedResult": "5:false",
+          "requiredLogs": [
+            "unified-bytecode-resumable-generator-fast-path func=g"
+          ]
+        },
+        {
           "id": "B36-class-declaration-private-static-method-routes",
           "claim": "admitted",
           "kind": "runtime",

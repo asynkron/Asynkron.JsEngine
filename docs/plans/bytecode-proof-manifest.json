@@ -1734,6 +1734,36 @@
           ]
         },
         {
+          "id": "B36-class-declaration-static-field-capturing-constructor-routes",
+          "claim": "admitted",
+          "kind": "runtime",
+          "source": "function* g(seed) {\n  class Box {\n    static read = () => seed;\n    constructor(v) { this.value = v + seed; }\n  }\n  var b = new Box(1);\n  yield Box.read() + b.value;\n}\nvar iterator = g(20);\nvar first = iterator.next();\nfirst.value + ':' + first.done;",
+          "expectedResult": "41:false",
+          "requiredLogs": [
+            "unified-bytecode-resumable-generator-fast-path func=g"
+          ]
+        },
+        {
+          "id": "B36-class-declaration-static-member-activation-capture-routes",
+          "claim": "admitted",
+          "kind": "runtime",
+          "source": "function* g(seed) {\n  class Box {\n    static field = 1;\n    static read() { return seed; }\n  }\n  yield Box.read();\n  seed = seed + 10;\n  yield Box.read();\n}\nvar iterator = g(1);\nvar first = iterator.next();\nvar second = iterator.next();\nfirst.value + ':' + first.done + '|' + second.value + ':' + second.done;",
+          "expectedResult": "1:false|11:false",
+          "requiredLogs": [
+            "unified-bytecode-resumable-generator-fast-path func=g"
+          ]
+        },
+        {
+          "id": "B36-class-declaration-static-member-activation-write-back-routes",
+          "claim": "admitted",
+          "kind": "runtime",
+          "source": "function* g(seed) {\n  class Box {\n    static field = 1;\n    static bump() { seed = seed + 5; }\n  }\n  Box.bump();\n  yield seed + Box.field;\n}\nvar iterator = g(2);\nvar first = iterator.next();\nfirst.value + ':' + first.done;",
+          "expectedResult": "8:false",
+          "requiredLogs": [
+            "unified-bytecode-resumable-generator-fast-path func=g"
+          ]
+        },
+        {
           "id": "B36-class-declaration-mixed-static-public-field-and-method-routes",
           "claim": "admitted",
           "kind": "runtime",

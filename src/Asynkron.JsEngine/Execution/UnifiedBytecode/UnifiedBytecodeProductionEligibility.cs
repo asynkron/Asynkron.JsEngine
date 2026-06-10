@@ -3918,22 +3918,18 @@ internal static class UnifiedBytecodeProductionEligibility
         }
 
         candidate = true;
-        if (FunctionCapturesActivationSlot(
-                definition.Constructor.Function,
-                activationSlots,
-                out var constructorCapturedName))
-        {
-            declineReason =
-                $"Class declaration static-field constructor body captures activation binding '{constructorCapturedName}' and is outside B36 until the materialized body environment route owns that dependency.";
-            return false;
-        }
-
+        // Constructor-body activation captures are admitted here: every admitted
+        // resumable class declaration forces the materialized body environment
+        // route, so the constructor closes over the live body environment exactly
+        // like the already-admitted static field initializers
+        // (commits 5bb6997cc..736da25cb proved the sequencing concern obsolete).
         foreach (var member in definition.Members)
         {
             if (FunctionCapturesActivationSlot(
                     member.Callable.Function,
                     activationSlots,
-                    out var capturedName))
+                    out var capturedName) &&
+                !IsMaterializedResumableBodyEnvironmentCapture(capturedName))
             {
                 declineReason =
                     $"Class declaration static member body captures activation binding '{capturedName}' and is outside B36 until the materialized body environment route owns that dependency.";

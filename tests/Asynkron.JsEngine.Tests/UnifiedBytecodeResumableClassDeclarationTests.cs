@@ -1750,7 +1750,7 @@ public sealed class UnifiedBytecodeResumableClassDeclarationTests(ITestOutputHel
     }
 
     [Fact]
-    public void EvaluateResumable_ClassDeclarationMixedPublicStaticMemberCapturesActivation_StillDeclines()
+    public void EvaluateResumable_ClassDeclarationMixedPublicStaticMemberCapturesActivation_AdmitsDeclareClass()
     {
         var plan = GetFunctionPlan("""
             function* g(seed) {
@@ -1768,16 +1768,16 @@ public sealed class UnifiedBytecodeResumableClassDeclarationTests(ITestOutputHel
             plan,
             new UnifiedBytecodeProductionActivationDescriptor(IsGenerator: true));
 
-        Assert.False(result.IsEligible);
-        Assert.NotEqual(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
         Assert.Contains(
-            "static member body captures activation binding 'seed'",
-            result.Reason,
-            StringComparison.Ordinal);
+            result.Program.Instructions,
+            static instruction => instruction.OpCode == UnifiedBytecodeOpCode.DeclareClass);
+        Assert.True(UnifiedBytecodeProductionEligibility.PlanNeedsMaterializedResumableClassDeclarationEnvironment(plan));
     }
 
     [Fact]
-    public void EvaluateResumable_ClassDeclarationStaticFieldClosureAndStaticMemberCapturesActivation_StillDeclines()
+    public void EvaluateResumable_ClassDeclarationStaticFieldClosureAndStaticMemberCapturesActivation_AdmitsDeclareClass()
     {
         var plan = GetFunctionPlan("""
             function* g(seed) {
@@ -1796,12 +1796,39 @@ public sealed class UnifiedBytecodeResumableClassDeclarationTests(ITestOutputHel
             plan,
             new UnifiedBytecodeProductionActivationDescriptor(IsGenerator: true));
 
-        Assert.False(result.IsEligible);
-        Assert.NotEqual(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
         Assert.Contains(
-            "static member body captures activation binding 'seed'",
-            result.Reason,
-            StringComparison.Ordinal);
+            result.Program.Instructions,
+            static instruction => instruction.OpCode == UnifiedBytecodeOpCode.DeclareClass);
+        Assert.True(UnifiedBytecodeProductionEligibility.PlanNeedsMaterializedResumableClassDeclarationEnvironment(plan));
+    }
+
+    [Fact]
+    public void EvaluateResumable_ClassDeclarationStaticFieldCapturingConstructorAndCapturingFieldClosure_AdmitsDeclareClass()
+    {
+        var plan = GetFunctionPlan("""
+            function* g(seed) {
+                class Box {
+                    static read = () => seed;
+                    constructor(v) { this.value = v + seed; }
+                }
+                var b = new Box(1);
+                yield Box.read() + b.value;
+            }
+            """,
+            "g");
+
+        var result = UnifiedBytecodeProductionEligibility.EvaluateResumable(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor(IsGenerator: true));
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(
+            result.Program.Instructions,
+            static instruction => instruction.OpCode == UnifiedBytecodeOpCode.DeclareClass);
+        Assert.True(UnifiedBytecodeProductionEligibility.PlanNeedsMaterializedResumableClassDeclarationEnvironment(plan));
     }
 
     [Fact]
@@ -3474,6 +3501,126 @@ public sealed class UnifiedBytecodeResumableClassDeclarationTests(ITestOutputHel
             """);
 
         Assert.Equal("reference-error|3:false", result?.ToString());
+        AssertGeneratorFastPath("g", argc: 1);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task GeneratorClassDeclarationStaticFieldCapturingConstructor_RoutesResumable()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function* g(seed) {
+                class Box {
+                    static read = () => seed;
+                    constructor(v) { this.value = v + seed; }
+                }
+                var b = new Box(1);
+                yield Box.read() + b.value;
+            }
+            var iterator = g(20);
+            var first = iterator.next();
+            first.value + ":" + first.done;
+            """);
+
+        Assert.Equal("41:false", result?.ToString());
+        AssertGeneratorFastPath("g", argc: 1);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task GeneratorClassDeclarationCapturingStaticMemberWritesBinding_RoutesResumable()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function* g(seed) {
+                class Box {
+                    static field = 1;
+                    static bump() { seed = seed + 5; }
+                }
+                Box.bump();
+                yield seed + Box.field;
+            }
+            var iterator = g(2);
+            var first = iterator.next();
+            first.value + ":" + first.done;
+            """);
+
+        Assert.Equal("8:false", result?.ToString());
+        AssertGeneratorFastPath("g", argc: 1);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task GeneratorClassDeclarationCapturingStaticMember_ObservesPostYieldMutation_RoutesResumable()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function* g(seed) {
+                class Box {
+                    static field = 1;
+                    static read() { return seed; }
+                }
+                yield Box.read();
+                seed = seed + 10;
+                yield Box.read();
+            }
+            var iterator = g(1);
+            var first = iterator.next();
+            var second = iterator.next();
+            first.value + ":" + first.done + "|" + second.value + ":" + second.done;
+            """);
+
+        Assert.Equal("1:false|11:false", result?.ToString());
+        AssertGeneratorFastPath("g", argc: 1);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task GeneratorClassDeclarationStaticFieldCapturingConstructor_DeclarationTimeSnapshotVsConstructTimeRead_RoutesResumable()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function* g(seed) {
+                class Box {
+                    static snap = seed;
+                    constructor() { this.v = seed; }
+                }
+                seed = seed + 5;
+                var b = new Box();
+                yield Box.snap + "|" + b.v;
+            }
+            var iterator = g(1);
+            var first = iterator.next();
+            first.value + ":" + first.done;
+            """);
+
+        Assert.Equal("1|6:false", result?.ToString());
+        AssertGeneratorFastPath("g", argc: 1);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task GeneratorClassDeclarationStaticFieldCapturingConstructor_TdzBeforeDeclaration_RoutesResumable()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function* g(seed) {
+                var observed = "none";
+                try {
+                    new Box(1);
+                    observed = "no-throw";
+                } catch (e) {
+                    observed = e instanceof ReferenceError ? "reference-error" : "other";
+                }
+                class Box {
+                    static field = seed;
+                    constructor(v) { this.v = v + seed; }
+                }
+                var b = new Box(2);
+                yield observed + "|" + Box.field + "|" + b.v;
+            }
+            var iterator = g(1);
+            var first = iterator.next();
+            first.value + ":" + first.done;
+            """);
+
+        Assert.Equal("reference-error|1|3:false", result?.ToString());
         AssertGeneratorFastPath("g", argc: 1);
     }
 

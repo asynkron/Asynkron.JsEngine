@@ -299,9 +299,13 @@ public sealed class UnifiedBytecodeAsyncGeneratorRouteTests(ITestOutputHelper ou
     }
 
     [Fact(Timeout = 5000)]
-    public async Task AsyncGeneratorDefaultParameter_DeclinesUnifiedRouteThenFailsExplicitly()
+    public async Task AsyncGeneratorDefaultParameter_BindsParametersAndRoutesResumable()
     {
         await using var engine = CreateEngine();
+
+        // Eager IteratorBindingInitialization binds the defaulted parameter x = 7 at call
+        // time (no argument supplied → default applies) and the async-generator body routes
+        // through the resumable VM, so run() resolves with the yielded value.
         var result = await engine.EvaluateAndAwait("""
             var output = undefined;
 
@@ -321,16 +325,23 @@ public sealed class UnifiedBytecodeAsyncGeneratorRouteTests(ITestOutputHelper ou
             output;
             """);
 
-        Assert.StartsWith("rejected:", result?.ToString(), StringComparison.Ordinal);
-        Assert.Contains("Non-simple async-generator parameter lists", result?.ToString(), StringComparison.Ordinal);
+        Assert.Equal("resolved:7:false", result?.ToString());
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            record => record.Message.Contains(
+                $"{ResumableAsyncGeneratorFastPathLog} func=values argc=0",
+                StringComparison.Ordinal));
         Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(),
             record => record.Message.Contains("async-generator-runner-fallback", StringComparison.Ordinal));
     }
 
     [Fact(Timeout = 5000)]
-    public async Task AsyncGeneratorNonSimpleParameter_DeclinesUnifiedRouteThenFailsExplicitly()
+    public async Task AsyncGeneratorNonSimpleParameter_BindsParametersAndRoutesResumable()
     {
         await using var engine = CreateEngine();
+
+        // The default-value expression (events.push("default"), 7) evaluates eagerly at call
+        // time during IteratorBindingInitialization, so "default" is recorded before the body
+        // runs. The body then routes through the resumable VM, pushing "body:7" and yielding 7.
         var result = await engine.EvaluateAndAwait("""
             var output = undefined;
             var events = [];
@@ -352,16 +363,23 @@ public sealed class UnifiedBytecodeAsyncGeneratorRouteTests(ITestOutputHelper ou
             output;
             """);
 
-        Assert.StartsWith("rejected:|", result?.ToString(), StringComparison.Ordinal);
-        Assert.Contains("Non-simple async-generator parameter lists", result?.ToString(), StringComparison.Ordinal);
+        Assert.Equal("resolved:7:false|default,body:7", result?.ToString());
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            record => record.Message.Contains(
+                $"{ResumableAsyncGeneratorFastPathLog} func=values argc=0",
+                StringComparison.Ordinal));
         Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(),
             record => record.Message.Contains("async-generator-runner-fallback", StringComparison.Ordinal));
     }
 
     [Fact(Timeout = 5000)]
-    public async Task AsyncGeneratorDestructuringParameter_DeclinesUnifiedRouteThenFailsExplicitly()
+    public async Task AsyncGeneratorDestructuringParameter_BindsParametersAndRoutesResumable()
     {
         await using var engine = CreateEngine();
+
+        // Eager IteratorBindingInitialization binds the array pattern [x] at call time
+        // (x = 1 from the supplied [1]) and the async-generator body routes through the
+        // resumable VM, so run() resolves with the yielded value.
         var result = await engine.EvaluateAndAwait("""
             var output = undefined;
 
@@ -381,8 +399,11 @@ public sealed class UnifiedBytecodeAsyncGeneratorRouteTests(ITestOutputHelper ou
             output;
             """);
 
-        Assert.StartsWith("rejected:", result?.ToString(), StringComparison.Ordinal);
-        Assert.Contains("Non-simple async-generator parameter lists", result?.ToString(), StringComparison.Ordinal);
+        Assert.Equal("resolved:1:false", result?.ToString());
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            record => record.Message.Contains(
+                $"{ResumableAsyncGeneratorFastPathLog} func=values argc=1",
+                StringComparison.Ordinal));
         Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(),
             record => record.Message.Contains("async-generator-runner-fallback", StringComparison.Ordinal));
     }

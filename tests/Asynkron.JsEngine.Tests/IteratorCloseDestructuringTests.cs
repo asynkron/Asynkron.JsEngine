@@ -283,10 +283,16 @@ public sealed class IteratorCloseDestructuringTests(ITestOutputHelper output) : 
     /// This is the pattern found in Test262 Statements_class_dstr tests.
     /// </summary>
     [Fact(Timeout = 5000)]
-    public async Task GeneratorParameterDestructuring_Elision_FailsExplicitly()
+    public async Task GeneratorParameterDestructuring_Elision_BindsParametersAndRoutesResumable()
     {
         await using var engine = CreateEngine();
-        var exception = await Assert.ThrowsAsync<NotSupportedException>(() => engine.Evaluate(
+
+        // The sync-generator method *method([,]) has a non-simple (elided array pattern)
+        // parameter list. Eager IteratorBindingInitialization runs at call time: the single
+        // elision advances the passed generator once (first += 1) then the pattern is
+        // exhausted and the iterator is closed (second stays 0). The body then routes through
+        // the resumable VM and increments callCount.
+        var result = await engine.Evaluate(
             """
             var first = 0;
             var second = 0;
@@ -305,13 +311,18 @@ public sealed class IteratorCloseDestructuringTests(ITestOutputHelper output) : 
 
             new C().method(g()).next();
             ({ callCount, first, second });
-            """));
+            """);
 
-        Assert.StartsWith(
-            "Sync-generator body '<anonymous>' is not eligible for unified bytecode execution:",
-            exception.Message,
-            StringComparison.Ordinal);
-        Assert.Contains("Non-simple sync-generator parameter lists", exception.Message, StringComparison.Ordinal);
+        var summary = Assert.IsType<JsObject>(result);
+        Assert.Equal(1d, summary["callCount"]);
+        Assert.Equal(1d, summary["first"]);
+        Assert.Equal(0d, summary["second"]);
+        Assert.Contains(
+            CurrentLogger!.Collector.Snapshot(),
+            record => record.Message.Contains(
+                "unified-bytecode-resumable-generator-fast-path",
+                StringComparison.Ordinal) &&
+                record.Message.Contains("argc=1", StringComparison.Ordinal));
     }
 
     /// <summary>
@@ -320,11 +331,18 @@ public sealed class IteratorCloseDestructuringTests(ITestOutputHelper output) : 
     /// The async generator method destructures its argument, which closes the iterator when done.
     /// </summary>
     [Fact(Timeout = 5000)]
-    public async Task AsyncGeneratorMethod_ParameterDestructuringFailsExplicitlyAfterUnifiedDecline()
+    public async Task AsyncGeneratorMethod_ParameterDestructuring_BindsParametersAndRoutesResumable()
     {
         await using var engine = CreateEngine();
-        var exception = await Assert.ThrowsAsync<NotSupportedException>(() => engine.EvaluateAndAwait(
+
+        // The async-generator method async *method([x]) has a non-simple (array pattern)
+        // parameter list. Eager IteratorBindingInitialization binds [x] at call time by
+        // stepping the supplied iterable once (x = null), then — because the pattern is
+        // exhausted while the iterator is not done — closes it (return() runs, doneCallCount
+        // becomes 1). The body then routes through the resumable VM and increments callCount.
+        var finalResult = await engine.EvaluateAndAwait(
             """
+            var output;
             var doneCallCount = 0;
             var iter = {};
             iter[Symbol.iterator] = function() {
@@ -346,18 +364,15 @@ public sealed class IteratorCloseDestructuringTests(ITestOutputHelper output) : 
               }
             }
 
-            var finalResult;
-            try {
-              new C().method(iter).next().then(function() {
-                finalResult = ({ callCount, doneCallCount });
-              });
-            } catch (e) {
-              finalResult = e.message;
-            }
-            finalResult;
-            """));
+            new C().method(iter).next().then(function() {
+              output = ({ callCount, doneCallCount });
+            });
+            output;
+            """);
 
-        Assert.Contains("Non-simple async-generator parameter lists", exception.Message, StringComparison.Ordinal);
+        var summary = Assert.IsType<JsObject>(finalResult);
+        Assert.Equal(1d, summary["callCount"]);
+        Assert.Equal(1d, summary["doneCallCount"]);
     }
 
     /// <summary>

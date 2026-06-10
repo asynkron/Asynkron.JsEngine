@@ -60,17 +60,19 @@ public static partial class TypedAstEvaluator
         {
             iterator = null!;
 
-            // Non-simple parameter lists (destructuring patterns, defaults, rest) require
-            // IteratorBindingInitialization during FunctionDeclarationInstantiation, which runs
-            // eagerly at call time before the generator object is produced and can throw (e.g.
-            // GetIterator(null) for `*m([[x]]){}` called with `[null]`). The resumable route copies
-            // arguments straight into positional slots and cannot model that, so it must fail
-            // explicitly until the resumable route owns that eager setup. See ADR 0283 /
-            // gh2675 resumable-route boundary.
-            if (!_function.HasOnlySimpleIdentifierParameters())
+            // Non-simple parameter lists (destructuring patterns, defaults, rest) bind through
+            // eager IteratorBindingInitialization below (TryBindNonSimpleResumableParameters),
+            // matching FunctionDeclarationInstantiation's run-at-call-time semantics (e.g.
+            // GetIterator(null) for `*m([[x]]){}` called with `[null]` throws at the call,
+            // before the generator object is produced). Parameter expressions that create
+            // closures or contain direct eval stay declined: the transient binding environment
+            // is discarded after seeding the flat slots, so a retained closure over it would
+            // desynchronize from later slot mutations.
+            if (!_function.HasOnlySimpleIdentifierParameters() &&
+                !ResumableParameterShapeAllowsEagerBinding(_function))
             {
                 declineReason =
-                    "Non-simple sync-generator parameter lists are not eligible until resumable invocation owns IteratorBindingInitialization.";
+                    "Non-simple sync-generator parameter lists with closure-creating or direct-eval parameter expressions are not eligible for resumable invocation.";
                 return false;
             }
 
@@ -152,6 +154,22 @@ public static partial class TypedAstEvaluator
                     out var slots))
             {
                 declineReason = "Resumable slot initialization failed.";
+                return false;
+            }
+
+            if (!_function.HasOnlySimpleIdentifierParameters() &&
+                !TryBindNonSimpleResumableParameters(
+                    _function,
+                    arguments,
+                    plan,
+                    program,
+                    slots,
+                    resumableEnvironment,
+                    isStrict,
+                    context))
+            {
+                declineReason =
+                    "Non-simple sync-generator parameter bindings could not be resolved to flat activation slots.";
                 return false;
             }
 

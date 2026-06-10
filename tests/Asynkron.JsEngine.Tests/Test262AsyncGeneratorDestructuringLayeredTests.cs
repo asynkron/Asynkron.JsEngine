@@ -29,10 +29,16 @@ public sealed class Test262AsyncGeneratorDestructuringLayeredTests(ITestOutputHe
     }
 
     [Fact(Timeout = 5000)]
-    public async Task Layer2_SyncGeneratorClassDestructuringMethod_DeclinesExplicitly()
+    public async Task Layer2_SyncGeneratorClassDestructuringMethod_BindsParametersAndRoutesResumable()
     {
         await using var engine = CreateEngine();
-        var exception = await Assert.ThrowsAsync<NotSupportedException>(() => engine.Evaluate("""
+
+        // Sync-generator method with a non-simple parameter list (defaulted nested array
+        // pattern [x = 23] = []). Eager IteratorBindingInitialization binds at call time: the
+        // missing argument triggers the [] default, then x defaults to 23. The body has no
+        // yield, so the first next() runs it to completion (callCount = 23, done = true) on
+        // the resumable VM.
+        var result = await engine.Evaluate("""
             var callCount = 0;
             class C {
                 *method([x = 23] = []) {
@@ -42,17 +48,21 @@ public sealed class Test262AsyncGeneratorDestructuringLayeredTests(ITestOutputHe
 
             var step = new C().method().next();
             ({ callCount, done: step.done });
-            """));
+            """);
 
-        Assert.StartsWith(
-            "Sync-generator body '<anonymous>' is not eligible for unified bytecode execution:",
-            exception.Message,
-            StringComparison.Ordinal);
-        Assert.Contains("Non-simple sync-generator parameter lists", exception.Message, StringComparison.Ordinal);
+        var summary = Assert.IsType<JsObject>(result);
+        Assert.Equal(23d, summary["callCount"]);
+        Assert.Equal(true, summary["done"]);
+        Assert.Contains(
+            CurrentLogger!.Collector.Snapshot(),
+            record => record.Message.Contains(
+                "unified-bytecode-resumable-generator-fast-path",
+                StringComparison.Ordinal) &&
+                record.Message.Contains("argc=0", StringComparison.Ordinal));
     }
 
     [Fact(Timeout = 5000)]
-    public async Task Layer3_AsyncGeneratorClassDestructuringMethod_DeclinesUnifiedRouteThenFailsExplicitly()
+    public async Task Layer3_AsyncGeneratorClassDestructuringMethod_BindsParametersAndRoutesResumable()
     {
         await using var engine = CreateEngine();
         var result = await engine.EvaluateAndAwait("""
@@ -76,8 +86,10 @@ public sealed class Test262AsyncGeneratorDestructuringLayeredTests(ITestOutputHe
             output;
             """);
 
-        Assert.StartsWith("rejected:", result?.ToString(), StringComparison.Ordinal);
-        Assert.Contains("Non-simple async-generator parameter lists", result?.ToString(), StringComparison.Ordinal);
+        // Eager IteratorBindingInitialization binds [x = 23] = [] at call time (default [],
+        // then x defaults to 23) and the async-generator body routes through the resumable
+        // VM: the first next() runs the body to completion, so run() resolves with 23.
+        Assert.Equal("resolved:23", result?.ToString());
         Assert.DoesNotContain(
             CurrentLogger!.Collector.Snapshot(),
             record => record.Message.Contains("async-generator-runner-fallback", StringComparison.Ordinal));

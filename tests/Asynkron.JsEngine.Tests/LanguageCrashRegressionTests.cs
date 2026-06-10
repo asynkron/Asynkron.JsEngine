@@ -9,8 +9,13 @@ namespace Asynkron.JsEngine.Tests;
 public sealed class LanguageCrashRegressionTests(ITestOutputHelper output) : InternalTestBase(output)
 {
     [Fact(Timeout = 5000)]
-    public async Task AsyncPrivateGeneratorMethod_ObjectPropertyBindingFailsExplicitlyAfterUnifiedDecline()
+    public async Task AsyncPrivateGeneratorMethod_ObjectPropertyBinding_BindsParametersAndExecutes()
     {
+        // The async-generator private method has a non-simple (object-destructuring)
+        // parameter list. Eager IteratorBindingInitialization now binds { x: y } at call
+        // time and routes the body through the resumable VM, so the body runs to completion:
+        // y === 23 (sawValue), bare `x` is unbound (ReferenceError), and the body increments
+        // callCount once.
         await using var engine = CreateEngine();
         var result = await engine.EvaluateAndAwait("""
             var result = null;
@@ -52,13 +57,19 @@ public sealed class LanguageCrashRegressionTests(ITestOutputHelper output) : Int
             result;
             """);
 
-        var message = Assert.IsType<string>(result);
-        Assert.Contains("Non-simple async-generator parameter lists", message, StringComparison.Ordinal);
+        var obj = Assert.IsType<JsObject>(result);
+        Assert.Equal(1.0, RequireProperty(obj, "callCount").AsDouble());
+        Assert.True(RequireProperty(obj, "sawValue").AsBoolean());
+        Assert.True(RequireProperty(obj, "sawReferenceError").AsBoolean());
     }
 
     [Fact(Timeout = 5000)]
-    public async Task AsyncPrivateGeneratorMethod_ObjectPropertyArrayInitializerFailsExplicitlyAfterUnifiedDecline()
+    public async Task AsyncPrivateGeneratorMethod_ObjectPropertyArrayInitializer_BindsParametersAndExecutes()
     {
+        // Nested non-simple parameter: { w: [x, y, z] = [4, 5, 6] } called with {}. The
+        // missing `w` triggers the array default, binding x=4, y=5, z=6 eagerly at call
+        // time. The body runs on the resumable VM: sawValues true, bare `w` unbound
+        // (ReferenceError), callCount incremented once.
         await using var engine = CreateEngine();
         var result = await engine.EvaluateAndAwait("""
             var result = null;
@@ -100,13 +111,18 @@ public sealed class LanguageCrashRegressionTests(ITestOutputHelper output) : Int
             result;
             """);
 
-        var message = Assert.IsType<string>(result);
-        Assert.Contains("Non-simple async-generator parameter lists", message, StringComparison.Ordinal);
+        var obj = Assert.IsType<JsObject>(result);
+        Assert.Equal(1.0, RequireProperty(obj, "callCount").AsDouble());
+        Assert.True(RequireProperty(obj, "sawValues").AsBoolean());
+        Assert.True(RequireProperty(obj, "sawReferenceError").AsBoolean());
     }
 
     [Fact(Timeout = 5000)]
-    public async Task AsyncPrivateGeneratorMethod_InClassExpressionObjectPropertyBindingFailsExplicitlyAfterUnifiedDecline()
+    public async Task AsyncPrivateGeneratorMethod_InClassExpressionObjectPropertyBinding_BindsParametersAndExecutes()
     {
+        // Same eager-binding behavior as the class-declaration variant, but the private
+        // async-generator method lives on a class expression. The { x: y } pattern binds at
+        // call time and the body routes through the resumable VM.
         await using var engine = CreateEngine();
         var result = await engine.EvaluateAndAwait("""
             var result = null;
@@ -148,8 +164,10 @@ public sealed class LanguageCrashRegressionTests(ITestOutputHelper output) : Int
             result;
             """);
 
-        var message = Assert.IsType<string>(result);
-        Assert.Contains("Non-simple async-generator parameter lists", message, StringComparison.Ordinal);
+        var obj = Assert.IsType<JsObject>(result);
+        Assert.Equal(1.0, RequireProperty(obj, "callCount").AsDouble());
+        Assert.True(RequireProperty(obj, "sawValue").AsBoolean());
+        Assert.True(RequireProperty(obj, "sawReferenceError").AsBoolean());
     }
 
     [Fact(Timeout = 5000)]

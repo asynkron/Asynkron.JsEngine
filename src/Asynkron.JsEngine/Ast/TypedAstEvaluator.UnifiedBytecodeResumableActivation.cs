@@ -311,6 +311,210 @@ public static partial class TypedAstEvaluator
         environment.DefineJsValue(Symbol.Arguments, JsValue.FromObjectUnsafe(argumentsObject), isLexicalBinding: false);
     }
 
+    private static bool ResumableParameterShapeAllowsEagerBinding(FunctionExpression function)
+    {
+        // Closures created inside parameter expressions capture the transient parameter
+        // binding environment, which is discarded after the bound values seed the flat
+        // slots. That is only hazardous when such a closure references one of this
+        // function's own parameter bindings — the resumable body then mutates flat slots
+        // the retained closure cannot observe. Closures over outer/global state (the
+        // common fn-name-inference and IIFE-counter shapes) resolve through the parent
+        // environment chain and stay coherent. Direct eval in parameters stays declined
+        // (dynamic scope).
+        var parameterNames =
+            ((IAstCacheable<FunctionParameterNamesPlan>)function).GetOrCreateCache().ParameterNames;
+        var parameterNameSet = new HashSet<Symbol>(parameterNames, ReferenceEqualityComparer<Symbol>.Instance);
+        foreach (var parameter in function.Parameters)
+        {
+            if (parameter.DefaultValue is { } defaultValue &&
+                ParameterFunctionLiteralDetector.ContainsParameterCapturingFunctionLiteral(
+                    defaultValue, parameterNameSet))
+            {
+                return false;
+            }
+
+            if (parameter.Pattern is { } pattern &&
+                BindingTargetContainsFunctionLiteralInDefaultValue(pattern, parameterNameSet))
+            {
+                return false;
+            }
+        }
+
+        return !DynamicScopeDetector.ContainsDirectEvalInParameters(function.Parameters);
+    }
+
+    private static bool BindingTargetContainsFunctionLiteralInDefaultValue(
+        BindingTarget target,
+        HashSet<Symbol> parameterNames)
+    {
+        switch (target)
+        {
+            case ArrayBinding arrayBinding:
+                foreach (var element in arrayBinding.Elements)
+                {
+                    if (element.DefaultValue is not null &&
+                        ParameterFunctionLiteralDetector.ContainsParameterCapturingFunctionLiteral(
+                            element.DefaultValue, parameterNames))
+                    {
+                        return true;
+                    }
+
+                    if (element.Target is not null &&
+                        BindingTargetContainsFunctionLiteralInDefaultValue(element.Target, parameterNames))
+                    {
+                        return true;
+                    }
+                }
+
+                return arrayBinding.RestElement is not null &&
+                       BindingTargetContainsFunctionLiteralInDefaultValue(arrayBinding.RestElement, parameterNames);
+
+            case ObjectBinding objectBinding:
+                foreach (var property in objectBinding.Properties)
+                {
+                    if (property.DefaultValue is not null &&
+                        ParameterFunctionLiteralDetector.ContainsParameterCapturingFunctionLiteral(
+                            property.DefaultValue, parameterNames))
+                    {
+                        return true;
+                    }
+
+                    if (BindingTargetContainsFunctionLiteralInDefaultValue(property.Target, parameterNames))
+                    {
+                        return true;
+                    }
+                }
+
+                return objectBinding.RestElement is not null &&
+                       BindingTargetContainsFunctionLiteralInDefaultValue(objectBinding.RestElement, parameterNames);
+
+            case AssignmentTargetBinding assignmentTarget:
+                return ParameterFunctionLiteralDetector.ContainsParameterCapturingFunctionLiteral(
+                    assignmentTarget.Expression, parameterNames);
+
+            default:
+                return false;
+        }
+    }
+
+    private sealed class ParameterFunctionLiteralDetector : AstVisitor
+    {
+        [ThreadStatic] private static ParameterFunctionLiteralDetector? _instance;
+
+        private HashSet<Symbol>? _parameterNames;
+        private int _functionLiteralDepth;
+        private bool _found;
+
+        public static bool ContainsParameterCapturingFunctionLiteral(
+            ExpressionNode expression,
+            HashSet<Symbol> parameterNames)
+        {
+            var detector = _instance ??= new ParameterFunctionLiteralDetector();
+            detector._parameterNames = parameterNames;
+            detector._functionLiteralDepth = 0;
+            detector._found = false;
+            detector.ShouldStop = false;
+            detector.Visit(expression);
+            detector._parameterNames = null;
+            return detector._found;
+        }
+
+        protected override void VisitFunctionExpression(FunctionExpression node)
+        {
+            _functionLiteralDepth++;
+            base.VisitFunctionExpression(node);
+            _functionLiteralDepth--;
+        }
+
+        protected override void VisitFunctionDeclaration(FunctionDeclaration node)
+        {
+            _functionLiteralDepth++;
+            base.VisitFunctionDeclaration(node);
+            _functionLiteralDepth--;
+        }
+
+        protected override void VisitClassExpression(ClassExpression node)
+        {
+            _functionLiteralDepth++;
+            base.VisitClassExpression(node);
+            _functionLiteralDepth--;
+        }
+
+        protected override void VisitClassDeclaration(ClassDeclaration node)
+        {
+            _functionLiteralDepth++;
+            base.VisitClassDeclaration(node);
+            _functionLiteralDepth--;
+        }
+
+        protected override void VisitIdentifierExpression(IdentifierExpression node)
+        {
+            // Only identifiers INSIDE a retained function/class literal are hazardous; a
+            // direct parameter reference in the default expression itself (`b = a * 2`)
+            // evaluates during binding and never outlives the transient environment.
+            // Shadowing inside the literal produces a conservative false positive (decline).
+            if (_functionLiteralDepth > 0 &&
+                _parameterNames is { } names &&
+                names.Contains(node.Name))
+            {
+                _found = true;
+                ShouldStop = true;
+                return;
+            }
+
+            base.VisitIdentifierExpression(node);
+        }
+    }
+
+    private static bool TryBindNonSimpleResumableParameters(
+        FunctionExpression function,
+        IReadOnlyList<JsValue> arguments,
+        ExecutionPlan plan,
+        UnifiedBytecodeProgram program,
+        JsValue[] slots,
+        JsEnvironment invocationEnvironment,
+        bool isStrict,
+        EvaluationContext context)
+    {
+        // Eager IteratorBindingInitialization: destructuring patterns, defaults, and rest
+        // parameters bind in a transient environment at invocation time (per spec,
+        // FunctionDeclarationInstantiation runs when the generator/async generator is
+        // CALLED, so binding errors throw here rather than at the first resume). The bound
+        // values then seed the flat parameter slots the resumable program reads; the
+        // transient environment is not retained, which is why parameter expressions that
+        // create closures stay declined in ResumableParameterShapeAllowsEagerBinding.
+        var parameterEnvironment = JsEnvironment.CreateInstance(
+            invocationEnvironment,
+            isFunctionScope: true,
+            isStrict,
+            creatingSource: function.Source,
+            description: "resumable parameter binding");
+
+        function.BindFunctionParameters(arguments, parameterEnvironment, context);
+        if (context.IsThrow)
+        {
+            var thrown = context.FlowValue;
+            context.Clear();
+            throw new ThrowSignal(thrown);
+        }
+
+        var parameterNames =
+            ((IAstCacheable<FunctionParameterNamesPlan>)function).GetOrCreateCache().ParameterNames;
+        foreach (var name in parameterNames)
+        {
+            if (!TryResolveResumableRootFlatSlot(plan, program, name, out var slotIndex) ||
+                (uint)slotIndex >= (uint)slots.Length ||
+                !parameterEnvironment.TryFindBindingJsValue(name, true, out _, out var value))
+            {
+                return false;
+            }
+
+            slots[slotIndex] = value;
+        }
+
+        return true;
+    }
+
     private static bool TryInitializeResumableSlots(
         ExecutionPlan plan,
         UnifiedBytecodeProgram program,

@@ -1515,23 +1515,27 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     }
 
     [Fact(Timeout = 5000)]
-    public async Task SyncGeneratorDefaultParameter_DeclinesUnifiedRouteThenFailsExplicitly()
+    public async Task SyncGeneratorDefaultParameter_BindsParametersAndRoutesResumable()
     {
         await using var engine = CreateEngine();
-        var exception = await Assert.ThrowsAsync<NotSupportedException>(() => engine.Evaluate("""
+
+        // Eager IteratorBindingInitialization binds the defaulted parameter x = 7 at call
+        // time (no argument supplied → default applies) and the body routes through the
+        // resumable unified-bytecode VM.
+        var result = await engine.Evaluate("""
             function* values(x = 7) {
                 yield x;
             }
 
             var iterator = values();
             iterator.next().value;
-            """));
+            """);
 
-        Assert.StartsWith(
-            "Sync-generator body 'values' is not eligible for unified bytecode execution:",
-            exception.Message,
-            StringComparison.Ordinal);
-        Assert.Contains("Non-simple sync-generator parameter lists", exception.Message, StringComparison.Ordinal);
+        Assert.Equal(7d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-resumable-generator-fast-path func=values argc=0",
+                StringComparison.Ordinal));
         Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(),
             static record => record.Message.Contains("classified-sync-generator-ir-fallback", StringComparison.Ordinal));
     }

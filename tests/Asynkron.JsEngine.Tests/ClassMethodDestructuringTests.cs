@@ -92,11 +92,15 @@ public sealed class ClassMethodDestructuringTests(ITestOutputHelper output) : In
     }
 
     [Fact(Timeout = 2000)]
-    public async Task PrivateGeneratorMethod_DefaultArrayRestPattern_DeclinesExplicitly()
+    public async Task PrivateGeneratorMethod_DefaultArrayRestPattern_BindsParametersAndRoutesResumable()
     {
         await using var engine = CreateEngine();
 
-        var exception = await Assert.ThrowsAsync<NotSupportedException>(() => engine.Evaluate(
+        // The private sync-generator method has a non-simple parameter list: a defaulted
+        // rest-array pattern [...x] = values. Eager IteratorBindingInitialization binds the
+        // pattern at call time (the missing argument triggers the `values` default, then the
+        // rest copies it into a fresh array), and the body routes through the resumable VM.
+        var result = await engine.Evaluate(
             """
             var values = [1, 2, 3];
             var observed = "";
@@ -115,13 +119,15 @@ public sealed class ClassMethodDestructuringTests(ITestOutputHelper output) : In
 
             new C().method().next();
             callCount + "|" + observed;
-            """));
+            """);
 
-        Assert.StartsWith(
-            "Sync-generator body '<anonymous>' is not eligible for unified bytecode execution:",
-            exception.Message,
-            StringComparison.Ordinal);
-        Assert.Contains("Non-simple sync-generator parameter lists", exception.Message, StringComparison.Ordinal);
+        Assert.Equal("1|true|3|true|1,2,3", result?.ToString());
+        Assert.Contains(
+            CurrentLogger!.Collector.Snapshot(),
+            record => record.Message.Contains(
+                "unified-bytecode-resumable-generator-fast-path",
+                StringComparison.Ordinal) &&
+                record.Message.Contains("argc=0", StringComparison.Ordinal));
     }
 
     [Fact(Timeout = 2000)]

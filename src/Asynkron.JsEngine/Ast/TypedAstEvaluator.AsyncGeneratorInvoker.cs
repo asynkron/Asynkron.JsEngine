@@ -119,14 +119,18 @@ public static partial class TypedAstEvaluator
 
         private bool TryInitializeUnifiedBytecode(out string declineReason)
         {
-            // Non-simple parameter lists (destructuring patterns, defaults, rest) require eager
-            // FunctionDeclarationInstantiation effects before the async iterator object is produced.
-            // The resumable route copies arguments straight into positional slots, so it must decline
-            // those shapes until it owns IteratorBindingInitialization.
-            if (!function.HasOnlySimpleIdentifierParameters())
+            // Non-simple parameter lists (destructuring patterns, defaults, rest) bind through
+            // eager IteratorBindingInitialization below (TryBindNonSimpleResumableParameters),
+            // matching FunctionDeclarationInstantiation's run-at-call-time semantics before the
+            // async iterator object is produced. Parameter expressions that create closures or
+            // contain direct eval stay declined: the transient binding environment is discarded
+            // after seeding the flat slots, so a retained closure over it would desynchronize
+            // from later slot mutations.
+            if (!function.HasOnlySimpleIdentifierParameters() &&
+                !ResumableParameterShapeAllowsEagerBinding(function))
             {
                 declineReason =
-                    "Non-simple async-generator parameter lists are not eligible until resumable invocation owns IteratorBindingInitialization.";
+                    "Non-simple async-generator parameter lists with closure-creating or direct-eval parameter expressions are not eligible for resumable invocation.";
                 return false;
             }
 
@@ -200,6 +204,22 @@ public static partial class TypedAstEvaluator
                     out var slots))
             {
                 declineReason = "Resumable slot initialization failed.";
+                return false;
+            }
+
+            if (!function.HasOnlySimpleIdentifierParameters() &&
+                !TryBindNonSimpleResumableParameters(
+                    function,
+                    arguments,
+                    plan,
+                    program,
+                    slots,
+                    resumableEnvironment,
+                    isStrict,
+                    context))
+            {
+                declineReason =
+                    "Non-simple async-generator parameter bindings could not be resolved to flat activation slots.";
                 return false;
             }
 

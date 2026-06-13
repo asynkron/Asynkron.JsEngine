@@ -4,6 +4,7 @@ CONFIGURATION ?= Debug
 DOTNET_BUILD_ARGS ?= /p:RunAnalyzers=false
 DOTNET_BUILD_STABILITY_ARGS ?= /m:1 /nr:false
 DOTNET_TEST_ARGS ?= --logger "console;verbosity=minimal"
+DOTNET_TEST_SETTINGS ?= --settings test.runsettings
 XUNIT_ARGS ?= xUnit.MaxParallelThreads=1 -timeout 20000
 DOTNET ?= dotnet
 GIT ?= git
@@ -24,6 +25,7 @@ help:
 		"  DOTNET_BUILD_ARGS='<args>'           Extra args passed to dotnet build commands" \
 		"  DOTNET_BUILD_STABILITY_ARGS='<args>' Extra build stability args (default: /m:1 /nr:false)" \
 		"  DOTNET_TEST_ARGS='<args>'            Args passed to dotnet test commands (default: --logger \"console;verbosity=minimal\")" \
+		"  DOTNET_TEST_SETTINGS='<args>'        Settings passed to dotnet test commands (default: --settings test.runsettings)" \
 		"  XUNIT_ARGS='<args>'                  xUnit args after '--' (default: xUnit.MaxParallelThreads=1 -timeout 20000)"
 
 quality:
@@ -38,7 +40,7 @@ build-internal:
 	$(DOTNET) build tests/Asynkron.JsEngine.Tests/Asynkron.JsEngine.Tests.csproj -c $(CONFIGURATION) $(DOTNET_BUILD_ARGS) $(DOTNET_BUILD_STABILITY_ARGS)
 
 test-internal:
-	$(DOTNET) test tests/Asynkron.JsEngine.Tests/Asynkron.JsEngine.Tests.csproj -c $(CONFIGURATION) $(DOTNET_TEST_ARGS) -- $(XUNIT_ARGS)
+	$(DOTNET) test tests/Asynkron.JsEngine.Tests/Asynkron.JsEngine.Tests.csproj -c $(CONFIGURATION) $(DOTNET_TEST_SETTINGS) $(DOTNET_TEST_ARGS) -- $(XUNIT_ARGS)
 
 test-internal-no-build:
-	$(DOTNET) test tests/Asynkron.JsEngine.Tests/Asynkron.JsEngine.Tests.csproj -c $(CONFIGURATION) --no-build $(DOTNET_TEST_ARGS) -- $(XUNIT_ARGS)
+	$(DOTNET) test tests/Asynkron.JsEngine.Tests/Asynkron.JsEngine.Tests.csproj -c $(CONFIGURATION) --no-build $(DOTNET_TEST_SETTINGS) $(DOTNET_TEST_ARGS) -- $(XUNIT_ARGS)

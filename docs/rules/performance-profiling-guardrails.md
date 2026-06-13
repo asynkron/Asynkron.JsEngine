@@ -930,7 +930,10 @@ optimization.
      `newTarget.IsUndefined`, and invalidate it from every invoker shape mutator
      that can change descriptor or activation inputs. Prove retained route
      caches with the selected CPU profile before/after pair plus source or
-     semantic coverage for the guard and invalidation boundary. WHY: issue
+     semantic coverage for the guard and invalidation boundary. Do not carve out
+     a plan-level accepted-program cache with a plain-function or no-mutator
+     sharing gate unless a new ADR first proves the shared artifact is not a
+     route-admission answer. WHY: issue
      #3543 / PR #3547 found `functioncalls` repeatedly rescanning production
      route eligibility for the same invoker, plan, descriptor shape, and
      ordinary-call `new.target` state. The retained fix kept ADR 0378's
@@ -938,6 +941,14 @@ optimization.
      invalidated it from shape mutators, reducing `ExecutePreparedCall` filtered
      time from 3657.91 ms to 119.29 ms in the selected profile. Related ADR:
      `docs/adrs/0379-cache-production-ubc-route-eligibility-on-sync-invoker.md`.
+     Issue `autrun-dj7nbj3c5nnc-f85e3d6d76` / PR #3610 retried the broader
+     plan-level accepted-program cache for `forofiteration`; despite a large
+     local timing win, review reverted it because accepted programs and
+     script-level accepted eligibility results are descriptor-sensitive route
+     state, not plan-pure facts. Failed-attempt note:
+     `docs/performance/failed-forofiteration-plan-level-production-bytecode-program-cache.md`.
+     Related ADR:
+     `docs/adrs/0385-reject-plan-level-production-ubc-accepted-program-cache.md`.
 
 31. For `CreateExecutionEnvironment` compliance-overhead work, guard spec-required
     bookkeeping structures with `HoistPlan` or `ExecutionPlan` AST-cached flags

@@ -3104,22 +3104,6 @@ TryCreateSimpleNumericSelfRecursionFastPath(
             return false;
         }
 
-        // The plan-level accepted-program cache is shared across all SyncFunctionInvoker instances for a
-        // plan. That is only sound when the eligibility descriptor is fully determined by the plan (AST
-        // source site) — i.e. the invoker carries no role-specific state that is applied via the post-
-        // construction setters (SetHomeObject / SetPrivateNameScope / SetSuperBinding / SetIsClassConstructor
-        // / SetInstanceFields). Plain functions and arrows (closures, IIFEs) have none of these, so they can
-        // safely share the compiled program; methods, constructors, and private-scoped members opt out and
-        // keep using the per-invoker cache only.
-        private bool CanSharePlanLevelProductionProgram =>
-            !IsClassConstructor &&
-            _homeObject is null &&
-            PrivateNameScope is null &&
-            _capturedPrivateNameScopes.IsDefaultOrEmpty &&
-            _superConstructor is null &&
-            _superPrototype is null &&
-            _instanceFields.IsDefaultOrEmpty;
-
         private bool TryGetProductionUnifiedBytecodeProgram(
             ExecutionPlan plan,
             JsValue newTarget,
@@ -3139,21 +3123,6 @@ TryCreateSimpleNumericSelfRecursionFastPath(
             {
                 program = _unifiedBytecodeProductionProgram!;
                 return _unifiedBytecodeProductionEligibility == UnifiedBytecodeEligibilityAccepted;
-            }
-
-            // Plan-level accept cache: the accepted program is structurally determined by
-            // (plan, newTarget.IsUndefined) and identical across all SyncFunctionInvoker instances for the
-            // same FunctionExpression. Reuse it so a freshly created invoker (e.g. an IIFE re-instantiated
-            // on every script evaluation) skips the full eligibility scan + UnifiedBytecodeCompiler.TryCompile.
-            if (CanSharePlanLevelProductionProgram &&
-                plan.GetCachedAcceptedProductionProgram(newTarget.IsUndefined) is UnifiedBytecodeProgram cachedProgram)
-            {
-                _unifiedBytecodeProductionEligibilityPlan = plan;
-                _unifiedBytecodeProductionEligibilityNewTargetIsUndefined = newTarget.IsUndefined;
-                _unifiedBytecodeProductionEligibility = UnifiedBytecodeEligibilityAccepted;
-                _unifiedBytecodeProductionProgram = cachedProgram;
-                program = cachedProgram;
-                return true;
             }
 
             var canUseImplicitArgumentsObjectDependencyPath =
@@ -3193,12 +3162,6 @@ TryCreateSimpleNumericSelfRecursionFastPath(
                 : UnifiedBytecodeEligibilityRejected;
             _unifiedBytecodeProductionProgram = result.IsEligible ? result.Program : null;
 
-            if (result.IsEligible && CanSharePlanLevelProductionProgram)
-            {
-                // Share the compiled program with future invokers for this plan via the plan-level cache.
-                plan.SetCachedAcceptedProductionProgram(newTarget.IsUndefined, result.Program);
-            }
-
             program = result.Program;
             return result.IsEligible;
         }
@@ -3213,14 +3176,6 @@ TryCreateSimpleNumericSelfRecursionFastPath(
                 _unifiedBytecodeProductionEligibilityNewTargetIsUndefined == newTarget.IsUndefined)
             {
                 return _unifiedBytecodeProductionEligibility == UnifiedBytecodeEligibilityAccepted;
-            }
-
-            // A plan-level accepted program proves this (plan, newTarget) shape is eligible; skip the
-            // structural fast-path re-scan. TryGetProductionUnifiedBytecodeProgram will reuse the cache.
-            if (CanSharePlanLevelProductionProgram &&
-                plan.GetCachedAcceptedProductionProgram(newTarget.IsUndefined) is not null)
-            {
-                return true;
             }
 
             return CanUseProductionUnifiedBytecodeFastPath(plan, newTarget);

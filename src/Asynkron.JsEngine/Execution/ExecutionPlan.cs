@@ -125,8 +125,7 @@ internal sealed record ExecutionPlan(
         ComputeSimpleReturnParameter(Instructions, EntryPoint, ActivationSlots);
 
     // Mutable plan-level caches — set once after the first eligibility evaluation; never reverted.
-    // Thread-safe: writes use volatile semantics; only the first writer wins (benign race on the
-    // accept path since all competing threads derive the same compiled program from the same plan).
+    // Thread-safe: writes use volatile semantics; races are benign only for plan-pure facts.
 
     /// <summary>
     /// Set to true once the plan-level production unified-bytecode eligibility check has found a
@@ -138,57 +137,11 @@ internal sealed record ExecutionPlan(
     private int _containsOrdinaryDynamicIdentifierDependency;
     private int _containsOnlyImplicitArgumentsObjectDynamicIdentifierDependency;
 
-    /// <summary>
-    /// Caches the boxed script-level production unified-bytecode eligibility result (eligibility +
-    /// compiled program) for this plan. The script activation descriptor is a fixed constant, so the
-    /// result depends only on the plan; a shared engine re-evaluating the same script plan thousands
-    /// of times can reuse the compiled program instead of recompiling on every evaluation. Stored as
-    /// an opaque <see cref="object" /> to keep this core type decoupled from the unified-bytecode
-    /// result type. Benign first-writer-wins race: all threads derive the same program from the plan.
-    /// </summary>
-    private object? _scriptProductionEligibilityResult;
-
     internal bool IsProductionEligibilityPermanentDecline => _productionEligibilityPermanentDecline;
 
     internal void MarkProductionEligibilityPermanentDecline()
     {
         _productionEligibilityPermanentDecline = true;
-    }
-
-    internal object? ScriptProductionEligibilityResult => Volatile.Read(ref _scriptProductionEligibilityResult);
-
-    internal void SetScriptProductionEligibilityResult(object result) =>
-        Volatile.Write(ref _scriptProductionEligibilityResult, result);
-
-    /// <summary>
-    /// Caches the boxed accepted production unified-bytecode program for the ordinary-sync invoker path,
-    /// keyed by whether <c>newTarget</c> is undefined (call vs construct). The accepted program is
-    /// structurally determined by the plan (one plan per FunctionExpression source site) and the
-    /// newTarget state — it does not depend on per-call runtime arguments or captured closure values —
-    /// so every <see cref="TypedAstEvaluator.SyncFunctionInvoker" /> for this plan can reuse it. This
-    /// lets a function literal that is re-instantiated on each evaluation (e.g. an IIFE in a shared
-    /// engine) skip the full eligibility scan and UnifiedBytecodeCompiler.TryCompile on every call.
-    /// Stored as opaque <see cref="object" /> to keep this core type decoupled from the program type.
-    /// Benign first-writer-wins race: all invokers derive the same program from the same plan.
-    /// </summary>
-    private object? _acceptedProductionProgramNewTargetUndefined;
-    private object? _acceptedProductionProgramNewTargetDefined;
-
-    internal object? GetCachedAcceptedProductionProgram(bool newTargetIsUndefined) =>
-        newTargetIsUndefined
-            ? Volatile.Read(ref _acceptedProductionProgramNewTargetUndefined)
-            : Volatile.Read(ref _acceptedProductionProgramNewTargetDefined);
-
-    internal void SetCachedAcceptedProductionProgram(bool newTargetIsUndefined, object program)
-    {
-        if (newTargetIsUndefined)
-        {
-            Volatile.Write(ref _acceptedProductionProgramNewTargetUndefined, program);
-        }
-        else
-        {
-            Volatile.Write(ref _acceptedProductionProgramNewTargetDefined, program);
-        }
     }
 
     internal bool TryGetContainsOrdinaryDynamicIdentifierDependency(out bool value) =>

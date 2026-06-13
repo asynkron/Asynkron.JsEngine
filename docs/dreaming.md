@@ -1,6 +1,6 @@
 # Asynkron.JsEngine Dreaming
 
-Date: 2026-06-09 (rev 17)
+Date: 2026-06-13 (rev 18)
 
 ## Why this document exists
 Architecture north star for Asynkron.JsEngine as a Node.js-competitive JavaScript runtime on .NET.
@@ -11,7 +11,7 @@ Architecture north star for Asynkron.JsEngine as a Node.js-competitive JavaScrip
 
 ## Critique of the current dream state (self-critique)
 
-Rev 6 replaced the stale greenfield/migration label conflict, added startup-cost, host-conversion, and host-error diagrams, grouped the proven-now table by phase, clarified capability-lifecycle back edges, and added the delivery decomposition flow. Rev 7 applied that flow to the current roadmap: optional computed delete chains were the next open property-family slice, and SLO proof remained a separate evidence packet rather than a side effect of route widening. Rev 8 tightened that packet into an acceptance/decline handoff so a future implementation starts from one owner, one receiving contract, and an explicit proof boundary. Rev 9 added the packet-selection control plane for the current open roadmap queue so maintainers can route one packet without converting landed evidence or any directional target into a current runtime claim. Rev 10 refreshed that selector with the async-generator/yield* queue, splitting gh3175 and gh3176 as separate resumable packets instead of folding them into gh2955 or the proven gh3135 async-generator route. Rev 11 removed gh3175 and gh3176 from the selectable queue now that the roadmap records both as landed, while keeping their evidence as adjacent boundary context for the still-open gh2955 lane. Rev 12 added a system-to-subcomponent ownership diagram so the greenfield fabric can be read from top-level product shape down to packet owner surfaces. Rev 13 rebaselined the selector after the A32 optional-chain delete route landed: gh2934 became evidence, and the active execution-fabric example moved to the still-open B36 declaration-hoisting packet tracked by gh3238. Rev 14 refreshed the selector after the June 8 proof-manifest and async-runner repair work: gh3490 and gh3491 became selectable proof-manifest residues, while gh3238 remained an open adjacent declaration-hoisting packet rather than the only concrete example. Rev 15 made those proof-manifest residues more implementable by adding a row-shaped receiving-contract map that starts at the JavaScript Runtime Fabric and narrows to owner fabric, module, component, subcomponent, proof, and explicit non-goals. Rev 16 refreshed the selector from the current roadmap after the classdef slot-storage and functioncalls dependency-scan wins: gh3530 and gh3531 became separate performance reprofile packets, not proof that either benchmark is at parity. This rev 17 aligns the `functioncalls` receiver map with the newer roadmap split: gh3530 remains the fresh reprofile packet, gh3543 owns the residual sub-owner split, and gh3544 guards any dynamic-symbol cache retry behind fresh profile evidence.
+Rev 6 replaced the stale greenfield/migration label conflict, added startup-cost, host-conversion, and host-error diagrams, grouped the proven-now table by phase, clarified capability-lifecycle back edges, and added the delivery decomposition flow. Rev 7 applied that flow to the current roadmap: optional computed delete chains were the next open property-family slice, and SLO proof remained a separate evidence packet rather than a side effect of route widening. Rev 8 tightened that packet into an acceptance/decline handoff so a future implementation starts from one owner, one receiving contract, and an explicit proof boundary. Rev 9 added the packet-selection control plane for the current open roadmap queue so maintainers can route one packet without converting landed evidence or any directional target into a current runtime claim. Rev 10 refreshed that selector with the async-generator/yield* queue, splitting gh3175 and gh3176 as separate resumable packets instead of folding them into gh2955 or the proven gh3135 async-generator route. Rev 11 removed gh3175 and gh3176 from the selectable queue now that the roadmap records both as landed, while keeping their evidence as adjacent boundary context for the still-open gh2955 lane. Rev 12 added a system-to-subcomponent ownership diagram so the greenfield fabric can be read from top-level product shape down to packet owner surfaces. Rev 13 rebaselined the selector after the A32 optional-chain delete route landed: gh2934 became evidence, and the active execution-fabric example moved to the still-open B36 declaration-hoisting packet tracked by gh3238. Rev 14 refreshed the selector after the June 8 proof-manifest and async-runner repair work: gh3490 and gh3491 became selectable proof-manifest residues, while gh3238 remained an open adjacent declaration-hoisting packet rather than the only concrete example. Rev 15 made those proof-manifest residues more implementable by adding a row-shaped receiving-contract map that starts at the JavaScript Runtime Fabric and narrows to owner fabric, module, component, subcomponent, proof, and explicit non-goals. Rev 16 refreshed the selector from the current roadmap after the classdef slot-storage and functioncalls dependency-scan wins: gh3530 and gh3531 became separate performance reprofile packets, not proof that either benchmark is at parity. Rev 17 aligned the `functioncalls` receiver map with the newer roadmap split: gh3530 remained the fresh reprofile packet, gh3543 owned the residual sub-owner split, and gh3544 guarded any dynamic-symbol cache retry behind fresh profile evidence. This rev 18 closes a structural gap the selector had carried since rev 9: the packet-selection control plane only routed to Execution, Concurrency, Evidence, and a "Performance" lane, even though the module decomposition defines six modules and the current roadmap carries open Platform Layer and Standard Library packets (module-export `JsValue` live/default binding, `IterationHelper` async-iteration) with no selector lane at all. Rev 18 adds those two missing fabric lanes, reframes "Performance" as a cross-cutting optimization lens over the Execution and Standard Library modules governed by Evidence rather than as a sixth peer fabric, and adds the still-open #3547 eligibility-cache profile and sync-generator creation-time IR route proof as Evidence candidates so the selector's fabric coverage finally matches the architecture it claims to route.
 
 1. **Delivery decomposition now needs a queue-level control plane.** The map below explains how to route one broad concern into one packet, and the current concrete queue now includes the proof-manifest residues gh3490 and gh3491 alongside the older gh3238 declaration-hoisting lane. The roadmap also carries open packets across concurrency, evidence, and performance fabrics, including the newer gh3530, gh3543, gh3544, and gh3531 performance lanes, so the dream needs a selector that chooses the next packet without implying that all packets share an owner or proof shape.
 
@@ -27,7 +27,9 @@ Rev 6 replaced the stale greenfield/migration label conflict, added startup-cost
 
 7. **Performance follow-ups need measured owner receivers.** gh3530, gh3543, gh3544, and gh3531 start from recent measured wins or failed trials, but their next packets are reprofile-and-scope work. gh3530 owns the fresh `functioncalls` residual-owner profile after ADR 0378's plan-pure dependency-scan cache; gh3543 splits that residual into descriptor, runtime dispatch, and call-argument sub-owners before the next optimization; gh3544 gates any dynamic identifier call-target symbol-cache retry on fresh profile evidence after the reverted PR #3537 trial. gh3531 owns one remaining `classdef` constructor-dispatch owner after PR #3505's class-constructor slot-storage cache. None of these packets may collapse descriptor/runtime/call-argument, dynamic-symbol retry, constructor/super dispatch, property-store, or callback costs into one broad performance claim.
 
-This revision therefore keeps the open roadmap queue aligned with landed evidence under the delivery decomposition flow. It is a routing aid only; it does not claim new runtime behavior.
+8. **The selector must cover every module fabric, not only the loud ones.** The decomposition defines six modules — Language Compiler, Execution Engine, Concurrency Runtime, Platform Layer, Standard Library, and Evidence — but the packet selector routed only to Execution, Concurrency, Evidence, and a "Performance" lane. That left two open roadmap packets with no home: the module-export `JsValue` live/default binding slice (`JsEngine.CreateLiveBinding(...)` / `EvaluateExportDefault(...)`) is Platform Layer work, and the `IterationHelper` async-iteration protocol/allocation slice is a Standard Library ↔ Concurrency boundary. "Performance" was also miscategorized as a peer fabric; it is a cross-cutting optimization lens applied to the Execution and Standard Library modules and governed by Evidence, not a module of its own. A selector whose lanes do not match the modules it claims to route is a routing aid that quietly drops work.
+
+This revision therefore aligns the selector's fabric lanes with the module decomposition, adds the previously-homeless Platform Layer and Standard Library packets, reframes performance as a cross-cutting lens, and keeps the open roadmap queue aligned with landed evidence under the delivery decomposition flow. It is a routing aid only; it does not claim new runtime behavior.
 
 ## Product dream
 Build a standards-first, production-grade JavaScript Runtime Fabric on .NET that is:
@@ -289,7 +291,7 @@ Decomposition rules:
 - Each module owns one reviewable surface: compiler artifacts, execution routes, async resume state, host integration, runtime values, or evidence gates.
 - Subcomponents are the smallest durable routing units for recurring packets. A packet may cross fabrics only by naming the sending surface, the receiving contract, and the evidence gate before implementation.
 - Directional leaves such as Shape/IC, capability grants, Worker Fabric, artifact cache, and speculative optimization remain future architecture until focused proof and quality evidence exist.
-- The current selectable queue is gh3238, gh3490, gh3491, gh2935, gh2954, gh2955, gh3530, gh3543, gh3544, and gh3531; gh2934, gh3175, gh3176, PR #3505, PR #3528, and PR #3537 remain landed or trial adjacent evidence only.
+- The current selectable queue spans all six module fabrics: Execution (gh3238, gh3490), Concurrency (gh2955, gh3491), Platform Layer (module-export `JsValue` binding, agentmanual1780943196527007000), Standard Library (`IterationHelper` async-iteration, agentmanual1780943208911272000), Evidence (gh2935, the #3547 eligibility-cache profile agentmanual1780998418927155000, and the sync-generator IR route proof agentmanual1780998419016722000), and the Performance lens over Execution/Standard Library (gh2954, gh3530, gh3543, gh3544, gh3531). gh2934, gh3175, gh3176, PR #3505, PR #3528, and PR #3537 remain landed or trial adjacent evidence only.
 
 ## System lifecycle
 
@@ -1459,12 +1461,12 @@ Decomposition invariants:
 
 ### Roadmap packet-selection control plane
 
-The current roadmap has more than one open packet candidate. The selector below keeps the queue reviewable: choose one lane, name the owner fabric and receiving contract, then carry only that packet to implementation and proof. Landed adjacent packets such as gh2934, gh3134, gh3135, gh3175, gh3176, PR #3505, and PR #3528 stay as roadmap evidence, not selectable queue items. It is a scheduling aid, not a capability claim.
+The current roadmap has more than one open packet candidate. The selector below keeps the queue reviewable: choose one lane, name the owner fabric and receiving contract, then carry only that packet to implementation and proof. Its lanes match the module decomposition one-for-one so no open packet is homeless: Execution, Concurrency, Platform Layer, Standard Library, and Evidence are the owning fabrics, and Performance is drawn as a cross-cutting lens that lands on the Execution or Standard Library module it optimizes (governed by Evidence), not as a sixth peer fabric. Landed adjacent packets such as gh2934, gh3134, gh3135, gh3175, gh3176, PR #3505, and PR #3528 stay as roadmap evidence, not selectable queue items. It is a scheduling aid, not a capability claim.
 
 ```mermaid
 flowchart TD
     QUEUE["Open roadmap packet queue\none delivery per slice"]
-    CLASSIFY["Classify by owner fabric\nExecution / Concurrency / Evidence / Performance"]
+    CLASSIFY["Classify by owner module fabric\nExecution / Concurrency / Platform / Standard Library / Evidence"]
     PICK["Pick one bounded packet\nsmallest proofable owner surface"]
 
     subgraph Execution["Execution fabric candidates"]
@@ -1477,35 +1479,51 @@ flowchart TD
         G3491["gh3491\nE5 async-function declined-runner residue"]
     end
 
+    subgraph Platform["Platform Layer fabric candidates"]
+        GMOD["module-export JsValue live/default binding\nCreateLiveBinding / EvaluateExportDefault\nagentmanual1780943196527007000"]
+    end
+
+    subgraph Library["Standard Library fabric candidates"]
+        GITER["IterationHelper async-iteration\nprotocol / allocation path\nagentmanual1780943208911272000"]
+    end
+
     subgraph Evidence["Evidence fabric candidates"]
         G2935["gh2935\nSLO target-status proof"]
+        GELIG["#3547 eligibility-cache profile\nagentmanual1780998418927155000"]
+        GSYNC["sync-generator creation-time IR route proof\nagentmanual1780998419016722000"]
     end
 
-    subgraph Perf["Performance fabric candidates"]
-        G2954["gh2954\nresidual mapset gap"]
-        G3530["gh3530\nfunctioncalls call-dispatch reprofile"]
-        G3543["gh3543\nfunctioncalls residual sub-owner split"]
-        G3544["gh3544\ndynamic call-target symbol-cache gate"]
-        G3531["gh3531\nclassdef constructor-dispatch reprofile"]
+    subgraph PerfLens["Performance lens — not a module\napplies to Execution + Standard Library, governed by Evidence"]
+        G2954["gh2954\nresidual mapset gap (Standard Library)"]
+        G3530["gh3530\nfunctioncalls call-dispatch reprofile (Execution)"]
+        G3543["gh3543\nfunctioncalls residual sub-owner split (Execution)"]
+        G3544["gh3544\ndynamic call-target symbol-cache gate (Execution)"]
+        G3531["gh3531\nclassdef constructor-dispatch reprofile (Execution)"]
     end
 
-    CONTRACT["Receiving contract\nopcode / decline code / resume payload / layout cell / ProfileRunner row"]
+    CONTRACT["Receiving contract\nopcode / decline code / resume payload / live binding / iterator protocol / layout cell / ProfileRunner row"]
     PROOF["Focused proof first\npositive path + negative decline\nor baseline/final profile"]
     NONCLAIM["Non-goals stay attached\nno Node/CommonJS parity\nno async seam closure\nno Tier 0 dominance\nno SLO advancement without evidence"]
 
     QUEUE --> CLASSIFY --> PICK
     PICK --> Execution
     PICK --> Concurrency
+    PICK --> Platform
+    PICK --> Library
     PICK --> Evidence
-    PICK --> Perf
+    PerfLens -. optimizes .-> Execution
+    PerfLens -. optimizes .-> Library
+    PerfLens -. governed by .-> Evidence
     Execution --> CONTRACT
     Concurrency --> CONTRACT
+    Platform --> CONTRACT
+    Library --> CONTRACT
     Evidence --> CONTRACT
-    Perf --> CONTRACT
     CONTRACT --> PROOF --> NONCLAIM
 
     style QUEUE fill:#555,color:#fff
     style PICK fill:#336,color:#fff
+    style PerfLens fill:#222,color:#fff
     style CONTRACT fill:#363,color:#fff
     style PROOF fill:#653,color:#fff
     style NONCLAIM fill:#333,color:#fff
@@ -1516,8 +1534,14 @@ Packet-selection rules:
 - **gh3490 B24h class-expression environment bridge residue:** Execution Engine owns the class-literal route decision, with the proof manifest supplying the exact open row boundary. The packet must replace one B24h open row with either focused route proof or focused no-route proof while preserving already admitted computed/static-block class-expression routes.
 - **gh2955 async-generator yield* delegated resume lane:** Concurrency Runtime owns delegated resume state; Execution Engine owns any yielded/awaited value opcode consumed by the lane. The packet must preserve no-mixed-execution and adjacent declines before any route wording advances.
 - **gh3491 E5 async-function declined-runner residue:** Execution/Concurrency bridge work starts from the classified declined-runner anchors kept by ADR 0373. The packet may widen exact async-function route parity only for shapes semantically owned by the resumable unified route; it must not replace classified fallback completion with rejection.
+- **module-export `JsValue` live/default binding (agentmanual1780943196527007000):** Platform Layer owns the packet. The receiving contract is one module-binding shape in `JsEngine.cs` — `CreateLiveBinding(...)` already returns a `JsValue` for direct re-export and export-star, so the open surface is `EvaluateExportDefault(...)` / `EvaluateExportDefaultDeclaration(...)` default-binding `JsValue` proof. It is one focused binding proof, not a full module-parity claim.
+- **`IterationHelper` async-iteration path (agentmanual1780943208911272000):** Standard Library owns the protocol helper at the Concurrency boundary. The receiving contract is one bounded `GetAsyncIteratorCore(...)` / `IteratorNextCore(...)` / for-await call-site path proven or profiled while preserving the current iterator-result and promise-wrapping semantics. It is one protocol/allocation slice, not async-iteration parity.
 - **gh2935 SLO target-status proof:** Evidence owns the packet. The receiving contract is a ProfileRunner row with the matching measurement shape: p95 for p95 targets and same-run comparison for parity wording. A green baseline-regression gate alone is not SLO proof.
-- **gh2954 residual mapset gap:** Performance work starts from the documented identity-guarded fast path and must keep method identity and receiver-family guards intact. Any claim stronger than "one measured gap reduced" requires before/after profile or benchmark evidence.
+- **#3547 eligibility-cache profile (agentmanual1780998418927155000):** Evidence owns the packet. The receiving contract is a ProfileRunner profile that isolates the `SyncFunctionInvoker` production-eligibility cache from the descriptor/runtime/call-argument owners before any benchmark movement is attributed to it.
+- **sync-generator creation-time IR route proof (agentmanual1780998419016722000):** Evidence owns the packet. The receiving contract is focused route/log proof that the E5d manifest boundary keeps a valid sync-generator creation-time IR route distinct from the retired declined-runner bridge, without resurrecting broad fallback-retirement wording.
+The next five entries are the Performance lens, not a sixth module: each one optimizes the Execution or Standard Library module named in parentheses and is governed by the Evidence gate. They never collapse distinct owners into one broad performance claim.
+
+- **gh2954 residual mapset gap (Standard Library lens):** Performance work starts from the documented identity-guarded fast path and must keep method identity and receiver-family guards intact. Any claim stronger than "one measured gap reduced" requires before/after profile or benchmark evidence.
 - **gh3530 functioncalls call-dispatch reprofile:** Performance owns a fresh residual-owner profile after ADR 0378's plan-pure dependency-scan cache. The receiving contract is one measured `functioncalls` owner row that keeps descriptor lookup, runtime invocation, call-argument handling, dynamic identifier call-target costs, and the dependency-scan cache boundary separate.
 - **gh3543 functioncalls residual sub-owner split:** Performance owns the receiver map after the gh3530 reprofile. The receiving contract is a descriptor/runtime-dispatch/call-argument owner split before any next optimization is selected.
 - **gh3544 dynamic call-target symbol-cache gate:** Performance owns the retry threshold after PR #3537's reverted dynamic-symbol cache trial. The receiving contract is fresh `functioncalls` profile evidence proving `PrepareDynamicIdentifierCallTarget` has become large enough before any cache retry.

@@ -2443,6 +2443,21 @@
             "`Function(...)`-produced bodies",
             "A2/D1/D2/D3/D4-style quarantine boundaries outside ordinary E5 runner retirement"
           ]
+        },
+        {
+          "id": "E5e-terminal-dynamic-residue-stays-declined-in-eligibility-classifier",
+          "childOwner": "E5e-residue-exclusion-boundary",
+          "classification": "the five terminal dynamic residue categories are anchored to the eligibility classifier's own decline messages, not checklist prose: runtime-source/multi-arg/spread/declaration direct eval, awaited with-object evaluation, retained live with scopes, eval-injected/dynamic activation residue, and Function(...)-produced bodies each keep an explicit decline gate in UnifiedBytecodeProductionEligibility.cs, so any of them silently entering ordinary E5b-E5d runner retirement fails this proof",
+          "claim": "terminal-residue",
+          "kind": "source-presence",
+          "path": "src/Asynkron.JsEngine/Execution/UnifiedBytecode/UnifiedBytecodeProductionEligibility.cs",
+          "patterns": [
+            "Direct eval invocation semantics are not eligible for production unified bytecode routing.",
+            "Awaited with-object evaluation is not eligible for production unified bytecode routing.",
+            "requires dynamic lookup and is not eligible outside an active with environment.",
+            "Unowned captured or dynamic activation residue is not eligible for resumable unified bytecode routing.",
+            "function.IsDynamicFunctionConstructorBody ||"
+          ]
         }
       ]
     },

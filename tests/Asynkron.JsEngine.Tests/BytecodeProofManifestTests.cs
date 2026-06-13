@@ -383,6 +383,39 @@ public sealed partial class BytecodeProofManifestTests(ITestOutputHelper output)
     }
 
     [Fact]
+    public void Manifest_E5eProof_AnchorsTerminalResidueToEligibilityClassifier()
+    {
+        var item = LoadManifest().Items.Single(static item => item.Id == "E5e");
+
+        // The exclusion boundary is permanent: E5e stays open and still carries exactly one
+        // hard-quarantined checklist-anchored row alongside the source-anchored classifier row.
+        Assert.Equal("open", item.Status);
+        Assert.Single(item.Proofs, static proof => proof.Claim == "hard-quarantined");
+
+        var proof = item.Proofs.Single(static proof =>
+            proof.Id == "E5e-terminal-dynamic-residue-stays-declined-in-eligibility-classifier");
+
+        Assert.Equal("E5e-residue-exclusion-boundary", proof.ChildOwner);
+        Assert.Equal("terminal-residue", proof.Claim);
+        Assert.Equal("source-presence", proof.Kind);
+        Assert.Equal(
+            "src/Asynkron.JsEngine/Execution/UnifiedBytecode/UnifiedBytecodeProductionEligibility.cs",
+            proof.Path);
+
+        // Each pattern is a verbatim decline message in the eligibility classifier, one per
+        // terminal-dynamic-residue category named by the E5e exclusion boundary.
+        Assert.Equal(
+            [
+                "Direct eval invocation semantics are not eligible for production unified bytecode routing.",
+                "Awaited with-object evaluation is not eligible for production unified bytecode routing.",
+                "requires dynamic lookup and is not eligible outside an active with environment.",
+                "Unowned captured or dynamic activation residue is not eligible for resumable unified bytecode routing.",
+                "function.IsDynamicFunctionConstructorBody ||"
+            ],
+            proof.Patterns);
+    }
+
+    [Fact]
     public void Manifest_B36OpenRowsKeepDynamicEvalHelpersSeparateFromClassDeclarationResidue()
     {
         var b36 = LoadManifest().Items.Single(static item => item.Id == "B36");

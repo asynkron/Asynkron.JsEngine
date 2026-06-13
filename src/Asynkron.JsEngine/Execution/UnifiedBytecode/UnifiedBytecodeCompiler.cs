@@ -8173,6 +8173,26 @@ internal static class UnifiedBytecodeCompiler
         {
             // Whole value spans (leaf operand, array/object/template literal, member-read chain,
             // control expression, member call with simple args) each net +1 on the operand stack.
+            if (TryAppendBoundedSimpleControlExpressionOperandSpan(
+                    expressionProgram,
+                    index,
+                    callIndex,
+                    activationSlots,
+                    allowsDynamicIdentifiers,
+                    unified,
+                    literalConstants,
+                    stringConstants,
+                    callTargetConstants,
+                    slotLayout,
+                    out var controlSpan,
+                    out _) &&
+                controlSpan > 0)
+            {
+                index += controlSpan;
+                depth++;
+                continue;
+            }
+
             if (TryAppendSimpleLiteralValueOperandSpan(
                     expressionProgram,
                     index,
@@ -8271,6 +8291,16 @@ internal static class UnifiedBytecodeCompiler
 
                     unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.GetComputedProperty));
                     depth--;
+                    break;
+
+                case ExpressionOpKind.SetComputedProperty:
+                    if (depth < 3 || op.AllowNameInference)
+                    {
+                        { RollBack(); reason = "Unsupported computed property write in complex call argument."; return false; }
+                    }
+
+                    unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.SetComputedProperty));
+                    depth -= 2;
                     break;
 
                 case ExpressionOpKind.ResolvePropertyKey:
@@ -10196,7 +10226,7 @@ internal static class UnifiedBytecodeCompiler
         var stringCount = stringConstants.Count;
         var callTargetCount = callTargetConstants?.Count ?? 0;
 
-        if (!TryAppendSimpleLiteralValueOperandSpanCore(
+        if (!TryAppendSimpleConditionalPartOperandSpan(
                 expressionProgram,
                 startIndex,
                 activationSlots,
@@ -10208,9 +10238,7 @@ internal static class UnifiedBytecodeCompiler
                 slotLayout,
                 out var conditionSpanLength,
                 out reason,
-                allowControlExpressions: false,
-                allowUnaryExpressions: false,
-                allowBinaryExpressions: false))
+                allowNestedControlExpressions: false))
         {
             RollBackSimpleControlExpressionProbe(
                 unified,
@@ -10249,7 +10277,7 @@ internal static class UnifiedBytecodeCompiler
         unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.JumpIfFalse, 0));
 
         var consequentStartIndex = branchIndex + 1;
-        if (!TryAppendSimpleLiteralValueOperandSpanCore(
+        if (!TryAppendSimpleConditionalPartOperandSpan(
                 expressionProgram,
                 consequentStartIndex,
                 activationSlots,
@@ -10261,9 +10289,7 @@ internal static class UnifiedBytecodeCompiler
                 slotLayout,
                 out var consequentSpanLength,
                 out reason,
-                allowControlExpressions: true,
-                allowUnaryExpressions: false,
-                allowBinaryExpressions: false))
+                allowNestedControlExpressions: true))
         {
             RollBackSimpleControlExpressionProbe(
                 unified,
@@ -10306,7 +10332,7 @@ internal static class UnifiedBytecodeCompiler
             UnifiedBytecodeOpCode.JumpIfFalse,
             unified.Count);
 
-        if (!TryAppendSimpleLiteralValueOperandSpanCore(
+        if (!TryAppendSimpleConditionalPartOperandSpan(
                 expressionProgram,
                 alternateStartIndex,
                 activationSlots,
@@ -10318,9 +10344,7 @@ internal static class UnifiedBytecodeCompiler
                 slotLayout,
                 out var alternateSpanLength,
                 out reason,
-                allowControlExpressions: true,
-                allowUnaryExpressions: false,
-                allowBinaryExpressions: false))
+                allowNestedControlExpressions: true))
         {
             RollBackSimpleControlExpressionProbe(
                 unified,
@@ -10357,6 +10381,108 @@ internal static class UnifiedBytecodeCompiler
         spanLength = endIndex - startIndex;
         reason = string.Empty;
         return true;
+    }
+
+    private static bool TryAppendSimpleConditionalPartOperandSpan(
+        ExpressionProgram expressionProgram,
+        int startIndex,
+        ActivationSlotShape activationSlots,
+        bool allowsDynamicIdentifiers,
+        ImmutableArray<UnifiedBytecodeInstruction>.Builder unified,
+        ImmutableArray<JsValue>.Builder literalConstants,
+        ImmutableArray<string>.Builder stringConstants,
+        ImmutableArray<UnifiedBytecodeCallTarget>.Builder? callTargetConstants,
+        UnifiedBytecodeSlotLayout? slotLayout,
+        out int spanLength,
+        out string reason,
+        bool allowNestedControlExpressions)
+    {
+        var unifiedCount = unified.Count;
+        var literalCount = literalConstants.Count;
+        var stringCount = stringConstants.Count;
+        var callTargetCount = callTargetConstants?.Count ?? 0;
+
+        if (TryAppendFlatSimpleBinaryOperandSpan(
+                expressionProgram,
+                startIndex,
+                expressionProgram.OperationCount,
+                activationSlots,
+                allowsDynamicIdentifiers,
+                unified,
+                literalConstants,
+                stringConstants,
+                out spanLength,
+                out reason))
+        {
+            return true;
+        }
+
+        RollBackSimpleControlExpressionProbe(
+            unified,
+            literalConstants,
+            stringConstants,
+            callTargetConstants,
+            unifiedCount,
+            literalCount,
+            stringCount,
+            callTargetCount);
+
+        if (TryAppendFlatSimpleUnaryOperandSpan(
+                expressionProgram,
+                startIndex,
+                expressionProgram.OperationCount,
+                activationSlots,
+                allowsDynamicIdentifiers,
+                unified,
+                literalConstants,
+                stringConstants,
+                out spanLength,
+                out reason))
+        {
+            return true;
+        }
+
+        RollBackSimpleControlExpressionProbe(
+            unified,
+            literalConstants,
+            stringConstants,
+            callTargetConstants,
+            unifiedCount,
+            literalCount,
+            stringCount,
+            callTargetCount);
+
+        if (TryAppendSimpleLiteralValueOperandSpanCore(
+                expressionProgram,
+                startIndex,
+                activationSlots,
+                allowsDynamicIdentifiers,
+                unified,
+                literalConstants,
+                stringConstants,
+                callTargetConstants,
+                slotLayout,
+                out spanLength,
+                out reason,
+                allowControlExpressions: allowNestedControlExpressions,
+                allowUnaryExpressions: false,
+                allowBinaryExpressions: false))
+        {
+            return true;
+        }
+
+        RollBackSimpleControlExpressionProbe(
+            unified,
+            literalConstants,
+            stringConstants,
+            callTargetConstants,
+            unifiedCount,
+            literalCount,
+            stringCount,
+            callTargetCount);
+        spanLength = 0;
+        reason = string.Empty;
+        return false;
     }
 
     private static bool TryGetSimpleLogicalJumpOpCode(ExpressionOpKind expressionOpKind, out UnifiedBytecodeOpCode opCode)

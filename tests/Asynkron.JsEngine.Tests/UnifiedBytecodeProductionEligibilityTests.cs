@@ -11158,6 +11158,33 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
+    public async Task Execute_LoopComputedPropertyWriteWithNestedComputedAssignmentRhs_AssignsValue()
+    {
+        await using var engine = CreateEngine();
+
+        const string source = """
+            "use strict";
+
+            function write(type, elems, modulo) {
+                var items = new Array(elems);
+                var ta_by_len = new type(elems);
+
+                for (var i = 0; i < elems; ++i) {
+                    ta_by_len[i] = items[i] = modulo === false ? i : elems % modulo;
+                }
+
+                return ta_by_len[0] * 10 + items[0];
+            }
+
+            write(Uint8Array, 1, 4);
+            """;
+
+        var result = await engine.Evaluate(source);
+
+        Assert.Equal(11d, result);
+    }
+
+    [Fact]
     public void Evaluate_ComputedPrefixComputedPropertyWrite_AcceptsOwnedPropertyOpcodes()
     {
         // A51j: a computed receiver prefix (`box[k1].child[k2] = v`) resolves the prefix once

@@ -11630,6 +11630,20 @@ internal static class UnifiedBytecodeProductionEligibility
             // exactly +1 on the operand stack. Consuming a whole value here lets the per-op deltas
             // below model the genuinely-nested compositions (binaries/unaries/nested calls) whose
             // operands are themselves such values.
+            if (TryMeasureSimpleControlExpressionOperandSpan(
+                    program,
+                    index,
+                    identifierConstants,
+                    activationSlots,
+                    out var controlSpan,
+                    allowsDynamicIdentifiers) &&
+                index + controlSpan <= callIndex)
+            {
+                index += controlSpan;
+                depth++;
+                continue;
+            }
+
             if (TryMeasureSimpleLiteralValueOperandSpan(
                     program,
                     index,
@@ -11743,6 +11757,16 @@ internal static class UnifiedBytecodeProductionEligibility
                 }
 
                 depthAfter = depthBefore - 1;
+                return true;
+
+            case ExpressionOpKind.SetComputedProperty:
+                // receiver, key, value -> assigned value: net -2.
+                if (depthBefore < 3 || op.AllowNameInference)
+                {
+                    return false;
+                }
+
+                depthAfter = depthBefore - 2;
                 return true;
 
             case ExpressionOpKind.GetNamedSuperProperty:
@@ -12768,16 +12792,14 @@ internal static class UnifiedBytecodeProductionEligibility
         bool allowsDynamicIdentifiers)
     {
         spanLength = 0;
-        if (!TryMeasureSimpleLiteralValueOperandSpanCore(
+        if (!TryMeasureSimpleConditionalPartOperandSpan(
                 program,
                 startIndex,
                 identifierConstants,
                 activationSlots,
                 out var conditionSpanLength,
                 allowsDynamicIdentifiers,
-                allowControlExpressions: false,
-                allowUnaryExpressions: false,
-                allowBinaryExpressions: false))
+                allowNestedControlExpressions: false))
         {
             return false;
         }
@@ -12790,16 +12812,14 @@ internal static class UnifiedBytecodeProductionEligibility
         }
 
         var consequentStartIndex = branchIndex + 1;
-        if (!TryMeasureSimpleLiteralValueOperandSpanCore(
+        if (!TryMeasureSimpleConditionalPartOperandSpan(
                 program,
                 consequentStartIndex,
                 identifierConstants,
                 activationSlots,
                 out var consequentSpanLength,
                 allowsDynamicIdentifiers,
-                allowControlExpressions: true,
-                allowUnaryExpressions: false,
-                allowBinaryExpressions: false))
+                allowNestedControlExpressions: true))
         {
             return false;
         }
@@ -12813,16 +12833,14 @@ internal static class UnifiedBytecodeProductionEligibility
             return false;
         }
 
-        if (!TryMeasureSimpleLiteralValueOperandSpanCore(
+        if (!TryMeasureSimpleConditionalPartOperandSpan(
                 program,
                 alternateStartIndex,
                 identifierConstants,
                 activationSlots,
                 out var alternateSpanLength,
                 allowsDynamicIdentifiers,
-                allowControlExpressions: true,
-                allowUnaryExpressions: false,
-                allowBinaryExpressions: false))
+                allowNestedControlExpressions: true))
         {
             return false;
         }
@@ -12835,6 +12853,49 @@ internal static class UnifiedBytecodeProductionEligibility
 
         spanLength = endIndex - startIndex;
         return true;
+    }
+
+    private static bool TryMeasureSimpleConditionalPartOperandSpan(
+        ExpressionProgram program,
+        int startIndex,
+        ReadOnlySpan<IdentifierOperand> identifierConstants,
+        ActivationSlotShape activationSlots,
+        out int spanLength,
+        bool allowsDynamicIdentifiers,
+        bool allowNestedControlExpressions)
+    {
+        if (TryMeasureFlatSimpleBinaryOperandSpan(
+                program,
+                startIndex,
+                program.OperationCount,
+                identifierConstants,
+                activationSlots,
+                out spanLength,
+                allowsDynamicIdentifiers) ||
+            TryMeasureFlatSimpleUnaryOperandSpan(
+                program,
+                startIndex,
+                program.OperationCount,
+                identifierConstants,
+                activationSlots,
+                out spanLength,
+                allowsDynamicIdentifiers) ||
+            TryMeasureSimpleLiteralValueOperandSpanCore(
+                program,
+                startIndex,
+                identifierConstants,
+                activationSlots,
+                out spanLength,
+                allowsDynamicIdentifiers,
+                allowControlExpressions: allowNestedControlExpressions,
+                allowUnaryExpressions: false,
+                allowBinaryExpressions: false))
+        {
+            return true;
+        }
+
+        spanLength = 0;
+        return false;
     }
 
     private static bool TryMeasureSimplePropertyReadOperandSpan(

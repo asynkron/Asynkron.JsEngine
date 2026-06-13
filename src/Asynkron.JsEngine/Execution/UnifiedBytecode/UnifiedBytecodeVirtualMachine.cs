@@ -1533,7 +1533,7 @@ internal static class UnifiedBytecodeVirtualMachine
                         break;
 
                     case UnifiedBytecodeOpCode.TypeOf:
-                        ReplaceTopValue(new JsValue(GetTypeofStringValue(stack[stackPointer - 1])));
+                        ReplaceTopValue(JsOps.TypeOf(stack[stackPointer - 1]));
                         programCounter++;
                         break;
 
@@ -1557,7 +1557,7 @@ internal static class UnifiedBytecodeVirtualMachine
                             return StopWithDriverCleanup(slots, slotEnvironments, context, true);
                         }
 
-                        PushValue(new JsValue(GetTypeofStringValue(typeOfValue)));
+                        PushValue(JsOps.TypeOf(typeOfValue));
                         programCounter++;
                         break;
 
@@ -5117,7 +5117,7 @@ internal static class UnifiedBytecodeVirtualMachine
                     break;
 
                 case UnifiedBytecodeOpCode.TypeOf:
-                    stack[stackPointer - 1] = new JsValue(GetTypeofStringValue(stack[stackPointer - 1]));
+                    stack[stackPointer - 1] = JsOps.TypeOf(stack[stackPointer - 1]);
                     programCounter++;
                     break;
 
@@ -5137,7 +5137,7 @@ internal static class UnifiedBytecodeVirtualMachine
                         return UnifiedBytecodeStepResult.Throw(context.FlowValue);
                     }
 
-                    stack[stackPointer++] = new JsValue(GetTypeofStringValue(resumableTypeOfValue));
+                    stack[stackPointer++] = JsOps.TypeOf(resumableTypeOfValue);
                     programCounter++;
                     break;
 
@@ -7965,7 +7965,7 @@ internal static class UnifiedBytecodeVirtualMachine
 
         return context.ShouldStopEvaluation
             ? JsValue.Undefined
-            : new JsValue(GetTypeofStringValue(value));
+            : JsOps.TypeOf(value);
     }
 
     private static bool DeleteDynamicIdentifier(
@@ -11585,22 +11585,6 @@ internal static class UnifiedBytecodeVirtualMachine
         return pooledArguments;
     }
 
-    private static string GetTypeofStringValue(in JsValue value)
-    {
-        return value.Kind switch
-        {
-            JsValueKind.Undefined => "undefined",
-            JsValueKind.Null => "object",
-            JsValueKind.Boolean => "boolean",
-            JsValueKind.Number => "number",
-            JsValueKind.BigInt => "bigint",
-            JsValueKind.String => "string",
-            JsValueKind.Symbol => "symbol",
-            JsValueKind.Object => GetTypeofStringForObject(value.ObjectValue),
-            _ => "undefined"
-        };
-    }
-
     private static void SetUninitializedSlotReferenceError(
         UnifiedBytecodeProgram program,
         int slotIndex,
@@ -11643,21 +11627,6 @@ internal static class UnifiedBytecodeVirtualMachine
         return !slotNames.IsDefaultOrEmpty && (uint)slotIndex < (uint)slotNames.Length
             ? slotNames[slotIndex]
             : null;
-    }
-
-    private static string GetTypeofStringForObject(object? value)
-    {
-        if (value is IIsHtmlDda)
-        {
-            return "undefined";
-        }
-
-        if (value is JsProxy proxy)
-        {
-            return proxy.IsCallableTarget() ? "function" : "object";
-        }
-
-        return value is IJsCallable ? "function" : "object";
     }
 
     private static JsValue ResolvePropertyKey(JsValue propertyKey, EvaluationContext context)

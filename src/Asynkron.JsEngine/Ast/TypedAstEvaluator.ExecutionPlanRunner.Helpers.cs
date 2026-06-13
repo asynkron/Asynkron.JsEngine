@@ -1013,7 +1013,7 @@ public static partial class TypedAstEvaluator
                             }
 
                         case ExpressionOpKind.TypeOf:
-                            stack[stackIndex - 1] = new JsValue(GetTypeofStringValue(stack[stackIndex - 1]));
+                            stack[stackIndex - 1] = JsOps.TypeOf(stack[stackIndex - 1]);
                             stackFlags.Set(stackIndex - 1, false);
                             programCounter++;
                             break;
@@ -2129,7 +2129,7 @@ public static partial class TypedAstEvaluator
                 return JsValue.Undefined;
             }
 
-            return new JsValue(GetTypeofStringValue(operandValue));
+            return JsOps.TypeOf(operandValue);
         }
 
         private static bool ExecuteProgramDeleteIdentifier(

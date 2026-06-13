@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
 using Asynkron.JsEngine.Converters;
@@ -210,16 +211,17 @@ public sealed partial class AtomicsPrototype : JsPrototype
         const long maxWaitMs = 30_000;
         var effectiveTimeout = double.IsInfinity(timeout) ? maxWaitMs : (long)Math.Ceiling(timeout);
 
-        var deadline = Environment.TickCount64 + effectiveTimeout;
+        var deadline = Stopwatch.GetTimestamp() + MillisecondsToStopwatchTicks(effectiveTimeout);
         while (true)
         {
-            var remaining = deadline - Environment.TickCount64;
-            if (remaining <= 0)
+            var remainingTicks = deadline - Stopwatch.GetTimestamp();
+            if (remainingTicks <= 0)
             {
                 break;
             }
 
-            var waitMs = remaining > int.MaxValue ? int.MaxValue : (int)remaining;
+            var remainingMs = StopwatchTicksToCeilingMilliseconds(remainingTicks);
+            var waitMs = remainingMs > int.MaxValue ? int.MaxValue : (int)remainingMs;
             if (waiterLifetime!.Semaphore.Wait(waitMs))
             {
                 return "ok";
@@ -237,6 +239,17 @@ public sealed partial class AtomicsPrototype : JsPrototype
         }
 
         return "timed-out";
+    }
+
+    private static long MillisecondsToStopwatchTicks(long milliseconds)
+    {
+        return (milliseconds * Stopwatch.Frequency + 999L) / 1000L;
+    }
+
+    private static long StopwatchTicksToCeilingMilliseconds(long ticks)
+    {
+        var milliseconds = (ticks * 1000L + Stopwatch.Frequency - 1L) / Stopwatch.Frequency;
+        return Math.Max(1L, milliseconds);
     }
 
     /* FLAKY */

@@ -52,6 +52,16 @@ internal static class ExecutionInstructionExtensions
                     yield return moveNext.BreakIndex;
                 }
                 yield break;
+            case ForInMoveNextInstruction moveNext:
+                if (moveNext.Next >= 0)
+                {
+                    yield return moveNext.Next;
+                }
+                if (moveNext.BreakIndex >= 0)
+                {
+                    yield return moveNext.BreakIndex;
+                }
+                yield break;
             case JumpInstruction jump:
                 yield return jump.TargetIndex;
                 yield break;

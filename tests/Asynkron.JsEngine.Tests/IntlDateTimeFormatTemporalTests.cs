@@ -45,6 +45,117 @@ public sealed class IntlDateTimeFormatTemporalTests(ITestOutputHelper output) : 
     }
 
     [Fact]
+    public async Task FormatToPartsAndRangeToParts_CreateOrdinaryPartObjects()
+    {
+        await using var engine = CreateEngine();
+
+        var result = await engine.Evaluate("""
+            function compare(actual, expected, path) {
+                if (actual === expected) return "ok";
+                if (actual === null || actual === undefined || expected === null || expected === undefined) {
+                    return path + ": optional mismatch";
+                }
+
+                const actualType = typeof actual;
+                const expectedType = typeof expected;
+                if (actualType !== expectedType) {
+                    return path + ": type " + actualType + " != " + expectedType;
+                }
+
+                if (actualType !== "object" && actualType !== "function") {
+                    return path + ": primitive " + String(actual) + " != " + String(expected);
+                }
+
+                const actualTag = Symbol.toStringTag in actual ? actual[Symbol.toStringTag] : undefined;
+                const expectedTag = Symbol.toStringTag in expected ? expected[Symbol.toStringTag] : undefined;
+                if (actualTag !== expectedTag) {
+                    return path + ": tag " + String(actualTag) + " != " + String(expectedTag);
+                }
+
+                if (Array.isArray(actual) || Array.isArray(expected)) {
+                    if (!Array.isArray(actual) || !Array.isArray(expected)) {
+                        return path + ": array-like mismatch";
+                    }
+
+                    if (actual.length !== expected.length) {
+                        return path + ": length " + actual.length + " != " + expected.length;
+                    }
+
+                    for (let i = 0; i < actual.length; i++) {
+                        const item = compare(actual[i], expected[i], path + "[" + i + "]");
+                        if (item !== "ok") return item;
+                    }
+
+                    return "ok";
+                }
+
+                const actualKeys = [];
+                for (const key in actual) actualKeys.push(key);
+                const expectedKeys = [];
+                for (const key in expected) expectedKeys.push(key);
+                if (actualKeys.length !== expectedKeys.length) {
+                    return path + ": keys " + actualKeys.join(",") + " != " + expectedKeys.join(",");
+                }
+
+                actualKeys.sort();
+                expectedKeys.sort();
+                for (let i = 0; i < actualKeys.length; i++) {
+                    if (actualKeys[i] !== expectedKeys[i]) {
+                        return path + ": key " + actualKeys[i] + " != " + expectedKeys[i];
+                    }
+
+                    const item = compare(actual[actualKeys[i]], expected[expectedKeys[i]],
+                        path + "." + actualKeys[i]);
+                    if (item !== "ok") return item;
+                }
+
+                return "ok";
+            }
+
+            const formatter = new Intl.DateTimeFormat('en-US', {
+                timeZone: 'Pacific/Apia',
+                year: 'numeric',
+                month: 'numeric',
+                day: 'numeric'
+            });
+            const start = new Temporal.PlainDate(2021, 8, 4);
+            const end = new Temporal.PlainDate(2021, 8, 5);
+            const parts = formatter.formatToParts(start);
+            const rangeParts = formatter.formatRangeToParts(start, end);
+            const partsExpected = [
+                { type: "month", value: "8" },
+                { type: "literal", value: "/" },
+                { type: "day", value: "4" },
+                { type: "literal", value: "/" },
+                { type: "year", value: "2021" },
+            ];
+            const rangeExpected = [
+                { type: "month", value: "8", source: "startRange" },
+                { type: "literal", value: "/", source: "startRange" },
+                { type: "day", value: "4", source: "startRange" },
+                { type: "literal", value: "/", source: "startRange" },
+                { type: "year", value: "2021", source: "startRange" },
+                { type: "literal", value: " \u2013 ", source: "shared" },
+                { type: "month", value: "8", source: "endRange" },
+                { type: "literal", value: "/", source: "endRange" },
+                { type: "day", value: "5", source: "endRange" },
+                { type: "literal", value: "/", source: "endRange" },
+                { type: "year", value: "2021", source: "endRange" },
+            ];
+
+            const protoCheck = Object.getPrototypeOf(parts[0]) === Object.prototype &&
+                Object.getPrototypeOf(rangeParts[0]) === Object.prototype;
+            const partsCheck = compare(parts, partsExpected, "parts");
+            const rangeCheck = compare(rangeParts, rangeExpected, "rangeParts");
+            protoCheck && partsCheck === "ok" && rangeCheck === "ok"
+                ? "ok"
+                : JSON.stringify({ protoCheck, partsCheck, rangeCheck });
+            """);
+
+        Assert.Equal("ok", result);
+    }
+
+    [Fact]
     public async Task FormatRange_RejectsDistinctTemporalOperandKinds()
     {
         await using var engine = CreateEngine();

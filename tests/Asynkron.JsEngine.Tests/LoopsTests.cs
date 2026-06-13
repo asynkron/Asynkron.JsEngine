@@ -205,6 +205,46 @@ public sealed class LoopsTests(JsEngineTestFixture fixture) : JsEngineTestBase(f
         Assert.Equal("acd", result);
     }
 
+    [Fact(Timeout = 2000)]
+    public async Task ForInLoop_DoneEdgePreservesFollowingVarDeclarationsInNestedFunction()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function outer() {
+                function compareIf(a, b, test, compare, cache) {
+                    return !test(a) ? !test(b) ? 0 : -1 : !test(b) ? -1 : compare(a, b, cache);
+                }
+
+                function isIterableEquatable(value) {
+                    return typeof Symbol === "function" && typeof value[Symbol.iterator] === "function";
+                }
+
+                function compareIterableEquality() {
+                    return 99;
+                }
+
+                function nested(a, b, cache) {
+                    var aKeys = [];
+                    for (var key in a) aKeys.push(key);
+                    var bKeys = [];
+                    for (var key in b) bKeys.push(key);
+                    if (aKeys.length !== bKeys.length) {
+                        return -1;
+                    }
+
+                    aKeys.sort();
+                    bKeys.sort();
+                    return compareIf(a, b, isIterableEquatable, compareIterableEquality, cache) || 1;
+                }
+
+                return nested({}, {}, new Map());
+            }
+
+            outer();
+            """);
+        Assert.Equal(1d, result);
+    }
+
     // for...of loop tests
     [Fact(Timeout = 2000)]
     public async Task ForOfLoopArray()

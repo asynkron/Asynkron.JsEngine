@@ -239,7 +239,7 @@ public sealed partial class IntlDateTimeFormatPrototype
             parts.Push(part);
         }
 
-        parts.Push(CreateRangePart("literal", " \u2013 ", "shared"));
+        parts.Push(CreateRangePart(Realm, "literal", " \u2013 ", "shared"));
 
         for (var i = 0; i < endParts.Length; i++)
         {
@@ -336,7 +336,7 @@ public sealed partial class IntlDateTimeFormatPrototype
         var parts = new JsArray(Realm);
 
         AppendTaggedParts(parts, startParts, "startRange");
-        parts.Push(CreateRangePart("literal", " \u2013 ", "shared"));
+        parts.Push(CreateRangePart(Realm, "literal", " \u2013 ", "shared"));
         AppendTaggedParts(parts, endParts, "endRange");
 
         return parts;
@@ -408,21 +408,21 @@ public sealed partial class IntlDateTimeFormatPrototype
         for (var i = 0; i < prefixLen; i++)
         {
             var (type, value) = ExtractPartInfo(startParts.Get(i));
-            result.Push(CreateRangePart(type, value, "shared"));
+            result.Push(CreateRangePart(realm, type, value, "shared"));
         }
 
         for (var i = prefixLen; i < startCount; i++)
         {
             var (type, value) = ExtractPartInfo(startParts.Get(i));
-            result.Push(CreateRangePart(type, value, "startRange"));
+            result.Push(CreateRangePart(realm, type, value, "startRange"));
         }
 
-        result.Push(CreateRangePart("literal", " \u2013 ", "shared"));
+        result.Push(CreateRangePart(realm, "literal", " \u2013 ", "shared"));
 
         for (var i = prefixLen; i < endCount; i++)
         {
             var (type, value) = ExtractPartInfo(endParts.Get(i));
-            result.Push(CreateRangePart(type, value, "endRange"));
+            result.Push(CreateRangePart(realm, type, value, "endRange"));
         }
 
         return result;
@@ -592,9 +592,9 @@ public sealed partial class IntlDateTimeFormatPrototype
         return slots;
     }
 
-    private static JsObject CreateRangePart(string type, string value, string? source = null)
+    private static JsObject CreateRangePart(RealmState realm, string type, string value, string? source = null)
     {
-        var obj = new JsObject();
+        var obj = new JsObject(realm.ObjectPrototype);
         obj.SetProperty("type", new JsValue(type));
         obj.SetProperty("value", new JsValue(value));
         if (source is not null)
@@ -819,31 +819,31 @@ public sealed partial class IntlDateTimeFormatPrototype
         for (var i = 0; i < prefixLen; i++)
         {
             var (type, value) = ExtractPartInfo(startParts.Get(i));
-            result.Push(CreateRangePart(type, value, "shared"));
+            result.Push(CreateRangePart(realm, type, value, "shared"));
         }
 
         // Start-specific middle
         for (var i = prefixLen; i < startCount - suffixLen; i++)
         {
             var (type, value) = ExtractPartInfo(startParts.Get(i));
-            result.Push(CreateRangePart(type, value, "startRange"));
+            result.Push(CreateRangePart(realm, type, value, "startRange"));
         }
 
         // Range separator
-        result.Push(CreateRangePart("literal", " \u2013 ", "shared"));
+        result.Push(CreateRangePart(realm, "literal", " \u2013 ", "shared"));
 
         // End-specific middle
         for (var i = prefixLen; i < endCount - suffixLen; i++)
         {
             var (type, value) = ExtractPartInfo(endParts.Get(i));
-            result.Push(CreateRangePart(type, value, "endRange"));
+            result.Push(CreateRangePart(realm, type, value, "endRange"));
         }
 
         // Shared suffix parts
         for (var i = startCount - suffixLen; i < startCount; i++)
         {
             var (type, value) = ExtractPartInfo(startParts.Get(i));
-            result.Push(CreateRangePart(type, value, "shared"));
+            result.Push(CreateRangePart(realm, type, value, "shared"));
         }
 
         return result;
@@ -3049,7 +3049,7 @@ public sealed partial class IntlDateTimeFormatPrototype
         }
     }
 
-    private static void FormatStyleToParts(DateTimeOffset dto, DateTimeFormatInternalSlots slots, CultureInfo culture,
+    private void FormatStyleToParts(DateTimeOffset dto, DateTimeFormatInternalSlots slots, CultureInfo culture,
         JsArray parts)
     {
         var use12 = slots.HourCycle is "h11" or "h12";
@@ -3137,15 +3137,15 @@ public sealed partial class IntlDateTimeFormatPrototype
         }
     }
 
-    private static JsObject CreateTypedPart(string type, string value)
+    private JsObject CreateTypedPart(string type, string value)
     {
-        var obj = new JsObject();
+        var obj = new JsObject(Realm.ObjectPrototype);
         obj.SetProperty("type", new JsValue(type));
         obj.SetProperty("value", new JsValue(value));
         return obj;
     }
 
-    private static void AddSeparatorPart(JsArray parts, ref bool addedSomething)
+    private void AddSeparatorPart(JsArray parts, ref bool addedSomething)
     {
         if (addedSomething)
         {
@@ -3155,7 +3155,7 @@ public sealed partial class IntlDateTimeFormatPrototype
         addedSomething = true;
     }
 
-    private static void AppendLocaleDateParts(
+    private void AppendLocaleDateParts(
         JsArray parts, ref bool addedSomething,
         DateTimeOffset dto, CultureInfo culture,
         bool hasYear, string? yearWidth,
@@ -3213,7 +3213,7 @@ public sealed partial class IntlDateTimeFormatPrototype
         }
     }
 
-    private static void AppendLocaleDateParts(
+    private void AppendLocaleDateParts(
         JsArray parts, ref bool addedSomething,
         ProlepticDateTime dateTime, CultureInfo culture,
         bool hasYear, string? yearWidth,

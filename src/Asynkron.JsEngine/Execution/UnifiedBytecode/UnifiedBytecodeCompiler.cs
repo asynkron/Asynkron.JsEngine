@@ -13975,7 +13975,7 @@ internal static class UnifiedBytecodeCompiler
         }
         else
         {
-            if (!TryAppendActivationOrPlainDynamicIdentifierReadValueLoad(
+            if (!TryAppendActivationOrImplicitArgumentsObjectReadValueLoad(
                     expressionProgram.GetOperation(0),
                     expressionProgram,
                     activationSlots,

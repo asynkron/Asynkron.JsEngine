@@ -2116,14 +2116,7 @@ internal static class JsOps
                     return true;
                 }
 
-                jsArray.DefineProperty(propertyName,
-                    new PropertyDescriptor
-                    {
-                        JsValue = value,
-                        Writable = true,
-                        Enumerable = true,
-                        Configurable = true
-                    });
+                DefineArrayDataProperty(jsArray, propertyName, value);
                 return true;
             }
 
@@ -2174,14 +2167,7 @@ internal static class JsOps
                     }
 
                     // If data descriptor, shadow it on own array
-                    jsArray.DefineProperty(propertyName,
-                        new PropertyDescriptor
-                        {
-                            JsValue = value,
-                            Writable = true,
-                            Enumerable = true,
-                            Configurable = true
-                        });
+                    DefineArrayDataProperty(jsArray, propertyName, value);
                     return true;
                 }
 
@@ -2211,6 +2197,18 @@ internal static class JsOps
         typedArray.SetProperty(keyStr, value, target);
         return true;
 
+    }
+
+    private static void DefineArrayDataProperty(JsArray jsArray, string propertyName, JsValue value)
+    {
+        jsArray.DefineProperty(propertyName,
+            new PropertyDescriptor
+            {
+                JsValue = value,
+                Writable = true,
+                Enumerable = true,
+                Configurable = true
+            });
     }
 
     /// <summary>

@@ -41,10 +41,11 @@ This step is **critical** - agent investigation findings are lost if not documen
   - When raw logs are required, use narrow snippets (targeted patterns and line caps) rather than full dumps.
   - For recurring maintenance child runs, ensure `## Build Update` includes
     the stable evidence fields from `agents/how-to-build-and-test.md`:
-    `Baseline signal:`, `Final signal:`, `Signal delta:`, `Sibling check:`,
-    `Slice check:`, and `Scope note:`. The `Sibling check:` line must name
-    the reviewed sibling issues or state that lookup was unavailable so
-    evidence gates can verify overlap avoidance.
+    `Baseline timestamp:`, `Baseline signal:`, `Final timestamp:`,
+    `Final signal:`, `Signal delta:`, `Sibling check:`, `Slice check:`, and
+    `Scope note:`. The `Sibling check:` line must name the reviewed sibling
+    issues or state that lookup was unavailable so evidence gates can verify
+    overlap avoidance.
 - In Faktorial issue-stage runs, follow the output-boundary rule in
   `docs/rules/agent-context-issues.md`.
 - For each session, update an existing issue or create one if none fit.

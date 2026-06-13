@@ -1814,7 +1814,7 @@ internal static class UnifiedBytecodeProductionEligibility
                 continue;
             }
 
-            if (ExpressionProgramContainsApplyBindingTarget(program))
+            if (ExpressionProgramContainsActivationApplyBindingTarget(program, activationSlots))
             {
                 return true;
             }
@@ -2375,17 +2375,123 @@ internal static class UnifiedBytecodeProductionEligibility
         }
     }
 
-    private static bool ExpressionProgramContainsApplyBindingTarget(ExpressionProgram program)
+    private static bool ExpressionProgramContainsActivationApplyBindingTarget(
+        ExpressionProgram program,
+        ActivationSlotShape activationSlots)
     {
+        var objectConstants = program.ObjectConstants.AsSpan();
         for (var operationIndex = 0; operationIndex < program.OperationCount; operationIndex++)
         {
-            if (program.GetOperation(operationIndex).Kind == ExpressionOpKind.ApplyBindingTarget)
+            var operation = program.GetOperation(operationIndex);
+            if (operation.Kind != ExpressionOpKind.ApplyBindingTarget)
+            {
+                continue;
+            }
+
+            var target = operation.GetObject<BindingTargetProgram>(objectConstants);
+            if (BindingTargetProgramNeedsMaterializedActivationEnvironment(target, activationSlots))
             {
                 return true;
             }
         }
 
         return false;
+    }
+
+    private static bool BindingTargetProgramNeedsMaterializedActivationEnvironment(
+        BindingTargetProgram target,
+        ActivationSlotShape activationSlots)
+    {
+        switch (target)
+        {
+            case IdentifierBindingTargetProgram identifier:
+                return identifier.FlatSlotId >= 0 ||
+                       identifier.ScopeId == activationSlots.ScopeId && identifier.SlotIndex >= 0 ||
+                       identifier.ScopeId < 0 && activationSlots.SlotMap.ContainsKey(identifier.Name);
+
+            case ArrayBindingTargetProgram arrayBinding:
+                foreach (var element in arrayBinding.Elements)
+                {
+                    if (element.Target is { } elementTarget &&
+                        BindingTargetProgramNeedsMaterializedActivationEnvironment(elementTarget, activationSlots))
+                    {
+                        return true;
+                    }
+
+                    if (element.DefaultProgram is { } defaultProgram &&
+                        ExpressionProgramReferencesActivationSlot(
+                            defaultProgram,
+                            activationSlots,
+                            out _))
+                    {
+                        return true;
+                    }
+                }
+
+                return arrayBinding.RestElement is not null &&
+                       BindingTargetProgramNeedsMaterializedActivationEnvironment(
+                           arrayBinding.RestElement,
+                           activationSlots);
+
+            case ObjectBindingTargetProgram objectBinding:
+                foreach (var property in objectBinding.Properties)
+                {
+                    if (property.NameProgram is { } nameProgram &&
+                        ExpressionProgramReferencesActivationSlot(
+                            nameProgram,
+                            activationSlots,
+                            out _))
+                    {
+                        return true;
+                    }
+
+                    if (property.DefaultProgram is { } defaultProgram &&
+                        ExpressionProgramReferencesActivationSlot(
+                            defaultProgram,
+                            activationSlots,
+                            out _))
+                    {
+                        return true;
+                    }
+
+                    if (BindingTargetProgramNeedsMaterializedActivationEnvironment(
+                            property.Target,
+                            activationSlots))
+                    {
+                        return true;
+                    }
+                }
+
+                return objectBinding.RestElement is not null &&
+                       BindingTargetProgramNeedsMaterializedActivationEnvironment(
+                           objectBinding.RestElement,
+                           activationSlots);
+
+            case NamedPropertyAssignmentBindingTargetProgram namedProperty:
+                return ExpressionProgramReferencesActivationSlot(
+                    namedProperty.TargetProgram,
+                    activationSlots,
+                    out _);
+
+            case ComputedPropertyAssignmentBindingTargetProgram computedProperty:
+                return ExpressionProgramReferencesActivationSlot(
+                           computedProperty.TargetProgram,
+                           activationSlots,
+                           out _) ||
+                       ExpressionProgramReferencesActivationSlot(
+                           computedProperty.PropertyProgram,
+                           activationSlots,
+                           out _);
+
+            case NamedSuperPropertyAssignmentBindingTargetProgram:
+                return true;
+
+            case ComputedSuperPropertyAssignmentBindingTargetProgram:
+                return true;
+
+            default:
+                return true;
+        }
     }
 
     private static bool ExpressionProgramHasScopedCapturingFunctionLiteral(

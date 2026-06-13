@@ -153,6 +153,32 @@ public sealed class Test262AsyncGeneratorDestructuringLayeredTests(ITestOutputHe
                 StringComparison.Ordinal));
     }
 
+    [Fact]
+    public void Layer4_AsyncGeneratorForAwaitAssignmentObjectRest_LowersAndRoutesResumable()
+    {
+        var plan = GetFunctionPlan("""
+            var source = { x: 42, y: 39, z: "cheeseburger" };
+            let x, z;
+            async function *fn() {
+                for await ({ x, ...z } of [source]) {
+                    yield x;
+                }
+            }
+            """,
+            "fn");
+
+        Assert.False(UnifiedBytecodeProductionEligibility.PlanNeedsMaterializedResumableBodyEnvironment(plan));
+
+        var result = UnifiedBytecodeProductionEligibility.EvaluateResumable(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor(IsAsyncLike: true, IsGenerator: true));
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Contains(
+            result.Program.Instructions,
+            static instruction => instruction.OpCode == UnifiedBytecodeOpCode.ApplyBindingTarget);
+    }
+
     [Fact(Timeout = 5000)]
     public async Task Layer5_AsyncFunctionForAwaitDestructuringBody_RuntimeStillPasses()
     {

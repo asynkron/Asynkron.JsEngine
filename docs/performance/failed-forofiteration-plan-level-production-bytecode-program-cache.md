@@ -11,7 +11,7 @@ The attempted optimization cached accepted compiled `UnifiedBytecodeProgram` res
 `ExecutionPlan` so sibling invokers could reuse a program compiled by an earlier invoker.
 That produced a large local timing win, but it was not retained. `ExecutionPlan` is the
 owner for plan-pure facts only; accepted programs and descriptor-sensitive route decisions
-belong to `SyncFunctionInvoker` under rule 30b/30c and ADR 0378.
+belong to `SyncFunctionInvoker` under rule 30b/30c and ADR 0379.
 
 No runtime optimization from this attempt remains.
 
@@ -55,5 +55,8 @@ The runtime edit was reverted. Future work on this owner should avoid storing ac
 ## Related
 
 - `docs/adrs/0378-cache-production-ubc-dependency-scans-on-executionplan.md`
+- `docs/adrs/0379-cache-production-ubc-route-eligibility-on-sync-invoker.md`
+- `docs/adrs/0385-reject-plan-level-production-ubc-accepted-program-cache.md`
+- `docs/adrs/0386-define-immutable-compile-artifact-cache-boundary.md`
 - `docs/rules/performance-profiling-guardrails.md`
 - `docs/performance/forofiteration-invoker-static-plan-cache.md`

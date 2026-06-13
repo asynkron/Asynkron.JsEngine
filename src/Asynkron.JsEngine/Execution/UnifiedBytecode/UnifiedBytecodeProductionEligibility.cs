@@ -340,12 +340,26 @@ internal static class UnifiedBytecodeProductionEligibility
         in UnifiedBytecodeProductionActivationDescriptor activation) =>
         EvaluateCore(plan, activation, isScript: false);
 
-    public static UnifiedBytecodeProductionEligibilityResult EvaluateScript(ExecutionPlan plan) =>
-        EvaluateCore(
+    public static UnifiedBytecodeProductionEligibilityResult EvaluateScript(ExecutionPlan plan)
+    {
+        // The script activation descriptor below is a fixed constant, so the eligibility result
+        // (including the compiled program) depends only on the plan. A shared engine re-evaluates the
+        // same cached script plan on every iteration; caching the result on the plan lets those
+        // repeats reuse the compiled program instead of re-running the full eligibility scan and
+        // UnifiedBytecodeCompiler.TryCompile each time.
+        if (plan.ScriptProductionEligibilityResult is UnifiedBytecodeProductionEligibilityResult cached)
+        {
+            return cached;
+        }
+
+        var result = EvaluateCore(
             plan,
             new UnifiedBytecodeProductionActivationDescriptor(
                 AllowsOrdinaryDynamicIdentifierEnvironmentOperations: true),
             isScript: true);
+        plan.SetScriptProductionEligibilityResult(result);
+        return result;
+    }
 
     private static UnifiedBytecodeProductionEligibilityResult EvaluateCore(
         ExecutionPlan plan,

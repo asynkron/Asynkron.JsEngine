@@ -567,9 +567,27 @@ public static partial class TypedAstEvaluator
         JsEnvironment closureEnvironment,
         FunctionExecutionPlanSeed planSeed)
     {
-        if (!functionExpression.HasOnlySimpleIdentifierParameters())
+        // Non-simple parameter lists (defaults, destructuring, rest) are routed through the
+        // unified resumable VM whenever it accepts them. The few shapes the resumable route
+        // declines — direct eval in the parameter list, parameter-capturing closures, an
+        // arguments-object dependency, or root hoisted function declarations — were previously
+        // declined here too and then hard-threw in SyncGeneratorInvoker. The IR runner performs
+        // full FunctionDeclarationInstantiation (separate parameter environment for direct eval,
+        // mapped/unmapped arguments object, eager IteratorBindingInitialization at call time), so
+        // routing those declined non-simple bodies to the IR fallback restores correct semantics
+        // instead of throwing. Resumable-eligible bodies still fall through to the unified route
+        // below (this method returns false for them).
+
+        // Non-simple parameter lists whose shape the resumable route cannot eagerly bind
+        // (direct eval in the parameter list, or a parameter-capturing closure in a default
+        // initializer) are declined by SyncGeneratorInvoker.TryCreateUnifiedBytecodeGenerator
+        // AFTER this routing decision, where they would hard-throw. EvaluateResumable below does
+        // not model the parameter-binding shape, so mirror that decline here and route them to
+        // the IR fallback, which performs full IteratorBindingInitialization.
+        if (!functionExpression.HasOnlySimpleIdentifierParameters() &&
+            !ResumableParameterShapeAllowsEagerBinding(functionExpression))
         {
-            return false;
+            return true;
         }
 
         var plan = planSeed.Plan;

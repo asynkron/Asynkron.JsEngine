@@ -174,17 +174,24 @@ public sealed class UnifiedBytecodeResumableParameterBindingTests(ITestOutputHel
     }
 
     [Fact(Timeout = 5000)]
-    public async Task GeneratorParameterDefaultCapturingOwnParameter_StillDeclinesExplicitly()
+    public async Task GeneratorParameterDefaultCapturingOwnParameter_RoutesThroughIrFallback()
     {
+        // A parameter default that closes over one of the function's own parameters is declined
+        // by the resumable unified route (the transient binding environment is discarded after
+        // seeding flat slots, so a retained closure would desynchronize). Rather than hard-throw,
+        // such bodies now route to the IR generator fallback, which performs full
+        // FunctionDeclarationInstantiation and binds the closure against a live parameter
+        // environment, so the default-captured parameter is observed correctly.
         await using var engine = CreateEngine();
-        await Assert.ThrowsAnyAsync<Exception>(async () =>
-            await engine.Evaluate("""
-                function* g(a, b = () => a) {
-                    yield b();
-                }
+        var result = await engine.Evaluate("""
+            function* g(a, b = () => a) {
+                yield b();
+            }
 
-                g(1).next().value;
-                """));
+            g(1).next().value;
+            """);
+
+        Assert.Equal(1d, result);
     }
 
     private void AssertGeneratorFastPath(string functionName, int argc) =>

@@ -1419,6 +1419,10 @@ internal static class UnifiedBytecodeProductionEligibility
             case ReturnInstruction { AwaitedProgram: null }:
             case ThrowInstruction { AwaitedProgram: null, ThrowProgram: { } }:
             case YieldInstruction { AwaitedProgram: null, YieldProgram: { } or null }:
+            // `yield await source` in an async generator lowers to an awaited source payload followed by
+            // Yield. AwaitValue owns the await suspension and leaves the settled value on the operand stack;
+            // Yield then consumes it and suspends the generator with the settled value.
+            case YieldInstruction { AwaitedProgram: not null, YieldProgram: null }:
             case YieldStarInstruction { AwaitedProgram: null, IterableProgram: { } }:
             // `yield* await source` in an async generator lowers to an awaited source payload followed by
             // YieldStar. AwaitValue owns the source suspension and leaves the settled iterable on the
@@ -3011,6 +3015,9 @@ internal static class UnifiedBytecodeProductionEligibility
         {
             case YieldInstruction { AwaitedProgram: null, YieldProgram: { } yieldProgram }:
                 program = yieldProgram;
+                return true;
+            case YieldInstruction { AwaitedProgram: { } awaitedYieldProgram, YieldProgram: null }:
+                program = awaitedYieldProgram;
                 return true;
             case AwaitAndDiscardInstruction awaitAndDiscard:
                 program = awaitAndDiscard.AwaitedProgram;

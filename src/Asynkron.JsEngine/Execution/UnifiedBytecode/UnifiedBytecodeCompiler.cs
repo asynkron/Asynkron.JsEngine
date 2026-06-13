@@ -3245,6 +3245,45 @@ internal static class UnifiedBytecodeCompiler
                         continue;
                     }
 
+                    case YieldInstruction { AwaitedProgram: { } awaitedProgram, YieldProgram: null } yield:
+                    {
+                        if (!TryAppendExpressionProgramOps(
+                                awaitedProgram,
+                                slotLayout,
+                                allowsDynamicIdentifiers,
+                                unified,
+                                literalConstants,
+                                stringConstants,
+                                callTargetConstants,
+                                functionLiteralConstants,
+                                classLiteralConstants,
+                                templateObjectConstants,
+                                out reason,
+                                bindingTargetConstants,
+                                preferDynamicIdentifierLookup: preferDynamicIdentifierLookup))
+                        {
+                            return false;
+                        }
+
+                        unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.AwaitValue));
+                        unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.Yield));
+                        maxStackDepth = Math.Max(maxStackDepth, GetCompiledExpressionMaxStackDepth(awaitedProgram));
+                        if (TryAppendJumpToCompiledTarget(
+                                instructionIndex,
+                                yield.Next,
+                                instructions,
+                                instructionPcMap,
+                                activeInstructions,
+                                unified,
+                                out reason))
+                        {
+                            return true;
+                        }
+
+                        instructionIndex = yield.Next;
+                        continue;
+                    }
+
                     case YieldInstruction { AwaitedProgram: null, YieldProgram: null } yield:
                         var undefinedLiteralIndex = literalConstants.Count;
                         literalConstants.Add(JsValue.Undefined);

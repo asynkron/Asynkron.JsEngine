@@ -61,6 +61,30 @@ public sealed class UnifiedBytecodeAsyncGeneratorRouteTests(ITestOutputHelper ou
     }
 
     [Fact]
+    public void EvaluateResumable_AsyncGeneratorYieldAwait_AdmitsAwaitValueAndYield()
+    {
+        var plan = GetFunctionPlan("""
+            async function* values(source) {
+                yield await source;
+            }
+            """,
+            "values");
+
+        var result = UnifiedBytecodeProductionEligibility.EvaluateResumable(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor(IsAsyncLike: true, IsGenerator: true));
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(
+            result.Program.Instructions,
+            static instruction => instruction.OpCode == UnifiedBytecodeOpCode.AwaitValue);
+        Assert.Contains(
+            result.Program.Instructions,
+            static instruction => instruction.OpCode == UnifiedBytecodeOpCode.Yield);
+    }
+
+    [Fact]
     public void EvaluateResumable_AsyncGeneratorYieldStarAwait_AdmitsAwaitValueAndYieldStar()
     {
         var plan = GetFunctionPlan("""
@@ -112,6 +136,37 @@ public sealed class UnifiedBytecodeAsyncGeneratorRouteTests(ITestOutputHelper ou
             """);
 
         Assert.Equal("4:false|5:false|6:true", result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            record => record.Message.Contains(
+                $"{ResumableAsyncGeneratorFastPathLog} func=values argc=1",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task AsyncGeneratorYieldAwait_RoutesResumableAndYieldsSettledValue()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.EvaluateAndAwait("""
+            var output = undefined;
+
+            async function* values(source) {
+                yield await source;
+                return "done";
+            }
+
+            async function run() {
+                var iterator = values(Promise.resolve(7));
+                var first = await iterator.next();
+                var second = await iterator.next("sent");
+                return first.value + ":" + first.done + "|" +
+                    second.value + ":" + second.done;
+            }
+
+            run().then(value => output = value);
+            output;
+            """);
+
+        Assert.Equal("7:false|done:true", result);
         Assert.Contains(CurrentLogger!.Collector.Snapshot(),
             record => record.Message.Contains(
                 $"{ResumableAsyncGeneratorFastPathLog} func=values argc=1",

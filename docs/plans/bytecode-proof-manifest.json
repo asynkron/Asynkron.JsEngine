@@ -2465,10 +2465,7 @@
           "claim": "terminal-residue",
           "kind": "source-presence",
           "path": "src/Asynkron.JsEngine/Ast/TypedAstEvaluator.SyncFunctionInvoker.cs",
-          "patterns": [
-            "if (_function.IsDynamicFunctionConstructorBody)",
-            "return false;"
-          ]
+          "pattern": "if (_function.IsDynamicFunctionConstructorBody)\n            {\n                return false;\n            }"
         }
       ]
     },

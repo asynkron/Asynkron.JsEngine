@@ -426,12 +426,10 @@ public sealed partial class BytecodeProofManifestTests(ITestOutputHelper output)
             "broad sync production fast-path quarantine guard",
             functionConstructorProof.Classification,
             StringComparison.Ordinal);
+        Assert.Empty(functionConstructorProof.Patterns);
         Assert.Equal(
-            [
-                "if (_function.IsDynamicFunctionConstructorBody)",
-                "return false;"
-            ],
-            functionConstructorProof.Patterns);
+            "if (_function.IsDynamicFunctionConstructorBody)\n            {\n                return false;\n            }",
+            functionConstructorProof.Pattern);
     }
 
     [Fact]

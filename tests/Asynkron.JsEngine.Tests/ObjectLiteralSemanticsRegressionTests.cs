@@ -168,6 +168,30 @@ public sealed class ObjectLiteralSemanticsRegressionTests(ITestOutputHelper outp
     }
 
     [Fact]
+    public async Task ObjectLiteral_GeneratorMethodDefinesOwnPrototypeObject()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            var GeneratorPrototype = Object.getPrototypeOf(function* () {}).prototype;
+            var method = { *method() {} }.method;
+            var descriptor = Object.getOwnPropertyDescriptor(method, "prototype");
+
+            [
+              Object.getPrototypeOf(method.prototype) === GeneratorPrototype,
+              descriptor.writable,
+              descriptor.enumerable,
+              descriptor.configurable
+            ];
+            """);
+
+        var array = Assert.IsType<JsArray>(result);
+        Assert.True(array.GetElement(0).AsBoolean());
+        Assert.True(array.GetElement(1).AsBoolean());
+        Assert.False(array.GetElement(2).AsBoolean());
+        Assert.False(array.GetElement(3).AsBoolean());
+    }
+
+    [Fact]
     public async Task Assignment_AssignsNameToParenthesizedAnonymousFunction()
     {
         await using var engine = CreateEngine();

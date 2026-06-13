@@ -279,11 +279,6 @@ public static partial class TypedAstEvaluator
             {
                 _isConstructorEnabled = false;
             }
-
-            if (!_properties.DeleteOwnProperty("prototype"))
-            {
-                _properties.ForceDeleteOwnProperty("prototype");
-            }
         }
 
         public void SetHomeObject(IJsObjectLike homeObject)
@@ -382,7 +377,7 @@ public static partial class TypedAstEvaluator
                 var generatorPrototype = new JsObject();
                 generatorPrototype.SetPrototype(genProto);
                 CustomizePrototypeObject(generatorPrototype);
-                _properties.DefineProperty("prototype",
+                _properties.DefinePropertyDirect("prototype",
                     new PropertyDescriptor
                     {
                         Value = generatorPrototype,
@@ -393,7 +388,7 @@ public static partial class TypedAstEvaluator
             }
 
             var paramCount = _function.Parameters.GetExpectedParameterCount();
-            _properties.DefineProperty("length",
+            _properties.DefinePropertyDirect("length",
                 new PropertyDescriptor
                 {
                     Value = (double)paramCount,
@@ -403,7 +398,7 @@ public static partial class TypedAstEvaluator
                 });
 
             var functionNameValue = _function.Name?.Name ?? string.Empty;
-            _properties.DefineProperty("name",
+            _properties.DefinePropertyDirect("name",
                 new PropertyDescriptor
                 {
                     Value = functionNameValue,

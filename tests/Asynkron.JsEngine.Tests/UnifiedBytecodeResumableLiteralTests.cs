@@ -42,6 +42,8 @@ public sealed class UnifiedBytecodeResumableLiteralTests(ITestOutputHelper outpu
 {
     private const string ResumableGeneratorFastPathLog = "unified-bytecode-resumable-generator-fast-path";
     private const string ResumableAsyncFastPathLog = "unified-bytecode-resumable-async-fast-path";
+    private const string ResumableAsyncGeneratorFastPathLog =
+        "unified-bytecode-resumable-async-generator-fast-path";
 
     [Fact]
     public void EvaluateResumable_ClassLiteralExplicitConstructor_AdmitsLoadClassLiteral()
@@ -391,6 +393,34 @@ public sealed class UnifiedBytecodeResumableLiteralTests(ITestOutputHelper outpu
             static instruction => instruction.OpCode == UnifiedBytecodeOpCode.ArraySpread);
     }
 
+    [Fact]
+    public void EvaluateResumable_AsyncGeneratorYieldStarArrayWithFreeCall_AdmitsDynamicCall()
+    {
+        var plan = GetFunctionPlan("""
+            function g() {
+                return 7;
+            }
+
+            async function* gen() {
+                yield* [g()];
+            }
+            """,
+            "gen");
+
+        var result = UnifiedBytecodeProductionEligibility.EvaluateResumable(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor(IsAsyncLike: true, IsGenerator: true));
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(
+            result.Program.Instructions,
+            static instruction => instruction.OpCode == UnifiedBytecodeOpCode.PrepareDynamicIdentifierCallTarget);
+        Assert.Contains(
+            result.Program.Instructions,
+            static instruction => instruction.OpCode == UnifiedBytecodeOpCode.ArrayPush);
+    }
+
     // The method/accessor gate: non-capturing object METHODS and GET/SET accessors now route because
     // LoadFunctionLiteral / EnsureHasName are admitted by ExecuteResumable. This covers the static and
     // computed member-definition opcodes that were already allowlisted by the literal slice.
@@ -558,6 +588,28 @@ public sealed class UnifiedBytecodeResumableLiteralTests(ITestOutputHelper outpu
         AssertGeneratorFastPath("g", argc: 1);
     }
 
+    [Fact(Timeout = 5000)]
+    public async Task AsyncGeneratorYieldStarArrayWithFreeCall_RoutesResumableAndYieldsValue()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.EvaluateAndAwait("""
+            var asyncResult = undefined;
+            function g() {
+                return 7;
+            }
+
+            async function* gen() {
+                yield* [g()];
+            }
+
+            gen().next().then(value => asyncResult = value.value + "|" + value.done);
+            asyncResult;
+            """);
+
+        Assert.Equal("7|false", result);
+        AssertAsyncGeneratorFastPath("gen", argc: 0);
+    }
+
     // Adversarial / fresh-per-eval: a generator that yields a NEW object literal on every loop turn must
     // produce a DISTINCT object each time (ECMAScript requires fresh allocation per evaluation). If the
     // resumable handler cached the receiver, the two yielded objects would be reference-equal. The literal
@@ -718,6 +770,12 @@ public sealed class UnifiedBytecodeResumableLiteralTests(ITestOutputHelper outpu
         Assert.Contains(CurrentLogger!.Collector.Snapshot(),
             record => record.Message.Contains(
                 $"{ResumableAsyncFastPathLog} func={functionName} argc={argc}",
+                StringComparison.Ordinal));
+
+    private void AssertAsyncGeneratorFastPath(string functionName, int argc) =>
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            record => record.Message.Contains(
+                $"{ResumableAsyncGeneratorFastPathLog} func={functionName} argc={argc}",
                 StringComparison.Ordinal));
 
     public static TheoryData<string> DeclinedB24ClassLiteralPrograms { get; } = new()

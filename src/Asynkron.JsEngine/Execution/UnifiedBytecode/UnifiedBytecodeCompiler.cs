@@ -4651,6 +4651,9 @@ internal static class UnifiedBytecodeCompiler
         if (TryAppendFirstBoundaryNestedNamedComputedPropertySet(
                 expressionProgram,
                 activationSlots,
+                slotLayout,
+                callTargetConstants,
+                functionLiteralConstants,
                 allowsDynamicIdentifiers,
                 unified,
                 literalConstants,
@@ -8876,6 +8879,32 @@ internal static class UnifiedBytecodeCompiler
         return true;
     }
 
+    private static bool TryProbeSimpleArrayLiteralSpan(
+        ExpressionProgram expressionProgram,
+        int startIndex,
+        ActivationSlotShape activationSlots,
+        UnifiedBytecodeSlotLayout? slotLayout,
+        out int spanLength,
+        bool allowsDynamicIdentifiers = false)
+    {
+        var probeUnified = ImmutableArray.CreateBuilder<UnifiedBytecodeInstruction>();
+        var probeLiterals = ImmutableArray.CreateBuilder<JsValue>();
+        var probeStrings = ImmutableArray.CreateBuilder<string>();
+        var probeCallTargets = ImmutableArray.CreateBuilder<UnifiedBytecodeCallTarget>();
+        return TryAppendSimpleArrayLiteralSpan(
+            expressionProgram,
+            startIndex,
+            activationSlots,
+            probeUnified,
+            probeLiterals,
+            probeStrings,
+            probeCallTargets,
+            slotLayout,
+            out spanLength,
+            out _,
+            allowsDynamicIdentifiers);
+    }
+
     // Compiles a simple array literal span starting at startIndex in the expression program.
     // Emits: CreateArray, then N elements where each element is one of:
     //   - [simple-literal-value-span, ArrayPush]   - normal element
@@ -9501,6 +9530,24 @@ internal static class UnifiedBytecodeCompiler
         bool allowUnaryExpressions = true,
         bool allowBinaryExpressions = true)
     {
+        if (slotLayout is not null &&
+            callTargetConstants is not null &&
+            TryAppendSimpleDirectIdentifierCallOperandSpan(
+                expressionProgram,
+                startIndex,
+                activationSlots,
+                slotLayout,
+                allowsDynamicIdentifiers,
+                unified,
+                literalConstants,
+                stringConstants,
+                callTargetConstants,
+                out spanLength,
+                out reason))
+        {
+            return true;
+        }
+
         if (slotLayout is not null &&
             callTargetConstants is not null &&
             TryMeasureSimpleMemberCallOperandSpan(
@@ -11437,6 +11484,164 @@ internal static class UnifiedBytecodeCompiler
         }
 
         spanLength = 2;
+        return true;
+    }
+
+    private static bool TryMeasureSimpleDirectIdentifierCallOperandSpan(
+        ExpressionProgram expressionProgram,
+        int startIndex,
+        ActivationSlotShape activationSlots,
+        bool allowsDynamicIdentifiers,
+        out int spanLength)
+    {
+        spanLength = 0;
+        if (startIndex + 1 >= expressionProgram.OperationCount)
+        {
+            return false;
+        }
+
+        var callTarget = expressionProgram.GetOperation(startIndex);
+        if (callTarget.Kind != ExpressionOpKind.LoadIdentifierCallTarget ||
+            callTarget.IsArguments ||
+            callTarget.IsOptional ||
+            callTarget.ShortCircuitOnNullishTarget)
+        {
+            return false;
+        }
+
+        var identifier = callTarget.GetIdentifier(expressionProgram.IdentifierConstants.AsSpan());
+        if (string.Equals(identifier.Name.Name, "eval", StringComparison.Ordinal) ||
+            (!TryResolveActivationSlot(identifier, activationSlots, out _) &&
+             !CanUseMaterializedActivationDynamicLookup(identifier, activationSlots) &&
+             !(allowsDynamicIdentifiers && identifier.ScopeId < 0)))
+        {
+            return false;
+        }
+
+        var callIndex = startIndex + 1;
+        while (callIndex < expressionProgram.OperationCount &&
+               CanAppendSimpleOperandLoadWithDynamic(
+                   expressionProgram.GetOperation(callIndex),
+                   expressionProgram,
+                   activationSlots,
+                   allowsDynamicIdentifiers))
+        {
+            callIndex++;
+        }
+
+        if (callIndex >= expressionProgram.OperationCount)
+        {
+            return false;
+        }
+
+        var call = expressionProgram.GetOperation(callIndex);
+        var argumentCount = callIndex - startIndex - 1;
+        if (call.Kind != ExpressionOpKind.Call ||
+            !call.HasExplicitThis ||
+            call.IsDirectEval ||
+            call.SpreadMaskConstantIndex >= 0 ||
+            call.ArgumentCount != argumentCount)
+        {
+            return false;
+        }
+
+        spanLength = callIndex - startIndex + 1;
+        return true;
+    }
+
+    private static bool TryAppendSimpleDirectIdentifierCallOperandSpan(
+        ExpressionProgram expressionProgram,
+        int startIndex,
+        ActivationSlotShape activationSlots,
+        UnifiedBytecodeSlotLayout slotLayout,
+        bool allowsDynamicIdentifiers,
+        ImmutableArray<UnifiedBytecodeInstruction>.Builder unified,
+        ImmutableArray<JsValue>.Builder literalConstants,
+        ImmutableArray<string>.Builder stringConstants,
+        ImmutableArray<UnifiedBytecodeCallTarget>.Builder callTargetConstants,
+        out int spanLength,
+        out string reason)
+    {
+        reason = string.Empty;
+        if (!TryMeasureSimpleDirectIdentifierCallOperandSpan(
+                expressionProgram,
+                startIndex,
+                activationSlots,
+                allowsDynamicIdentifiers,
+                out spanLength))
+        {
+            spanLength = 0;
+            return false;
+        }
+
+        var callTarget = expressionProgram.GetOperation(startIndex);
+        var identifier = callTarget.GetIdentifier(expressionProgram.IdentifierConstants.AsSpan());
+        var callIndex = startIndex + spanLength - 1;
+        var call = expressionProgram.GetOperation(callIndex);
+
+        var startUnifiedCount = unified.Count;
+        var startLiteralCount = literalConstants.Count;
+        var startStringCount = stringConstants.Count;
+        var startCallTargetCount = callTargetConstants.Count;
+
+        void RollBack()
+        {
+            unified.Count = startUnifiedCount;
+            literalConstants.Count = startLiteralCount;
+            stringConstants.Count = startStringCount;
+            callTargetConstants.Count = startCallTargetCount;
+        }
+
+        if (!TryResolveActivationCallTargetSlot(identifier, slotLayout, out var slotIndex))
+        {
+            if (!allowsDynamicIdentifiers &&
+                !CanUseMaterializedActivationDynamicLookup(identifier, activationSlots))
+            {
+                reason =
+                    $"Identifier call target '{identifier.Name.Name}' requires dynamic lookup and is not eligible outside an active with environment.";
+                return false;
+            }
+
+            var dynamicNameIndex = stringConstants.Count;
+            stringConstants.Add(identifier.Name.Name ?? string.Empty);
+            unified.Add(new UnifiedBytecodeInstruction(
+                UnifiedBytecodeOpCode.PrepareDynamicIdentifierCallTarget,
+                dynamicNameIndex));
+        }
+        else
+        {
+            var nameIndex = stringConstants.Count;
+            stringConstants.Add(identifier.Name.Name ?? string.Empty);
+            var callTargetIndex = callTargetConstants.Count;
+            callTargetConstants.Add(new UnifiedBytecodeCallTarget(
+                UnifiedBytecodeCallTargetKind.Identifier,
+                slotIndex,
+                nameIndex));
+            unified.Add(new UnifiedBytecodeInstruction(
+                UnifiedBytecodeOpCode.PrepareIdentifierCallTarget,
+                callTargetIndex));
+        }
+
+        if (!TryAppendCallArguments(
+                expressionProgram,
+                slotLayout,
+                unified,
+                literalConstants,
+                stringConstants,
+                callTargetConstants,
+                startIndex + 1,
+                call,
+                callIndex,
+                allowsDynamicIdentifiers,
+                out reason))
+        {
+            RollBack();
+            spanLength = 0;
+            return false;
+        }
+
+        spanLength = callIndex - startIndex + 1;
+        reason = string.Empty;
         return true;
     }
 
@@ -14176,18 +14381,47 @@ internal static class UnifiedBytecodeCompiler
         const int rhsStart = 1;
         var rhsEnd = expressionProgram.OperationCount - 2;
         var setNamedIndex = expressionProgram.OperationCount - 1;
-        var rhsIsSingleSimpleOperand = rhsStart == rhsEnd;
+        var rhsStartKind = expressionProgram.GetOperation(rhsStart).Kind;
+        var rhsIsSingleSimpleOperand = rhsStart == rhsEnd &&
+                                       rhsStartKind is not (ExpressionOpKind.CreateObject
+                                                            or ExpressionOpKind.CreateArray);
 
         // RHS region classification (in priority order):
         //   - single simple operand,
+        //   - simple object/array literal span,
         //   - simple template literal span,
         //   - any already-admitted complex value region (binary, nested call, member/optional
         //     read span, composition thereof) — mirrors A11 call-arg admission.
+        var rhsLiteralSpanLength = 0;
+        var rhsIsObjectLiteral = false;
+        var rhsIsArrayLiteral = false;
         var rhsIsTemplateLiteral = false;
         var rhsIsComplexRegion = false;
         if (!rhsIsSingleSimpleOperand)
         {
-            if (expressionProgram.GetOperation(rhsStart).Kind == ExpressionOpKind.LoadLiteral &&
+            if (rhsStartKind == ExpressionOpKind.CreateObject &&
+                TryMeasureSimpleObjectLiteralSpan(
+                    expressionProgram,
+                    rhsStart,
+                    activationSlots,
+                    out rhsLiteralSpanLength) &&
+                rhsStart + rhsLiteralSpanLength - 1 == rhsEnd)
+            {
+                rhsIsObjectLiteral = true;
+            }
+            else if (rhsStartKind == ExpressionOpKind.CreateArray &&
+                     TryProbeSimpleArrayLiteralSpan(
+                         expressionProgram,
+                         rhsStart,
+                         activationSlots,
+                         slotLayout,
+                         out rhsLiteralSpanLength,
+                         allowsDynamicIdentifiers) &&
+                     rhsStart + rhsLiteralSpanLength - 1 == rhsEnd)
+            {
+                rhsIsArrayLiteral = true;
+            }
+            else if (rhsStartKind == ExpressionOpKind.LoadLiteral &&
                 TryMeasureSimpleTemplateLiteralSpan(
                     expressionProgram,
                     rhsStart,
@@ -14265,6 +14499,46 @@ internal static class UnifiedBytecodeCompiler
                          literalConstants,
                          stringConstants,
                          out reason))
+            {
+                RollBack();
+                return false;
+            }
+        }
+        else if (rhsIsObjectLiteral)
+        {
+            if (!TryAppendSimpleObjectLiteralSpan(
+                    expressionProgram,
+                    rhsStart,
+                    activationSlots,
+                    unified,
+                    literalConstants,
+                    stringConstants,
+                    callTargetConstants,
+                    slotLayout,
+                    out var spanLength,
+                    out reason,
+                    allowsDynamicIdentifiers) ||
+                spanLength != rhsLiteralSpanLength)
+            {
+                RollBack();
+                return false;
+            }
+        }
+        else if (rhsIsArrayLiteral)
+        {
+            if (!TryAppendSimpleArrayLiteralSpan(
+                    expressionProgram,
+                    rhsStart,
+                    activationSlots,
+                    unified,
+                    literalConstants,
+                    stringConstants,
+                    callTargetConstants,
+                    slotLayout,
+                    out var spanLength,
+                    out reason,
+                    allowsDynamicIdentifiers) ||
+                spanLength != rhsLiteralSpanLength)
             {
                 RollBack();
                 return false;
@@ -14447,7 +14721,9 @@ internal static class UnifiedBytecodeCompiler
                 startInclusive: 1,
                 endExclusive: valueStart,
                 out reason,
-                allowsDynamicIdentifiers))
+                allowsDynamicIdentifiers,
+                stagedCallTargets,
+                slotLayout))
         {
             return false;
         }
@@ -14502,6 +14778,9 @@ internal static class UnifiedBytecodeCompiler
     private static bool TryAppendFirstBoundaryNestedNamedComputedPropertySet(
         ExpressionProgram expressionProgram,
         ActivationSlotShape activationSlots,
+        UnifiedBytecodeSlotLayout slotLayout,
+        ImmutableArray<UnifiedBytecodeCallTarget>.Builder callTargetConstants,
+        ImmutableArray<FunctionLiteralDescriptor>.Builder functionLiteralConstants,
         bool allowsDynamicIdentifiers,
         ImmutableArray<UnifiedBytecodeInstruction>.Builder unified,
         ImmutableArray<JsValue>.Builder literalConstants,
@@ -14593,11 +14872,20 @@ internal static class UnifiedBytecodeCompiler
         var stagedStrings = ImmutableArray.CreateBuilder<string>();
         stagedStrings.AddRange(stringConstants);
 
-        if (!TryAppendActivationValueLoad(
+        var stagedFunctionLiterals = ImmutableArray.CreateBuilder<FunctionLiteralDescriptor>();
+        stagedFunctionLiterals.AddRange(functionLiteralConstants);
+
+        var stagedCallTargets = ImmutableArray.CreateBuilder<UnifiedBytecodeCallTarget>();
+        stagedCallTargets.AddRange(callTargetConstants);
+
+        if (!TryAppendSimpleOperandLoadWithDynamic(
                 expressionProgram.GetOperation(0),
                 expressionProgram,
                 activationSlots,
+                allowsDynamicIdentifiers,
                 stagedUnified,
+                stagedLiterals,
+                stagedStrings,
                 out reason))
         {
             return false;
@@ -14620,20 +14908,72 @@ internal static class UnifiedBytecodeCompiler
                 startInclusive: keyStart,
                 endExclusive: valueIndex,
                 out reason,
-                allowsDynamicIdentifiers))
+                allowsDynamicIdentifiers,
+                stagedCallTargets,
+                slotLayout))
         {
             return false;
         }
 
-        if (!TryAppendSimpleOperandLoadWithDynamic(
-                expressionProgram.GetOperation(valueIndex),
-                expressionProgram,
-                activationSlots,
-                allowsDynamicIdentifiers,
-                stagedUnified,
-                stagedLiterals,
-                stagedStrings,
-                out reason))
+        var valueOperation = expressionProgram.GetOperation(valueIndex);
+        if (valueOperation.Kind == ExpressionOpKind.LoadFunctionLiteral)
+        {
+            AppendLoadFunctionLiteral(valueOperation, expressionProgram, stagedUnified, stagedFunctionLiterals);
+        }
+        else if (valueOperation.Kind == ExpressionOpKind.CreateObject)
+        {
+            if (!TryAppendSimpleObjectLiteralSpan(
+                    expressionProgram,
+                    valueIndex,
+                    activationSlots,
+                    stagedUnified,
+                    stagedLiterals,
+                    stagedStrings,
+                    stagedCallTargets,
+                    slotLayout,
+                    out var spanLength,
+                    out reason,
+                    allowsDynamicIdentifiers,
+                    stagedFunctionLiterals) ||
+                valueIndex + spanLength != expressionProgram.OperationCount - 1)
+            {
+                reason = string.IsNullOrEmpty(reason)
+                    ? "Object literal RHS span does not match expected nested computed property assignment boundary."
+                    : reason;
+                return false;
+            }
+        }
+        else if (valueOperation.Kind == ExpressionOpKind.CreateArray)
+        {
+            if (!TryAppendSimpleArrayLiteralSpan(
+                    expressionProgram,
+                    valueIndex,
+                    activationSlots,
+                    stagedUnified,
+                    stagedLiterals,
+                    stagedStrings,
+                    stagedCallTargets,
+                    slotLayout,
+                    out var spanLength,
+                    out reason,
+                    allowsDynamicIdentifiers) ||
+                valueIndex + spanLength != expressionProgram.OperationCount - 1)
+            {
+                reason = string.IsNullOrEmpty(reason)
+                    ? "Array literal RHS span does not match expected nested computed property assignment boundary."
+                    : reason;
+                return false;
+            }
+        }
+        else if (!TryAppendSimpleOperandLoadWithDynamic(
+                     valueOperation,
+                     expressionProgram,
+                     activationSlots,
+                     allowsDynamicIdentifiers,
+                     stagedUnified,
+                     stagedLiterals,
+                     stagedStrings,
+                     out reason))
         {
             return false;
         }
@@ -14645,6 +14985,10 @@ internal static class UnifiedBytecodeCompiler
         literalConstants.AddRange(stagedLiterals);
         stringConstants.Clear();
         stringConstants.AddRange(stagedStrings);
+        callTargetConstants.Clear();
+        callTargetConstants.AddRange(stagedCallTargets);
+        functionLiteralConstants.Clear();
+        functionLiteralConstants.AddRange(stagedFunctionLiterals);
         reason = string.Empty;
         return true;
     }
@@ -16845,8 +17189,31 @@ internal static class UnifiedBytecodeCompiler
         int startInclusive,
         int endExclusive,
         out string reason,
-        bool allowsDynamicIdentifiers = false)
+        bool allowsDynamicIdentifiers = false,
+        ImmutableArray<UnifiedBytecodeCallTarget>.Builder? callTargetConstants = null,
+        UnifiedBytecodeSlotLayout? slotLayout = null)
     {
+        if (TryMeasureSimpleNamedPropertyReadOperandSpan(
+                expressionProgram,
+                startInclusive,
+                endExclusive,
+                activationSlots,
+                allowsDynamicIdentifiers,
+                out var keyReadSpanLength) &&
+            startInclusive + keyReadSpanLength == endExclusive)
+        {
+            return TryAppendMeasuredSimpleNamedPropertyReadOperandSpan(
+                expressionProgram,
+                startInclusive,
+                keyReadSpanLength,
+                activationSlots,
+                allowsDynamicIdentifiers,
+                unified,
+                literalConstants,
+                stringConstants,
+                out reason);
+        }
+
         if (startInclusive < endExclusive &&
             TryAppendControlExpressionComputedKeySpan(
                 expressionProgram,
@@ -16884,6 +17251,32 @@ internal static class UnifiedBytecodeCompiler
                         return false;
                     }
 
+                    break;
+
+                case ExpressionOpKind.LoadIdentifierCallTarget:
+                    if (slotLayout is null || callTargetConstants is null)
+                    {
+                        reason = "Computed property key call target requires call-target compilation context.";
+                        return false;
+                    }
+
+                    if (!TryAppendSimpleDirectIdentifierCallOperandSpan(
+                            expressionProgram,
+                            index,
+                            activationSlots,
+                            slotLayout,
+                            allowsDynamicIdentifiers,
+                            unified,
+                            literalConstants,
+                            stringConstants,
+                            callTargetConstants,
+                            out var callSpanLength,
+                            out reason))
+                    {
+                        return false;
+                    }
+
+                    index += callSpanLength - 1;
                     break;
 
                 case ExpressionOpKind.CreateObject:
@@ -16955,6 +17348,18 @@ internal static class UnifiedBytecodeCompiler
             return false;
         }
 
+        if (TryMeasureSimpleNamedPropertyReadOperandSpan(
+                expressionProgram,
+                startInclusive,
+                endExclusive,
+                activationSlots,
+                allowsDynamicIdentifiers,
+                out var keyReadSpanLength) &&
+            startInclusive + keyReadSpanLength == endExclusive)
+        {
+            return true;
+        }
+
         // Control-expression computed keys (`box[cond ? a : b]`, `box[a && b]`,
         // `box[a ?? b]`) lower to JumpIfConditionalFalse/Jump/Pop control flow that the
         // stack-machine walker below cannot validate. Probe the dedicated control-flow
@@ -16990,6 +17395,21 @@ internal static class UnifiedBytecodeCompiler
                         return false;
                     }
 
+                    stackDepth++;
+                    break;
+
+                case ExpressionOpKind.LoadIdentifierCallTarget:
+                    if (!TryMeasureSimpleDirectIdentifierCallOperandSpan(
+                            expressionProgram,
+                            index,
+                            activationSlots,
+                            allowsDynamicIdentifiers,
+                            out var callSpanLength))
+                    {
+                        return false;
+                    }
+
+                    index += callSpanLength - 1;
                     stackDepth++;
                     break;
 

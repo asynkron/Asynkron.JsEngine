@@ -13459,7 +13459,8 @@ internal static class UnifiedBytecodeProductionEligibility
 
         var identifier = callTarget.GetIdentifier(identifierConstants);
         if (identifier.Name.Name == "eval" ||
-            !TryResolveActivationSlot(identifier, activationSlots))
+            (!TryResolveActivationSlot(identifier, activationSlots) &&
+             !(allowsDynamicIdentifiers && IsOrdinaryDynamicIdentifier(identifier, activationSlots))))
         {
             return false;
         }

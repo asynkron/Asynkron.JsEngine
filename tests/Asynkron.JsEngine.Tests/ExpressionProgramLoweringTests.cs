@@ -1765,6 +1765,87 @@ public sealed class ExpressionProgramLoweringTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task ReturnInstruction_PropertyAssignmentWithObjectLiteralRhs_CompilesStandalone()
+    {
+        var plan = await GetFunctionPlan("""
+            function assignConstructor(box) {
+                return box.constructor = {};
+            }
+            """, "assignConstructor");
+
+        var instruction = Assert.Single(plan.Instructions.OfType<ReturnInstruction>(), i => i.ReturnProgram is not null);
+        var returnProgram = Assert.NotNull(instruction.ReturnProgram);
+        Assert.True(
+            UnifiedBytecodeCompiler.TryCompileStandaloneExpressionProgram(
+                returnProgram,
+                allowsDynamicIdentifiers: true,
+                out var program,
+                out var reason),
+            reason);
+
+        Assert.Contains(
+            program.Instructions,
+            instruction => instruction.OpCode == UnifiedBytecodeOpCode.CreateObject);
+        Assert.Contains(
+            program.Instructions,
+            instruction => instruction.OpCode == UnifiedBytecodeOpCode.SetNamedProperty);
+    }
+
+    [Fact]
+    public async Task ReturnInstruction_NestedComputedAssignmentWithFunctionLiteralRhs_CompilesStandalone()
+    {
+        var plan = await GetFunctionPlan("""
+            function assignSpecies(box) {
+                return box.constructor[Symbol.species] = function() { return 1; };
+            }
+            """, "assignSpecies");
+
+        var instruction = Assert.Single(plan.Instructions.OfType<ReturnInstruction>(), i => i.ReturnProgram is not null);
+        var returnProgram = Assert.NotNull(instruction.ReturnProgram);
+        Assert.True(
+            UnifiedBytecodeCompiler.TryCompileStandaloneExpressionProgram(
+                returnProgram,
+                allowsDynamicIdentifiers: true,
+                out var program,
+                out var reason),
+            reason);
+
+        Assert.Contains(
+            program.Instructions,
+            instruction => instruction.OpCode == UnifiedBytecodeOpCode.LoadFunctionLiteral);
+        Assert.Contains(
+            program.Instructions,
+            instruction => instruction.OpCode == UnifiedBytecodeOpCode.SetComputedProperty);
+    }
+
+    [Fact]
+    public async Task ReturnInstruction_NestedComputedAssignmentWithObjectLiteralRhs_CompilesStandalone()
+    {
+        var plan = await GetFunctionPlan("""
+            function assignSpeciesObject(box) {
+                return box.constructor[Symbol.species] = {};
+            }
+            """, "assignSpeciesObject");
+
+        var instruction = Assert.Single(plan.Instructions.OfType<ReturnInstruction>(), i => i.ReturnProgram is not null);
+        var returnProgram = Assert.NotNull(instruction.ReturnProgram);
+        Assert.True(
+            UnifiedBytecodeCompiler.TryCompileStandaloneExpressionProgram(
+                returnProgram,
+                allowsDynamicIdentifiers: true,
+                out var program,
+                out var reason),
+            reason);
+
+        Assert.Contains(
+            program.Instructions,
+            instruction => instruction.OpCode == UnifiedBytecodeOpCode.CreateObject);
+        Assert.Contains(
+            program.Instructions,
+            instruction => instruction.OpCode == UnifiedBytecodeOpCode.SetComputedProperty);
+    }
+
+    [Fact]
     public async Task ReturnInstruction_CompoundPropertyAssignment_IsLoweredToExpressionProgram()
     {
         var plan = await GetFunctionPlan("""
@@ -2263,6 +2344,33 @@ public sealed class ExpressionProgramLoweringTests : IAsyncLifetime
         var instruction = Assert.Single(plan.Instructions.OfType<ReturnInstruction>(), i => i.ReturnProgram is not null);
         Assert.Null(instruction.ReturnExpression);
         AssertProgramContains<SetComputedPropertyExpressionOp>(instruction.ReturnProgram);
+    }
+
+    [Fact]
+    public async Task ReturnInstruction_IndexAssignmentWithDynamicCallKey_CompilesStandalone()
+    {
+        var plan = await GetFunctionPlan("""
+            function assignSymbol(box) {
+                return box[Symbol("k")] = 1;
+            }
+            """, "assignSymbol");
+
+        var instruction = Assert.Single(plan.Instructions.OfType<ReturnInstruction>(), i => i.ReturnProgram is not null);
+        var returnProgram = Assert.NotNull(instruction.ReturnProgram);
+        Assert.True(
+            UnifiedBytecodeCompiler.TryCompileStandaloneExpressionProgram(
+                returnProgram,
+                allowsDynamicIdentifiers: true,
+                out var program,
+                out var reason),
+            reason);
+
+        Assert.Contains(
+            program.Instructions,
+            instruction => instruction.OpCode == UnifiedBytecodeOpCode.PrepareDynamicIdentifierCallTarget);
+        Assert.Contains(
+            program.Instructions,
+            instruction => instruction.OpCode == UnifiedBytecodeOpCode.SetComputedProperty);
     }
 
     [Fact]

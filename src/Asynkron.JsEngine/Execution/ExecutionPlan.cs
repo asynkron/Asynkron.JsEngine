@@ -125,8 +125,7 @@ internal sealed record ExecutionPlan(
         ComputeSimpleReturnParameter(Instructions, EntryPoint, ActivationSlots);
 
     // Mutable plan-level caches — set once after the first eligibility evaluation; never reverted.
-    // Thread-safe: writes use volatile semantics; only the first writer wins (benign race on the
-    // accept path since all competing threads derive the same compiled program from the same plan).
+    // Thread-safe: writes use volatile semantics; races are benign only for plan-pure facts.
 
     /// <summary>
     /// Set to true once the plan-level production unified-bytecode eligibility check has found a

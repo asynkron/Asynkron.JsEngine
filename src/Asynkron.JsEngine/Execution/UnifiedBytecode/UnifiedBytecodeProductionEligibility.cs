@@ -1328,7 +1328,7 @@ internal static class UnifiedBytecodeProductionEligibility
                         program,
                         activationSlots,
                         allowsDynamicIdentifiers,
-                        allowImplicitArgumentsObjectPropertyReadOperands: false,
+                        activation.AllowsImplicitArgumentsObjectPropertyReadOperands,
                         allowsThisPropertyWrites: false,
                         out declineCode,
                         out declineReason))
@@ -6683,7 +6683,8 @@ internal static class UnifiedBytecodeProductionEligibility
                             program,
                             identifierConstants,
                             activationSlots,
-                            allowsDynamicIdentifiers))
+                            allowsDynamicIdentifiers,
+                            allowImplicitArgumentsObjectPropertyReadOperands))
                     {
                         break;
                     }
@@ -7828,16 +7829,27 @@ internal static class UnifiedBytecodeProductionEligibility
         ExpressionProgram program,
         ReadOnlySpan<IdentifierOperand> identifierConstants,
         ActivationSlotShape activationSlots,
-        bool allowsDynamicIdentifiers)
+        bool allowsDynamicIdentifiers,
+        bool allowImplicitArgumentsObjectPropertyReadOperands)
     {
         if (program.OperationCount < 2)
         {
             return false;
         }
 
-        if (!TryGetActivationResolvedValue(program.GetOperation(0), identifierConstants, activationSlots) &&
-            !(allowsDynamicIdentifiers &&
-              TryGetPlainDynamicIdentifierReadValue(program.GetOperation(0), identifierConstants, activationSlots)))
+        var baseOperation = program.GetOperation(0);
+        var isArgumentsBase = baseOperation.Kind == ExpressionOpKind.LoadIdentifier &&
+                              baseOperation.IsArguments;
+        if (isArgumentsBase)
+        {
+            if (!allowImplicitArgumentsObjectPropertyReadOperands || !allowsDynamicIdentifiers)
+            {
+                return false;
+            }
+        }
+        else if (!TryGetActivationResolvedValue(baseOperation, identifierConstants, activationSlots) &&
+                 !(allowsDynamicIdentifiers &&
+                   TryGetPlainDynamicIdentifierReadValue(baseOperation, identifierConstants, activationSlots)))
         {
             return false;
         }

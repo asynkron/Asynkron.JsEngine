@@ -119,6 +119,53 @@ public sealed class UnifiedBytecodeAsyncGeneratorRouteTests(ITestOutputHelper ou
     }
 
     [Fact(Timeout = 5000)]
+    public async Task AsyncGeneratorNoParameterArgumentsRead_RoutesResumableAndReadsCallArguments()
+    {
+        var plan = GetFunctionPlan("""
+            async function* values() {
+                yield arguments.length;
+                yield arguments[0];
+            }
+            """,
+            "values");
+        var eligibility = UnifiedBytecodeProductionEligibility.EvaluateResumable(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor(
+                IsAsyncLike: true,
+                IsGenerator: true,
+                AllowsOrdinaryDynamicIdentifierEnvironmentOperations: true,
+                AllowsImplicitArgumentsObjectPropertyReadOperands: true));
+        Assert.True(eligibility.IsEligible, eligibility.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, eligibility.Code);
+
+        await using var engine = CreateEngine();
+        var result = await engine.EvaluateAndAwait("""
+            var output = undefined;
+
+            async function* values() {
+                yield arguments.length;
+                yield arguments[0];
+            }
+
+            async function run() {
+                var iterator = values(42, 43);
+                var first = await iterator.next();
+                var second = await iterator.next();
+                return first.value + ":" + second.value;
+            }
+
+            run().then(value => output = value, error => output = error.name + ":" + error.message);
+            output;
+            """);
+
+        Assert.Equal("2:42", result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            record => record.Message.Contains(
+                $"{ResumableAsyncGeneratorFastPathLog} func=values argc=2",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task AsyncGeneratorYieldStar_RoutesResumableAndSettlesDelegatedAsyncIterator()
     {
         await using var engine = CreateEngine();

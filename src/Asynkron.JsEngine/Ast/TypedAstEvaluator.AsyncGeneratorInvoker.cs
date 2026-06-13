@@ -155,12 +155,16 @@ public static partial class TypedAstEvaluator
                 UnifiedBytecodeProductionEligibility.PlanNeedsResumableFunctionEnvironmentForDisposal(plan);
             var needsDirectEvalArgumentsObject =
                 HasResumableDirectEvalImplicitArgumentsAccess(function);
+            var canUseImplicitArgumentsObjectDependencyPath =
+                CanUseNoParameterResumableImplicitArgumentsObjectPath(function);
+            var needsResumableArgumentsObject =
+                needsDirectEvalArgumentsObject || canUseImplicitArgumentsObjectDependencyPath;
             var needsMaterializedBodyEnvironment =
                 UnifiedBytecodeProductionEligibility.PlanNeedsMaterializedResumableBodyEnvironment(plan) ||
                 HoistedFunctionDeclarationsNeedMaterializedBodyEnvironment(hoistedFunctionDeclarations) ||
                 UnifiedBytecodeProductionEligibility.PlanNeedsMaterializedResumableClassDeclarationEnvironment(plan) ||
                 needsFunctionEnvironmentForDisposal ||
-                needsDirectEvalArgumentsObject;
+                needsResumableArgumentsObject;
             var needsNestedFunctionLiteralLexicalThisOrPrivateNameContext =
                 UnifiedBytecodeProductionEligibility.PlanNeedsNestedFunctionLiteralLexicalThisOrPrivateNameContext(plan);
             var activation = new UnifiedBytecodeProductionActivationDescriptor(
@@ -172,7 +176,12 @@ public static partial class TypedAstEvaluator
                     allowDeclarationFreeDirectEval: true),
                 HasArgumentsObjectDependency: HasResumableArgumentsObjectDependency(
                     function,
-                    allowDeclarationFreeDirectEval: true),
+                    allowDeclarationFreeDirectEval: true) &&
+                    !canUseImplicitArgumentsObjectDependencyPath,
+                AllowsOrdinaryDynamicIdentifierEnvironmentOperations:
+                    canUseImplicitArgumentsObjectDependencyPath,
+                AllowsImplicitArgumentsObjectPropertyReadOperands:
+                    canUseImplicitArgumentsObjectDependencyPath,
                 AllowsRootFunctionDeclarationInstructions: !hoistedFunctionDeclarations.IsEmpty,
                 AllowsMaterializedBodyEnvironmentFunctionLiterals: needsMaterializedBodyEnvironment,
                 AllowsNestedFunctionLiteralLexicalThisOrPrivateNameContext:
@@ -256,7 +265,7 @@ public static partial class TypedAstEvaluator
                 }
             }
 
-            if (needsDirectEvalArgumentsObject)
+            if (needsResumableArgumentsObject)
             {
                 DefineResumableArgumentsObject(function, arguments, callingEnvironment, realmState, callable, isStrict);
             }

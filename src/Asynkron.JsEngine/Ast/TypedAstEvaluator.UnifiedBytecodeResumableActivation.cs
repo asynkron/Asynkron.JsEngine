@@ -109,6 +109,13 @@ public static partial class TypedAstEvaluator
              ? ResumableDirectEvalActivationDetector.ContainsArgumentsObjectDependency(function.Body)
              : DynamicScopeDetector.ContainsDirectEval(function.Body)));
 
+    private static bool CanUseNoParameterResumableImplicitArgumentsObjectPath(
+        FunctionExpression function) =>
+        !function.IsArrow &&
+        function.Parameters.Length == 0 &&
+        !HasArgumentsBindingDeclaration(function) &&
+        ArgumentsReferenceDetector.ContainsArgumentsReference(function.Body);
+
     private static bool HasResumableDirectEvalImplicitArgumentsAccess(FunctionExpression function) =>
         !function.IsArrow &&
         !HasArgumentsBindingDeclaration(function) &&

@@ -323,11 +323,21 @@ fallback or cleanup.
     evaluation; retained live `with` scopes outside the VM current-environment
     lane; eval-injected runtime bindings; and `Function(...)`-produced bodies,
     while explicitly naming the A2/D1/D2/D3/D4 quarantine boundary outside
-    ordinary E5 runner retirement. Issue #3377 / PR #3476 added this rule after
-    the E5e manifest proof was strengthened from one direct-eval phrase to a
-    seven-pattern exact exclusion contract. WHY: a representative phrase can
-    stay green while the exclusion boundary silently narrows, letting future
-    agents misclassify terminal dynamic residue as ordinary E5 runner work.
+    ordinary E5 runner retirement. When a terminal-residue source-presence row
+    proves a guard plus its behavior, anchor the coupled source as one verbatim
+    block pattern instead of independent `patterns` entries, and pin that shape
+    in `BytecodeProofManifestTests` so the guard cannot drift away from the
+    `return false;` or equivalent outcome. Issue #3377 / PR #3476 added this
+    rule after the E5e manifest proof was strengthened from one direct-eval
+    phrase to a seven-pattern exact exclusion contract. Faktorial issue
+    `planitem-gh3495-shared-context-e5e-terminal-dynamic-residue-boundary-add-or-tight-5bcaf53c17`
+    / PR #3608 added the coupled-block refinement after review found that an
+    `IsDynamicFunctionConstructorBody` guard and a standalone `return false;`
+    could satisfy separate source-presence patterns without proving the dynamic
+    `Function(...)` body guard still caused the decline. WHY: representative
+    phrases or decoupled source snippets can stay green while the exclusion
+    boundary silently narrows, letting future agents misclassify terminal
+    dynamic residue as ordinary E5 runner work.
 37. When retiring script `ExecutionPlanRunner.RunScript(...)` fallback, prove
     ordinary script declines are gone before changing the classified helper into
     a terminal-dynamic-only quarantine. The E5c manifest row should stay open

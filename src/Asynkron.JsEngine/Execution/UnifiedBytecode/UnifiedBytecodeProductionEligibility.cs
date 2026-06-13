@@ -2093,6 +2093,7 @@ internal static class UnifiedBytecodeProductionEligibility
     {
         activeScopeDepths = new int[instructions.Length];
         Array.Fill(activeScopeDepths, -1);
+        var activeScopeStacks = new ImmutableArray<int>[instructions.Length];
 
         if ((uint)entryPoint >= (uint)instructions.Length)
         {
@@ -2100,11 +2101,12 @@ internal static class UnifiedBytecodeProductionEligibility
             return false;
         }
 
-        var pending = new Stack<(int InstructionIndex, int ScopeDepth)>();
-        pending.Push((entryPoint, 0));
+        var pending = new Stack<(int InstructionIndex, ImmutableArray<int> ScopeStack)>();
+        pending.Push((entryPoint, ImmutableArray<int>.Empty));
         while (pending.Count > 0)
         {
-            var (instructionIndex, scopeDepth) = pending.Pop();
+            var (instructionIndex, scopeStack) = pending.Pop();
+            var scopeDepth = scopeStack.Length;
             if ((uint)instructionIndex >= (uint)instructions.Length)
             {
                 reason = "Instruction flow reached an invalid target index.";
@@ -2120,7 +2122,8 @@ internal static class UnifiedBytecodeProductionEligibility
             var existingDepth = activeScopeDepths[instructionIndex];
             if (existingDepth >= 0)
             {
-                if (existingDepth != scopeDepth)
+                if (existingDepth != scopeDepth ||
+                    !ScopeStacksEqual(activeScopeStacks[instructionIndex], scopeStack))
                 {
                     reason = "Instruction flow reaches the same instruction with inconsistent lexical-environment depth.";
                     return false;
@@ -2130,8 +2133,9 @@ internal static class UnifiedBytecodeProductionEligibility
             }
 
             activeScopeDepths[instructionIndex] = scopeDepth;
+            activeScopeStacks[instructionIndex] = scopeStack;
             var instruction = instructions[instructionIndex];
-            if (!TryGetSuccessorScopeDepth(instruction, scopeDepth, out var successorScopeDepth, out reason))
+            if (!TryGetSuccessorScopeStack(instruction, scopeStack, out var successorScopeStack, out reason))
             {
                 return false;
             }
@@ -2139,8 +2143,8 @@ internal static class UnifiedBytecodeProductionEligibility
             switch (instruction)
             {
                 case BranchInstruction branch:
-                    if (!TryPushScopeDepth(branch.AlternateIndex, successorScopeDepth, instructions, pending, out reason) ||
-                        !TryPushScopeDepth(branch.ConsequentIndex, successorScopeDepth, instructions, pending, out reason))
+                    if (!TryPushScopeStack(branch.AlternateIndex, successorScopeStack, instructions, pending, out reason) ||
+                        !TryPushScopeStack(branch.ConsequentIndex, successorScopeStack, instructions, pending, out reason))
                     {
                         return false;
                     }
@@ -2148,19 +2152,19 @@ internal static class UnifiedBytecodeProductionEligibility
                     break;
 
                 case EnterTryInstruction enterTry:
-                    if (!TryPushScopeDepth(enterTry.Next, successorScopeDepth, instructions, pending, out reason))
+                    if (!TryPushScopeStack(enterTry.Next, successorScopeStack, instructions, pending, out reason))
                     {
                         return false;
                     }
 
                     if (enterTry.HandlerIndex >= 0 &&
-                        !TryPushScopeDepth(enterTry.HandlerIndex, successorScopeDepth, instructions, pending, out reason))
+                        !TryPushScopeStack(enterTry.HandlerIndex, successorScopeStack, instructions, pending, out reason))
                     {
                         return false;
                     }
 
                     if (enterTry.FinallyIndex >= 0 &&
-                        !TryPushScopeDepth(enterTry.FinallyIndex, successorScopeDepth, instructions, pending, out reason))
+                        !TryPushScopeStack(enterTry.FinallyIndex, successorScopeStack, instructions, pending, out reason))
                     {
                         return false;
                     }
@@ -2168,7 +2172,7 @@ internal static class UnifiedBytecodeProductionEligibility
                     break;
 
                 case JumpInstruction jump:
-                    if (!TryPushScopeDepth(jump.TargetIndex, successorScopeDepth, instructions, pending, out reason))
+                    if (!TryPushScopeStack(jump.TargetIndex, successorScopeStack, instructions, pending, out reason))
                     {
                         return false;
                     }
@@ -2176,7 +2180,7 @@ internal static class UnifiedBytecodeProductionEligibility
                     break;
 
                 case BreakInstruction breakInstruction:
-                    if (!TryPushScopeDepth(breakInstruction.TargetIndex, successorScopeDepth, instructions, pending, out reason))
+                    if (!TryPushScopeStack(breakInstruction.TargetIndex, successorScopeStack, instructions, pending, out reason))
                     {
                         return false;
                     }
@@ -2184,7 +2188,7 @@ internal static class UnifiedBytecodeProductionEligibility
                     break;
 
                 case ContinueInstruction continueInstruction:
-                    if (!TryPushScopeDepth(continueInstruction.TargetIndex, successorScopeDepth, instructions, pending, out reason))
+                    if (!TryPushScopeStack(continueInstruction.TargetIndex, successorScopeStack, instructions, pending, out reason))
                     {
                         return false;
                     }
@@ -2197,7 +2201,7 @@ internal static class UnifiedBytecodeProductionEligibility
 
                 default:
                     if (instruction.Next >= 0 &&
-                        !TryPushScopeDepth(instruction.Next, successorScopeDepth, instructions, pending, out reason))
+                        !TryPushScopeStack(instruction.Next, successorScopeStack, instructions, pending, out reason))
                     {
                         return false;
                     }
@@ -2210,44 +2214,77 @@ internal static class UnifiedBytecodeProductionEligibility
         return true;
     }
 
-    private static bool TryGetSuccessorScopeDepth(
+    private static bool ScopeStacksEqual(ImmutableArray<int> left, ImmutableArray<int> right)
+    {
+        if (left.Length != right.Length)
+        {
+            return false;
+        }
+
+        for (var i = 0; i < left.Length; i++)
+        {
+            if (left[i] != right[i])
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static bool TryGetSuccessorScopeStack(
         ExecutionInstruction instruction,
-        int scopeDepth,
-        out int successorScopeDepth,
+        ImmutableArray<int> scopeStack,
+        out ImmutableArray<int> successorScopeStack,
         out string reason)
     {
         switch (instruction)
         {
-            case PushEnvironmentInstruction:
+            case PushEnvironmentInstruction pushEnvironment:
+                successorScopeStack =
+                    IsPerIterationEnvironmentReplacement(pushEnvironment, scopeStack)
+                        ? scopeStack
+                        : scopeStack.Add(pushEnvironment.ScopeId);
+                reason = string.Empty;
+                return true;
+
             case EnterCatchInstruction:
-                successorScopeDepth = scopeDepth + 1;
+                successorScopeStack = scopeStack.Add(((EnterCatchInstruction)instruction).ScopeId);
                 reason = string.Empty;
                 return true;
 
             case PopEnvironmentInstruction:
-                if (scopeDepth == 0)
+                if (scopeStack.Length == 0)
                 {
-                    successorScopeDepth = 0;
+                    successorScopeStack = scopeStack;
                     reason = "PopEnvironment instruction is not preceded by an active lexical environment.";
                     return false;
                 }
 
-                successorScopeDepth = scopeDepth - 1;
+                successorScopeStack = scopeStack.RemoveAt(scopeStack.Length - 1);
                 reason = string.Empty;
                 return true;
 
             default:
-                successorScopeDepth = scopeDepth;
+                successorScopeStack = scopeStack;
                 reason = string.Empty;
                 return true;
         }
     }
 
-    private static bool TryPushScopeDepth(
+    private static bool IsPerIterationEnvironmentReplacement(
+        PushEnvironmentInstruction instruction,
+        ImmutableArray<int> scopeStack) =>
+        !instruction.PerIterationBindings.IsDefaultOrEmpty &&
+        instruction.ScopeId >= 0 &&
+        scopeStack.Length > 0 &&
+        scopeStack[^1] == instruction.ScopeId;
+
+    private static bool TryPushScopeStack(
         int instructionIndex,
-        int scopeDepth,
+        ImmutableArray<int> scopeStack,
         ImmutableArray<ExecutionInstruction> instructions,
-        Stack<(int InstructionIndex, int ScopeDepth)> pending,
+        Stack<(int InstructionIndex, ImmutableArray<int> ScopeStack)> pending,
         out string reason)
     {
         if ((uint)instructionIndex >= (uint)instructions.Length)
@@ -2256,7 +2293,7 @@ internal static class UnifiedBytecodeProductionEligibility
             return false;
         }
 
-        pending.Push((instructionIndex, scopeDepth));
+        pending.Push((instructionIndex, scopeStack));
         reason = string.Empty;
         return true;
     }

@@ -85,6 +85,33 @@ public sealed class UnifiedBytecodeAsyncGeneratorRouteTests(ITestOutputHelper ou
     }
 
     [Fact]
+    public void EvaluateResumable_AsyncGeneratorForLetAwait_AdmitsPerIterationReplacementScope()
+    {
+        var plan = GetFunctionPlan("""
+            async function* callAsync(iterations, pushAwait) {
+                for (let i = 0; i < iterations; i++) {
+                    await pushAwait();
+                }
+                return 0;
+            }
+            """,
+            "callAsync");
+
+        var result = UnifiedBytecodeProductionEligibility.EvaluateResumable(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor(IsAsyncLike: true, IsGenerator: true));
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(
+            result.Program.Instructions,
+            static instruction => instruction.OpCode == UnifiedBytecodeOpCode.PushEnvironment);
+        Assert.Contains(
+            result.Program.Instructions,
+            static instruction => instruction.OpCode == UnifiedBytecodeOpCode.AwaitAndDiscard);
+    }
+
+    [Fact]
     public void EvaluateResumable_AsyncGeneratorYieldStarAwait_AdmitsAwaitValueAndYieldStar()
     {
         var plan = GetFunctionPlan("""
@@ -170,6 +197,47 @@ public sealed class UnifiedBytecodeAsyncGeneratorRouteTests(ITestOutputHelper ou
         Assert.Contains(CurrentLogger!.Collector.Snapshot(),
             record => record.Message.Contains(
                 $"{ResumableAsyncGeneratorFastPathLog} func=values argc=1",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task AsyncGeneratorForLetAwait_RoutesResumableAndInterleavesPromiseTicks()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.EvaluateAndAwait("""
+            var output = undefined;
+            var actual = [];
+            var iterations = 2;
+
+            async function pushAwait() {
+                actual.push("await");
+            }
+
+            async function* callAsync() {
+                for (let i = 0; i < iterations; i++) {
+                    await pushAwait();
+                }
+                return 0;
+            }
+
+            callAsync().next();
+
+            new Promise(function(resolve) {
+                actual.push(1);
+                resolve();
+            }).then(function() {
+                actual.push(2);
+            }).then(function() {
+                output = actual.join("|");
+            });
+
+            output;
+            """);
+
+        Assert.Equal("await|1|await|2", result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            record => record.Message.Contains(
+                $"{ResumableAsyncGeneratorFastPathLog} func=callAsync argc=0",
                 StringComparison.Ordinal));
     }
 

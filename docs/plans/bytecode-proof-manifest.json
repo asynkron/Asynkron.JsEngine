@@ -2447,7 +2447,7 @@
         {
           "id": "E5e-terminal-dynamic-residue-stays-declined-in-eligibility-classifier",
           "childOwner": "E5e-residue-exclusion-boundary",
-          "classification": "the five terminal dynamic residue categories are anchored to the eligibility classifier's own decline messages, not checklist prose: runtime-source/multi-arg/spread/declaration direct eval, awaited with-object evaluation, retained live with scopes, eval-injected/dynamic activation residue, and Function(...)-produced bodies each keep an explicit decline gate in UnifiedBytecodeProductionEligibility.cs, so any of them silently entering ordinary E5b-E5d runner retirement fails this proof",
+          "classification": "four terminal dynamic residue categories are anchored to the eligibility classifier's own decline messages, not checklist prose: runtime-source/multi-arg/spread/declaration direct eval, awaited with-object evaluation, retained live with scopes, and eval-injected/dynamic activation residue each keep an explicit decline gate in UnifiedBytecodeProductionEligibility.cs, so any of them silently entering ordinary E5b-E5d runner retirement fails this proof",
           "claim": "terminal-residue",
           "kind": "source-presence",
           "path": "src/Asynkron.JsEngine/Execution/UnifiedBytecode/UnifiedBytecodeProductionEligibility.cs",
@@ -2455,8 +2455,19 @@
             "Direct eval invocation semantics are not eligible for production unified bytecode routing.",
             "Awaited with-object evaluation is not eligible for production unified bytecode routing.",
             "requires dynamic lookup and is not eligible outside an active with environment.",
-            "Unowned captured or dynamic activation residue is not eligible for resumable unified bytecode routing.",
-            "function.IsDynamicFunctionConstructorBody ||"
+            "Unowned captured or dynamic activation residue is not eligible for resumable unified bytecode routing."
+          ]
+        },
+        {
+          "id": "E5e-function-constructor-body-stays-out-of-sync-production-fast-path",
+          "childOwner": "E5e-residue-exclusion-boundary",
+          "classification": "Function(...)-produced bodies are anchored to the broad sync production fast-path quarantine guard, not a narrower class-constructor helper condition, so removing that ordinary-route guard fails the E5e terminal dynamic residue proof",
+          "claim": "terminal-residue",
+          "kind": "source-presence",
+          "path": "src/Asynkron.JsEngine/Ast/TypedAstEvaluator.SyncFunctionInvoker.cs",
+          "patterns": [
+            "if (_function.IsDynamicFunctionConstructorBody)",
+            "return false;"
           ]
         }
       ]

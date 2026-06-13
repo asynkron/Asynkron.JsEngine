@@ -13590,7 +13590,9 @@ internal static class UnifiedBytecodeCompiler
                 startInclusive: keyStart,
                 endExclusive: readStart,
                 out reason,
-                allowsDynamicIdentifiers))
+                allowsDynamicIdentifiers,
+                stagedCallTargets,
+                slotLayout))
         {
             return false;
         }

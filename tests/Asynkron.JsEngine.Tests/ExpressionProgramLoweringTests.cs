@@ -2391,6 +2391,36 @@ public sealed class ExpressionProgramLoweringTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task ReturnInstruction_CompoundIndexAssignmentWithDynamicCallKey_CompilesStandalone()
+    {
+        var plan = await GetFunctionPlan("""
+            function addAtSymbol(box, value) {
+                return box[Symbol("k")] += value;
+            }
+            """, "addAtSymbol");
+
+        var instruction = Assert.Single(plan.Instructions.OfType<ReturnInstruction>(), i => i.ReturnProgram is not null);
+        var returnProgram = Assert.NotNull(instruction.ReturnProgram);
+        Assert.True(
+            UnifiedBytecodeCompiler.TryCompileStandaloneExpressionProgram(
+                returnProgram,
+                allowsDynamicIdentifiers: true,
+                out var program,
+                out var reason),
+            reason);
+
+        Assert.Contains(
+            program.Instructions,
+            instruction => instruction.OpCode == UnifiedBytecodeOpCode.PrepareDynamicIdentifierCallTarget);
+        Assert.Contains(
+            program.Instructions,
+            instruction => instruction.OpCode == UnifiedBytecodeOpCode.GetComputedPropertyForCompoundSet);
+        Assert.Contains(
+            program.Instructions,
+            instruction => instruction.OpCode == UnifiedBytecodeOpCode.SetComputedProperty);
+    }
+
+    [Fact]
     public async Task ReturnInstruction_NullishCompoundIndexAssignment_IsLoweredToExpressionProgram()
     {
         var plan = await GetFunctionPlan("""

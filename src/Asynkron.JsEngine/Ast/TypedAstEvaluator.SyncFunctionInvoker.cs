@@ -1898,14 +1898,24 @@ TryCreateSimpleNumericSelfRecursionFastPath(
                                 _function.Name?.Name ?? "<anonymous>");
                         }
 
-                        return ExecuteClassifiedSyncFunctionIrResidue(
-                            arguments,
-                            thisValue,
-                            newTarget,
-                            plan,
-                            context,
-                            callingContext,
-                            constructErrorRealm);
+                        if (IsClassConstructor &&
+                            (PrivateNameScope is not null || !_instanceFields.IsDefaultOrEmpty))
+                        {
+                            RealmState.Logger?.LogInformation(
+                                "class-constructor classified IR residue requires instance initialization; falling through to dynamic-scope executor func={Function}",
+                                _function.Name?.Name ?? "<anonymous>");
+                        }
+                        else
+                        {
+                            return ExecuteClassifiedSyncFunctionIrResidue(
+                                arguments,
+                                thisValue,
+                                newTarget,
+                                plan,
+                                context,
+                                callingContext,
+                                constructErrorRealm);
+                        }
                     }
 
                     if (!IsClassConstructor && plan is null)

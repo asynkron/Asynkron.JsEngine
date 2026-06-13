@@ -274,6 +274,35 @@ public sealed class UnifiedBytecodeProductionConstructCallTests(ITestOutputHelpe
     }
 
     [Fact(Timeout = 5000)]
+    public async Task BaseClassConstructorWithPrivateMethod_CanReadPrivateMethodInsideConstructor()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            class Box {
+                #read() {
+                    return 42;
+                }
+
+                get ref() {
+                    return this.#read;
+                }
+
+                constructor() {
+                    this.type = typeof this.#read;
+                    this.same = this.ref === this.#read && this.#read === (() => this)().#read;
+                    this.name = this.#read.name;
+                    this.value = this.#read();
+                }
+            }
+
+            var box = new Box();
+            box.type + ":" + box.same + ":" + box.name + ":" + box.value;
+            """);
+
+        Assert.Equal("function:true:#read:42", result?.ToString());
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task Construct_PreservesArgumentEvaluationOrder()
     {
         await using var engine = CreateEngine();

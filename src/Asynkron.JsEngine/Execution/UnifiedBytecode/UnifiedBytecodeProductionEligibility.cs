@@ -1107,7 +1107,7 @@ internal static class UnifiedBytecodeProductionEligibility
     private static bool InstructionCanSuspendResumableExecution(ExecutionInstruction instruction) =>
         instruction switch
         {
-            YieldInstruction => true,
+            YieldInstruction { AwaitedProgram: not null } => true,
             YieldStarInstruction => true,
             ReturnInstruction { AwaitedProgram: not null } => true,
             _ => false
@@ -1231,8 +1231,7 @@ internal static class UnifiedBytecodeProductionEligibility
 
             // B8a const-slot metadata lives on UnifiedBytecodeResumeState, so resolved lexical-slot writes
             // and updates no longer need a pre-VM decline here. Captured / free updates are still guarded by
-            // the environment reference itself; the only special case is a captured/free update inside a
-            // finally that protects a yield/await, declined below by the try/finally suspension guard.
+            // the environment reference itself.
 
             if (instruction is EnterTryInstruction enterTry &&
                 TryFindTryFinallyRegionResumableSuspension(

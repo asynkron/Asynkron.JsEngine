@@ -484,6 +484,111 @@ public sealed class UnifiedBytecodeAsyncGeneratorRouteTests(ITestOutputHelper ou
                 StringComparison.Ordinal));
     }
 
+    [Fact]
+    public void EvaluateResumable_AsyncGeneratorYieldingFinally_AdmitsPlainCleanupYield()
+    {
+        var plan = GetFunctionPlan("""
+            async function* gen() {
+                try {
+                    yield 1;
+                } finally {
+                    yield 2;
+                }
+            }
+            """,
+            "gen");
+
+        var result = UnifiedBytecodeProductionEligibility.EvaluateResumable(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor(IsAsyncLike: true, IsGenerator: true));
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task AsyncGeneratorReturnThroughYieldingFinally_RoutesResumableAndCompletesReturn()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.EvaluateAndAwait("""
+            var output = undefined;
+
+            async function* gen() {
+                try {
+                    yield 1;
+                    throw new Error("unreachable");
+                } finally {
+                    yield 2;
+                }
+            }
+
+            async function run() {
+                var iterator = gen();
+                var first = await iterator.next();
+                var cleanup = await iterator.return("sent-value");
+                var done = await iterator.next();
+                return first.value + ":" + first.done + "|" +
+                    cleanup.value + ":" + cleanup.done + "|" +
+                    done.value + ":" + done.done;
+            }
+
+            run().then(value => output = value);
+            output;
+            """);
+
+        Assert.Equal("1:false|2:false|sent-value:true", result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            record => record.Message.Contains(
+                $"{ResumableAsyncGeneratorFastPathLog} func=gen argc=0",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task AsyncGeneratorThrowThroughYieldingFinally_RoutesResumableAndRejectsOriginalError()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.EvaluateAndAwait("""
+            var output = undefined;
+            var error = new Error("boop");
+
+            async function* gen() {
+                try {
+                    yield 1;
+                    throw new Error("unreachable");
+                } finally {
+                    yield 2;
+                }
+            }
+
+            async function run() {
+                var iterator = gen();
+                var first = await iterator.next();
+                var cleanup = await iterator.throw(error);
+                var threwOriginal = false;
+                try {
+                    await iterator.next();
+                } catch (err) {
+                    threwOriginal = err === error;
+                }
+
+                var closed = await iterator.next();
+                return first.value + ":" + first.done + "|" +
+                    cleanup.value + ":" + cleanup.done + "|" +
+                    threwOriginal + "|" +
+                    closed.value + ":" + closed.done;
+            }
+
+            run().then(value => output = value);
+            output;
+            """);
+
+        Assert.Equal("1:false|2:false|true|undefined:true", result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            record => record.Message.Contains(
+                $"{ResumableAsyncGeneratorFastPathLog} func=gen argc=0",
+                StringComparison.Ordinal));
+    }
+
     [Fact(Timeout = 5000)]
     public async Task AsyncGeneratorDeclarationFreeDirectEval_RoutesResumableAndSettles()
     {

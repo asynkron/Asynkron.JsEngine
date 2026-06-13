@@ -129,6 +129,7 @@ public static partial class TypedAstEvaluator
             if (!function.HasOnlySimpleIdentifierParameters() &&
                 !ResumableParameterShapeAllowsEagerBinding(function))
             {
+                BindUnsupportedNonSimpleParametersForEarlyThrows();
                 declineReason =
                     "Non-simple async-generator parameter lists with closure-creating or direct-eval parameter expressions are not eligible for resumable invocation.";
                 return false;
@@ -308,6 +309,72 @@ public static partial class TypedAstEvaluator
                 arguments.Count);
             declineReason = string.Empty;
             return true;
+        }
+
+        private void BindUnsupportedNonSimpleParametersForEarlyThrows()
+        {
+            var isStrict = function.Body.IsStrict || closure.IsStrict || isLexicallyStrict;
+            var context = realmState.CreateContext();
+            var functionMode = isStrict ? ScopeMode.Strict : ScopeMode.Sloppy;
+            using var functionScopeFrame = context.PushScope(ScopeKind.Function, functionMode);
+
+            var functionEnvironment = JsEnvironment.CreateInstance(
+                closure,
+                true,
+                isStrict,
+                function.Source,
+                function.Name?.Name ?? "async generator");
+            functionEnvironment.ScopeId = function.ScopeId;
+            functionEnvironment.SetSlotMap(function.SlotMap);
+
+            var parameterEnvironment = JsEnvironment.CreateInstance(
+                functionEnvironment,
+                false,
+                isStrict,
+                function.Source,
+                function.Name?.Name ?? "async generator",
+                isParameterEnvironment: true);
+
+            var varEnvironment = JsEnvironment.CreateInstance(
+                parameterEnvironment,
+                true,
+                isStrict,
+                function.Source,
+                function.Name?.Name ?? "async generator");
+
+            var executionEnvironment = JsEnvironment.CreateInstance(
+                varEnvironment,
+                false,
+                isStrict,
+                function.Source,
+                function.Name?.Name ?? "async generator",
+                isBodyEnvironment: true);
+
+            var argumentsObject = function.CreateArgumentsObject(
+                arguments,
+                executionEnvironment,
+                realmState,
+                callable,
+                isStrict);
+            var argumentsValue = JsValue.FromObjectUnsafe(argumentsObject);
+            executionEnvironment.DefineJsValue(Symbol.Arguments, argumentsValue, isLexicalBinding: false);
+            parameterEnvironment.DefineJsValue(Symbol.Arguments, argumentsValue, isLexicalBinding: false);
+            functionEnvironment.DefineJsValue(Symbol.Arguments, argumentsValue, isLexicalBinding: false);
+
+            function.BindFunctionParameters(arguments, parameterEnvironment, context);
+            if (!context.ShouldStopEvaluation)
+            {
+                return;
+            }
+
+            if (context.IsThrow)
+            {
+                var thrown = context.FlowValue;
+                context.Clear();
+                throw new ThrowSignal(thrown);
+            }
+
+            context.Clear();
         }
 
         private bool TryGetExecutionPlan(out ExecutionPlan plan)

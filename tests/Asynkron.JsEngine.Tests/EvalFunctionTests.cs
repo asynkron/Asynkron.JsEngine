@@ -100,6 +100,28 @@ public sealed class EvalFunctionTests(ITestOutputHelper output) : InternalTestBa
     }
 
     [Fact(Timeout = 5000)]
+    public async Task DirectEvalInAsyncGeneratorDefaultParameter_ThrowsSyntaxErrorBeforeBodyEligibility()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            var outcome;
+            async function * f(p = eval("var arguments")) {
+            }
+
+            try {
+              f();
+              outcome = "no throw";
+            } catch (error) {
+              outcome = error.name;
+            }
+
+            outcome;
+            """);
+
+        Assert.Equal("SyntaxError", result);
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task StrictDirectEval_WithDeclarations_DoesNotLeakBindingsToCallerScope()
     {
         await using var engine = CreateEngine();

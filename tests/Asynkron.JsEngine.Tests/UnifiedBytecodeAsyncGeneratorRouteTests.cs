@@ -119,6 +119,53 @@ public sealed class UnifiedBytecodeAsyncGeneratorRouteTests(ITestOutputHelper ou
     }
 
     [Fact(Timeout = 5000)]
+    public async Task AsyncGeneratorObjectSpreadWithYieldSource_RoutesResumableAndPreservesSpreadOrder()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.EvaluateAndAwait("""
+            var s = Symbol("s");
+
+            async function* values() {
+                yield {
+                    ...yield yield,
+                    ...(function(arg) {
+                        var yield = arg;
+                        return {...yield};
+                    }(yield)),
+                    ...yield
+                };
+            }
+
+            async function run() {
+                var iterator = values();
+                await iterator.next();
+                await iterator.next();
+                await iterator.next({ x: 10, a: 0, b: 0, [s]: 1 });
+                await iterator.next({ y: 20, a: 1, b: 1, [s]: 42 });
+                var item = await iterator.next({ z: 30, b: 2 });
+                return item.done + ":" +
+                    item.value.x + ":" +
+                    item.value.y + ":" +
+                    item.value.z + ":" +
+                    item.value.a + ":" +
+                    item.value.b + ":" +
+                    item.value[s] + ":" +
+                    Object.keys(item.value).length;
+            }
+
+            var output = undefined;
+            run().then(value => output = value);
+            output;
+            """);
+
+        Assert.Equal("false:10:20:30:1:2:42:5", result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            record => record.Message.Contains(
+                $"{ResumableAsyncGeneratorFastPathLog} func=values argc=0",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task AsyncGeneratorNoParameterArgumentsRead_RoutesResumableAndReadsCallArguments()
     {
         var plan = GetFunctionPlan("""

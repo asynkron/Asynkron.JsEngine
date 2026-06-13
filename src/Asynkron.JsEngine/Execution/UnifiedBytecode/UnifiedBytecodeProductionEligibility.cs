@@ -12007,9 +12007,9 @@ internal static class UnifiedBytecodeProductionEligibility
     // stack — ArraySpread runs the iterator protocol (throwing on a non-iterable);
     // ObjectSpread copies the source's own enumerable properties (a no-op for
     // null/undefined). Either way any source span built from already-admitted VM opcodes
-    // (identifier/member call, plain named property read) is safe to spread. Other shapes
-    // (already covered by the simple-literal-value span) and anything not verifiable here
-    // are declined.
+    // (identifier/member call, narrow function-literal IIFE, plain named property read)
+    // is safe to spread. Other shapes (already covered by the simple-literal-value span)
+    // and anything not verifiable here are declined.
     private static bool TryMeasureSimpleSpreadSourceOperandSpan(
         ExpressionProgram program,
         int startIndex,
@@ -12044,6 +12044,16 @@ internal static class UnifiedBytecodeProductionEligibility
             // so on its own it is handled by the push gate; we only need it here as a base
             // for trailing property reads (`o.m().items`).
         }
+        else if (TryMeasureSimpleFunctionLiteralCallOperandSpan(
+                     program,
+                     startIndex,
+                     identifierConstants,
+                     activationSlots,
+                     out baseSpanLength,
+                     allowsDynamicIdentifiers))
+        {
+            // ok
+        }
         else
         {
             return false;
@@ -12063,6 +12073,58 @@ internal static class UnifiedBytecodeProductionEligibility
         // value span; reporting it here would be redundant but harmless. A bare identifier
         // call, or any call followed by >= 1 named read, is the genuinely-new admission.
         spanLength = i - startIndex;
+        return true;
+    }
+
+    private static bool TryMeasureSimpleFunctionLiteralCallOperandSpan(
+        ExpressionProgram program,
+        int startIndex,
+        ReadOnlySpan<IdentifierOperand> identifierConstants,
+        ActivationSlotShape activationSlots,
+        out int spanLength,
+        bool allowsDynamicIdentifiers = false)
+    {
+        spanLength = 0;
+        if (program.GetOperation(startIndex).Kind != ExpressionOpKind.LoadFunctionLiteral)
+        {
+            return false;
+        }
+
+        var argumentCount = 0;
+        var i = startIndex + 1;
+        while (i < program.OperationCount)
+        {
+            var operation = program.GetOperation(i);
+            if (operation.Kind == ExpressionOpKind.Call)
+            {
+                break;
+            }
+
+            if (!IsSimpleOperand(operation, identifierConstants, activationSlots, allowsDynamicIdentifiers))
+            {
+                return false;
+            }
+
+            argumentCount++;
+            i++;
+        }
+
+        if (i >= program.OperationCount)
+        {
+            return false;
+        }
+
+        var call = program.GetOperation(i);
+        if (call.Kind != ExpressionOpKind.Call ||
+            call.ArgumentCount != argumentCount ||
+            call.HasExplicitThis ||
+            call.IsDirectEval ||
+            call.SpreadMaskConstantIndex >= 0)
+        {
+            return false;
+        }
+
+        spanLength = i - startIndex + 1;
         return true;
     }
 

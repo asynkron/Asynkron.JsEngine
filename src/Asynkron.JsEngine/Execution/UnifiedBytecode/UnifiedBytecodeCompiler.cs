@@ -9273,6 +9273,36 @@ internal static class UnifiedBytecodeCompiler
                 continue;
             }
 
+            if (functionLiteralConstants is not null &&
+                TryMeasureSimpleFunctionLiteralCallOperandSpan(
+                    expressionProgram,
+                    i,
+                    activationSlots,
+                    allowsDynamicIdentifiers,
+                    out var functionLiteralCallSpanLength) &&
+                i + functionLiteralCallSpanLength < expressionProgram.OperationCount &&
+                expressionProgram.GetOperation(i + functionLiteralCallSpanLength).Kind == ExpressionOpKind.ObjectSpread)
+            {
+                if (!TryAppendSimpleFunctionLiteralCallOperandSpan(
+                        expressionProgram,
+                        i,
+                        activationSlots,
+                        allowsDynamicIdentifiers,
+                        unified,
+                        literalConstants,
+                        stringConstants,
+                        functionLiteralConstants,
+                        out reason))
+                {
+                    spanLength = 0;
+                    return false;
+                }
+
+                unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.ObjectSpread));
+                i += functionLiteralCallSpanLength + 1;
+                continue;
+            }
+
             if (TryAppendSimpleObjectLiteralMethodOrAccessorMemberSpan(
                     expressionProgram,
                     i,
@@ -9400,6 +9430,137 @@ internal static class UnifiedBytecodeCompiler
         spanLength = i - startIndex;
         reason = string.Empty;
         return true;
+    }
+
+    private static bool TryMeasureSimpleFunctionLiteralCallOperandSpan(
+        ExpressionProgram expressionProgram,
+        int startIndex,
+        ActivationSlotShape activationSlots,
+        bool allowsDynamicIdentifiers,
+        out int spanLength)
+    {
+        spanLength = 0;
+        if (expressionProgram.GetOperation(startIndex).Kind != ExpressionOpKind.LoadFunctionLiteral)
+        {
+            return false;
+        }
+
+        var argumentCount = 0;
+        var i = startIndex + 1;
+        while (i < expressionProgram.OperationCount)
+        {
+            var operation = expressionProgram.GetOperation(i);
+            if (operation.Kind == ExpressionOpKind.Call)
+            {
+                break;
+            }
+
+            if (!IsSimpleFunctionLiteralCallArgument(
+                    operation,
+                    expressionProgram,
+                    activationSlots,
+                    allowsDynamicIdentifiers))
+            {
+                return false;
+            }
+
+            argumentCount++;
+            i++;
+        }
+
+        if (i >= expressionProgram.OperationCount)
+        {
+            return false;
+        }
+
+        var call = expressionProgram.GetOperation(i);
+        if (call.Kind != ExpressionOpKind.Call ||
+            call.ArgumentCount != argumentCount ||
+            call.HasExplicitThis ||
+            call.IsDirectEval ||
+            call.SpreadMaskConstantIndex >= 0)
+        {
+            return false;
+        }
+
+        spanLength = i - startIndex + 1;
+        return true;
+    }
+
+    private static bool TryAppendSimpleFunctionLiteralCallOperandSpan(
+        ExpressionProgram expressionProgram,
+        int startIndex,
+        ActivationSlotShape activationSlots,
+        bool allowsDynamicIdentifiers,
+        ImmutableArray<UnifiedBytecodeInstruction>.Builder unified,
+        ImmutableArray<JsValue>.Builder literalConstants,
+        ImmutableArray<string>.Builder stringConstants,
+        ImmutableArray<FunctionLiteralDescriptor>.Builder functionLiteralConstants,
+        out string reason)
+    {
+        if (!TryMeasureSimpleFunctionLiteralCallOperandSpan(
+                expressionProgram,
+                startIndex,
+                activationSlots,
+                allowsDynamicIdentifiers,
+                out var spanLength))
+        {
+            reason = string.Empty;
+            return false;
+        }
+
+        AppendLoadFunctionLiteral(
+            expressionProgram.GetOperation(startIndex),
+            expressionProgram,
+            unified,
+            functionLiteralConstants);
+
+        var call = expressionProgram.GetOperation(startIndex + spanLength - 1);
+        for (var i = startIndex + 1; i < startIndex + spanLength - 1; i++)
+        {
+            if (!TryAppendSimpleOperandLoadWithDynamic(
+                    expressionProgram.GetOperation(i),
+                    expressionProgram,
+                    activationSlots,
+                    allowsDynamicIdentifiers,
+                    unified,
+                    literalConstants,
+                    stringConstants,
+                    out reason))
+            {
+                return false;
+            }
+        }
+
+        unified.Add(new UnifiedBytecodeInstruction(
+            UnifiedBytecodeOpCode.CallInvocationBoundary,
+            EncodeCallBoundaryOperand(
+                call.ArgumentCount,
+                spreadMaskIndex: -1,
+                isDirectEval: false,
+                hasExplicitThis: false)));
+        reason = string.Empty;
+        return true;
+    }
+
+    private static bool IsSimpleFunctionLiteralCallArgument(
+        PackedExpressionOp operation,
+        ExpressionProgram expressionProgram,
+        ActivationSlotShape activationSlots,
+        bool allowsDynamicIdentifiers)
+    {
+        if (operation.Kind is ExpressionOpKind.LoadLiteral or ExpressionOpKind.LoadThis or ExpressionOpKind.LoadNewTarget)
+        {
+            return true;
+        }
+
+        if (operation.Kind != ExpressionOpKind.LoadIdentifier)
+        {
+            return false;
+        }
+
+        var identifier = operation.GetIdentifier(expressionProgram.IdentifierConstants.AsSpan());
+        return TryResolveActivationSlot(identifier, activationSlots, out _) || allowsDynamicIdentifiers;
     }
 
     private static bool TryAppendSimpleObjectLiteralMethodOrAccessorMemberSpan(

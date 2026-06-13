@@ -1283,6 +1283,18 @@ internal static class UnifiedBytecodeProductionEligibility
                 return true;
             }
 
+            if (instruction is BindingVariableDeclarationInstruction { AwaitedProgram: null } bindingDeclaration &&
+                TryFindResumableDeclarationBindingTargetDecline(
+                    bindingDeclaration.TargetProgram,
+                    activationSlots,
+                    allowsDynamicIdentifiers,
+                    activation.AllowsImplicitArgumentsObjectPropertyReadOperands,
+                    out declineCode,
+                    out declineReason))
+            {
+                return true;
+            }
+
             if (TryFindNestedFunctionActivationCaptureDecline(
                     instruction,
                     activationSlots,
@@ -1453,11 +1465,13 @@ internal static class UnifiedBytecodeProductionEligibility
             // ApplyDeclarationBindingTarget opcode is admitted in the resumable allowlist (kept 1:1 with the
             // ExecuteResumable handler).
             case BindingVariableDeclarationInstruction { AwaitedProgram: not null, InitializerProgram: null }:
-            // Direct function-body sync `using value = resource` lowers through the generic binding
-            // declaration path even for identifier targets. The upfront target-scope gate admits only
-            // activation-scope bindings, and the compiler emits DuplicateTop -> RegisterDisposable before
-            // ApplyDeclarationBindingTarget stores the const binding.
-            case BindingVariableDeclarationInstruction { VarKind: VariableKind.Using, AwaitedProgram: null, InitializerProgram: { } }:
+            // Plain declaration destructuring in resumable bodies, including `for await (const [x] of values)`.
+            // The current iteration value or ordinary initializer is already lowered as an ExpressionProgram,
+            // then ApplyDeclarationBindingTarget runs the synchronous BindingTargetProgram against the
+            // materialized resumable calling/current environment and syncs flat slots back for later reads.
+            // A separate recursive target validator keeps unmapped targets and unsupported nested
+            // default/computed-name expression payloads declined before VM execution.
+            case BindingVariableDeclarationInstruction { AwaitedProgram: null }:
             case AssignmentSlotInstruction { AwaitedProgram: null, ValueProgram: { } }:
             // Compound slot instructions with a non-static free/captured target lower through the same
             // pre-resolved dynamic AssignmentReference stack as B26 plain writes: ResolveDynamicIdentifierReference
@@ -1523,6 +1537,167 @@ internal static class UnifiedBytecodeProductionEligibility
                     $"Instruction '{instruction.GetType().Name}' is not eligible for resumable unified bytecode routing.";
                 return false;
         }
+    }
+
+    private static bool TryFindResumableDeclarationBindingTargetDecline(
+        BindingTargetProgram target,
+        ActivationSlotShape activationSlots,
+        bool allowsDynamicIdentifiers,
+        bool allowImplicitArgumentsObjectPropertyReadOperands,
+        out UnifiedBytecodeProductionDeclineCode declineCode,
+        out string declineReason)
+    {
+        switch (target)
+        {
+            case IdentifierBindingTargetProgram identifier:
+                if (identifier.FlatSlotId >= 0)
+                {
+                    declineCode = UnifiedBytecodeProductionDeclineCode.None;
+                    declineReason = string.Empty;
+                    return false;
+                }
+
+                declineCode = UnifiedBytecodeProductionDeclineCode.UnsupportedPlanShape;
+                declineReason =
+                    $"Binding target '{identifier.Name.Name}' does not resolve to a flat slot and is not eligible for resumable unified bytecode routing.";
+                return true;
+
+            case ArrayBindingTargetProgram arrayBinding:
+                foreach (var element in arrayBinding.Elements)
+                {
+                    if (element.Target is { } elementTarget &&
+                        TryFindResumableDeclarationBindingTargetDecline(
+                            elementTarget,
+                            activationSlots,
+                            allowsDynamicIdentifiers,
+                            allowImplicitArgumentsObjectPropertyReadOperands,
+                            out declineCode,
+                            out declineReason))
+                    {
+                        return true;
+                    }
+
+                    if (element.DefaultProgram is { } defaultProgram &&
+                        TryFindResumableBindingTargetExpressionDecline(
+                            defaultProgram,
+                            activationSlots,
+                            allowsDynamicIdentifiers,
+                            allowImplicitArgumentsObjectPropertyReadOperands,
+                            out declineCode,
+                            out declineReason))
+                    {
+                        return true;
+                    }
+                }
+
+                if (arrayBinding.RestElement is not null)
+                {
+                    return TryFindResumableDeclarationBindingTargetDecline(
+                        arrayBinding.RestElement,
+                        activationSlots,
+                        allowsDynamicIdentifiers,
+                        allowImplicitArgumentsObjectPropertyReadOperands,
+                        out declineCode,
+                        out declineReason);
+                }
+
+                declineCode = UnifiedBytecodeProductionDeclineCode.None;
+                declineReason = string.Empty;
+                return false;
+
+            case ObjectBindingTargetProgram objectBinding:
+                foreach (var property in objectBinding.Properties)
+                {
+                    if (property.NameProgram is { } nameProgram &&
+                        TryFindResumableBindingTargetExpressionDecline(
+                            nameProgram,
+                            activationSlots,
+                            allowsDynamicIdentifiers,
+                            allowImplicitArgumentsObjectPropertyReadOperands,
+                            out declineCode,
+                            out declineReason))
+                    {
+                        return true;
+                    }
+
+                    if (property.DefaultProgram is { } defaultProgram &&
+                        TryFindResumableBindingTargetExpressionDecline(
+                            defaultProgram,
+                            activationSlots,
+                            allowsDynamicIdentifiers,
+                            allowImplicitArgumentsObjectPropertyReadOperands,
+                            out declineCode,
+                            out declineReason))
+                    {
+                        return true;
+                    }
+
+                    if (TryFindResumableDeclarationBindingTargetDecline(
+                            property.Target,
+                            activationSlots,
+                            allowsDynamicIdentifiers,
+                            allowImplicitArgumentsObjectPropertyReadOperands,
+                            out declineCode,
+                            out declineReason))
+                    {
+                        return true;
+                    }
+                }
+
+                if (objectBinding.RestElement is not null)
+                {
+                    return TryFindResumableDeclarationBindingTargetDecline(
+                        objectBinding.RestElement,
+                        activationSlots,
+                        allowsDynamicIdentifiers,
+                        allowImplicitArgumentsObjectPropertyReadOperands,
+                        out declineCode,
+                        out declineReason);
+                }
+
+                declineCode = UnifiedBytecodeProductionDeclineCode.None;
+                declineReason = string.Empty;
+                return false;
+
+            default:
+                declineCode = UnifiedBytecodeProductionDeclineCode.DestructuringDependency;
+                declineReason =
+                    $"Binding target program '{target.GetType().Name}' is not eligible for resumable unified bytecode routing.";
+                return true;
+        }
+    }
+
+    private static bool TryFindResumableBindingTargetExpressionDecline(
+        ExpressionProgram program,
+        ActivationSlotShape activationSlots,
+        bool allowsDynamicIdentifiers,
+        bool allowImplicitArgumentsObjectPropertyReadOperands,
+        out UnifiedBytecodeProductionDeclineCode declineCode,
+        out string declineReason)
+    {
+        if (TryFindExpressionDecline(
+                program,
+                activationSlots,
+                allowsDynamicIdentifiers,
+                allowImplicitArgumentsObjectPropertyReadOperands,
+                allowsThisPropertyWrites: false,
+                out declineCode,
+                out declineReason))
+        {
+            return true;
+        }
+
+        if (ProgramReferencesDebugIntrospection(program))
+        {
+            declineCode = UnifiedBytecodeProductionDeclineCode.UnsupportedPlanShape;
+            declineReason =
+                "Resumable binding target default or computed-name expression references __debug() introspection, which reports environment-resident locals; it keeps its IR-runner routing.";
+            return true;
+        }
+
+        declineCode = UnifiedBytecodeProductionDeclineCode.None;
+        declineReason = string.Empty;
+        return false;
     }
 
     private static bool TryFindNestedFunctionActivationCaptureDecline(

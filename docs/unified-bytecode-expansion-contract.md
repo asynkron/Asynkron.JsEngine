@@ -161,14 +161,16 @@ statement interpretation.
   environment bridging, static-member shape guards, computed-member activation
   captures, and computed-field activation captures. Static synchronous
   `BindingVariableDeclarationInstruction` shapes are now VM-owned through
-  `ApplyDeclarationBindingTarget`; sync `using` declarations add an owned
-  `RegisterDisposable` step before storage so resources are registered against
-  the active environment. Direct function-body sync `using` declarations inside
-  resumable generator/async bodies also route through `RegisterDisposable`, with
-  disposal finalized when the resumable frame completes or throws. Binding
-  defaults, computed binding names, assignment targets, awaited declarations,
-  block-scoped resumable `using`, and `await using` declarations still decline
-  before VM execution.
+  `ApplyDeclarationBindingTarget`; the resumable route also admits non-awaited
+  binding declarations whose targets resolve to flat slots and whose nested
+  default/computed-name payloads pass the same expression-decline scanner.
+  Sync `using` declarations add an owned `RegisterDisposable` step before
+  storage so resources are registered against the active environment. Direct
+  function-body sync `using` declarations inside resumable generator/async
+  bodies also route through `RegisterDisposable`, with disposal finalized when
+  the resumable frame completes or throws. Unsupported binding-target payloads,
+  assignment targets, block-scoped resumable `using`, and `await using`
+  declarations still decline before VM execution.
 - Expression lowering is still a large semantic surface, but the current direct
   general expression-loop gap inventory is empty and drift-checked under
   `### General Expression Lowering Gaps (current)`. Remaining expression-family
@@ -2161,9 +2163,11 @@ support today.
   Generated compiler contexts, including standalone expression compilation, now
   pass that descriptor table through to the general expression loop.
 - `ApplyDeclarationBindingTarget` is eligible for ordinary sync `var` / `let` /
-  `const` binding declarations whose lowered `BindingTargetProgram` contains
-  only static identifier/array/object/rest targets with no default or computed
-  subprograms. This lane preserves existing binding-target semantics as a
+  `const` binding declarations and for non-awaited resumable binding
+  declarations, including `for await (const [x] of values)`, whose lowered
+  `BindingTargetProgram` resolves identifier targets to flat slots and whose
+  nested default or computed-name expression payloads are otherwise
+  production-owned. This lane preserves existing binding-target semantics as a
   bridge; it does not make unsupported destructuring driver shapes
   production-eligible.
 - Decision for this lane: model-first. Any future widening must preserve

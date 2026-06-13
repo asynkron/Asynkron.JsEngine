@@ -96,7 +96,7 @@ public sealed class Test262AsyncGeneratorDestructuringLayeredTests(ITestOutputHe
     }
 
     [Fact]
-    public void Layer4_AsyncGeneratorForAwaitDestructuringBody_LowersThenDeclinesAtResumableEligibility()
+    public void Layer4_AsyncGeneratorForAwaitDestructuringBody_LowersAndRoutesResumable()
     {
         var plan = GetFunctionPlan("""
             async function *fn() {
@@ -115,8 +115,42 @@ public sealed class Test262AsyncGeneratorDestructuringLayeredTests(ITestOutputHe
             plan,
             new UnifiedBytecodeProductionActivationDescriptor(IsAsyncLike: true, IsGenerator: true));
 
-        Assert.False(result.IsEligible);
-        Assert.Contains(nameof(BindingVariableDeclarationInstruction), result.Reason, StringComparison.Ordinal);
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(
+            result.Program.Instructions,
+            static instruction => instruction.OpCode == UnifiedBytecodeOpCode.ApplyDeclarationBindingTarget);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task Layer4_AsyncGeneratorForAwaitDestructuringBody_BindsIterationValueOnResumableRoute()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.EvaluateAndAwait("""
+            var output = undefined;
+            async function *fn() {
+                for await (const [x, y, z] of [[1, 2, 3]]) {
+                    yield x + y + z;
+                }
+            }
+
+            async function run() {
+                var step = await fn().next();
+                return step.value + ":" + step.done;
+            }
+
+            run().then(
+                value => output = value,
+                error => output = "rejected:" + String(error));
+            output;
+            """);
+
+        Assert.Equal("6:false", result?.ToString());
+        Assert.Contains(
+            CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-resumable-async-generator-fast-path func=fn argc=0",
+                StringComparison.Ordinal));
     }
 
     [Fact(Timeout = 5000)]

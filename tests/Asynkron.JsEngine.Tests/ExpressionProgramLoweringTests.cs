@@ -1819,6 +1819,56 @@ public sealed class ExpressionProgramLoweringTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task ReturnInstruction_NestedNamedAssignmentWithDynamicRhs_CompilesStandalone()
+    {
+        var plan = await GetFunctionPlan("""
+            function assignConstructor(sample, ctor) {
+                return sample.buffer.constructor = ctor;
+            }
+            """, "assignConstructor");
+
+        var instruction = Assert.Single(plan.Instructions.OfType<ReturnInstruction>(), i => i.ReturnProgram is not null);
+        var returnProgram = Assert.NotNull(instruction.ReturnProgram);
+        Assert.True(
+            UnifiedBytecodeCompiler.TryCompileStandaloneExpressionProgram(
+                returnProgram,
+                allowsDynamicIdentifiers: true,
+                out var program,
+                out var reason),
+            reason);
+
+        Assert.Contains(
+            program.Instructions,
+            instruction => instruction.OpCode == UnifiedBytecodeOpCode.SetNamedProperty);
+        Assert.Equal(new[] { "buffer", "constructor" }, program.StringConstants);
+    }
+
+    [Fact]
+    public async Task ReturnInstruction_NestedNamedAssignmentWithLiteralRhs_CompilesStandalone()
+    {
+        var plan = await GetFunctionPlan("""
+            function assignPrototype(TA) {
+                return TA.prototype.bar = 42;
+            }
+            """, "assignPrototype");
+
+        var instruction = Assert.Single(plan.Instructions.OfType<ReturnInstruction>(), i => i.ReturnProgram is not null);
+        var returnProgram = Assert.NotNull(instruction.ReturnProgram);
+        Assert.True(
+            UnifiedBytecodeCompiler.TryCompileStandaloneExpressionProgram(
+                returnProgram,
+                allowsDynamicIdentifiers: true,
+                out var program,
+                out var reason),
+            reason);
+
+        Assert.Contains(
+            program.Instructions,
+            instruction => instruction.OpCode == UnifiedBytecodeOpCode.SetNamedProperty);
+        Assert.Equal(new[] { "prototype", "bar" }, program.StringConstants);
+    }
+
+    [Fact]
     public async Task ReturnInstruction_NestedComputedAssignmentWithFunctionLiteralRhs_CompilesStandalone()
     {
         var plan = await GetFunctionPlan("""

@@ -4638,6 +4638,7 @@ internal static class UnifiedBytecodeCompiler
         if (TryAppendFirstBoundaryNestedNamedPropertySet(
                 expressionProgram,
                 activationSlots,
+                allowsDynamicIdentifiers,
                 unified,
                 literalConstants,
                 stringConstants,
@@ -15082,6 +15083,7 @@ internal static class UnifiedBytecodeCompiler
     private static bool TryAppendFirstBoundaryNestedNamedPropertySet(
         ExpressionProgram expressionProgram,
         ActivationSlotShape activationSlots,
+        bool allowsDynamicIdentifiers,
         ImmutableArray<UnifiedBytecodeInstruction>.Builder unified,
         ImmutableArray<JsValue>.Builder literalConstants,
         ImmutableArray<string>.Builder stringConstants,
@@ -15163,11 +15165,14 @@ internal static class UnifiedBytecodeCompiler
         var literalCount = literalConstants.Count;
         var stringCount = stringConstants.Count;
 
-        if (!TryAppendActivationValueLoad(
+        if (!TryAppendSimpleOperandLoadWithDynamic(
                 expressionProgram.GetOperation(0),
                 expressionProgram,
                 activationSlots,
+                allowsDynamicIdentifiers,
                 unified,
+                literalConstants,
+                stringConstants,
                 out reason))
         {
             RollBackUnifiedBuilder(unified, unifiedCount);
@@ -15187,12 +15192,14 @@ internal static class UnifiedBytecodeCompiler
         var rhsEnd = expressionProgram.OperationCount - 2;
         if (rhsStart == rhsEnd)
         {
-            if (!TryAppendSimpleOperandLoad(
+            if (!TryAppendSimpleOperandLoadWithDynamic(
                     expressionProgram.GetOperation(rhsStart),
                     expressionProgram,
                     activationSlots,
+                    allowsDynamicIdentifiers,
                     unified,
                     literalConstants,
+                    stringConstants,
                     out reason))
             {
                 RollBackUnifiedBuilder(unified, unifiedCount);

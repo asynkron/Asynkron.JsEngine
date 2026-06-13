@@ -1367,35 +1367,49 @@ Worker fabric invariants (all directional):
 
 ### 15. Compilation Artifact Cache (directional)
 
-Goal: skip full re-compilation for repeated-script evaluations; a cache hit bypasses lexer → parser → lowering → eligibility and returns a pre-built artifact directly to the VM. This is the primary architectural enabler for the cold-start < 5 ms p95 SLO on repeated-script workloads.
+Goal: skip repeat parse/lower/build work for repeated-script evaluations by
+caching an immutable non-executable compile artifact. A cache hit may bypass
+lexer → parser → lowering for the same source and compile context, but
+descriptor-sensitive production-route eligibility and accepted executable
+program ownership remain outside this component unless a later proof records a
+separate executable-artifact boundary. This is a directional architectural
+enabler for the cold-start < 5 ms p95 SLO on repeated-script workloads.
 
-Cache key: SHA-256(source text + realm fingerprint). The realm fingerprint includes strict-mode flag and module/script context. A cache hit returns the stored `UnifiedBytecodeProgram` (plus slot layout and debug source map). A cache miss runs full compilation, stores the result, then evaluates.
+Cache key: SHA-256(source text + compile-context fingerprint). The compile
+context includes strict-mode inputs, module/script context, host-supplied
+compilation options, engine/compiler version or lowered-artifact fingerprint,
+and any feature flags that alter emitted `ExecutionPlan` or expression payload
+shape. A cache hit returns a lowered/source artifact bundle such as parsed plan
+data, slot layout metadata, and debug source map. A cache miss runs the normal
+front-end pipeline, stores that non-executable artifact, then continues through
+the current eligibility and execution path.
 
 ```mermaid
 flowchart LR
     SRC[Source text]
-    KEY[Cache key\nSHA-256 of\nsource + realm fingerprint]
+    KEY[Cache key\nSHA-256 of\nsource + compile context]
     LKP{Cache lookup}
-    HIT[Cache hit\npre-compiled artifact\nskip parse + lower + classify]
-    MISS[Cache miss\nfull compile path\nLexer → Parser → Lowering → Eligibility]
-    EMIT[Emit to cache\nUnifiedBytecodeProgram\n+ slot layout + source map]
+    HIT[Cache hit\nlowered artifact\nskip parse + lower]
+    MISS[Cache miss\nfront-end compile path\nLexer → Parser → Lowering]
+    EMIT[Emit to cache\nExecutionPlan-style bundle\n+ slot layout + source map]
+    ROUTE[Current route eligibility\ninvoker-owned acceptance]
     VM[VM execution]
 
     SRC --> KEY --> LKP
-    LKP -->|hit| HIT --> VM
-    LKP -->|miss| MISS --> EMIT --> VM
+    LKP -->|hit| HIT --> ROUTE --> VM
+    LKP -->|miss| MISS --> EMIT --> ROUTE
 
     style HIT fill:#060,color:#fff
     style MISS fill:#555,color:#fff
 ```
 
 Cache invariants (all directional):
-- Cache key is realm-sensitive: strict-mode flag, module vs. script context, and host-supplied compilation options are part of the key.
-- Cache is content-addressed, not filename-addressed: two scripts with identical source text and realm fingerprint share a single cache entry.
-- Cache hit path reaches the VM with zero parser/compiler allocations; cache miss follows the normal compilation pipeline unchanged.
-- The cache stores only the final compiled artifact (UnifiedBytecodeProgram + slot layout); AST nodes are never cached.
+- Cache key is compile-context-sensitive: strict-mode inputs, module vs. script context, host-supplied compilation options, engine/compiler version or lowered-artifact fingerprint, and feature flags that affect emitted plan shape are part of the key.
+- Cache is content-addressed, not filename-addressed: two scripts with identical source text and compile-context fingerprint share a single cache entry.
+- Cache hit path can avoid parser/lowerer allocations, but accepted runtime programs and descriptor-sensitive route decisions remain owned by `SyncFunctionInvoker`.
+- The cache stores only a non-executable lowered/source artifact bundle; accepted or rejected production-route answers, `UnifiedBytecodeProductionEligibilityResult`, and accepted `UnifiedBytecodeProgram` instances are not cache contents.
 - Cache invalidation is by key only; there is no partial invalidation. A changed source byte produces a new key and a cold miss.
-- This entire component is directional; no artifact cache exists in the current engine.
+- This entire component is directional; no artifact cache exists in the current engine. ADR 0386 defines the proof boundary and ADR 0385 rejects plan-level accepted-program caching.
 
 ## Cross-module routing map
 
@@ -1711,7 +1725,7 @@ The rows below are grouped by phase so a maintainer can tell what is foundationa
 | Shape / IC system | No shape concept exists today; JsObject uses a property dictionary. | Shape (hidden-class) tracking, shape-transition table, IC call-site caches, and prototype-chain invalidation are entirely directional. Requires Tier 0 dominance as prerequisite. |
 | Dev tooling | Error stack traces and source attribution exist at the evaluator level. | Debug protocol, breakpoint handling, source map generation, and inspector integration are directional next. |
 | Worker / Realm Fabric | None — entirely directional. | Each Worker owns a dedicated `JsEngine` instance (realm-isolated); communication via structured clone only; `SharedArrayBuffer` as opt-in side channel requiring host capability grant; host-owned Worker lifecycle. |
-| Compilation Artifact Cache | None — entirely directional. | Content-addressed cache of pre-compiled `UnifiedBytecodeProgram` artifacts keyed by SHA-256(source text + realm fingerprint); cache hit skips lexer → parser → lowering → eligibility entirely; primary enabler for cold-start < 5 ms p95 SLO on repeated-script evaluations. |
+| Compilation Artifact Cache | None — entirely directional. | Content-addressed cache of immutable non-executable lowered/source artifacts keyed by SHA-256(source text + compile-context fingerprint); cache hit can skip lexer → parser → lowering while invoker-owned eligibility still accepts executable runtime programs; primary directional enabler for cold-start < 5 ms p95 SLO on repeated-script evaluations. |
 
 ## Architecture constraints (current reality)
 

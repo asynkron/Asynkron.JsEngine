@@ -107,6 +107,53 @@ o.bar = 2;
     }
 
     [Fact]
+    public async Task PrefixUpdate_ComputedMemberKeyCall_PreservesKeyAndNullishBaseOrder()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            "use strict";
+            var keyCallRan = false;
+            var keyCoercionRan = false;
+
+            function DummyError() {}
+
+            try {
+                var base = null;
+                var prop = function() {
+                    keyCallRan = true;
+                    throw new DummyError();
+                };
+
+                ++base[prop()];
+            } catch (e) {
+                if (!(e instanceof DummyError)) {
+                    throw e;
+                }
+            }
+
+            try {
+                var base2 = undefined;
+                var prop2 = {
+                    toString() {
+                        keyCoercionRan = true;
+                        throw new Error("property key evaluated");
+                    }
+                };
+
+                --base2[prop2];
+            } catch (e) {
+                if (!(e instanceof TypeError)) {
+                    throw e;
+                }
+            }
+
+            keyCallRan + "," + keyCoercionRan;
+            """);
+
+        Assert.Equal("true,false", result);
+    }
+
+    [Fact]
     public async Task PostfixDecrement_GlobalAccessor_CallsSetterWithNewValueAndReturnsOldValue()
     {
         await using var engine = CreateEngine();

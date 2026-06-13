@@ -4763,7 +4763,8 @@ internal static class UnifiedBytecodeCompiler
 
         if (TryAppendFirstBoundaryNestedNamedComputedPropertyUpdate(
                 expressionProgram,
-                activationSlots,
+                slotLayout,
+                callTargetConstants,
                 allowsDynamicIdentifiers,
                 unified,
                 literalConstants,
@@ -4780,7 +4781,8 @@ internal static class UnifiedBytecodeCompiler
 
         if (TryAppendFirstBoundaryComputedPrefixComputedPropertyUpdate(
                 expressionProgram,
-                activationSlots,
+                slotLayout,
+                callTargetConstants,
                 allowsDynamicIdentifiers,
                 unified,
                 literalConstants,
@@ -4797,7 +4799,8 @@ internal static class UnifiedBytecodeCompiler
 
         if (TryAppendFirstBoundaryComputedPropertyUpdate(
                 expressionProgram,
-                activationSlots,
+                slotLayout,
+                callTargetConstants,
                 allowsDynamicIdentifiers,
                 unified,
                 literalConstants,
@@ -15711,13 +15714,15 @@ internal static class UnifiedBytecodeCompiler
     // false path never leaves a partially emitted (overflowing) program.
     private static bool TryAppendFirstBoundaryNestedNamedComputedPropertyUpdate(
         ExpressionProgram expressionProgram,
-        ActivationSlotShape activationSlots,
+        UnifiedBytecodeSlotLayout slotLayout,
+        ImmutableArray<UnifiedBytecodeCallTarget>.Builder callTargetConstants,
         bool allowsDynamicIdentifiers,
         ImmutableArray<UnifiedBytecodeInstruction>.Builder unified,
         ImmutableArray<JsValue>.Builder literalConstants,
         ImmutableArray<string>.Builder stringConstants,
         out string reason)
     {
+        var activationSlots = slotLayout.ActivationSlots;
         if (expressionProgram.OperationCount < 4)
         {
             reason = string.Empty;
@@ -15805,6 +15810,9 @@ internal static class UnifiedBytecodeCompiler
         var stagedStrings = ImmutableArray.CreateBuilder<string>();
         stagedStrings.AddRange(stringConstants);
 
+        var stagedCallTargets = ImmutableArray.CreateBuilder<UnifiedBytecodeCallTarget>();
+        stagedCallTargets.AddRange(callTargetConstants);
+
         if (!TryAppendActivationValueLoad(
                 expressionProgram.GetOperation(0),
                 expressionProgram,
@@ -15832,7 +15840,9 @@ internal static class UnifiedBytecodeCompiler
                 startInclusive: keyStart,
                 endExclusive: propertyUpdateIndex,
                 out reason,
-                allowsDynamicIdentifiers))
+                allowsDynamicIdentifiers,
+                stagedCallTargets,
+                slotLayout))
         {
             return false;
         }
@@ -15846,19 +15856,23 @@ internal static class UnifiedBytecodeCompiler
         literalConstants.AddRange(stagedLiterals);
         stringConstants.Clear();
         stringConstants.AddRange(stagedStrings);
+        callTargetConstants.Clear();
+        callTargetConstants.AddRange(stagedCallTargets);
         reason = string.Empty;
         return true;
     }
 
     private static bool TryAppendFirstBoundaryComputedPropertyUpdate(
         ExpressionProgram expressionProgram,
-        ActivationSlotShape activationSlots,
+        UnifiedBytecodeSlotLayout slotLayout,
+        ImmutableArray<UnifiedBytecodeCallTarget>.Builder callTargetConstants,
         bool allowsDynamicIdentifiers,
         ImmutableArray<UnifiedBytecodeInstruction>.Builder unified,
         ImmutableArray<JsValue>.Builder literalConstants,
         ImmutableArray<string>.Builder stringConstants,
         out string reason)
     {
+        var activationSlots = slotLayout.ActivationSlots;
         if (expressionProgram.OperationCount < 3)
         {
             reason = string.Empty;
@@ -15893,6 +15907,9 @@ internal static class UnifiedBytecodeCompiler
         var stagedStrings = ImmutableArray.CreateBuilder<string>();
         stagedStrings.AddRange(stringConstants);
 
+        var stagedCallTargets = ImmutableArray.CreateBuilder<UnifiedBytecodeCallTarget>();
+        stagedCallTargets.AddRange(callTargetConstants);
+
         if (!TryAppendActivationOrPlainDynamicIdentifierReadValueLoad(
                 expressionProgram.GetOperation(0),
                 expressionProgram,
@@ -15914,7 +15931,9 @@ internal static class UnifiedBytecodeCompiler
                 startInclusive: 1,
                 endExclusive: propertyUpdateIndex,
                 out reason,
-                allowsDynamicIdentifiers))
+                allowsDynamicIdentifiers,
+                stagedCallTargets,
+                slotLayout))
         {
             return false;
         }
@@ -15928,6 +15947,8 @@ internal static class UnifiedBytecodeCompiler
         literalConstants.AddRange(stagedLiterals);
         stringConstants.Clear();
         stringConstants.AddRange(stagedStrings);
+        callTargetConstants.Clear();
+        callTargetConstants.AddRange(stagedCallTargets);
         reason = string.Empty;
         return true;
     }
@@ -15944,13 +15965,15 @@ internal static class UnifiedBytecodeCompiler
     // owned by the generic UpdateNamedProperty per-op path, so it is not handled here.
     private static bool TryAppendFirstBoundaryComputedPrefixComputedPropertyUpdate(
         ExpressionProgram expressionProgram,
-        ActivationSlotShape activationSlots,
+        UnifiedBytecodeSlotLayout slotLayout,
+        ImmutableArray<UnifiedBytecodeCallTarget>.Builder callTargetConstants,
         bool allowsDynamicIdentifiers,
         ImmutableArray<UnifiedBytecodeInstruction>.Builder unified,
         ImmutableArray<JsValue>.Builder literalConstants,
         ImmutableArray<string>.Builder stringConstants,
         out string reason)
     {
+        var activationSlots = slotLayout.ActivationSlots;
         reason = string.Empty;
         if (expressionProgram.OperationCount < 6)
         {
@@ -16005,6 +16028,9 @@ internal static class UnifiedBytecodeCompiler
         var stagedStrings = ImmutableArray.CreateBuilder<string>();
         stagedStrings.AddRange(stringConstants);
 
+        var stagedCallTargets = ImmutableArray.CreateBuilder<UnifiedBytecodeCallTarget>();
+        stagedCallTargets.AddRange(callTargetConstants);
+
         if (!TryAppendMeasuredSimpleComputedPropertyReadOperandSpan(
                 expressionProgram,
                 0,
@@ -16030,7 +16056,9 @@ internal static class UnifiedBytecodeCompiler
                 startInclusive: receiverSpanLength,
                 endExclusive: propertyUpdateIndex,
                 out reason,
-                allowsDynamicIdentifiers))
+                allowsDynamicIdentifiers,
+                stagedCallTargets,
+                slotLayout))
         {
             return false;
         }
@@ -16044,6 +16072,8 @@ internal static class UnifiedBytecodeCompiler
         literalConstants.AddRange(stagedLiterals);
         stringConstants.Clear();
         stringConstants.AddRange(stagedStrings);
+        callTargetConstants.Clear();
+        callTargetConstants.AddRange(stagedCallTargets);
         reason = string.Empty;
         return true;
     }

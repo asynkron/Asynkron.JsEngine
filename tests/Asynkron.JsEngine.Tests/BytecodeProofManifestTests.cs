@@ -383,6 +383,56 @@ public sealed partial class BytecodeProofManifestTests(ITestOutputHelper output)
     }
 
     [Fact]
+    public void Manifest_E5eProof_AnchorsTerminalResidueToSourceGates()
+    {
+        var item = LoadManifest().Items.Single(static item => item.Id == "E5e");
+
+        // The exclusion boundary is permanent: E5e stays open and still carries exactly one
+        // hard-quarantined checklist-anchored row alongside source-anchored terminal-residue rows.
+        Assert.Equal("open", item.Status);
+        Assert.Single(item.Proofs, static proof => proof.Claim == "hard-quarantined");
+
+        var proof = item.Proofs.Single(static proof =>
+            proof.Id == "E5e-terminal-dynamic-residue-stays-declined-in-eligibility-classifier");
+
+        Assert.Equal("E5e-residue-exclusion-boundary", proof.ChildOwner);
+        Assert.Equal("terminal-residue", proof.Claim);
+        Assert.Equal("source-presence", proof.Kind);
+        Assert.Equal(
+            "src/Asynkron.JsEngine/Execution/UnifiedBytecode/UnifiedBytecodeProductionEligibility.cs",
+            proof.Path);
+
+        // Each pattern is a verbatim decline message in the eligibility classifier for
+        // terminal-dynamic-residue categories named by the E5e exclusion boundary.
+        Assert.Equal(
+            [
+                "Direct eval invocation semantics are not eligible for production unified bytecode routing.",
+                "Awaited with-object evaluation is not eligible for production unified bytecode routing.",
+                "requires dynamic lookup and is not eligible outside an active with environment.",
+                "Unowned captured or dynamic activation residue is not eligible for resumable unified bytecode routing."
+            ],
+            proof.Patterns);
+
+        var functionConstructorProof = item.Proofs.Single(static proof =>
+            proof.Id == "E5e-function-constructor-body-stays-out-of-sync-production-fast-path");
+
+        Assert.Equal("E5e-residue-exclusion-boundary", functionConstructorProof.ChildOwner);
+        Assert.Equal("terminal-residue", functionConstructorProof.Claim);
+        Assert.Equal("source-presence", functionConstructorProof.Kind);
+        Assert.Equal(
+            "src/Asynkron.JsEngine/Ast/TypedAstEvaluator.SyncFunctionInvoker.cs",
+            functionConstructorProof.Path);
+        Assert.Contains(
+            "broad sync production fast-path quarantine guard",
+            functionConstructorProof.Classification,
+            StringComparison.Ordinal);
+        Assert.Empty(functionConstructorProof.Patterns);
+        Assert.Equal(
+            "if (_function.IsDynamicFunctionConstructorBody)\n            {\n                return false;\n            }",
+            functionConstructorProof.Pattern);
+    }
+
+    [Fact]
     public void Manifest_B36OpenRowsKeepDynamicEvalHelpersSeparateFromClassDeclarationResidue()
     {
         var b36 = LoadManifest().Items.Single(static item => item.Id == "B36");

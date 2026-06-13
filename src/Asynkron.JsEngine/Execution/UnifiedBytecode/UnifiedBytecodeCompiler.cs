@@ -423,15 +423,11 @@ internal static class UnifiedBytecodeCompiler
         bool allowsOrdinaryDynamicIdentifiers)
     {
         var activationSlots = AddSyntheticResumeSlots(plan.ActivationSlots!, plan.Instructions);
-        if (allowsOrdinaryDynamicIdentifiers)
-        {
-            // R7: at script scope the step-wise destructuring driver state symbols
-            // (__objDestr_src / __arrDestr_iter) are not part of the activation slot
-            // map, so they fail to resolve to a flat slot. The driver state is pure VM
-            // scratch (never a JS-visible binding), so allocate synthetic activation
-            // slots for it — mirroring AddSyntheticResumeSlots for generator state.
-            activationSlots = AddSyntheticDestructuringStateSlots(activationSlots, plan.Instructions);
-        }
+        // Step-wise loop/destructuring driver state symbols are VM scratch, not
+        // JS-visible bindings, so analysis does not always include them in the
+        // root activation map. Add them to the compiled layout before resolving
+        // driver descriptors and synthetic binding expression reads.
+        activationSlots = AddSyntheticDriverStateSlots(activationSlots, plan.Instructions);
 
         var flatSlotMappings = plan.FlatSlotMappings ??
                                ImmutableDictionary<int, ImmutableArray<(int SlotIndex, int FlatSlotId)>>.Empty;
@@ -538,7 +534,7 @@ internal static class UnifiedBytecodeCompiler
         IsYieldStarSyntheticResult(symbol) ||
         symbol.Name.StartsWith("\u0001_yieldstar", StringComparison.Ordinal);
 
-    private static ActivationSlotShape AddSyntheticDestructuringStateSlots(
+    private static ActivationSlotShape AddSyntheticDriverStateSlots(
         ActivationSlotShape activationSlots,
         ImmutableArray<ExecutionInstruction> instructions)
     {
@@ -548,6 +544,29 @@ internal static class UnifiedBytecodeCompiler
         {
             switch (instruction)
             {
+                case IteratorInitInstruction { IteratorSlot: { } iteratorInitSlot }:
+                    AddIfMissing(iteratorInitSlot);
+                    break;
+
+                case IteratorMoveNextInstruction { IteratorSlot: { } iteratorMoveNextSlot, ValueSlot: { } iteratorValueSlot }:
+                    AddIfMissing(iteratorMoveNextSlot);
+                    AddIfMissing(iteratorValueSlot);
+                    break;
+
+                case IteratorCloseInstruction { IteratorSlot: { } iteratorCloseSlot }:
+                    AddIfMissing(iteratorCloseSlot);
+                    break;
+
+                case ForInInitInstruction { StateSlot: { } forInInitStateSlot, ValueSlot: { } forInInitValueSlot }:
+                    AddIfMissing(forInInitStateSlot);
+                    AddIfMissing(forInInitValueSlot);
+                    break;
+
+                case ForInMoveNextInstruction { StateSlot: { } forInMoveNextStateSlot, ValueSlot: { } forInMoveNextValueSlot }:
+                    AddIfMissing(forInMoveNextStateSlot);
+                    AddIfMissing(forInMoveNextValueSlot);
+                    break;
+
                 case ArrayDestructuringInitInstruction { IteratorSlot: { } arrayInitSlot }:
                     AddIfMissing(arrayInitSlot);
                     break;
@@ -19364,6 +19383,13 @@ internal static class UnifiedBytecodeCompiler
 
     private static bool TryResolveActivationSlot(IdentifierOperand identifier, ActivationSlotShape activationSlots, out int slotIndex)
     {
+        if (IsSyntheticDriverSlot(identifier.Name) &&
+            activationSlots.SlotMap.TryGetValue(identifier.Name, out var driverSlotIndex))
+        {
+            slotIndex = driverSlotIndex;
+            return true;
+        }
+
         if (identifier.FlatSlotId >= 0)
         {
             slotIndex = identifier.FlatSlotId;
@@ -19401,6 +19427,14 @@ internal static class UnifiedBytecodeCompiler
         out int slotIndex)
     {
         var activationSlots = slotLayout.ActivationSlots;
+        if (IsSyntheticDriverSlot(identifier.Name) &&
+            activationSlots.SlotMap.TryGetValue(identifier.Name, out var driverSlotIndex) &&
+            TryMapSlot(activationSlots.ScopeId, driverSlotIndex, slotLayout.FlatSlotMappings, out var mappedDriverSlot))
+        {
+            slotIndex = mappedDriverSlot;
+            return true;
+        }
+
         if (identifier.FlatSlotId >= 0)
         {
             if (identifier.ScopeId >= 0 &&
@@ -19555,6 +19589,13 @@ internal static class UnifiedBytecodeCompiler
 
     private static bool IsYieldStarSyntheticResult(Symbol symbol) =>
         symbol.Name.StartsWith("__yield_lower_resume", StringComparison.Ordinal);
+
+    private static bool IsSyntheticDriverSlot(Symbol symbol) =>
+        symbol.Name.StartsWith("__forIn_", StringComparison.Ordinal) ||
+        symbol.Name.StartsWith("__forOf_", StringComparison.Ordinal) ||
+        symbol.Name.StartsWith("__forAwait_", StringComparison.Ordinal) ||
+        symbol.Name.StartsWith("__arrDestr_iter_", StringComparison.Ordinal) ||
+        symbol.Name.StartsWith("__objDestr_src_", StringComparison.Ordinal);
 
     private static bool SlotNameMatches(UnifiedBytecodeSlotLayout slotLayout, int slotIndex, Symbol name) =>
         (uint)slotIndex < (uint)slotLayout.SlotNames.Length &&

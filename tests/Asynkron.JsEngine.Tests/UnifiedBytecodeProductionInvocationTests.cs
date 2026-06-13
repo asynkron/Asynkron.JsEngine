@@ -5812,6 +5812,34 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     }
 
     [Fact(Timeout = 5000)]
+    public async Task ForInVarDuplicateArrayBindingHead_UsesPropertyKeyOnProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function read(obj) {
+                var iterCount = 0;
+                for (var [x, x] in obj) {
+                    if (x !== "b") {
+                        return "bad:" + x;
+                    }
+
+                    iterCount += 1;
+                }
+
+                return iterCount + ":" + x;
+            }
+
+            read({ ab: null });
+            """);
+
+        Assert.Equal("1:b", result?.ToString());
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=read argc=1",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task ForOfConstHead_UsesUnifiedBytecodeProductionFastPath()
     {
         await using var engine = CreateEngine();

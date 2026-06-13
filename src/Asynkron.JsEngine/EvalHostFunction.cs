@@ -1444,6 +1444,7 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
                     if (ifStatement.Else is { } elseBranch)
                     {
                         statement = elseBranch;
+                        inBlockScope = true;
                         continue;
                     }
 

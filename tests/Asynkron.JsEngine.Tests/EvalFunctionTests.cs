@@ -85,6 +85,21 @@ public sealed class EvalFunctionTests(ITestOutputHelper output) : InternalTestBa
     }
 
     [Fact(Timeout = 5000)]
+    public async Task DirectEvalAnnexBIfFunctionDeclaration_DoesNotInitializeBeforeBranchExecutes()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            var init, after;
+            (function() {
+              eval("init = f; if (false) function _f() {} else function f() { return 33; } after = f;");
+            }());
+            [init === undefined, after()].join(",");
+            """);
+
+        Assert.Equal("true,33", result);
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task StrictDirectEval_WithDeclarations_DoesNotLeakBindingsToCallerScope()
     {
         await using var engine = CreateEngine();

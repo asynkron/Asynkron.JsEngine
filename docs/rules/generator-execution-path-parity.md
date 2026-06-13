@@ -41,12 +41,16 @@ The JsEngine has two separate generator execution paths:
    existing lowered plan is not resumable-VM eligible must be routed to
    `IrSyncGeneratorInvoker` before invocation, not through a post-
    `EvaluateResumable(...)` declined-residue runner bridge. Non-simple
-   parameters, missing plans, root-hoist collection gaps, slot/environment setup
-   failures, and other pre-gates that cannot safely construct the IR generator
-   route must fail explicitly instead of reusing a generic declined-body runner
-   fallback. Apply the same creation-time selector to script and module
-   function factories so module-level generator declarations do not bypass the
-   retired bridge.
+   parameter lists that are resumable-eligible still use the unified route; the
+   non-simple shapes declined by resumable invocation (for example parameter
+   direct eval, own-parameter-capturing defaults, arguments-object dependencies,
+   and root hoisted declarations) must be routed to `IrSyncGeneratorInvoker` so
+   full FunctionDeclarationInstantiation owns the parameter environment. Missing
+   plans, root-hoist collection gaps, slot/environment setup failures, and other
+   pre-gates that cannot safely construct the IR generator route must still fail
+   explicitly instead of reusing a generic declined-body runner fallback. Apply
+   the same creation-time selector to script and module function factories so
+   module-level generator declarations do not bypass the retired bridge.
    WHY: issue
    `planitem-planitem-planmanual1780730299657353000-unified-bytecode-remaining-burndo-f6a1994d6c`
    added the `classified-sync-generator-ir-fallback` log for
@@ -65,6 +69,10 @@ The JsEngine has two separate generator execution paths:
    `IrSyncGeneratorInvoker` as the creation-time route for simple-parameter
    non-resumable generator plans and by fixing module generator declarations to
    call `ShouldCreateIrSyncGeneratorInvoker(...)`. Future sync-generator
+   issue #3606 widened that selector to route non-simple parameter shapes that
+   the resumable invocation route declines through the same creation-time IR
+   generator path instead of hard-throwing before IteratorBindingInitialization.
+   Future sync-generator
    fallback-retirement slices must source-gate absence of generic runner names,
    `CreateClassifiedSyncGeneratorDeclinedResidueRunner(...)`,
    `CreateSyncGeneratorDeclinedResidueRunner(...)`,

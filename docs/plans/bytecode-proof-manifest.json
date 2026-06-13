@@ -2405,7 +2405,7 @@
         {
           "id": "E5-sync-generator-declined-residue-runner-still-present",
           "childOwner": "E5d-sync-generator-declined-residue",
-          "classification": "sync generator declined-residue runner bridge is retired; simple-parameter bodies whose existing plan is not resumable-VM eligible use the classified creation-time IR route, pre-gate non-simple parameter declines still fail explicitly, and no generic declined-body runner remains",
+          "classification": "sync generator declined-residue runner bridge is retired; simple-parameter bodies whose existing plan is not resumable-VM eligible use the classified creation-time IR route, declined non-simple parameter shapes now route through the same creation-time IR generator path for full FunctionDeclarationInstantiation, and no generic declined-body runner remains",
           "claim": "retired-fallback",
           "kind": "source-absence",
           "path": "src/Asynkron.JsEngine/Ast/TypedAstEvaluator.SyncGeneratorInvoker.cs",

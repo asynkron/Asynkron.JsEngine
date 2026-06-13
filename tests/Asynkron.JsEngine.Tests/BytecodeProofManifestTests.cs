@@ -131,7 +131,9 @@ public sealed partial class BytecodeProofManifestTests(ITestOutputHelper output)
         Assert.Equal("CreateClassifiedSyncGeneratorDeclinedResidueRunner", proof.Pattern);
         Assert.Contains("sync generator declined-residue runner bridge is retired", proof.Classification, StringComparison.Ordinal);
         Assert.Contains("creation-time IR route", proof.Classification, StringComparison.Ordinal);
-        Assert.Contains("non-simple parameter declines still fail explicitly", proof.Classification, StringComparison.Ordinal);
+        Assert.Contains("declined non-simple parameter shapes now route", proof.Classification, StringComparison.Ordinal);
+        Assert.Contains("full FunctionDeclarationInstantiation", proof.Classification, StringComparison.Ordinal);
+        Assert.DoesNotContain("non-simple parameter declines still fail explicitly", proof.Classification, StringComparison.Ordinal);
     }
 
     [Fact]

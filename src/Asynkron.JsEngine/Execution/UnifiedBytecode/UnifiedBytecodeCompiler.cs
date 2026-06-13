@@ -17419,6 +17419,9 @@ internal static class UnifiedBytecodeCompiler
                     unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.Binary, (int)operation.Operator));
                     break;
 
+                case ExpressionOpKind.EnsureSuperReference:
+                    break;
+
                 default:
                     reason = $"Unsupported computed property key op '{operation.Kind}'.";
                     return false;
@@ -17540,6 +17543,9 @@ internal static class UnifiedBytecodeCompiler
                     }
 
                     stackDepth--;
+                    break;
+
+                case ExpressionOpKind.EnsureSuperReference:
                     break;
 
                 default:
@@ -19014,7 +19020,9 @@ internal static class UnifiedBytecodeCompiler
             return true;
         }
 
-        if (identifier.ScopeId >= 0 && identifier.ScopeId != activationSlots.ScopeId)
+        if (identifier.ScopeId >= 0 &&
+            identifier.ScopeId != activationSlots.ScopeId &&
+            !IsYieldStarSyntheticResult(identifier.Name))
         {
             slotIndex = -1;
             return false;
@@ -19083,7 +19091,9 @@ internal static class UnifiedBytecodeCompiler
             return true;
         }
 
-        if (identifier.ScopeId >= 0 && identifier.ScopeId != activationSlots.ScopeId)
+        if (identifier.ScopeId >= 0 &&
+            identifier.ScopeId != activationSlots.ScopeId &&
+            !IsYieldStarSyntheticResult(identifier.Name))
         {
             slotIndex = -1;
             return false;

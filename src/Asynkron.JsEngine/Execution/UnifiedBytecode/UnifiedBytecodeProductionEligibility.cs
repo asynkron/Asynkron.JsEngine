@@ -954,17 +954,6 @@ internal static class UnifiedBytecodeProductionEligibility
             return true;
         }
 
-        // A try/finally nested INSIDE this try's body produces a chain of simultaneously-pending finally
-        // blocks on `.return()`/`.throw()`. The resumable VM's cleanup path runs only a single pending
-        // finally, so the inner+outer chaining (e.g. `try { try { yield } finally {} } finally {}`) is
-        // mishandled — decline it and keep it on the IR runner. The single-level for-of iterator-close
-        // finally is unaffected.
-        if (enterTry.FinallyIndex >= 0 && TryBodyContainsNestedFinally(instructions, enterTry))
-        {
-            instructionName = "nested try/finally cleanup chain";
-            return true;
-        }
-
         // SCOPED close-finally guard for the captured/free dynamic mutation admissions. The resumable VM's
         // early-close path (`.return()`/`.throw()` while the generator is suspended at a yield protected by this
         // try) does not re-drive a user finally body — a PRE-EXISTING limitation shared by every non-empty
@@ -1061,71 +1050,6 @@ internal static class UnifiedBytecodeProductionEligibility
                 !TryResolveActivationSymbolSlot(targetSymbol, flatSlotId, activationSlots),
             _ => false
         };
-    }
-
-    private static bool TryBodyContainsNestedFinally(
-        ImmutableArray<ExecutionInstruction> instructions,
-        EnterTryInstruction enterTry)
-    {
-        var boundary = new HashSet<int>();
-        if (enterTry.HandlerIndex >= 0)
-        {
-            boundary.Add(enterTry.HandlerIndex);
-        }
-
-        if (enterTry.FinallyIndex >= 0)
-        {
-            boundary.Add(enterTry.FinallyIndex);
-        }
-
-        if (enterTry.EndFinallyIndex >= 0)
-        {
-            boundary.Add(enterTry.EndFinallyIndex);
-        }
-
-        if (enterTry.LeaveTryIndex >= 0)
-        {
-            boundary.Add(enterTry.LeaveTryIndex);
-        }
-
-        var visited = new HashSet<int>();
-        var pending = new Stack<int>();
-        if (enterTry.Next >= 0)
-        {
-            pending.Push(enterTry.Next);
-        }
-
-        while (pending.Count > 0)
-        {
-            var index = pending.Pop();
-            if ((uint)index >= (uint)instructions.Length || boundary.Contains(index) || !visited.Add(index))
-            {
-                continue;
-            }
-
-            var instruction = instructions[index];
-            if (instruction is EnterTryInstruction nested && nested.FinallyIndex >= 0)
-            {
-                return true;
-            }
-
-            switch (instruction)
-            {
-                case BranchInstruction branch:
-                    pending.Push(branch.ConsequentIndex);
-                    pending.Push(branch.AlternateIndex);
-                    break;
-                case EnterTryInstruction innerTry:
-                    pending.Push(innerTry.Next);
-                    pending.Push(innerTry.HandlerIndex);
-                    break;
-                default:
-                    pending.Push(instruction.Next);
-                    break;
-            }
-        }
-
-        return false;
     }
 
     private static bool CleanupBlockHasSuspension(
@@ -8333,6 +8257,9 @@ internal static class UnifiedBytecodeProductionEligibility
                     stackDepth--;
                     break;
 
+                case ExpressionOpKind.EnsureSuperReference:
+                    break;
+
                 default:
                     return false;
             }
@@ -11339,6 +11266,9 @@ internal static class UnifiedBytecodeProductionEligibility
                     }
 
                     stackDepth--;
+                    break;
+
+                case ExpressionOpKind.EnsureSuperReference:
                     break;
 
                 default:
@@ -15949,7 +15879,9 @@ internal static class UnifiedBytecodeProductionEligibility
             return true;
         }
 
-        if (identifier.ScopeId >= 0 && identifier.ScopeId != activationSlots.ScopeId)
+        if (identifier.ScopeId >= 0 &&
+            identifier.ScopeId != activationSlots.ScopeId &&
+            !IsYieldStarSyntheticResult(identifier.Name))
         {
             return false;
         }

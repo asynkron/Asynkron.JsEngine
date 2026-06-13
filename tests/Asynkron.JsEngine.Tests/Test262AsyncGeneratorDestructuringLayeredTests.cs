@@ -180,6 +180,60 @@ public sealed class Test262AsyncGeneratorDestructuringLayeredTests(ITestOutputHe
     }
 
     [Fact(Timeout = 5000)]
+    public async Task Layer4_AsyncGeneratorForAwaitAssignmentComputedYieldTarget_RoutesAndWritesProperty()
+    {
+        var plan = GetFunctionPlan("""
+            var value = [[22]];
+            var x = {};
+            async function *fn() {
+                for await ([[x[yield]]] of [value]) {
+                    yield x.prop;
+                }
+            }
+            """,
+            "fn");
+
+        var eligibility = UnifiedBytecodeProductionEligibility.EvaluateResumable(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor(IsAsyncLike: true, IsGenerator: true));
+        Assert.True(eligibility.IsEligible, eligibility.Reason);
+
+        await using var engine = CreateEngine();
+        var result = await engine.EvaluateAndAwait("""
+            var output = undefined;
+            var value = [[22]];
+            var x = {};
+
+            async function *fn() {
+                for await ([[x[yield]]] of [value]) {
+                    yield x.prop;
+                }
+            }
+
+            async function run() {
+                var iterator = fn();
+                var first = await iterator.next();
+                var second = await iterator.next("prop");
+                return first.value + ":" + first.done + "|" +
+                    second.value + ":" + second.done + "|" +
+                    x.prop;
+            }
+
+            run().then(
+                value => output = value,
+                error => output = "rejected:" + String(error));
+            output;
+            """);
+
+        Assert.Equal("undefined:false|22:false|22", result?.ToString());
+        Assert.Contains(
+            CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-resumable-async-generator-fast-path func=fn argc=0",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task Layer5_AsyncFunctionForAwaitDestructuringBody_RuntimeStillPasses()
     {
         await using var engine = CreateEngine();

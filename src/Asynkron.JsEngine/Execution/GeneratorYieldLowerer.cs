@@ -3686,13 +3686,14 @@ internal static class GeneratorYieldLowerer
                 case MemberExpression member:
                     {
                         var target = member.Target;
+                        var propertyHadYield = member.IsComputed && AstShapeAnalyzer.ContainsYield(member.Property);
                         if (AstShapeAnalyzer.ContainsYield(target))
                         {
                             var targetChanged = false;
                             target = RewriteExpressionForComplexYields(target, statements, ref targetChanged);
                         }
 
-                        if (ShouldCaptureAssignmentTargetBase(target))
+                        if (ShouldCaptureAssignmentTargetBase(target, propertyHadYield))
                         {
                             target = CaptureExpressionInTemp(target, statements);
                         }
@@ -3735,9 +3736,14 @@ internal static class GeneratorYieldLowerer
             return new IdentifierExpression(null, tempSymbol.Name);
         }
 
-        private static bool ShouldCaptureAssignmentTargetBase(ExpressionNode target)
+        private static bool ShouldCaptureAssignmentTargetBase(ExpressionNode target, bool forceIdentifierCapture = false)
         {
-            return target is not (IdentifierExpression or ThisExpression or SuperExpression);
+            return target switch
+            {
+                IdentifierExpression => forceIdentifierCapture,
+                ThisExpression or SuperExpression => false,
+                _ => true
+            };
         }
 
         private static CallExpression CreateIteratorNextCall(IdentifierBinding iterSymbol)

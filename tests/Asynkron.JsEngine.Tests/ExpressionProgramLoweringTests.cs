@@ -1434,6 +1434,33 @@ public sealed class ExpressionProgramLoweringTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task ReturnInstruction_IdentifierCallWithFunctionLiteralArgument_CompilesStandalone()
+    {
+        var plan = await GetFunctionPlan("""
+            function visit(visitor) {
+                return visitor(function(value) { return value; });
+            }
+            """, "visit");
+
+        var instruction = Assert.Single(plan.Instructions.OfType<ReturnInstruction>(), i => i.ReturnProgram is not null);
+        var returnProgram = Assert.NotNull(instruction.ReturnProgram);
+        Assert.True(
+            UnifiedBytecodeCompiler.TryCompileStandaloneExpressionProgram(
+                returnProgram,
+                allowsDynamicIdentifiers: true,
+                out var program,
+                out var reason),
+            reason);
+
+        Assert.Contains(
+            program.Instructions,
+            instruction => instruction.OpCode == UnifiedBytecodeOpCode.LoadFunctionLiteral);
+        Assert.Contains(
+            program.Instructions,
+            instruction => instruction.OpCode == UnifiedBytecodeOpCode.CallInvocationBoundary);
+    }
+
+    [Fact]
     public async Task ReturnInstruction_OptionalIdentifierCallExpression_IsLoweredToExpressionProgram()
     {
         var plan = await GetFunctionPlan("""

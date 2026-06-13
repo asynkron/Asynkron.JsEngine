@@ -4529,6 +4529,7 @@ internal static class UnifiedBytecodeCompiler
                 expressionProgram,
                 slotLayout,
                 callTargetConstants,
+                functionLiteralConstants,
                 allowsDynamicIdentifiers,
                 unified,
                 literalConstants,
@@ -4564,6 +4565,7 @@ internal static class UnifiedBytecodeCompiler
                 expressionProgram,
                 slotLayout,
                 callTargetConstants,
+                functionLiteralConstants,
                 allowsDynamicIdentifiers,
                 unified,
                 literalConstants,
@@ -4599,6 +4601,7 @@ internal static class UnifiedBytecodeCompiler
                 expressionProgram,
                 slotLayout,
                 callTargetConstants,
+                functionLiteralConstants,
                 allowsDynamicIdentifiers,
                 unified,
                 literalConstants,
@@ -4672,6 +4675,7 @@ internal static class UnifiedBytecodeCompiler
                 expressionProgram,
                 slotLayout,
                 callTargetConstants,
+                functionLiteralConstants,
                 allowsDynamicIdentifiers,
                 unified,
                 literalConstants,
@@ -5915,6 +5919,7 @@ internal static class UnifiedBytecodeCompiler
                     literalConstants,
                     stringConstants,
                     callTargetConstants,
+                    functionLiteralConstants,
                     call,
                     allowsDynamicIdentifiers,
                     out reason))
@@ -6217,6 +6222,7 @@ internal static class UnifiedBytecodeCompiler
         ImmutableArray<JsValue>.Builder literalConstants,
         ImmutableArray<string>.Builder stringConstants,
         ImmutableArray<UnifiedBytecodeCallTarget>.Builder callTargetConstants,
+        ImmutableArray<FunctionLiteralDescriptor>.Builder functionLiteralConstants,
         PackedExpressionOp call,
         bool allowsDynamicIdentifiers,
         out string reason)
@@ -6270,7 +6276,9 @@ internal static class UnifiedBytecodeCompiler
                 callTargetConstants,
                 argsStartIndex: 1,
                 call,
+                expressionProgram.OperationCount - 1,
                 allowsDynamicIdentifiers,
+                functionLiteralConstants,
                 out reason);
         }
 
@@ -6294,7 +6302,9 @@ internal static class UnifiedBytecodeCompiler
             callTargetConstants,
             argsStartIndex: 1,
             call,
+            expressionProgram.OperationCount - 1,
             allowsDynamicIdentifiers,
+            functionLiteralConstants,
             out reason);
     }
 
@@ -7683,6 +7693,7 @@ internal static class UnifiedBytecodeCompiler
             call,
             expressionProgram.OperationCount - 1,
             allowsDynamicIdentifiers,
+            functionLiteralConstants: null,
             out reason);
     }
 
@@ -7709,6 +7720,7 @@ internal static class UnifiedBytecodeCompiler
             call,
             callIndex,
             allowsDynamicIdentifiers: false,
+            functionLiteralConstants: null,
             out reason);
     }
 
@@ -7723,6 +7735,35 @@ internal static class UnifiedBytecodeCompiler
         PackedExpressionOp call,
         int callIndex,
         bool allowsDynamicIdentifiers,
+        out string reason)
+    {
+        return TryAppendCallArguments(
+            expressionProgram,
+            slotLayout,
+            unified,
+            literalConstants,
+            stringConstants,
+            callTargetConstants,
+            argsStartIndex,
+            call,
+            callIndex,
+            allowsDynamicIdentifiers,
+            functionLiteralConstants: null,
+            out reason);
+    }
+
+    private static bool TryAppendCallArguments(
+        ExpressionProgram expressionProgram,
+        UnifiedBytecodeSlotLayout slotLayout,
+        ImmutableArray<UnifiedBytecodeInstruction>.Builder unified,
+        ImmutableArray<JsValue>.Builder literalConstants,
+        ImmutableArray<string>.Builder stringConstants,
+        ImmutableArray<UnifiedBytecodeCallTarget>.Builder callTargetConstants,
+        int argsStartIndex,
+        PackedExpressionOp call,
+        int callIndex,
+        bool allowsDynamicIdentifiers,
+        ImmutableArray<FunctionLiteralDescriptor>.Builder? functionLiteralConstants,
         out string reason)
     {
         var activationSlots = slotLayout.ActivationSlots;
@@ -7996,6 +8037,7 @@ internal static class UnifiedBytecodeCompiler
                                 literalConstants,
                                 stringConstants,
                                 callTargetConstants,
+                                functionLiteralConstants,
                                 argsStartIndex,
                                 callIndex,
                                 call.ArgumentCount,
@@ -8055,6 +8097,7 @@ internal static class UnifiedBytecodeCompiler
         ImmutableArray<JsValue>.Builder literalConstants,
         ImmutableArray<string>.Builder stringConstants,
         ImmutableArray<UnifiedBytecodeCallTarget>.Builder callTargetConstants,
+        ImmutableArray<FunctionLiteralDescriptor>.Builder? functionLiteralConstants,
         int startIndex,
         int callIndex,
         int expectedArgumentCount,
@@ -8068,6 +8111,7 @@ internal static class UnifiedBytecodeCompiler
         var startLiteralCount = literalConstants.Count;
         var startStringCount = stringConstants.Count;
         var startCallTargetCount = callTargetConstants.Count;
+        var startFunctionLiteralCount = functionLiteralConstants?.Count ?? 0;
 
         void RollBack()
         {
@@ -8075,6 +8119,10 @@ internal static class UnifiedBytecodeCompiler
             literalConstants.Count = startLiteralCount;
             stringConstants.Count = startStringCount;
             callTargetConstants.Count = startCallTargetCount;
+            if (functionLiteralConstants is not null)
+            {
+                functionLiteralConstants.Count = startFunctionLiteralCount;
+            }
         }
 
         var depth = 0;
@@ -8146,6 +8194,16 @@ internal static class UnifiedBytecodeCompiler
                         { RollBack(); reason = operandReason; return false; }
                     }
 
+                    depth++;
+                    break;
+
+                case ExpressionOpKind.LoadFunctionLiteral:
+                    if (functionLiteralConstants is null)
+                    {
+                        { RollBack(); reason = "Function literals are not available in this complex call argument compilation context."; return false; }
+                    }
+
+                    AppendLoadFunctionLiteral(op, expressionProgram, unified, functionLiteralConstants);
                     depth++;
                     break;
 
@@ -13150,6 +13208,7 @@ internal static class UnifiedBytecodeCompiler
         ExpressionProgram expressionProgram,
         UnifiedBytecodeSlotLayout slotLayout,
         ImmutableArray<UnifiedBytecodeCallTarget>.Builder callTargetConstants,
+        ImmutableArray<FunctionLiteralDescriptor>.Builder functionLiteralConstants,
         bool allowsDynamicIdentifiers,
         ImmutableArray<UnifiedBytecodeInstruction>.Builder unified,
         ImmutableArray<JsValue>.Builder literalConstants,
@@ -13248,6 +13307,7 @@ internal static class UnifiedBytecodeCompiler
         var literalCount = literalConstants.Count;
         var stringCount = stringConstants.Count;
         var callTargetCount = callTargetConstants.Count;
+        var functionLiteralCount = functionLiteralConstants.Count;
 
         void RollBack()
         {
@@ -13255,6 +13315,7 @@ internal static class UnifiedBytecodeCompiler
             RollBackUnifiedBuilder(literalConstants, literalCount);
             RollBackUnifiedBuilder(stringConstants, stringCount);
             RollBackUnifiedBuilder(callTargetConstants, callTargetCount);
+            functionLiteralConstants.Count = functionLiteralCount;
         }
 
         if (!TryAppendActivationOrPlainDynamicIdentifierReadValueLoad(
@@ -13344,6 +13405,7 @@ internal static class UnifiedBytecodeCompiler
                     literalConstants,
                     stringConstants,
                     callTargetConstants,
+                    functionLiteralConstants,
                     rhsStart,
                     binaryIndex,
                     expectedArgumentCount: 1,
@@ -13365,6 +13427,7 @@ internal static class UnifiedBytecodeCompiler
         ExpressionProgram expressionProgram,
         UnifiedBytecodeSlotLayout slotLayout,
         ImmutableArray<UnifiedBytecodeCallTarget>.Builder callTargetConstants,
+        ImmutableArray<FunctionLiteralDescriptor>.Builder functionLiteralConstants,
         bool allowsDynamicIdentifiers,
         ImmutableArray<UnifiedBytecodeInstruction>.Builder unified,
         ImmutableArray<JsValue>.Builder literalConstants,
@@ -13540,6 +13603,9 @@ internal static class UnifiedBytecodeCompiler
         var stagedCallTargets = ImmutableArray.CreateBuilder<UnifiedBytecodeCallTarget>();
         stagedCallTargets.AddRange(callTargetConstants);
 
+        var stagedFunctionLiterals = ImmutableArray.CreateBuilder<FunctionLiteralDescriptor>();
+        stagedFunctionLiterals.AddRange(functionLiteralConstants);
+
         if (computedPrefixSpanLength > 0)
         {
             if (!TryAppendMeasuredSimpleComputedPropertyReadOperandSpan(
@@ -13629,6 +13695,7 @@ internal static class UnifiedBytecodeCompiler
                     stagedLiterals,
                     stagedStrings,
                     stagedCallTargets,
+                    stagedFunctionLiterals,
                     rhsStart,
                     binaryIndex,
                     expectedArgumentCount: 1,
@@ -13649,6 +13716,8 @@ internal static class UnifiedBytecodeCompiler
         stringConstants.AddRange(stagedStrings);
         callTargetConstants.Clear();
         callTargetConstants.AddRange(stagedCallTargets);
+        functionLiteralConstants.Clear();
+        functionLiteralConstants.AddRange(stagedFunctionLiterals);
         reason = string.Empty;
         return true;
     }
@@ -14095,6 +14164,7 @@ internal static class UnifiedBytecodeCompiler
         ExpressionProgram expressionProgram,
         UnifiedBytecodeSlotLayout slotLayout,
         ImmutableArray<UnifiedBytecodeCallTarget>.Builder callTargetConstants,
+        ImmutableArray<FunctionLiteralDescriptor>.Builder functionLiteralConstants,
         bool allowsDynamicIdentifiers,
         ImmutableArray<UnifiedBytecodeInstruction>.Builder unified,
         ImmutableArray<JsValue>.Builder literalConstants,
@@ -14202,6 +14272,9 @@ internal static class UnifiedBytecodeCompiler
         var stagedCallTargets = ImmutableArray.CreateBuilder<UnifiedBytecodeCallTarget>();
         stagedCallTargets.AddRange(callTargetConstants);
 
+        var stagedFunctionLiterals = ImmutableArray.CreateBuilder<FunctionLiteralDescriptor>();
+        stagedFunctionLiterals.AddRange(functionLiteralConstants);
+
         if (!TryAppendMeasuredSimpleComputedPropertyReadOperandSpan(
                 expressionProgram,
                 0,
@@ -14254,6 +14327,7 @@ internal static class UnifiedBytecodeCompiler
                      stagedLiterals,
                      stagedStrings,
                      stagedCallTargets,
+                     stagedFunctionLiterals,
                      valueStart,
                      setComputedIndex,
                      expectedArgumentCount: 1,
@@ -14272,6 +14346,8 @@ internal static class UnifiedBytecodeCompiler
         stringConstants.AddRange(stagedStrings);
         callTargetConstants.Clear();
         callTargetConstants.AddRange(stagedCallTargets);
+        functionLiteralConstants.Clear();
+        functionLiteralConstants.AddRange(stagedFunctionLiterals);
         reason = string.Empty;
         return true;
     }
@@ -14577,6 +14653,7 @@ internal static class UnifiedBytecodeCompiler
                     literalConstants,
                     stringConstants,
                     callTargetConstants,
+                    functionLiteralConstants,
                     rhsStart,
                     setNamedIndex,
                     expectedArgumentCount: 1,
@@ -14606,6 +14683,7 @@ internal static class UnifiedBytecodeCompiler
         ExpressionProgram expressionProgram,
         UnifiedBytecodeSlotLayout slotLayout,
         ImmutableArray<UnifiedBytecodeCallTarget>.Builder callTargetConstants,
+        ImmutableArray<FunctionLiteralDescriptor>.Builder functionLiteralConstants,
         bool allowsDynamicIdentifiers,
         ImmutableArray<UnifiedBytecodeInstruction>.Builder unified,
         ImmutableArray<JsValue>.Builder literalConstants,
@@ -14701,6 +14779,9 @@ internal static class UnifiedBytecodeCompiler
         var stagedCallTargets = ImmutableArray.CreateBuilder<UnifiedBytecodeCallTarget>();
         stagedCallTargets.AddRange(callTargetConstants);
 
+        var stagedFunctionLiterals = ImmutableArray.CreateBuilder<FunctionLiteralDescriptor>();
+        stagedFunctionLiterals.AddRange(functionLiteralConstants);
+
         if (!TryAppendSimpleOperandLoadWithDynamic(
                 expressionProgram.GetOperation(0),
                 expressionProgram,
@@ -14752,6 +14833,7 @@ internal static class UnifiedBytecodeCompiler
                      stagedLiterals,
                      stagedStrings,
                      stagedCallTargets,
+                     stagedFunctionLiterals,
                      valueStart,
                      setComputedIndex,
                      expectedArgumentCount: 1,
@@ -14770,6 +14852,8 @@ internal static class UnifiedBytecodeCompiler
         stringConstants.AddRange(stagedStrings);
         callTargetConstants.Clear();
         callTargetConstants.AddRange(stagedCallTargets);
+        functionLiteralConstants.Clear();
+        functionLiteralConstants.AddRange(stagedFunctionLiterals);
         reason = string.Empty;
         return true;
     }

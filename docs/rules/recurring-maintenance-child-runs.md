@@ -9,7 +9,8 @@ maintenance pass, keep the run small, repo-local, and directly reviewable.
   simplification slice.
 - Capture a cheap baseline signal before editing and the matching final signal
   after editing.
-- Use a compact issue-update evidence shape: `Baseline signal`, `Final signal`,
+- Use a compact issue-update evidence shape: `Baseline timestamp`,
+  `Baseline signal`, `Final timestamp`, `Final signal`, `Signal delta`,
   `Sibling check`, `Slice check`, and `Scope note`.
 - Policy ownership lives here; keep this file as the durable semantic home for
   recurring-child scope, sibling coordination, and lessons learned.
@@ -428,10 +429,12 @@ reads even though the durable policy already keeps runtime allocation as the
 source of truth.
 
 Issue #1240 / PR #1253 clarified that the issue update itself needs a stable
-evidence shape. Without explicit `Baseline signal`, `Final signal`, `Slice
-check`, and `Scope note` fields, review has to infer whether the maintenance
-child actually proved before/after behavior, passed diff hygiene, and stayed
-away from recurrence infrastructure or unrelated files.
+evidence shape. Without explicit `Baseline timestamp`, `Baseline signal`,
+`Final timestamp`, `Final signal`, `Signal delta`, `Sibling check`,
+`Slice check`, and `Scope note` fields, review has to infer whether the
+maintenance child actually proved timed before/after behavior, passed diff
+hygiene, recorded sibling coordination, and stayed away from recurrence
+infrastructure or unrelated files.
 
 Issue #1302 / PR #1309 turned that stable evidence shape into a concrete
 copy/paste `## Build Update` template in `agents/how-to-build-and-test.md`.
@@ -450,8 +453,9 @@ the already-delivered README or package files again.
 
 Issue #1845 / PR #1888 closed the top-level README drift around that same
 evidence shape. `README.md` already pointed at the maintenance-child playbook,
-but it did not name sibling-summary checks or the stable `Baseline signal`,
-`Final signal`, `Sibling check`, `Slice check`, and `Scope note` fields. Future
+but it did not name sibling-summary checks or the stable `Baseline timestamp`,
+`Baseline signal`, `Final timestamp`, `Final signal`, `Signal delta`,
+`Sibling check`, `Slice check`, and `Scope note` fields. Future
 entrypoint docs should expose those anchors while leaving the detailed
 checklist in `agents/how-to-build-and-test.md`, so operators see the contract
 without maintaining two full copies.

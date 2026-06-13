@@ -183,9 +183,9 @@ internal sealed class ScopeSlotCollector : AstVisitor
         var info = GetOrCreateScopeInfo(scopeId);
         if (!slotMap.IsEmpty)
         {
-            foreach (var symbol in slotMap.Keys)
+            foreach (var (symbol, slotIndex) in slotMap)
             {
-                AllocateSlotInScope(scopeId, symbol);
+                info.IncludeSlot(symbol, slotIndex);
                 // Slot maps originate from lexical scopes (loop/function bodies).
                 info.LexicalBindings.Add(symbol);
             }

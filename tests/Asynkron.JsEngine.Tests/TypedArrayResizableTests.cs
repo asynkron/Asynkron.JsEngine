@@ -7,6 +7,102 @@ namespace Asynkron.JsEngine.Tests;
 [Category(TestCategories.StdLibTypedArray)]
 public sealed class TypedArrayResizableTests(ITestOutputHelper output) : InternalTestBase(output)
 {
+    [Fact(Timeout = 2000)]
+    public async Task EntriesIterator_UsesRelativeKeysForLengthTrackingViewWithOffset()
+    {
+        await using var engine = CreateEngine(() => new JsEngineOptions { DebugMode = false });
+
+        var result = await engine.Evaluate("""
+            function collect(Ctor, needsBigInt) {
+                const rab = new ArrayBuffer(4 * Ctor.BYTES_PER_ELEMENT, {
+                    maxByteLength: 8 * Ctor.BYTES_PER_ELEMENT
+                });
+                const writer = new Ctor(rab);
+                for (let i = 0; i < 4; i++) {
+                    writer[i] = needsBigInt ? BigInt(2 * i) : 2 * i;
+                }
+
+                const view = new Ctor(rab, 2 * Ctor.BYTES_PER_ELEMENT);
+
+                function collectEntries(label, iterable) {
+                    let expectedKey = 0;
+                    const values = [];
+                    for (let [key, value] of iterable) {
+                        values.push(key + ":" + Number(value));
+                        if (key !== expectedKey) {
+                            return label + " key=" + key + " expected=" + expectedKey + " values=" + values.join(",");
+                        }
+
+                        ++expectedKey;
+                    }
+
+                    return values.join(",");
+                }
+
+                function set(index, value) {
+                    writer[index] = needsBigInt ? BigInt(value) : value;
+                }
+
+                const iterator = view.entries();
+                const first = iterator.next().value;
+                const second = iterator.next().value;
+
+                const typedInitial = collectEntries("typed", view.entries());
+                const arrayInitial = collectEntries("array", Array.prototype.entries.call(view));
+
+                rab.resize(3 * Ctor.BYTES_PER_ELEMENT);
+                const typedShrunk = collectEntries("typedShrunk", view.entries());
+                const arrayShrunk = collectEntries("arrayShrunk", Array.prototype.entries.call(view));
+
+                rab.resize(6 * Ctor.BYTES_PER_ELEMENT);
+                for (let i = 0; i < 6; i++) {
+                    set(i, 2 * i);
+                }
+                const typedGrown = collectEntries("typedGrown", view.entries());
+                const arrayGrown = collectEntries("arrayGrown", Array.prototype.entries.call(view));
+
+                return Ctor.name + "=" +
+                    first[0] + ":" + Number(first[1]) + "," + second[0] + ":" + Number(second[1]) +
+                    ";typed=" + typedInitial +
+                    ";array=" + arrayInitial +
+                    ";typedShrunk=" + typedShrunk +
+                    ";arrayShrunk=" + arrayShrunk +
+                    ";typedGrown=" + typedGrown +
+                    ";arrayGrown=" + arrayGrown;
+            }
+
+            const MyUint8Array = class MyUint8Array extends Uint8Array {};
+            const MyFloat32Array = class MyFloat32Array extends Float32Array {};
+            const MyBigInt64Array = class MyBigInt64Array extends BigInt64Array {};
+
+            const ctors = [
+                [Uint8Array, false],
+                [Uint16Array, false],
+                [Float64Array, false],
+                [BigInt64Array, true],
+                [MyUint8Array, false],
+                [MyFloat32Array, false],
+                [MyBigInt64Array, true]
+            ];
+            const results = [];
+            for (let [ctor, needsBigInt] of ctors) {
+                results.push(collect(ctor, needsBigInt));
+            }
+
+            results.join("|");
+            """);
+
+        Assert.Equal(
+            "Uint8Array=0:4,1:6;typed=0:4,1:6;array=0:4,1:6;typedShrunk=0:4;arrayShrunk=0:4;typedGrown=0:4,1:6,2:8,3:10;arrayGrown=0:4,1:6,2:8,3:10|" +
+            "Uint16Array=0:4,1:6;typed=0:4,1:6;array=0:4,1:6;typedShrunk=0:4;arrayShrunk=0:4;typedGrown=0:4,1:6,2:8,3:10;arrayGrown=0:4,1:6,2:8,3:10|" +
+            "Float64Array=0:4,1:6;typed=0:4,1:6;array=0:4,1:6;typedShrunk=0:4;arrayShrunk=0:4;typedGrown=0:4,1:6,2:8,3:10;arrayGrown=0:4,1:6,2:8,3:10|" +
+            "BigInt64Array=0:4,1:6;typed=0:4,1:6;array=0:4,1:6;typedShrunk=0:4;arrayShrunk=0:4;typedGrown=0:4,1:6,2:8,3:10;arrayGrown=0:4,1:6,2:8,3:10|" +
+            "MyUint8Array=0:4,1:6;typed=0:4,1:6;array=0:4,1:6;typedShrunk=0:4;arrayShrunk=0:4;typedGrown=0:4,1:6,2:8,3:10;arrayGrown=0:4,1:6,2:8,3:10|" +
+            "MyFloat32Array=0:4,1:6;typed=0:4,1:6;array=0:4,1:6;typedShrunk=0:4;arrayShrunk=0:4;typedGrown=0:4,1:6,2:8,3:10;arrayGrown=0:4,1:6,2:8,3:10|" +
+            "MyBigInt64Array=0:4,1:6;typed=0:4,1:6;array=0:4,1:6;typedShrunk=0:4;arrayShrunk=0:4;typedGrown=0:4,1:6,2:8,3:10;arrayGrown=0:4,1:6,2:8,3:10",
+            result);
+    }
+
     [Fact]
     public void LastIndexOfReturnsMinusOneWhenFixedLengthViewShrinksOutOfBounds()
     {

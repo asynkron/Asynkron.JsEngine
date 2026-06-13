@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.Execution;
 using Asynkron.JsEngine.Execution.Instructions;
@@ -65,5 +66,32 @@ public sealed class IteratorDriverPlanTests(ITestOutputHelper output) : Internal
         var array = Assert.IsType<JsArray>(result);
         Assert.Equal("3,7", array.GetElement(0).AsString());
         Assert.Equal("3,7", array.GetElement(1).AsString());
+    }
+
+    [Fact]
+    public void ScopeCollectorPreservesExplicitPushEnvironmentSlotMapIndices()
+    {
+        var key = Symbol.Intern("key");
+        var value = Symbol.Intern("value");
+        var slotMap = ImmutableDictionary.CreateBuilder<Symbol, int>(ReferenceEqualityComparer<Symbol>.Instance);
+        slotMap[value] = 0;
+        slotMap[key] = 1;
+
+        ExecutionInstruction[] instructions =
+        [
+            new PushEnvironmentInstruction(
+                1,
+                [key, value],
+                ScopeId: 42,
+                SlotCount: 2,
+                SlotMap: slotMap.ToImmutable()),
+            new PopEnvironmentInstruction(42, AllowPooling: false, Next: -1)
+        ];
+
+        var collector = new ScopeSlotCollector(instructions, [], _ => 0, 0);
+        var analysis = collector.Collect();
+
+        Assert.Equal(1, analysis.Scopes[42].Slots[key]);
+        Assert.Equal(0, analysis.Scopes[42].Slots[value]);
     }
 }

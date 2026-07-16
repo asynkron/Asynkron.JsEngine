@@ -1,5 +1,6 @@
 using Asynkron.JsEngine.Execution;
 using Asynkron.JsEngine.Runtime;
+using Microsoft.Extensions.Logging;
 
 #pragma warning disable CS0618 // IR runner remains the compatibility route for non-resumable sync generator bodies.
 
@@ -37,6 +38,11 @@ public static partial class TypedAstEvaluator
 
         public override JsValue Invoke(IReadOnlyList<JsValue> arguments, JsValue thisValue)
         {
+            RealmState.Logger?.LogInformation(
+                "sync-generator-creation-time-ir-route func={Function} argc={ArgumentCount}",
+                _function.Name?.Name ?? "<anonymous>",
+                arguments.Count);
+
             var runner = new ExecutionPlanRunner(
                 _function,
                 _closure,

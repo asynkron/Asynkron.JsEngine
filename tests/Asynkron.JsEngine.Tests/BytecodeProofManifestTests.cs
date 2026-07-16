@@ -137,6 +137,42 @@ public sealed partial class BytecodeProofManifestTests(ITestOutputHelper output)
     }
 
     [Fact]
+    public void Manifest_SyncGeneratorCreationTimeIrRoute_IsFocusedRuntimeProof()
+    {
+        var proofs = LoadManifest()
+            .Items
+            .Single(static item => item.Id == "E5d")
+            .Proofs
+            .ToDictionary(static proof => proof.Id, StringComparer.Ordinal);
+
+        var routeProof = proofs["E5-sync-generator-creation-time-ir-route-runs-without-declined-residue"];
+        Assert.Equal("E5d-sync-generator-ir-route-selection", routeProof.ChildOwner);
+        Assert.Equal("runtime", routeProof.Kind);
+        Assert.Equal("admitted", routeProof.Claim);
+        Assert.Contains("simple-parameter sync generator body remains valid", routeProof.Classification, StringComparison.Ordinal);
+        Assert.Contains("creation-time IR route", routeProof.Classification, StringComparison.Ordinal);
+        Assert.Contains("does not enter the accepted resumable VM fast path", routeProof.Classification, StringComparison.Ordinal);
+        Assert.Contains("does not use the retired declined-residue bridge", routeProof.Classification, StringComparison.Ordinal);
+        Assert.Contains(
+            "sync-generator-creation-time-ir-route func=values argc=2",
+            routeProof.RequiredLogs,
+            StringComparer.Ordinal);
+        Assert.Contains(
+            "unified-bytecode-resumable-generator-fast-path func=values",
+            routeProof.ForbiddenLogs,
+            StringComparer.Ordinal);
+        Assert.Contains(
+            "classified-sync-generator-declined-residue",
+            routeProof.ForbiddenLogs,
+            StringComparer.Ordinal);
+
+        var residueProof = proofs["E5-sync-generator-declined-residue-runner-still-present"];
+        Assert.Equal("source-absence", residueProof.Kind);
+        Assert.Equal("retired-fallback", residueProof.Claim);
+        Assert.DoesNotContain(routeProof.ChildOwner, residueProof.Classification, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Manifest_ExecutionPlanRunnerEntryAnchors_AreClassifiedAllowlistsOrRetired()
     {
         var proofs = LoadManifest()
@@ -286,7 +322,8 @@ public sealed partial class BytecodeProofManifestTests(ITestOutputHelper output)
                 "E5d-async-function-declined-body-runner-residue",
                 "E5d-class-constructor-initialization-residue",
                 "E5d-function-and-resumable-declined-body-runner-retirement",
-                "E5d-sync-generator-declined-residue"
+                "E5d-sync-generator-declined-residue",
+                "E5d-sync-generator-ir-route-selection"
             ],
             items["E5d"].Proofs
                 .Select(static proof => proof.ChildOwner)

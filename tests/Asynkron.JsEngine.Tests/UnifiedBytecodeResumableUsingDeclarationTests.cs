@@ -62,6 +62,20 @@ public sealed class UnifiedBytecodeResumableUsingDeclarationTests(ITestOutputHel
                                   instruction.Operand == 1);
     }
 
+    [Fact]
+    public void EvaluateResumable_AsyncFunctionBodyAwaitUsing_RequiresMaterializedDisposalEnvironment()
+    {
+        var plan = GetFunctionPlan("""
+            async function run(resource) {
+                await using value = resource;
+                return "done";
+            }
+            """,
+            "run");
+
+        Assert.True(UnifiedBytecodeProductionEligibility.PlanNeedsResumableFunctionEnvironmentForDisposal(plan));
+    }
+
     [Fact(Timeout = 5000)]
     public async Task GeneratorFunctionBodyUsing_DisposesOnCompletionAndRoutesResumable()
     {

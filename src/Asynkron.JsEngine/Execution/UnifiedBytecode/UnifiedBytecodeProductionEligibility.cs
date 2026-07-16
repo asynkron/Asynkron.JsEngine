@@ -2068,11 +2068,13 @@ internal static class UnifiedBytecodeProductionEligibility
         {
             switch (plan.Instructions[i])
             {
-                case SimpleVariableDeclarationInstruction { VarKind: VariableKind.Using } simpleUsing
+                case SimpleVariableDeclarationInstruction
+                    { VarKind: VariableKind.Using or VariableKind.AwaitUsing } simpleUsing
                     when activeScopeDepths[i] == 0 &&
                          activationSlots.SlotMap.ContainsKey(simpleUsing.TargetSymbol):
                     return true;
-                case BindingVariableDeclarationInstruction { VarKind: VariableKind.Using } bindingUsing
+                case BindingVariableDeclarationInstruction
+                    { VarKind: VariableKind.Using or VariableKind.AwaitUsing } bindingUsing
                     when activeScopeDepths[i] == 0 &&
                          IsActivationScopeDeclarationBindingTarget(bindingUsing.TargetProgram, activationSlots):
                     return true;

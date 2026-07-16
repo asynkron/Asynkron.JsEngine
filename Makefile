@@ -5,7 +5,7 @@ DOTNET_BUILD_ARGS ?= /p:RunAnalyzers=false
 DOTNET_BUILD_STABILITY_ARGS ?= /m:1 /nr:false
 DOTNET_TEST_ARGS ?= --logger "console;verbosity=minimal"
 XUNIT_ARGS ?= xUnit.MaxParallelThreads=1 -timeout 20000
-DOTNET ?= dotnet
+DOTNET ?= $(or $(shell command -v dotnet 2>/dev/null),$(wildcard /usr/local/share/dotnet/dotnet),dotnet)
 GIT ?= git
 PYTHON ?= python3
 
@@ -21,7 +21,7 @@ help:
 		"" \
 		"Variable overrides:" \
 		"  CONFIGURATION=Debug|Release          Default: Debug" \
-		"  DOTNET=dotnet                        Dotnet executable override" \
+		"  DOTNET=<auto-detected>              Dotnet executable override" \
 		"  GIT=git                              Git executable override" \
 		"  DOTNET_BUILD_ARGS='<args>'           Extra args passed to dotnet build commands" \
 		"  DOTNET_BUILD_STABILITY_ARGS='<args>' Extra build stability args (default: /m:1 /nr:false)" \

@@ -3187,14 +3187,6 @@ internal static class UnifiedBytecodeVirtualMachine
                 }
 
                 if (hasControlTarget &&
-                    kind == AbruptKind.Continue &&
-                    frame.Descriptor.LoopBreakTarget >= 0 &&
-                    IsContinueTargetInsideLoopFrame(program, controlTarget, frame.Descriptor.LoopBreakTarget))
-                {
-                    return false;
-                }
-
-                if (hasControlTarget &&
                     kind == AbruptKind.Break &&
                     frame.Descriptor.LoopBreakTarget >= 0 &&
                     !IsSameLoopControlTarget(program, controlTarget, frame.Descriptor.LoopBreakTarget) &&
@@ -3269,30 +3261,6 @@ internal static class UnifiedBytecodeVirtualMachine
             if (descriptor.BreakTarget == loopBreakTarget)
             {
                 return false;
-            }
-        }
-
-        return false;
-    }
-
-    private static bool IsContinueTargetInsideLoopFrame(
-        UnifiedBytecodeProgram program,
-        int target,
-        int loopBreakTarget)
-    {
-        foreach (var descriptor in program.DriverDescriptors)
-        {
-            if (descriptor.BreakTarget < 0 ||
-                !IsSameDriverBreakTarget(program, descriptor.BreakTarget, loopBreakTarget))
-            {
-                continue;
-            }
-
-            if ((descriptor.ContinueTarget >= 0 &&
-                 IsSameLoopControlTarget(program, target, descriptor.ContinueTarget)) ||
-                IsControlTargetInsideDriverBody(program, target, descriptor))
-            {
-                return true;
             }
         }
 
@@ -3664,14 +3632,6 @@ internal static class UnifiedBytecodeVirtualMachine
                         descriptor.LoopContinueTarget >= 0 &&
                         (IsSameLoopControlTarget(program, controlTarget, descriptor.LoopContinueTarget) ||
                          IsSameLoopControlTarget(program, descriptor.LoopContinueTarget, controlTarget)))
-                    {
-                        return false;
-                    }
-
-                    if (hasControlTarget &&
-                        kind == UnifiedBytecodeAbruptCompletionKind.Continue &&
-                        descriptor.LoopBreakTarget >= 0 &&
-                        IsContinueTargetInsideLoopFrame(program, controlTarget, descriptor.LoopBreakTarget))
                     {
                         return false;
                     }

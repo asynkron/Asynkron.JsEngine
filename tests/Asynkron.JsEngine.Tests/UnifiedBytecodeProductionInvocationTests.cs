@@ -56,7 +56,7 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
             ].join("|");
             """);
 
-        Assert.Equal("m|false|undefined|7", result);
+        Assert.Equal("m|true|undefined|7", result);
         Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(),
             record => record.Message.Contains(ResumableGeneratorFastPathLog, StringComparison.Ordinal));
     }
@@ -116,7 +116,7 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
             ].join("|");
             """);
 
-        Assert.Equal("m|false|undefined|13", result);
+        Assert.Equal("m|true|undefined|13", result);
         Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(),
             record => record.Message.Contains(ResumableGeneratorFastPathLog, StringComparison.Ordinal));
     }

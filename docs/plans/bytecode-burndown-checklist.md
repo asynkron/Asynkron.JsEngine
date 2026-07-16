@@ -254,7 +254,30 @@ these allowlists — mechanical extensions against existing sync VM handlers.
 | E — Retire tiers | 10 | 6 complete / 4 open; E1 is counted through P0.5, E2/E3 = P0.2/P0.3, E4 is now absence-ratcheted, E5a is admitted static-block routing, and E5b-E5e remain active retirement/exclusion gaps |
 | **Total** | **161** | row-accounted finite current burn-down list after Phase 0 decomposition; future source drift must update audited inventories |
 
-**Status (146 row-accounted A+B+C+D checklist items):** 128 complete / 18 open. **The remaining non-retirement work is now concentrated in activation/dynamic residue boundaries (A1/A2), remaining A51 compiler leaves, class-expression non-production static-block/class-definition work (B24h), and B36 nested declaration/class contexts.** The remaining retirement work is E5b-E5d (remove `ExecutionPlanRunner` entrypoints and fallbacks after A/B/C parity); E5e preserves the terminal dynamic-residue exclusion boundary, and E1 is an alias for P0.5 rather than a second Phase E retirement closure.
+**Status (2026-07-16 rebaseline, 146 row-accounted A+B+C+D checklist items):**
+127 complete / 19 open. **The remaining non-retirement work is concentrated in
+activation/dynamic residue boundaries (A1/A2), remaining A51 compiler leaves,
+class-expression non-production static-block/class-definition work (B24h), and
+B36 nested declaration/class contexts.** Phase E is 6 complete / 4 open: E4 is
+now a source-absence-ratcheted closure row, E5a is admitted static-block
+routing, E5b-E5d remain ordinary runner-retirement work, and E5e preserves the
+terminal dynamic-residue exclusion boundary. The proof manifest currently has
+32 items with 18 non-done proof rows; checklist-open A51g1-A51g4 and A51i stay
+visible as child lanes even though they do not yet have manifest closure rows.
+E1 is an alias for P0.5 rather than a second Phase E retirement closure.
+
+**Open child-lane handoff (2026-07-16):** A1/A2 dynamic activation residue is
+owned by `UnifiedBytecodeProductionEligibility` and
+`TypedAstEvaluator.UnifiedBytecodeResumableActivation.cs`; A51 compiler leaves
+remain split across A51a2/A51b/A51c/A51f3/A51f5/A51g1-A51g4/A51h/A51h1/A51h2/
+A51i/A51j/A51k with owner files in `UnifiedBytecodeCompiler.cs`,
+`UnifiedBytecodeProductionEligibility.cs`, and
+`UnifiedBytecodeVirtualMachine.cs`; B24h remains the class-expression
+class-definition/static-block bridge in `ClassDefinitionExtensions.cs`; B36
+remains the resumable declaration/class-definition lane and has active follow-up
+task gh3625 for the deferred bridge proof; E5b-E5e are owned by active task
+gh3495. No automatic Faktorial plan expansion exists for gh3377, so this
+repository ledger is the child-slice contract until separate tasks are filed.
 
 Latest proof evidence (2026-06-06, E5 eligible static-block body VM route):
 `TryInvokeIrFast` no longer executes a generic `SimpleReturnProgram` through
@@ -277,9 +300,10 @@ standalone expression payloads to standalone unified bytecode and executes
 is deleted too: `TypedAstEvaluator.BindingTargetPrograms` now calls the static
 lowered binding-target core directly instead of constructing a runner solely to
 apply a lowered `BindingTargetProgram`. Eligible class static-block bodies now
-attempt production unified bytecode before the `ExecutionPlanRunner.RunScript`
-fallback, and `E5-static-block-body-routes-when-eligible` proves that lane in the
-manifest. Focused verification passed:
+attempt production unified bytecode before the classified declined-body path, the
+old static-block `ExecutionPlanRunner.RunScript(` call site is
+source-absence-ratcheted, and `E5-static-block-body-routes-when-eligible` proves
+the admitted lane in the manifest. Focused verification passed:
 `dotnet build tools/ProfileRunner/ProfileRunner.csproj` with 0 warnings,
 `dotnet build src/Asynkron.JsEngine/Asynkron.JsEngine.csproj` with 0 warnings,
 `./tools/profile bytecode` with the CPU call-tree root at
@@ -298,25 +322,28 @@ absence. `BytecodeProofManifestTests` now also ratchets absence of the old
 binding-target bridge callers and definition. The E4 source inventory now
 ratchets absence of `UnifiedBytecodeExpressionProgramExecutor.ExecuteDynamic`
 callers and the bridge definition; the broader E5 inventory still finds
-`ExecutionPlanRunner.RunScript` and broad `ExecutionPlanRunner` entry points, so
-runner-internal expression evaluation remains classified under E5 rather than
+classified `ExecutionPlanRunner` construction and helper entry points, while
+the old `ExecutionPlanRunner.RunScript(` entry name is source-absence-ratcheted.
+Runner-internal expression evaluation remains classified under E5 rather than
 blocking this finite E4 rebaseline.
 
 ## Known soft spots
 1. **Named compiler-decline leaves** (A51a1/A51a2, A51b-A51k, A51m, and B47a) are now source-inventoried in the expansion contract; future `TryCompile` reason drift must update that contract and the focused source gate.
 2. **Resumable suspension machinery** (B36 plus remaining B24 class-definition state) — async iterator drivers, super property reads/writes/updates, try/catch/finally, driver cleanup, nested function literals, simple nested class declarations including plain `extends` declarations with activation-safe explicit public derived constructors, public non-computed instance methods, public instance super members/fields, public static super members, public non-computed static fields and mixes with public static methods/accessors, static-block-only class declarations with activation-capturing closures, and delegated async-generator `yield*` are already admitted; remaining resumable rows are narrower declaration/class-definition ownership problems.
 
-## Finite Open-Row Inventory (2026-06-07)
+## Finite Open-Row Inventory (2026-07-16)
 
-This table is the current ledger for the remaining open rows. It does not close
-any row by itself; it names the source owner, proof anchor, and residue boundary
-future slices must preserve before changing row status.
+This table is the current ledger for the remaining open and proof-ratcheted
+rows. It does not close any row by itself; it names the source owner, proof
+anchor, and residue boundary future slices must preserve before changing row
+status.
 
 Ordinary work parking guardrail: A1/A2 and closed D1/D2/D3 are not parking
 buckets. Keep call/member/super/private call boundaries in A51g, the remaining
 A51 compiler leaves in their A51 rows, B24h/B36 class/static-block work in
-B24h/B36, E4 expression-program retirement in E4, and E5 runner retirement in
-E5b-E5d while terminal dynamic residue stays in E5e only as an exclusion boundary.
+B24h/B36, E4 expression-program retirement as the done source-absence ratchet,
+and E5 runner retirement in E5b-E5d while terminal dynamic residue stays in
+E5e only as an exclusion boundary.
 
 | Row | Owner source surface | Proof anchor family | Residue classification |
 |---|---|---|---|
@@ -347,4 +374,4 @@ E5b-E5d while terminal dynamic residue stays in E5e only as an exclusion boundar
 
 ---
 
-_Checklist status: 137 / 161 complete. The latest row-accounted recount keeps A1/A2, the remaining A51 compiler leaves including A51g1-A51g4 call/member/super/private call-boundary children and A51h/A51h1/A51h2 literal/span rows, B24h/B36 class/static-block work, E4 expression-program retirement, and E5b-E5e runner retirement/exclusion rows visible as the source-of-truth remaining gaps while E5a separately records admitted static-block routing and E5c keeps the static-block `RunScript` fallback tombstone plus explicit declined-residue classification rather than ordinary script fallback retirement. A7 is closed for constructor/private-name activation, A51a1 is closed as malformed/manual-plan protection, A51a2 remains open for generated loop-control topology, A51c now carries explicit source-presence anchors for its catch-binding topology, catch-binding slot mapping, lexical dynamic declaration, active-with dynamic-name, materialized-activation dynamic residue, and ordinary dynamic-name activation-slot guards, A51f3 has narrowed for zero-depth catch/finally reads, `typeof`, and plain statement free stores while keeping consumed assignment references, updates, compound/logical writes, and deletes open only as zero-depth exception-region route-enabling evidence, A51f5 has narrowed: plain private named reads used as nested expression operands, single-hop optional private reads, private receiver-prefix named calls, private receiver-prefix public named/computed writes, and one-hop private receiver-prefix public named/computed updates now route, and B24c class expressions now include pure public non-computed static-field function-literal closure initializers. A51g is now a decomposed parent with direct-eval metadata, private-adjacent call-target, member/super call-target, and nested invocation-boundary child rows; A51h keeps method/accessor, control-expression, and conditional simple-literal-span inventory, A51h1 keeps spread-source and computed-object-key literal-span inventory, A51h2 carries the array/object/template literal-container appender/measurer helper lane separately from A51h's non-container residue, and A51k1 now carries the simple value operand-span helper/walker lane separately from A51k's remaining diagnostics. D1/D4 terminal dynamic residue and A51f5/A51i/A51j private/property neighbors remain excluded. A51l is retired as a standalone diagnostics bucket and its former catch/try/driver cleanup templates map to A51a2/A51c/A51d/A51j plus explicit resumable eligibility guards. Private delete-defense, chained optional-private, compound/logical/private-terminal mutation-neighbor, deeper private-prefix update, and super-neighbor diagnostics remain. B24h stays open for computed-name activation delete/construct residue, runtime-source direct eval/non-production static-block plan ownership, and the class-definition environment bridge, and B36 stays partial with exact open manifest rows for dynamic eval helpers, arguments eval helpers, runtime-source direct eval, non-production static-block plans, static-block IR fallback, static-field shape guards, deferred class-definition environment bridging, static-member shape guards, computed-member activation captures, and computed-field activation captures instead of closing those rows. Phase A stands at 64 / 81 complete. Phase B stands at 55 / 57 complete. A+B+C+D stands at 127 / 146 complete; Phase E stands at 5 / 10 complete after the E5 child split; the D5 known-open non-residue ratchet count remains 0. The resumable opcode gap inventory is 5, and the instruction gap inventory is 0. `BytecodeProofManifestTests` now verifies the plan-proof manifest, including source-presence blockers for A51a2/A51c/A51h/A51h1/A51h2/A51j/E4/E5b-E5e, A51k open diagnostics, A51k1 simple value operand-span owner anchors, source-absence proof for E6, malformed-plan guard anchors for A51a1/A51d, general expression-loop opcode coverage for A51f1, standalone-expression proof for A51f2, zero-depth catch/finally dynamic-name store admission plus remaining catch-only dynamic assignment-reference trigger proof for A51f3, implicit-arguments expression-loop closure for A51f4, A2 sync declaration-free direct-eval admission, A2 sync bounded-arguments direct-eval admission, A2 resumable generator/async/async-generator declaration-free literal direct-eval admission and generator/async/async-generator arguments-direct-eval open blockers, A2 retained live-`with` closure residue, A7 private-name constructor admission, B24c static-field closure initializer admission, B24h activation-call/IIFE computed-name admission plus activation-delete/construct decline rows, B24h/B36 declaration-free literal direct-eval static-block admission plus runtime-source direct-eval declines, B36 source-presence rows for dynamic/arguments eval helpers, non-production static-block ownership, static-block IR fallback, static-field shape guards, deferred class-definition environment bridging, static-member shape guards, computed-member activation captures, and computed-field activation captures, D3 active-current-environment `with` admission plus awaited with-object residue wording, and B36 explicit derived-constructor, public instance/static super-member, public super-field, public non-computed instance-method, static-field declaration admission including non-extends mixed public static methods/accessors and non-extends closure-producing static fields, closure-producing static fields including super-dependent closures, closure-producing static blocks, and mixed public static-field/static-block declaration rows._
+_Checklist status (2026-07-16 rebaseline): 138 / 161 complete. Phase A is 64 / 81, Phase B is 55 / 57, A+B+C+D is 127 / 146 with 19 open rows, and Phase E is 6 / 10 with E4 closed as a source-absence ratchet and E5b-E5e still open. The proof manifest has 32 items with 18 non-done proof rows; checklist-open A51g1-A51g4 and A51i remain explicit child lanes without manifest closure rows yet. E4 tombstone scans and the runner AST seam scan returned no matches in this worktree baseline._

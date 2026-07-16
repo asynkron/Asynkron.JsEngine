@@ -885,9 +885,9 @@ public sealed partial class IntlDateTimeFormatPrototype
     private static void DefineFormatFunctionMetadata(HostFunction function)
     {
         function.DefineProperty("length",
-            new PropertyDescriptor { Value = 1d, Writable = false, Enumerable = false, Configurable = true });
+            new PropertyDescriptor { JsValue = 1d, Writable = false, Enumerable = false, Configurable = true });
         function.DefineProperty("name",
-            new PropertyDescriptor { Value = string.Empty, Writable = false, Enumerable = false, Configurable = true });
+            new PropertyDescriptor { JsValue = string.Empty, Writable = false, Enumerable = false, Configurable = true });
     }
 
     private static string FormatDateTimeOffset(double epochMs, DateTimeFormatInternalSlots slots,

@@ -1900,7 +1900,7 @@ public sealed class UnifiedBytecodeResumableClassExpressionTests(ITestOutputHelp
     }
 
     [Fact]
-    public void EvaluateResumable_ClassExpressionComputedNameNestedClassLiteral_DeclinesClassDefinitionEnvironmentRoute()
+    public void EvaluateResumable_ClassExpressionComputedNameNestedClassLiteralActivationCapture_DeclinesClassDefinitionEnvironmentRoute()
     {
         var plan = GetFunctionPlan("""
             function* g(key) {

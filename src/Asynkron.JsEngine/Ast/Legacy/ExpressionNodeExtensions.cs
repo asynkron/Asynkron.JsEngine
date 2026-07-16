@@ -2378,37 +2378,6 @@ public static partial class TypedAstEvaluator
                 "Dynamic conditional alternate");
     }
 
-    private static string GetTypeofStringValue(in JsValue value)
-    {
-        return value.Kind switch
-        {
-            JsValueKind.Undefined => "undefined",
-            JsValueKind.Null => "object",
-            JsValueKind.Boolean => "boolean",
-            JsValueKind.Number => "number",
-            JsValueKind.BigInt => "bigint",
-            JsValueKind.String => "string",
-            JsValueKind.Symbol => "symbol",
-            JsValueKind.Object => GetTypeofStringForObject(value.ObjectValue),
-            _ => "undefined"
-        };
-    }
-
-    private static string GetTypeofStringForObject(object? obj)
-    {
-        if (obj is IIsHtmlDda)
-        {
-            return "undefined";
-        }
-
-        if (obj is JsProxy proxy)
-        {
-            return proxy.IsCallableTarget() ? "function" : "object";
-        }
-
-        return obj is IJsCallable ? "function" : "object";
-    }
-
     private static JsValue BitwiseNotValue(in JsValue operand, EvaluationContext context)
     {
         return BitwiseNotJsValue(in operand, context);

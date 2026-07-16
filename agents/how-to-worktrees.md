@@ -15,6 +15,17 @@ Isolate feature work from the main working directory; allows parallel branches a
 - Documentation-only changes
 - Trivial config updates
 
+## Faktorial-Managed Runs
+When Faktorial supplies a working directory under `.faktorial/worktrees/<task>`,
+that directory is already the task's isolated worktree. Work there; do not run
+`git worktree add` or create another worktree for the same task.
+
+Use supplied Source Context or the Faktorial HTTP API for issue and runtime
+context, as described in [Workflow and GitHub Issues](how-to-workflow-and-issues.md)
+and the [agent context rule](../docs/rules/agent-context-issues.md). The create,
+push, merge, background-agent, and cleanup commands below are for local/manual
+workflows outside a pre-provisioned Faktorial run.
+
 ## Create a Worktree
 ```bash
 rtk git worktree add ../Asynkron.JsEngine-<feature> -b feature/<branch-name>

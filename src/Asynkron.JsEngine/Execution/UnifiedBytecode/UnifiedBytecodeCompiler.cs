@@ -603,7 +603,8 @@ internal static class UnifiedBytecodeCompiler
 
         void AddIfMissing(Symbol symbol)
         {
-            if (activationSlots.SlotMap.ContainsKey(symbol))
+            if (!IsSyntheticDriverSlot(symbol) ||
+                activationSlots.SlotMap.ContainsKey(symbol))
             {
                 return;
             }

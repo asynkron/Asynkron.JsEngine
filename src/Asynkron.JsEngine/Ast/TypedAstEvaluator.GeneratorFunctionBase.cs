@@ -277,6 +277,7 @@ public static partial class TypedAstEvaluator
         {
             if (_isConstructorEnabled)
             {
+                _properties.DeleteOwnProperty("prototype");
                 _isConstructorEnabled = false;
             }
         }

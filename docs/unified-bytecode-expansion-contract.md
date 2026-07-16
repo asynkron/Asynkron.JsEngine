@@ -721,6 +721,7 @@ above in the same slice.
 
 - `Activation slot metadata is required.`
 - `Array literal RHS span does not match expected boundary.`
+- `Array literal RHS span does not match expected nested computed property assignment boundary.`
 - `Awaited declaration target '{awaitedDeclarationTargetSymbol.Name}' is not eligible for unified bytecode storage.`
 - `Binary underflow in complex call argument.`
 - `Binding-target expressions are not available in this unified bytecode compilation context.`
@@ -735,6 +736,7 @@ above in the same slice.
 - `Computed member call targets require receiver and key operands.`
 - `Computed object key call target requires an activation-resolved identifier slot.`
 - `Computed object keys only admit activation-resolved zero-argument identifier calls.`
+- `Computed property key call target requires call-target compilation context.`
 - `Computed-prefix computed property writes with name inference are not supported.`
 - `Computed property reads require RequireObjectCoercible(Depth: 1) in the first production boundary.`
 - `Computed property reads require ResolvePropertyKey in the first production boundary.`
@@ -757,6 +759,7 @@ above in the same slice.
 - `Failed to emit measured computed property read span.`
 - `Failed to emit measured optional named property read span.`
 - `Failed to emit measured optional named read chain span.`
+- `Function literals are not available in this complex call argument compilation context.`
 - `Identifier '{identifier.Name.Name}' requires dynamic lookup and is not eligible outside an active with environment.`
 - `Identifier '{storeIdentifier.Name.Name}' requires dynamic lookup and is not eligible outside an active with environment.`
 - `Identifier '{storeIdentifier.Name.Name}' resolves to an activation slot and is not eligible for dynamic unified bytecode assignment references.`
@@ -797,6 +800,7 @@ above in the same slice.
 - `Nested named computed property writes with name inference are not supported.`
 - `Nested named property writes with name inference are not supported.`
 - `Object literal RHS span does not match expected boundary.`
+- `Object literal RHS span does not match expected nested computed property assignment boundary.`
 - `Object methods, object accessors, private names, and name inference are not admitted in simple object literals.`
 - `Only one-argument non-spread direct eval is supported by the call-target preparation boundary.`
 - `Only one-argument explicit-this non-spread direct eval is supported in the general expression loop.`
@@ -844,6 +848,7 @@ above in the same slice.
 - `Unsupported computed property key op '{operation.Kind}'.`
 - `Unsupported computed property key span.`
 - `Unsupported computed property read in complex call argument.`
+- `Unsupported computed property write in complex call argument.`
 - `Unsupported named super property read in complex call argument.`
 - `Unsupported conditional alternate in simple literal span.`
 - `Unsupported conditional consequent in simple literal span.`

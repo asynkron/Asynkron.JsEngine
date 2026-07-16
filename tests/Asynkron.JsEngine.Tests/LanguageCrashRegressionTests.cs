@@ -238,7 +238,7 @@ public sealed class LanguageCrashRegressionTests(ITestOutputHelper output) : Int
     }
 
     [Fact(Timeout = 5000)]
-    public async Task ForAwaitOf_AsyncGenerator_ArrayRestBindingFailsExplicitlyAfterUnifiedDecline()
+    public async Task ForAwaitOf_AsyncGenerator_ArrayRestBinding_CopiesIterationValues()
     {
         await using var engine = CreateEngine();
         var result = await engine.EvaluateAndAwait("""
@@ -278,8 +278,14 @@ public sealed class LanguageCrashRegressionTests(ITestOutputHelper output) : Int
             result;
             """);
 
-        var message = Assert.IsType<string>(result);
-        Assert.StartsWith("Async-generator body 'fn' is not eligible for unified bytecode execution:", message, StringComparison.Ordinal);
+        var obj = Assert.IsType<JsObject>(result);
+        Assert.Equal(1.0, RequireProperty(obj, "iterCount").AsDouble());
+        Assert.True(RequireProperty(obj, "isArray").AsBoolean());
+        Assert.Equal(3.0, RequireProperty(obj, "length").AsDouble());
+        Assert.Equal(1.0, RequireProperty(obj, "first").AsDouble());
+        Assert.Equal(2.0, RequireProperty(obj, "second").AsDouble());
+        Assert.Equal(3.0, RequireProperty(obj, "third").AsDouble());
+        Assert.True(RequireProperty(obj, "copied").AsBoolean());
     }
 
     [Fact(Timeout = 5000)]

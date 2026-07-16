@@ -927,6 +927,7 @@ internal static class UnifiedBytecodeProductionEligibility
         int enterTryIndex,
         EnterTryInstruction enterTry,
         ActivationSlotShape activationSlots,
+        bool isSyncGenerator,
         out string instructionName)
     {
         // The instruction stream is threaded by Next/branch-target pointers, NOT laid out in ascending
@@ -949,7 +950,18 @@ internal static class UnifiedBytecodeProductionEligibility
             finallyBoundary.Add(enterTry.LeaveTryIndex);
         }
 
-        if (CleanupBlockHasSuspension(instructions, enterTry.FinallyIndex, finallyBoundary, out instructionName))
+        if (CleanupBlockHasSuspension(
+                instructions,
+                enterTry.FinallyIndex,
+                finallyBoundary,
+                treatPlainYieldAsSuspension: isSyncGenerator,
+                out instructionName))
+        {
+            return true;
+        }
+
+        if (isSyncGenerator &&
+            CleanupBlockHasLoopControl(instructions, enterTry.FinallyIndex, finallyBoundary, out instructionName))
         {
             return true;
         }
@@ -1014,6 +1026,12 @@ internal static class UnifiedBytecodeProductionEligibility
                 return true;
             }
 
+            if (TryGetResumableExpressionProgram(instruction, out var program) &&
+                ExpressionProgramContainsFreeOrCapturedMutation(program, activationSlots))
+            {
+                return true;
+            }
+
             switch (instruction)
             {
                 case BranchInstruction branch:
@@ -1052,10 +1070,38 @@ internal static class UnifiedBytecodeProductionEligibility
         };
     }
 
+    private static bool ExpressionProgramContainsFreeOrCapturedMutation(
+        ExpressionProgram program,
+        ActivationSlotShape activationSlots)
+    {
+        var identifierConstants = program.IdentifierConstants.AsSpan();
+        for (var operationIndex = 0; operationIndex < program.OperationCount; operationIndex++)
+        {
+            var operation = program.GetOperation(operationIndex);
+            if (operation.Kind is not (
+                    ExpressionOpKind.StoreResolvedIdentifier or
+                    ExpressionOpKind.StoreIdentifier or
+                    ExpressionOpKind.UpdateIdentifier or
+                    ExpressionOpKind.DeleteIdentifier))
+            {
+                continue;
+            }
+
+            var identifier = operation.GetIdentifier(identifierConstants);
+            if (!TryResolveActivationSlot(identifier, activationSlots))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     private static bool CleanupBlockHasSuspension(
         ImmutableArray<ExecutionInstruction> instructions,
         int start,
         HashSet<int> boundary,
+        bool treatPlainYieldAsSuspension,
         out string instructionName)
     {
         instructionName = string.Empty;
@@ -1076,7 +1122,7 @@ internal static class UnifiedBytecodeProductionEligibility
             }
 
             var instruction = instructions[index];
-            if (InstructionCanSuspendResumableExecution(instruction))
+            if (InstructionCanSuspendResumableExecution(instruction, treatPlainYieldAsSuspension))
             {
                 instructionName = instruction.GetType().Name;
                 return true;
@@ -1104,9 +1150,62 @@ internal static class UnifiedBytecodeProductionEligibility
         return false;
     }
 
-    private static bool InstructionCanSuspendResumableExecution(ExecutionInstruction instruction) =>
+    private static bool CleanupBlockHasLoopControl(
+        ImmutableArray<ExecutionInstruction> instructions,
+        int start,
+        HashSet<int> boundary,
+        out string instructionName)
+    {
+        instructionName = string.Empty;
+        if (start < 0)
+        {
+            return false;
+        }
+
+        var visited = new HashSet<int>();
+        var pending = new Stack<int>();
+        pending.Push(start);
+        while (pending.Count > 0)
+        {
+            var index = pending.Pop();
+            if ((uint)index >= (uint)instructions.Length || boundary.Contains(index) || !visited.Add(index))
+            {
+                continue;
+            }
+
+            var instruction = instructions[index];
+            if (instruction is BreakInstruction or ContinueInstruction)
+            {
+                instructionName = instruction.GetType().Name;
+                return true;
+            }
+
+            switch (instruction)
+            {
+                case BranchInstruction branch:
+                    pending.Push(branch.ConsequentIndex);
+                    pending.Push(branch.AlternateIndex);
+                    break;
+                case EnterTryInstruction nested:
+                    pending.Push(nested.Next);
+                    pending.Push(nested.HandlerIndex);
+                    pending.Push(nested.FinallyIndex);
+                    break;
+                default:
+                    pending.Push(instruction.Next);
+                    break;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool InstructionCanSuspendResumableExecution(
+        ExecutionInstruction instruction,
+        bool treatPlainYieldAsSuspension) =>
         instruction switch
         {
+            YieldInstruction { AwaitedProgram: null } => treatPlainYieldAsSuspension,
             YieldInstruction { AwaitedProgram: not null } => true,
             YieldStarInstruction => true,
             ReturnInstruction { AwaitedProgram: not null } => true,
@@ -1239,6 +1338,7 @@ internal static class UnifiedBytecodeProductionEligibility
                     instructionIndex,
                     enterTry,
                     activationSlots,
+                    activation.IsGenerator && !activation.IsAsyncLike,
                     out var suspendingInstructionName))
             {
                 declineCode = UnifiedBytecodeProductionDeclineCode.UnsupportedPlanShape;

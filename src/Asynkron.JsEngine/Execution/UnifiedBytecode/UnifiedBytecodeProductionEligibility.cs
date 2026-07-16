@@ -927,6 +927,7 @@ internal static class UnifiedBytecodeProductionEligibility
         int enterTryIndex,
         EnterTryInstruction enterTry,
         ActivationSlotShape activationSlots,
+        bool isAsyncGenerator,
         out string instructionName)
     {
         // The instruction stream is threaded by Next/branch-target pointers, NOT laid out in ascending
@@ -949,7 +950,12 @@ internal static class UnifiedBytecodeProductionEligibility
             finallyBoundary.Add(enterTry.LeaveTryIndex);
         }
 
-        if (CleanupBlockHasSuspension(instructions, enterTry.FinallyIndex, finallyBoundary, out instructionName))
+        if (CleanupBlockHasSuspension(
+                instructions,
+                enterTry.FinallyIndex,
+                finallyBoundary,
+                isAsyncGenerator,
+                out instructionName))
         {
             return true;
         }
@@ -1056,6 +1062,7 @@ internal static class UnifiedBytecodeProductionEligibility
         ImmutableArray<ExecutionInstruction> instructions,
         int start,
         HashSet<int> boundary,
+        bool isAsyncGenerator,
         out string instructionName)
     {
         instructionName = string.Empty;
@@ -1076,7 +1083,7 @@ internal static class UnifiedBytecodeProductionEligibility
             }
 
             var instruction = instructions[index];
-            if (InstructionCanSuspendResumableExecution(instruction))
+            if (InstructionCanSuspendResumableExecution(instruction, isAsyncGenerator))
             {
                 instructionName = instruction.GetType().Name;
                 return true;
@@ -1104,10 +1111,11 @@ internal static class UnifiedBytecodeProductionEligibility
         return false;
     }
 
-    private static bool InstructionCanSuspendResumableExecution(ExecutionInstruction instruction) =>
+    private static bool InstructionCanSuspendResumableExecution(ExecutionInstruction instruction, bool isAsyncGenerator) =>
         instruction switch
         {
             YieldInstruction { AwaitedProgram: not null } => true,
+            YieldInstruction => !isAsyncGenerator,
             YieldStarInstruction => true,
             ReturnInstruction { AwaitedProgram: not null } => true,
             _ => false
@@ -1239,6 +1247,7 @@ internal static class UnifiedBytecodeProductionEligibility
                     instructionIndex,
                     enterTry,
                     activationSlots,
+                    isAsyncGenerator,
                     out var suspendingInstructionName))
             {
                 declineCode = UnifiedBytecodeProductionDeclineCode.UnsupportedPlanShape;

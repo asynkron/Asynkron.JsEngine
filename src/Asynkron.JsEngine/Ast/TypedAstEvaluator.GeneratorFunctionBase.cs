@@ -275,10 +275,12 @@ public static partial class TypedAstEvaluator
 
         public void DisableConstruction()
         {
-            if (_isConstructorEnabled)
+            if (!_isConstructorEnabled)
             {
-                _isConstructorEnabled = false;
+                return;
             }
+
+            _isConstructorEnabled = false;
         }
 
         public void SetHomeObject(IJsObjectLike homeObject)
@@ -370,7 +372,6 @@ public static partial class TypedAstEvaluator
                 _properties.SetPrototype(functionPrototype);
             }
 
-            // Per ES spec: Generator functions ALWAYS have a prototype property
             var genProto = GetGeneratorPrototype();
             if (genProto is not null)
             {

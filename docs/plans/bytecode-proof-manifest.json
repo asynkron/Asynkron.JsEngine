@@ -1963,11 +1963,15 @@
           ]
         },
         {
-          "id": "B36-deferred-class-definition-environment-bridge-stays-open",
+          "id": "B36-class-declaration-static-block-computed-static-field-declines",
           "claim": "open",
-          "kind": "source-presence",
-          "path": "docs/unified-bytecode-expansion-contract.md",
-          "pattern": "class-declaration computed-name activation-call admission is an explicit B36"
+          "kind": "eligibility",
+          "subject": "resumable-generator",
+          "functionName": "g",
+          "source": "function* g(key, seed) {\n  yield 'ready';\n  class Box {\n    static [key] = seed;\n    static {\n      Box.other = Box[key] + 1;\n    }\n  }\n  yield typeof Box;\n}",
+          "expectedEligible": false,
+          "declineCode": "UnsupportedPlanShape",
+          "reasonContains": "only public non-computed static fields may mix with static blocks"
         },
         {
           "id": "B36-class-declaration-static-member-shape-guard-routes",

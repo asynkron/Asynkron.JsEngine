@@ -448,9 +448,9 @@ public sealed partial class BytecodeProofManifestTests(ITestOutputHelper output)
         Assert.Equal(
             [
                 "B36-class-declaration-non-production-static-block-stays-open",
+                "B36-class-declaration-static-block-computed-static-field-declines",
                 "B36-class-declaration-static-block-ir-fallback-stays-open",
                 "B36-class-declaration-static-block-runtime-source-direct-eval-declines",
-                "B36-deferred-class-definition-environment-bridge-stays-open",
                 "B36-resumable-arguments-eval-helper-decline-stays-open",
                 "B36-resumable-dynamic-eval-helper-activation-decline-stays-open",
                 "B36-resumable-helper-direct-eval-cache-decline-anchor-stays-open",
@@ -483,6 +483,17 @@ public sealed partial class BytecodeProofManifestTests(ITestOutputHelper output)
         Assert.Contains(
             "Direct eval invocation semantics",
             runtimeSourceStaticBlockProof.ReasonContains,
+            StringComparison.Ordinal);
+
+        var computedStaticFieldProof = b36.Proofs.Single(static proof =>
+            proof.Id == "B36-class-declaration-static-block-computed-static-field-declines");
+        Assert.Equal("eligibility", computedStaticFieldProof.Kind);
+        Assert.Equal("open", computedStaticFieldProof.Claim);
+        Assert.Equal("resumable-generator", computedStaticFieldProof.Subject);
+        Assert.Equal("UnsupportedPlanShape", computedStaticFieldProof.DeclineCode);
+        Assert.Contains(
+            "only public non-computed static fields may mix with static blocks",
+            computedStaticFieldProof.ReasonContains,
             StringComparison.Ordinal);
     }
 

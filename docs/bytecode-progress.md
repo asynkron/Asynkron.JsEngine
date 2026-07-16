@@ -135,8 +135,11 @@ declined-body runner fallback or the renamed `_fallbackRunner` /
 explicitly until the VM admits the missing semantics. Static-block-only class
 expressions can now route through resumable `LoadClassLiteral`, and eligible
 static-block bodies now attempt production unified bytecode first. Declined
-static-block bodies, including closure-producing blocks, still fall back to
-`ExecutionPlanRunner.RunScript`. `ExecutionPlanRunner.EvaluateStandaloneExpressionProgram`,
+static-block bodies are no longer described as a `RunScript` static-block
+fallback: `ClassDefinitionExtensions` has no
+`ExecutionPlanRunner.RunScript(` call for static blocks, and the remaining
+residue is the classified `classified-static-block-ir-fallback` production
+decline followed by legacy block evaluation. `ExecutionPlanRunner.EvaluateStandaloneExpressionProgram`,
 `TypedAstEvaluator.EvaluateLoweredExpressionProgram`, and
 `TypedAstEvaluator.EvaluateDynamicExpressionProgram` are deleted. Standalone and
 dynamic `ExpressionProgram` payloads now execute through

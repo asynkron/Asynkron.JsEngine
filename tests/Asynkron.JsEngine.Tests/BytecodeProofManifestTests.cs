@@ -484,6 +484,42 @@ public sealed partial class BytecodeProofManifestTests(ITestOutputHelper output)
             "Direct eval invocation semantics",
             runtimeSourceStaticBlockProof.ReasonContains,
             StringComparison.Ordinal);
+
+        var nonProductionStaticBlockProof = b36.Proofs.Single(static proof =>
+            proof.Id == "B36-class-declaration-non-production-static-block-stays-open");
+        Assert.Equal(
+            "B36-class-declaration-static-block-production-decline",
+            nonProductionStaticBlockProof.ChildOwner);
+        Assert.Equal("source-presence", nonProductionStaticBlockProof.Kind);
+        Assert.Equal(
+            "src/Asynkron.JsEngine/Execution/UnifiedBytecode/UnifiedBytecodeProductionEligibility.cs",
+            nonProductionStaticBlockProof.Path);
+        Assert.Equal(
+            "Class declaration static block is outside B36 production routing:",
+            nonProductionStaticBlockProof.Pattern);
+        Assert.Contains(
+            "TryValidateB36StaticBlockClassDeclaration",
+            nonProductionStaticBlockProof.Classification,
+            StringComparison.Ordinal);
+
+        var staticBlockFallbackProof = b36.Proofs.Single(static proof =>
+            proof.Id == "B36-class-declaration-static-block-ir-fallback-stays-open");
+        Assert.Equal("B36-static-block-classification-log", staticBlockFallbackProof.ChildOwner);
+        Assert.Equal("source-presence", staticBlockFallbackProof.Kind);
+        Assert.Equal(
+            "src/Asynkron.JsEngine/Ast/ClassDefinitionExtensions.cs",
+            staticBlockFallbackProof.Path);
+        Assert.Equal(
+            "classified-static-block-ir-fallback reason=production-unified-bytecode-declined",
+            staticBlockFallbackProof.Pattern);
+        Assert.Contains(
+            "TryExecuteStaticBlockViaUnifiedBytecode",
+            staticBlockFallbackProof.Classification,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "not ExecutionPlanRunner.RunScript",
+            staticBlockFallbackProof.Classification,
+            StringComparison.Ordinal);
     }
 
     [Fact]

@@ -277,8 +277,10 @@ standalone expression payloads to standalone unified bytecode and executes
 is deleted too: `TypedAstEvaluator.BindingTargetPrograms` now calls the static
 lowered binding-target core directly instead of constructing a runner solely to
 apply a lowered `BindingTargetProgram`. Eligible class static-block bodies now
-attempt production unified bytecode before the `ExecutionPlanRunner.RunScript`
-fallback, and `E5-static-block-body-routes-when-eligible` proves that lane in the
+attempt production unified bytecode first; the static-block `RunScript` fallback
+is a tombstoned source-absence boundary, and declined bodies stay classified by
+the static-block production-decline log plus legacy block evaluation.
+`E5-static-block-body-routes-when-eligible` proves the admitted lane in the
 manifest. Focused verification passed:
 `dotnet build tools/ProfileRunner/ProfileRunner.csproj` with 0 warnings,
 `dotnet build src/Asynkron.JsEngine/Asynkron.JsEngine.csproj` with 0 warnings,

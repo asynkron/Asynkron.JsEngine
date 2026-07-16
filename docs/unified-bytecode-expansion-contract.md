@@ -602,7 +602,7 @@ semantic bridge or mis-parking dynamic residue as ordinary fallback work.
 | Generator fallback | `TypedAstEvaluator.SyncGeneratorInvoker` and `TypedAstEvaluator.GeneratorFunctionBase` | `EvaluateResumable` is attempted for admitted generator bodies; declined bodies use the classified `CreateClassifiedGeneratorDeclinedBodyRunner` boundary, while accepted super-property bodies snapshot `ResumableSuperBinding` into the resume state instead of constructing a runner-backed setup environment | `rtk rg -n "EvaluateResumable|CreateClassifiedGeneratorDeclinedBodyRunner|TryCreateResumableSuperBinding|ResumableSuperBinding|new ExecutionPlanRunner|GetOrCreateExecutionEnvironmentForInternalUse" src/Asynkron.JsEngine/Ast/TypedAstEvaluator.SyncGeneratorInvoker.cs src/Asynkron.JsEngine/Ast/TypedAstEvaluator.GeneratorFunctionBase.cs` |
 | Async-generator fallback | `TypedAstEvaluator.AsyncGeneratorInvoker` | `EvaluateResumable` covers admitted async-generator bodies; declined bodies no longer construct the old `CreateClassifiedAsyncGeneratorDeclinedBodyRunner` helper or any renamed `_fallbackRunner` / `ExecuteFallbackRunnerStep` / `ExecuteAsyncStep` runner bridge, and fail explicitly until the VM admits the declined semantics. Accepted super-property bodies snapshot `ResumableSuperBinding` into the resume state, and step-result adaptation is not itself route admission | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~BytecodeProofManifestTests|FullyQualifiedName~UnifiedBytecodeAsyncGeneratorRouteTests"` |
 | Class/static-block bridge | `ClassDefinitionExtensions.ExecuteStaticBlock` | Static-block-only class expressions can route through resumable `LoadClassLiteral`; eligible static-block bodies now execute their cached static-block plan through production unified bytecode before falling back to `ExecutionPlanRunner.RunScript`, including declaration-free single-literal direct eval statements. Declined static-block bodies, including runtime-source direct eval and other non-production plans, remain a materialized-environment / IR-runner boundary. | `rtk rg -n "ExecuteStaticBlock|TryExecuteStaticBlockViaUnifiedBytecode|ExecutionPlanRunner\\.RunScript" src/Asynkron.JsEngine/Ast/ClassDefinitionExtensions.cs docs/plans/bytecode-burndown-checklist.md` |
-| Standalone expression and binding bridges | `UnifiedBytecodeExpressionProgramExecutor`, `TypedAstEvaluator.BindingTargetPrograms`, and `ExecutionPlanRunner` helper entrypoints | `EvaluateStandaloneExpressionProgram`, `EvaluateLoweredExpressionProgram`, `EvaluateDynamicExpressionProgram`, and `ApplyStandaloneBindingTargetProgram` are deleted. Standalone `ExpressionProgram` payloads now execute through `UnifiedBytecodeExpressionProgramExecutor`, which compiles them with `UnifiedBytecodeCompiler.TryCompileStandaloneExpressionProgram` and executes `UnifiedBytecodeVirtualMachine` directly. Legacy dynamic AST expression callers use `UnifiedBytecodeExpressionProgramExecutor.ExecuteDynamic`, which still lowers/caches expression payloads before executing standalone unified bytecode. External lowered binding-target programs now call the static lowered binding-target core directly instead of constructing an `ExecutionPlanRunner`; expression payloads on that external binding path execute through standalone unified bytecode. Runner-internal binding-target calls still pass the active runner and remain part of the E5 runner retirement surface. The profiler-only expression-program loop is also gone: `ProfileRunner` compiles synthetic profile cases to standalone unified bytecode and executes the unified VM directly, while `ProfileEvaluateExpressionProgramLoop` is source-gated as absent. | `rtk rg -n "EvaluateStandaloneExpressionProgram|EvaluateLoweredExpressionProgram|EvaluateDynamicExpressionProgram|ApplyStandaloneBindingTargetProgram|UnifiedBytecodeExpressionProgramExecutor.ExecuteDynamic|ApplyLoweredBindingTargetProgram" src/Asynkron.JsEngine`; `rtk rg -n "ProfileEvaluateExpressionProgramLoop" src/Asynkron.JsEngine/Ast` |
+| Standalone expression and binding bridges | `UnifiedBytecodeExpressionProgramExecutor`, `TypedAstEvaluator.BindingTargetPrograms`, and `ExecutionPlanRunner` helper entrypoints | `EvaluateStandaloneExpressionProgram`, `EvaluateLoweredExpressionProgram`, `EvaluateDynamicExpressionProgram`, `UnifiedBytecodeExpressionProgramExecutor.ExecuteDynamic`, and `ApplyStandaloneBindingTargetProgram` are deleted. Standalone `ExpressionProgram` payloads now execute through `UnifiedBytecodeExpressionProgramExecutor`, which compiles them with `UnifiedBytecodeCompiler.TryCompileStandaloneExpressionProgram` and executes `UnifiedBytecodeVirtualMachine` directly. Legacy value-only AST expression operands use `LoweredExpressionProgramCache.ExecuteCached`, which lowers and caches on the owning AST node before executing the cached program through standalone unified bytecode. External lowered binding-target programs now call the static lowered binding-target core directly instead of constructing an `ExecutionPlanRunner`; expression payloads on that external binding path execute through standalone unified bytecode. Runner-internal binding-target calls still pass the active runner and remain part of the E5 runner retirement surface. The profiler-only expression-program loop is also gone: `ProfileRunner` compiles synthetic profile cases to standalone unified bytecode and executes the unified VM directly, while `ProfileEvaluateExpressionProgramLoop` is source-gated as absent. | `rtk rg -n "EvaluateStandaloneExpressionProgram|EvaluateLoweredExpressionProgram|EvaluateDynamicExpressionProgram|ApplyStandaloneBindingTargetProgram|UnifiedBytecodeExpressionProgramExecutor.ExecuteDynamic|ApplyLoweredBindingTargetProgram" src/Asynkron.JsEngine`; `rtk rg -n "ProfileEvaluateExpressionProgramLoop" src/Asynkron.JsEngine/Ast` |
 | Dynamic residue boundary | Multi-argument, spread, runtime-source, or declaration-injecting direct eval; awaited `with` object evaluation; retained live `with` scopes outside the VM current-environment lane; eval-injected runtime bindings; and `Function(...)`-produced bodies | Terminal dynamic residue stays out of ordinary E5 fallback retirement until a future issue owns those semantics explicitly. Non-awaited sync/resumable `with` through the VM-owned current-environment lane and declaration-free single-literal direct eval lanes that already route are not residue. | `rtk rg -n "Dynamic Residue|D1|D2|D3|D4|Function\\(" docs/plans/bytecode-burndown-checklist.md docs/rules/unified-bytecode-prototypes.md` |
 
 | Leaf | Owner surface | Current fallback route | Sync / resumable applicability |
@@ -721,6 +721,7 @@ above in the same slice.
 
 - `Activation slot metadata is required.`
 - `Array literal RHS span does not match expected boundary.`
+- `Array literal RHS span does not match expected nested computed property assignment boundary.`
 - `Awaited declaration target '{awaitedDeclarationTargetSymbol.Name}' is not eligible for unified bytecode storage.`
 - `Binary underflow in complex call argument.`
 - `Binding-target expressions are not available in this unified bytecode compilation context.`
@@ -735,6 +736,7 @@ above in the same slice.
 - `Computed member call targets require receiver and key operands.`
 - `Computed object key call target requires an activation-resolved identifier slot.`
 - `Computed object keys only admit activation-resolved zero-argument identifier calls.`
+- `Computed property key call target requires call-target compilation context.`
 - `Computed-prefix computed property writes with name inference are not supported.`
 - `Computed property reads require RequireObjectCoercible(Depth: 1) in the first production boundary.`
 - `Computed property reads require ResolvePropertyKey in the first production boundary.`
@@ -757,6 +759,7 @@ above in the same slice.
 - `Failed to emit measured computed property read span.`
 - `Failed to emit measured optional named property read span.`
 - `Failed to emit measured optional named read chain span.`
+- `Function literals are not available in this complex call argument compilation context.`
 - `Identifier '{identifier.Name.Name}' requires dynamic lookup and is not eligible outside an active with environment.`
 - `Identifier '{storeIdentifier.Name.Name}' requires dynamic lookup and is not eligible outside an active with environment.`
 - `Identifier '{storeIdentifier.Name.Name}' resolves to an activation slot and is not eligible for dynamic unified bytecode assignment references.`
@@ -797,6 +800,7 @@ above in the same slice.
 - `Nested named computed property writes with name inference are not supported.`
 - `Nested named property writes with name inference are not supported.`
 - `Object literal RHS span does not match expected boundary.`
+- `Object literal RHS span does not match expected nested computed property assignment boundary.`
 - `Object methods, object accessors, private names, and name inference are not admitted in simple object literals.`
 - `Only one-argument non-spread direct eval is supported by the call-target preparation boundary.`
 - `Only one-argument explicit-this non-spread direct eval is supported in the general expression loop.`
@@ -844,6 +848,7 @@ above in the same slice.
 - `Unsupported computed property key op '{operation.Kind}'.`
 - `Unsupported computed property key span.`
 - `Unsupported computed property read in complex call argument.`
+- `Unsupported computed property write in complex call argument.`
 - `Unsupported named super property read in complex call argument.`
 - `Unsupported conditional alternate in simple literal span.`
 - `Unsupported conditional consequent in simple literal span.`

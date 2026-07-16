@@ -5999,6 +5999,10 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
                     return TryEvaluateNewExpressionWithAwait(newExpression, env, isStrict, continuation,
                         advanceTopLevelStatement);
 
+                case PropertyAssignmentExpression propertyAssignment
+                    when AstShapeAnalyzer.ContainsAwait(propertyAssignment):
+                    return TryEvaluatePropertyAssignmentWithAwait(propertyAssignment, env, isStrict, continuation);
+
                 case ClassExpression classExpression
                     when AstShapeAnalyzer.ContainsAwait(classExpression) ||
                          TryRewriteClassExpressionAwaitTemps(classExpression, out _, out _):
@@ -6023,7 +6027,110 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
                     {
                         Fail(signal);
                         return false;
+                }
+            }
+        }
+
+        private bool TryEvaluatePropertyAssignmentWithAwait(
+            PropertyAssignmentExpression expression,
+            JsEnvironment env,
+            bool isStrict,
+            Action<JsValue> continuation)
+        {
+            if (expression.IsCompoundAssignment)
+            {
+                return TryEvaluateExpressionViaAwaitTemps(expression, env, isStrict, continuation,
+                    advanceTopLevelStatement: false);
+            }
+
+            var completedSynchronously = true;
+            var targetResult = TryEvaluateExpressionWithAwait(expression.Target, env, isStrict, targetValue =>
+            {
+                if (TryGetStaticPropertyKey(expression, out var staticPropertyKey))
+                {
+                    if (!EvaluateValueAndAssign(targetValue, staticPropertyKey))
+                    {
+                        completedSynchronously = false;
                     }
+
+                    return;
+                }
+
+                var propertyResult = TryEvaluateExpressionWithAwait(expression.Property, env, isStrict,
+                    propertyKey =>
+                    {
+                        if (!EvaluateValueAndAssign(targetValue, propertyKey))
+                        {
+                            completedSynchronously = false;
+                        }
+                    },
+                    advanceTopLevelStatement: false);
+
+                if (!propertyResult)
+                {
+                    completedSynchronously = false;
+                }
+            }, advanceTopLevelStatement: false);
+
+            return targetResult && completedSynchronously;
+
+            bool EvaluateValueAndAssign(JsValue targetValue, JsValue propertyKey)
+            {
+                return TryEvaluateExpressionWithAwait(expression.Value, env, isStrict, value =>
+                {
+                    try
+                    {
+                        AssignProperty(targetValue, propertyKey, value);
+                        continuation(value);
+                    }
+                    catch (ThrowSignal signal)
+                    {
+                        Fail(signal);
+                    }
+                }, advanceTopLevelStatement: false);
+            }
+
+            void AssignProperty(JsValue targetValue, JsValue propertyKey, JsValue value)
+            {
+                var context = _engine.RealmState.CreateContext(
+                    mode: isStrict ? ScopeMode.Strict : ScopeMode.Sloppy,
+                    pushScope: false);
+                var propertyName = JsOps.GetRequiredPropertyName(propertyKey, context);
+                if (context.ShouldStopEvaluation)
+                {
+                    throw new ThrowSignal(context.FlowValue);
+                }
+
+                var handle = PropertyHandle.Resolve(
+                    targetValue,
+                    propertyName,
+                    context,
+                    context.CurrentScope.IsStrict,
+                    allowPrivate: !expression.IsComputed);
+                handle.SetValue(value);
+                if (context.ShouldStopEvaluation)
+                {
+                    throw new ThrowSignal(context.FlowValue);
+                }
+            }
+
+            static bool TryGetStaticPropertyKey(PropertyAssignmentExpression expression, out JsValue key)
+            {
+                if (!expression.IsComputed)
+                {
+                    switch (expression.Property)
+                    {
+                        case IdentifierExpression identifier:
+                            key = new JsValue(identifier.Name.Name);
+                            return true;
+                        case LiteralExpression { Value.IsString: true } literal:
+                            key = new JsValue(literal.Value.AsString());
+                            return true;
+                    }
+                }
+
+                key = JsValue.Undefined;
+                return false;
             }
         }
 
@@ -6368,14 +6475,34 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
                 return false;
             }
 
-            var tempEnv = JsEnvironment.CreateInstance(
-                env,
-                isStrict: isStrict,
-                creatingSource: expression.Source,
-                description: "async await temp scope");
-
             var tempBindings = tempBuilder.ToImmutable();
             return EvaluateTempBinding(0);
+
+            void CleanupTempBindings()
+            {
+                foreach (var binding in tempBindings)
+                {
+                    _ = env.DeleteBinding(binding.Symbol);
+                }
+            }
+
+            JsValue ExecuteRewrittenExpression()
+            {
+                var context = _engine.RealmState.CreateContext(
+                    mode: isStrict ? ScopeMode.Strict : ScopeMode.Sloppy,
+                    pushScope: false);
+                var value = LoweredExpressionProgramCache.ExecuteCached(
+                    rewrittenExpression,
+                    env,
+                    context,
+                    "Async module await-temp expression");
+                if (context.ShouldStopEvaluation)
+                {
+                    throw new ThrowSignal(context.FlowValue);
+                }
+
+                return value;
+            }
 
             bool EvaluateTempBinding(int index)
             {
@@ -6392,7 +6519,7 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
                         {
                             for (var tempIndex = 0; tempIndex < tempBindings.Length; tempIndex++)
                             {
-                                if (tempEnv.GetJsValue(tempBindings[tempIndex].Symbol).IsObject)
+                                if (env.GetJsValue(tempBindings[tempIndex].Symbol).IsObject)
                                 {
                                     useLegacyAssignmentPath = false;
                                     break;
@@ -6402,14 +6529,11 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
 
                         if (useLegacyAssignmentPath)
                         {
-                            var context = _engine.RealmState.CreateContext(
-                                mode: isStrict ? ScopeMode.Strict : ScopeMode.Sloppy,
-                                pushScope: false);
-                            result = _engine.ExecuteTypedExpressionJsValue(rewrittenExpression, tempEnv, isStrict);
+                            result = ExecuteRewrittenExpression();
                         }
                         else
                         {
-                            result = _engine.ExecuteTypedExpressionJsValue(rewrittenExpression, tempEnv, isStrict);
+                            result = ExecuteRewrittenExpression();
                         }
                         continuation(result);
                         return true;
@@ -6419,13 +6543,17 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
                         Fail(signal);
                         return false;
                     }
+                    finally
+                    {
+                        CleanupTempBindings();
+                    }
                 }
 
                 var binding = tempBindings[index];
-                return TryEvaluateExpressionWithAwait(binding.Expression, tempEnv, isStrict, resolved =>
+                return TryEvaluateExpressionWithAwait(binding.Expression, env, isStrict, resolved =>
                 {
-                    tempEnv.DefineJsValue(binding.Symbol, resolved, true, isLexicalBinding: true,
-                        blocksFunctionScopeOverride: false);
+                    env.DefineJsValue(binding.Symbol, resolved, isLexicalBinding: false,
+                        blocksFunctionScopeOverride: false, canDelete: true);
                     EvaluateTempBinding(index + 1);
                 }, advanceTopLevelStatement: false);
             }

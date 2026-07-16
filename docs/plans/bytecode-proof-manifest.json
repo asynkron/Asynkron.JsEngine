@@ -1326,11 +1326,15 @@
           "pattern": "classified-static-block-ir-fallback reason=production-unified-bytecode-declined"
         },
         {
-          "id": "B24h-deferred-class-definition-environment-bridge-stays-open",
+          "id": "B24h-computed-name-nested-class-literal-activation-capture-declines",
           "claim": "open",
-          "kind": "source-presence",
-          "path": "docs/unified-bytecode-expansion-contract.md",
-          "pattern": "Deferred class-definition environment bridge work remains"
+          "kind": "eligibility",
+          "subject": "resumable-generator",
+          "functionName": "g",
+          "source": "function* g(key) {\n  yield 1;\n  var C = class {\n    [class { [key]() { return 42; } }]() { return 1; }\n  };\n  return C;\n}",
+          "expectedEligible": false,
+          "declineCode": "UnsupportedPlanShape",
+          "reasonContains": "nested class literal activation capture"
         }
       ]
     },

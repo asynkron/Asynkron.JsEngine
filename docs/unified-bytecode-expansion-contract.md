@@ -537,8 +537,10 @@ when static field initializers compile as standalone unified bytecode and
 member/constructor bodies do not capture activation slots. Full
 bytecode execution is not done: class-literal creation still calls
 class-definition machinery that resolves extends/computed names/field
-initializers through expression programs and static blocks through
-`ExecutionPlanRunner.RunScript`; `extends` expressions that read resumable
+initializers through expression programs, while eligible static-block bodies
+route through production unified bytecode and declined static-block bodies stay
+classified by the static-block production-decline log and existing
+class-definition environment path. `Extends` expressions that read resumable
 activation slots also remain declined until class-definition evaluation owns
 that environment bridge. The remaining B24h and B24i shapes remain declined by
 the resumable shape gate for runtime-source direct eval, non-production-eligible

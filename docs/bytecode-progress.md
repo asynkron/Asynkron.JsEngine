@@ -124,19 +124,24 @@ E5c, E5d, and E5e open until the classified script/static-block, ordinary
 function/constructor, resumable declined-body, and terminal dynamic-residue
 owners are either retired or tombstoned by their own proof rows.
 Top-level scripts now classify production declines before the old IR runner
-path: eligible scripts still route through the production VM, and every
-declined script reaches `ExecutionPlanRunner.RunScript` only through the
-classified `RunScriptViaClassifiedIrFallback` bridge with the stable decline
-code, reason, and instruction count logged.
+path: eligible scripts still route through the production VM, terminal
+dynamic/eval script residue stays on its own classified helpers, and remaining
+non-terminal ordinary declines flow through
+`RunOrdinaryScriptViaClassifiedRunnerFallback` into
+`ExecuteClassifiedOrdinaryScriptFallback`. The old
+`ExecutionPlanRunner.RunScript(` entry name is source-absence-ratcheted.
 Async functions and sync generators still construct runner-backed fallbacks when
 `EvaluateResumable` declines. Async generators no longer construct the old
 declined-body runner fallback or the renamed `_fallbackRunner` /
 `ExecuteFallbackRunnerStep` bridge; declined async-generator bodies now fail
 explicitly until the VM admits the missing semantics. Static-block-only class
 expressions can now route through resumable `LoadClassLiteral`, and eligible
-static-block bodies now attempt production unified bytecode first. Declined
-static-block bodies, including closure-producing blocks, still fall back to
-`ExecutionPlanRunner.RunScript`. `ExecutionPlanRunner.EvaluateStandaloneExpressionProgram`,
+static-block bodies now attempt production unified bytecode first. The old
+static-block `ExecutionPlanRunner.RunScript(` call site is
+source-absence-ratcheted; declined static-block bodies stay classified by the
+static-block production-decline log and the existing class-definition
+environment path until non-production static-block plans are owned.
+`ExecutionPlanRunner.EvaluateStandaloneExpressionProgram`,
 `TypedAstEvaluator.EvaluateLoweredExpressionProgram`, and
 `TypedAstEvaluator.EvaluateDynamicExpressionProgram` are deleted. Standalone and
 dynamic `ExpressionProgram` payloads now execute through

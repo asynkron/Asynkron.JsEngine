@@ -300,9 +300,10 @@ standalone expression payloads to standalone unified bytecode and executes
 is deleted too: `TypedAstEvaluator.BindingTargetPrograms` now calls the static
 lowered binding-target core directly instead of constructing a runner solely to
 apply a lowered `BindingTargetProgram`. Eligible class static-block bodies now
-attempt production unified bytecode before the `ExecutionPlanRunner.RunScript`
-fallback, and `E5-static-block-body-routes-when-eligible` proves that lane in the
-manifest. Focused verification passed:
+attempt production unified bytecode before the classified declined-body path, the
+old static-block `ExecutionPlanRunner.RunScript(` call site is
+source-absence-ratcheted, and `E5-static-block-body-routes-when-eligible` proves
+the admitted lane in the manifest. Focused verification passed:
 `dotnet build tools/ProfileRunner/ProfileRunner.csproj` with 0 warnings,
 `dotnet build src/Asynkron.JsEngine/Asynkron.JsEngine.csproj` with 0 warnings,
 `./tools/profile bytecode` with the CPU call-tree root at
@@ -321,8 +322,9 @@ absence. `BytecodeProofManifestTests` now also ratchets absence of the old
 binding-target bridge callers and definition. The E4 source inventory now
 ratchets absence of `UnifiedBytecodeExpressionProgramExecutor.ExecuteDynamic`
 callers and the bridge definition; the broader E5 inventory still finds
-`ExecutionPlanRunner.RunScript` and broad `ExecutionPlanRunner` entry points, so
-runner-internal expression evaluation remains classified under E5 rather than
+classified `ExecutionPlanRunner` construction and helper entry points, while
+the old `ExecutionPlanRunner.RunScript(` entry name is source-absence-ratcheted.
+Runner-internal expression evaluation remains classified under E5 rather than
 blocking this finite E4 rebaseline.
 
 ## Known soft spots

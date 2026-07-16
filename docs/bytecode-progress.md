@@ -1,6 +1,6 @@
 # Bytecode Progress Map
 
-Date: 2026-06-08
+Date: 2026-07-16
 
 This page is a compact map of where unified bytecode is now and what still
 needs to be handled before the engine can reasonably claim full bytecode
@@ -172,11 +172,16 @@ B24a-B24i class-expression semantic leaves.
 
 ### Current Retrospective Accounting
 
-The latest checklist recount is **137 / 161 complete**. Across the
-concrete A+B+C+D sections, **127 / 146** are complete and **19** remain open.
-Phase B stands at **55 / 57** complete. The D5 non-residue ratchet has **0**
+The latest checklist recount is **138 / 161 complete**. Across the concrete
+A+B+C+D sections, **127 / 146** are complete and **19** remain open. Phase E is
+**6 / 10** complete: E4 is source-absence-ratcheted, E5a is admitted static-block
+routing, and E5b-E5e remain the active runner-retirement/exclusion lanes. Phase
+B stands at **55 / 57** complete. The D5 non-residue ratchet has **0**
 known-open rows, the resumable opcode gap inventory has **5** remaining gaps,
-and the resumable instruction gap inventory has **0** remaining gaps.
+and the resumable instruction gap inventory has **0** remaining gaps. The proof
+manifest currently has **32** items with **18** non-done proof rows; checklist
+lanes A51g1-A51g4 and A51i intentionally remain documented child lanes without
+manifest closure rows yet.
 
 Class Literal Resumable Parity now has one checklist-open B24 row: **B24h**.
 The maintained checklist marks B24a-B24g complete and B24i complete for the
@@ -241,10 +246,25 @@ The remaining non-retirement work is concentrated in:
   progress. Current class-declaration computed-name activation-call admission is
   a B36 proof lane, not evidence that B24h owns declaration binding or the
   broader class-definition environment bridge.
-- E4/E5 retirement work: remove the remaining tier-1 `ExpressionProgram` hot
-  path and tier-2 `ExecutionPlanRunner` hot path after A/B/C parity is actually
+- E5 retirement work: E4 is now a source-absence-ratcheted closure row for the
+  old tier-1 `ExpressionProgram` bridge names. E5 still owns the tier-2
+  `ExecutionPlanRunner` retirement surface after A/B/C parity is actually
   proven. The current E5 reachability text is classification evidence, not a
   retirement claim.
+
+### Current Child-Lane Handoff
+
+The current repository ledger is the child-slice contract for gh3377; the task is
+not a Faktorial plan task, so there is no automatic plan expansion to materialize
+children. Active related tasks should be reused instead of duplicated:
+
+| Lane | Rows | Owner surfaces | Current task handoff |
+|---|---|---|---|
+| Dynamic activation residue | A1/A2 | `UnifiedBytecodeProductionEligibility`, `TypedAstEvaluator.UnifiedBytecodeResumableActivation.cs`, VM dynamic-identifier ops | Not yet split into a separate task; preserve A2/D3 terminal-residue boundaries |
+| A51 compiler leaves | A51a2, A51b, A51c, A51f3, A51f5, A51g1-A51g4, A51h, A51h1, A51h2, A51i, A51j, A51k | `UnifiedBytecodeCompiler.cs`, `UnifiedBytecodeProductionEligibility.cs`, `UnifiedBytecodeVirtualMachine.cs`, focused route/no-route tests | Not yet split into separate tasks; A51g1-A51g4 and A51i stay visible even without manifest closure rows |
+| Class-expression bridge | B24h | `ClassDefinitionExtensions.cs`, class static-block plans, computed-name programs, class-definition environment bridge | Not yet split into a separate task |
+| Resumable declarations | B36 | Resumable declaration pre-population, `DeclareFunction` / `DeclareClass`, class static-block routing, materialized body environments | gh3625 owns the deferred class-definition bridge proof follow-up |
+| Runner retirement | E5b-E5e | `ExecutionPlanRunner` construction/entry classifications, script/static-block/function/resumable fallbacks, terminal residue gates | gh3495 owns the active final E5 runtime-retirement push |
 
 ## Needs-Handling Progress
 

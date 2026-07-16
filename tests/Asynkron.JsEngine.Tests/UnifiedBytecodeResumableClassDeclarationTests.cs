@@ -2088,6 +2088,35 @@ public sealed class UnifiedBytecodeResumableClassDeclarationTests(ITestOutputHel
     }
 
     [Fact]
+    public void EvaluateResumable_ClassDeclarationStaticBlockWithComputedStaticField_StillDeclines()
+    {
+        var plan = GetFunctionPlan("""
+            function* g(key, seed) {
+                yield "ready";
+                class Box {
+                    static [key] = seed;
+                    static {
+                        Box.other = Box[key] + 1;
+                    }
+                }
+                yield typeof Box;
+            }
+            """,
+            "g");
+
+        var result = UnifiedBytecodeProductionEligibility.EvaluateResumable(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor(IsGenerator: true));
+
+        Assert.False(result.IsEligible);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.UnsupportedPlanShape, result.Code);
+        Assert.Contains(
+            "Class declaration is outside B36: only public non-computed static fields may mix with static blocks in the current slice.",
+            result.Reason,
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void EvaluateResumable_ClassDeclarationMixedStaticFieldAndBlockFunctionDeclaration_AdmitsDeclareClass()
     {
         var plan = GetFunctionPlan("""

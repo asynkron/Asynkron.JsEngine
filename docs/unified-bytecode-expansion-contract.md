@@ -157,8 +157,8 @@ statement interpretation.
   instance methods/accessors and exact no-route proof for private fields,
   private static members, computed neighbors, and activation-capturing private
   bodies. B36's remaining class-declaration-state declines are split into exact
-  manifest rows for static-field shape guards, deferred class-definition
-  environment bridging, static-member shape guards, computed-member activation
+  manifest rows for static-field shape guards, static blocks mixed with computed
+  static fields, static-member shape guards, computed-member activation
   captures, and computed-field activation captures. Static synchronous
   `BindingVariableDeclarationInstruction` shapes are now VM-owned through
   `ApplyDeclarationBindingTarget`; the resumable route also admits non-awaited
@@ -1033,9 +1033,9 @@ predicates and proof tests.
     activation declines, arguments eval helper declines, helper direct-eval
     cache declines, synthetic activation-capture declines, runtime-source
     direct eval, or otherwise non-production static-block plans, plus exact
-    source-presence rows for static-field shape guards, deferred class-definition
-    environment bridging, static-member shape guards, computed-member activation
-    captures, and computed-field activation captures are the remaining separate
+    rows for static-field shape guards, static blocks mixed with computed static
+    fields, static-member shape guards, computed-member activation captures, and
+    computed-field activation captures are the remaining separate
     B36 declaration-instantiation work. Current
     class-declaration computed-name activation-call admission is an explicit B36
     proof lane; it must not be inherited by B24h or used to close the broader

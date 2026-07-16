@@ -1940,6 +1940,8 @@
         },
         {
           "id": "B36-class-declaration-non-production-static-block-stays-open",
+          "childOwner": "B36-class-declaration-static-block-production-decline",
+          "classification": "TryValidateB36StaticBlockClassDeclaration remains the exact B36 class-declaration static-block no-route owner: a static-block ExecutionPlan that is not production eligible declines before DeclareClass routing, while already admitted static-block families keep runtime route-hit rows.",
           "claim": "open",
           "kind": "source-presence",
           "path": "src/Asynkron.JsEngine/Execution/UnifiedBytecode/UnifiedBytecodeProductionEligibility.cs",
@@ -1947,6 +1949,8 @@
         },
         {
           "id": "B36-class-declaration-static-block-ir-fallback-stays-open",
+          "childOwner": "B36-static-block-classification-log",
+          "classification": "TryExecuteStaticBlockViaUnifiedBytecode keeps declined static-block bodies classified by the production-decline log; this is the current fallback signal, not ExecutionPlanRunner.RunScript and not B24h class-expression admission work.",
           "claim": "open",
           "kind": "source-presence",
           "path": "src/Asynkron.JsEngine/Ast/ClassDefinitionExtensions.cs",

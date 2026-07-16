@@ -38,60 +38,47 @@ must follow the repo's `rtk` invocation contract, so future edits should keep
 actionable allocator examples as `rtk faktorial-api adr-next` without rewriting
 non-runnable helper-name references.
 
-Issue #2668 / PR #2671 confirmed the duplicate-prefix check is not optional: the
-runtime allocator handed back `adr_id 281`, but `0281-*` was already on disk —
-consumed by a concurrent learn PR (the `bd70ca63` JsValue-native helpers work)
-that merged between allocation and this run's write. The allocator is still the source of
-truth for the *next* number, but a number it returns can already exist when a
-sibling learn PR landed in the window. Remedy: after allocating, run the
-duplicate-prefix check over `docs/adrs`, and if the returned prefix already
-exists, re-allocate (the allocator increments per call) until you get a clean
-one before writing the file. Do not fall back to scanning-and-incrementing as
-the primary allocator.
+The later incidents establish one shared contract. Every ADR-authoring stage
+must allocate through `rtk faktorial-api adr-next`, then check for duplicate
+prefixes immediately and again after merging `main`; the learn pass must never
+skip that check. Keep an ADR already merged to `main` stable, rename the newer
+ADR, and update its filename, heading, and every cross-reference together. A
+filesystem scan is acceptable only to repair a collision when the allocator is
+unavailable, never as primary allocation. If an allocated prefix is already on
+disk, re-allocate until the prefix is clean before writing.
 
-Issue #2677 / PR #2682 extends the trigger beyond learn-stage writes. The
-**build** stage authored the object-destructuring ADR and picked `0283` (the
-allocator is framed for learn work, so build-stage authors tend to scan
-`docs/adrs` instead). Meanwhile #2675's resumable this-binding ADR also took
-`0283`, landed on `main`, and was pulled into this branch by a merge from `main`
-between the build write and the learn pass — producing two distinct ADRs both
-numbered `0283`. The learn pass detected it and renamed the object-destructuring
-ADR to the free `0284` (heading + the contract/roadmap cross-references). Two
-durable takeaways: (1) any stage that writes an ADR, including build, is exposed
-to this collision, so treat a build-stage ADR number as **provisional** until
-the learn pass confirms it; (2) the duplicate-prefix check must also run **after
-merging `main`**, not only after allocation — a merge can import a sibling's ADR
-number into your branch even when your number was clean when you wrote it. When
-a collision is found, renumber the *newer* ADR (keep the one already merged to
-`main` stable) and update its heading plus every cross-reference.
+Collision chronology:
 
-Issue #2679 / PR #2683 is a second occurrence of the exact #2677 pattern,
-confirming it is systemic rather than a one-off. The build stage again authored
-its labeled-control-flow ADR as `0283` by scanning instead of allocating;
-meanwhile #2675's resumable this-binding ADR already held `0283` and #2677's
-renumbered object-destructuring ADR held `0284`, both pulled in by a merge from
-`main`. The learn pass detected the now triple-contended prefix and renamed this
-PR's ADR to the free `0285` (heading + roadmap + the two contract
-cross-references), leaving the #2675 `0283` async-generator references intact.
-The takeaways from #2677 stand and are reinforced: build-stage ADR numbers are
-provisional, the duplicate-prefix check must run after merging `main`, and the
-*newer* ADR is the one to renumber. The standing fix is for ADR-authoring
-stages (including build) to reserve via `rtk faktorial-api adr-next` rather than
-scan `docs/adrs`, which is what keeps regenerating this collision.
-
-Issue #2676 / spread-calls and #2678 / tdz-heads (PRs #2685 and #2687) are a third and fourth recurrence of the same pattern, now at ADR numbers 0285 and 0286. The build stage for gh2676 authored the spread-calls ADR as 0285 by scanning; meanwhile gh2679's labeled-control-flow ADR already held 0285 and was merged to main before gh2676's learn. Similarly, the build stage for gh2678 authored the TDZ-heads ADR as 0286 by scanning; meanwhile gh2690's construct-calls ADR already held 0286 and was merged via its learn PR (#2699) before gh2678's delivery PR (#2687) landed. The learn pass for gh2678 detected both collisions and renamed the newer files: spread-calls to 0287, TDZ-heads to 0288, then updated roadmap, expansion contract, and rule cross-references in the same slice.
-
-Issues autrun-diwap9usj808 / gh2771 / gh2770 (PRs #2775, #2777, #2772) produced a **triple collision** at ADR prefix `0294` — the most severe collision to date. Three separate tasks each called the allocator (or scanned) and wrote a distinct `0294-*` file. The gh2771 learn pass (#2779) failed to detect the collision, allowing the problem to compound when gh2770's delivery (#2772) added a third file. The gh2770 learn pass (this entry) detected all three and renamed the two newer files: the optional-member-access ADR (gh2771) to `0296`, and the ternary-expression ADR (gh2770) to `0297`. Updated cross-references in `docs/roadmap.md`, `docs/unified-bytecode-expansion-contract.md`, and `docs/rules/unified-bytecode-prototypes.md`. The durable takeaways are: (1) the duplicate-prefix check is **mandatory at every learn pass**, not optional; a learn pass that skips it can allow a collision to remain and accumulate further conflicts; (2) build-stage ADR numbers remain provisional until the learn pass runs the check — do not skip the duplicate-prefix check even if allocation used `rtk faktorial-api adr-next`; (3) when the allocator is unavailable (HTTP API unreachable), scanning for the next free prefix is acceptable **for collision repair only** — do not use scanning as the primary allocator for new ADRs.
-
-Issue #gh2809 / PR #2811 is a further recurrence of the collision pattern at ADR prefix `0290`. The iterator-result ADR (`0290-reduce-iterator-result-allocation-resumable-generator.md`) was merged after the array/object-literals ADR (gh2705) had already claimed `0290`. The build agent detected the collision, attempted `rtk faktorial-api adr-next` (which returned HTTP 404 — allocator unavailable), and correctly fell back to scanning under the **collision-repair exception**: scanned `docs/adrs` for the highest used prefix (0298), used 0299 as the next free number, renamed the iterator-result file, updated its heading, and updated the one cross-reference in `docs/rules/generator-execution-path-parity.md`. This confirms the collision-repair scanning exception is exercised correctly when the allocator is unreachable. The broader pattern (new ADR written at build time without allocating, collision detected at learn time) recurs unchanged — reinforcing that the only robust fix is for all ADR-authoring stages to use `rtk faktorial-api adr-next` as the primary allocator.
-
-Issue #gh2828 / PR #2832 hit the same learn-stage collision check again: the
-delivery branch carried `0299-admit-optional-call-chain-forms-in-unified-bytecode.md`
-after the iterator-result ADR already owned `0299` on `main`. In this agent
-runtime, `rtk faktorial-api adr-next` was unavailable (`No such file or
-directory`), so the learn pass used the documented collision-repair exception,
-kept the already-merged iterator ADR stable, and renamed the newer optional-call
-ADR to `0301` because `0300` was already taken. This reinforces that learn-stage
-duplicate-prefix checks must run even after a delivery PR is merged, and
-collision repair must update the filename, heading, roadmap, and rule
-cross-references together.
+- Issue #2668 / PR #2671: the allocator returned `adr_id 281` after a concurrent
+  learn PR for the `bd70ca63` JsValue-native helpers merged in the allocation/write
+  window and consumed `0281`. Allocation and the immediate check are both required.
+- Issue #2677 / PR #2682: build scanned and chose `0283`; a later `main` merge
+  imported #2675's different `0283` before learn, which renamed the newer
+  object-destructuring ADR to `0284` and updated its heading plus contract and
+  roadmap references.
+- Issue #2679 / PR #2683: build again scanned `0283`, while #2675 held `0283` and
+  #2677 held `0284` after `main` was merged. Learn resolved the triple contention
+  by moving the newer labeled-control-flow ADR to `0285`, updating its heading,
+  roadmap, and two contract references while leaving #2675 references intact.
+- Issues #2676 / spread-calls and #2678 / tdz-heads (PRs #2685 and #2687): gh2676
+  scanned `0285` already held by merged gh2679; gh2678 scanned `0286` already held
+  by gh2690, which merged via learn PR #2699 before delivery PR #2687. Learn renamed
+  the newer files to `0287` and `0288`, then updated roadmap, expansion-contract,
+  and rule references.
+- Tasks autrun-diwap9usj808 / gh2771 / gh2770 (PRs #2775, #2777, #2772): three
+  allocator-or-scan paths produced the most severe collision, three distinct
+  `0294` ADRs. The gh2771 learn pass (#2779) missed it before #2772 added the third;
+  gh2770 learn found all three, moved gh2771 optional-member-access to `0296` and
+  gh2770 ternary to `0297`, and updated `docs/roadmap.md`,
+  `docs/unified-bytecode-expansion-contract.md`, and
+  `docs/rules/unified-bytecode-prototypes.md`.
+- Task gh2809 / PR #2811: the iterator-result ADR collided at `0290` with gh2705's
+  already-merged array/object-literals ADR. Build detected it; the allocator
+  returned HTTP 404, so collision repair scanned a highest prefix of `0298`, moved
+  the newer ADR to `0299`, and updated its heading and the reference in
+  `docs/rules/generator-execution-path-parity.md`.
+- Task gh2828 / PR #2832: optional-call-chain ADR `0299` collided with the
+  already-merged iterator-result ADR. With the allocator unavailable (`No such
+  file or directory`) and `0300` occupied, learn kept the merged ADR stable,
+  moved the newer ADR to `0301`, and updated its filename, heading, roadmap, and
+  rule cross-references.

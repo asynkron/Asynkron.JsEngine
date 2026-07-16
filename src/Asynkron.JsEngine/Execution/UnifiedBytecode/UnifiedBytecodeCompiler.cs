@@ -1215,10 +1215,12 @@ internal static class UnifiedBytecodeCompiler
                             unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.EnsureHasName, nameInferenceIndex));
                         }
 
-                        if (declaration.VarKind == VariableKind.Using)
+                        if (IsDisposableDeclarationKind(declaration.VarKind))
                         {
                             unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.DuplicateTop));
-                            unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.RegisterDisposable));
+                            unified.Add(new UnifiedBytecodeInstruction(
+                                UnifiedBytecodeOpCode.RegisterDisposable,
+                                EncodeRegisterDisposableOperand(declaration.VarKind)));
                         }
 
                         unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.InitializeSlot, storeSlot));
@@ -1289,6 +1291,14 @@ internal static class UnifiedBytecodeCompiler
                                 awaitedNameInferenceIndex));
                         }
 
+                        if (IsDisposableDeclarationKind(awaitedDeclaration.VarKind))
+                        {
+                            unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.DuplicateTop));
+                            unified.Add(new UnifiedBytecodeInstruction(
+                                UnifiedBytecodeOpCode.RegisterDisposable,
+                                EncodeRegisterDisposableOperand(awaitedDeclaration.VarKind)));
+                        }
+
                         unified.Add(new UnifiedBytecodeInstruction(
                             UnifiedBytecodeOpCode.InitializeSlot,
                             awaitedDeclarationSlot));
@@ -1340,11 +1350,19 @@ internal static class UnifiedBytecodeCompiler
                         unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.AwaitValue));
                         var awaitedBindingTargetIndex = bindingTargetConstants.Count;
                         bindingTargetConstants.Add(awaitedBindingDeclaration.TargetProgram);
+                        if (IsDisposableDeclarationKind(awaitedBindingDeclaration.VarKind))
+                        {
+                            unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.DuplicateTop));
+                            unified.Add(new UnifiedBytecodeInstruction(
+                                UnifiedBytecodeOpCode.RegisterDisposable,
+                                EncodeRegisterDisposableOperand(awaitedBindingDeclaration.VarKind)));
+                        }
+
                         unified.Add(new UnifiedBytecodeInstruction(
                             UnifiedBytecodeOpCode.ApplyDeclarationBindingTarget,
                             EncodeDeclarationBindingTargetOperand(
                                 awaitedBindingTargetIndex,
-                                awaitedBindingDeclaration.VarKind,
+                                NormalizeDisposableDeclarationKind(awaitedBindingDeclaration.VarKind),
                                 hasInitializer: true)));
                         maxStackDepth = Math.Max(
                             maxStackDepth,
@@ -1405,17 +1423,19 @@ internal static class UnifiedBytecodeCompiler
 
                         var declarationBindingTargetIndex = bindingTargetConstants.Count;
                         bindingTargetConstants.Add(declaration.TargetProgram);
-                        if (declaration.VarKind == VariableKind.Using)
+                        if (IsDisposableDeclarationKind(declaration.VarKind))
                         {
                             unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.DuplicateTop));
-                            unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.RegisterDisposable));
+                            unified.Add(new UnifiedBytecodeInstruction(
+                                UnifiedBytecodeOpCode.RegisterDisposable,
+                                EncodeRegisterDisposableOperand(declaration.VarKind)));
                         }
 
                         unified.Add(new UnifiedBytecodeInstruction(
                             UnifiedBytecodeOpCode.ApplyDeclarationBindingTarget,
                             EncodeDeclarationBindingTargetOperand(
                                 declarationBindingTargetIndex,
-                                declaration.VarKind == VariableKind.Using ? VariableKind.Const : declaration.VarKind,
+                                NormalizeDisposableDeclarationKind(declaration.VarKind),
                                 hasBindingInitializer)));
 
                         if (TryAppendJumpToCompiledTarget(
@@ -18874,6 +18894,15 @@ internal static class UnifiedBytecodeCompiler
         var flags = hasInitializer ? DeclarationBindingTargetHasInitializerFlag : 0;
         return (bindingTargetIndex << DeclarationBindingTargetShift) | (int)varKind | flags;
     }
+
+    private static bool IsDisposableDeclarationKind(VariableKind varKind) =>
+        varKind is VariableKind.Using or VariableKind.AwaitUsing;
+
+    private static VariableKind NormalizeDisposableDeclarationKind(VariableKind varKind) =>
+        IsDisposableDeclarationKind(varKind) ? VariableKind.Const : varKind;
+
+    private static int EncodeRegisterDisposableOperand(VariableKind varKind) =>
+        varKind == VariableKind.AwaitUsing ? 1 : 0;
 
     private static bool TryAppendDynamicDeclaration(
         SimpleVariableDeclarationInstruction declaration,

@@ -168,9 +168,12 @@ statement interpretation.
   storage so resources are registered against the active environment. Direct
   function-body sync `using` declarations inside resumable generator/async
   bodies also route through `RegisterDisposable`, with disposal finalized when
-  the resumable frame completes or throws. Unsupported binding-target payloads,
-  assignment targets, block-scoped resumable `using`, and `await using`
-  declarations still decline before VM execution.
+  the resumable frame completes or throws. Direct function-body `await using`
+  declarations inside async functions route through the same opcode with an
+  async-dispose operand flag, and the async-function invoker awaits disposer
+  promises before resolving or rejecting. Unsupported binding-target payloads,
+  assignment targets, block-scoped resumable `using` / `await using`, and
+  async-generator `await using` declarations still decline before VM execution.
 - Expression lowering is still a large semantic surface, but the current direct
   general expression-loop gap inventory is empty and drift-checked under
   `### General Expression Lowering Gaps (current)`. Remaining expression-family
@@ -1368,9 +1371,10 @@ the final post-compile production subset check before VM entry.
   on the sync route. Neither opcode uses name fallback or calls back into
   `ExpressionProgram`, `ExecutionPlanRunner`, or AST evaluation.
 - Unsupported binding declaration shapes, unsupported object/array destructuring
-  driver instructions, unsupported dynamic lookup, `await using`, block-scoped
-  resumable `using`, resumable materialized block environments, and scope-entry
-  shapes without flat mappings remain pre-VM declines.
+  driver instructions, unsupported dynamic lookup, block-scoped resumable
+  `using` / `await using`, async-generator `await using`, resumable materialized
+  block environments, and scope-entry shapes without flat mappings remain
+  pre-VM declines.
 
 ## Production With-Backed Dynamic Name Boundary
 - Current production dynamic-name support is with-backed and compiler-gated.
@@ -2152,9 +2156,13 @@ support today.
   `const` **targets** with no flat slot store by name through the descriptor's
   `TargetNameConstantIndex` plus `TargetVariableKind`. Static nested binding
   declarations with identifier/rest targets are admitted through
-  `ApplyDeclarationBindingTarget`. Computed/dynamic-name keys, defaults,
-  assignment targets, awaited binding values, and `await using` declarations
-  still decline with `DestructuringDependency` or `UnsupportedPlanShape`. ADR
+  `ApplyDeclarationBindingTarget`; direct async function-body `await using`
+  binding declarations are admitted only when the target resolves to the
+  activation scope and the awaited source is already inside the admitted
+  expression boundary. Computed/dynamic-name keys, defaults, assignment targets,
+  awaited binding values outside that route, block-scoped `await using`, and
+  async-generator `await using` declarations still decline with
+  `DestructuringDependency` or `UnsupportedPlanShape`. ADR
   [`0284`](adrs/0284-keep-unified-bytecode-object-destructuring-model-first-and-static-key-owned.md)
   records the model-first decision and admit/decline boundary.
 - `ExpressionOpKind.ApplyBindingTarget` is eligible for ordinary sync

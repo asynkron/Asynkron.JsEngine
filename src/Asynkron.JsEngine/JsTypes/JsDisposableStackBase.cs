@@ -116,16 +116,18 @@ public abstract class JsDisposableStackBase : IJsObjectLike, IPropertyDefinition
 
 internal readonly struct DisposableStackRecord
 {
-    internal DisposableStackRecord(IJsCallable disposeMethod, JsValue thisArg, JsValue[] args)
+    internal DisposableStackRecord(IJsCallable disposeMethod, JsValue thisArg, JsValue[] args, bool isAsync = false)
     {
         DisposeMethod = disposeMethod;
         ThisArg = thisArg;
         Args = args;
+        IsAsync = isAsync;
     }
 
     internal IJsCallable DisposeMethod { get; }
     internal JsValue ThisArg { get; }
     internal JsValue[] Args { get; }
+    internal bool IsAsync { get; }
 
     internal JsValue Invoke()
     {

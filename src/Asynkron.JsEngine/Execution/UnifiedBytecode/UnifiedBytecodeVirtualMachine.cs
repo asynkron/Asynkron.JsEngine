@@ -21,6 +21,7 @@ internal static class UnifiedBytecodeVirtualMachine
     private const int DeclarationBindingTargetShift = 4;
     private const int FunctionDeclarationIndexMask = 0xFFFF;
     private const int FunctionDeclarationNameIndexShift = 16;
+    private const int RegisterDisposablePreferAsyncFlag = 1;
 
     private readonly record struct UnifiedSlotEnvironmentBinding(
         JsEnvironment Environment,
@@ -859,7 +860,11 @@ internal static class UnifiedBytecodeVirtualMachine
 
                     case UnifiedBytecodeOpCode.RegisterDisposable:
                         var disposableValue = stack[--stackPointer];
-                        RegisterDisposableResource(disposableValue, currentCallingEnvironment, context);
+                        RegisterDisposableResource(
+                            disposableValue,
+                            currentCallingEnvironment,
+                            context,
+                            DecodeRegisterDisposablePreferAsync(instruction.Operand));
                         if (context.ShouldStopEvaluation)
                         {
                             if (TryHandleCurrentContextThrow(slots))
@@ -4431,7 +4436,11 @@ internal static class UnifiedBytecodeVirtualMachine
                 case UnifiedBytecodeOpCode.RegisterDisposable:
                     {
                         var resumableDisposableValue = stack[--stackPointer];
-                        RegisterDisposableResource(resumableDisposableValue, currentEnvironment, context);
+                        RegisterDisposableResource(
+                            resumableDisposableValue,
+                            currentEnvironment,
+                            context,
+                            DecodeRegisterDisposablePreferAsync(instruction.Operand));
                         if (context.ShouldStopEvaluation)
                         {
                             if (TryHandleResumableContextThrow())
@@ -10192,7 +10201,8 @@ internal static class UnifiedBytecodeVirtualMachine
     private static void RegisterDisposableResource(
         JsValue value,
         JsEnvironment? environment,
-        EvaluationContext context)
+        EvaluationContext context,
+        bool preferAsync)
     {
         if (!value.IsNullOrUndefined && !value.TryGetObject<IJsObjectLike>(out _))
         {
@@ -10212,8 +10222,11 @@ internal static class UnifiedBytecodeVirtualMachine
             return;
         }
 
-        environment.RegisterDisposable(value, preferAsync: false, context.RealmState);
+        environment.RegisterDisposable(value, preferAsync, context.RealmState);
     }
+
+    private static bool DecodeRegisterDisposablePreferAsync(int operand) =>
+        (operand & RegisterDisposablePreferAsyncFlag) != 0;
 
     private static bool DisposeEnvironmentResources(JsEnvironment? environment, EvaluationContext context)
     {

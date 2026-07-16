@@ -292,19 +292,27 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
                 return 7;
             }
 
-            disposeAsyncLater({ async [Symbol.asyncDispose]() { log.push('disposed'); } })
+            disposeAsyncLater({
+                [Symbol.asyncDispose]() {
+                    return Promise.resolve().then(() => log.push('disposed'));
+                }
+            })
                 .then(
-                    value => result = 'fulfilled:' + value,
+                    value => result = log.join(',') + '|fulfilled:' + value,
                     error => result = String(error));
             result;
             """);
 
-        Assert.Equal("fulfilled:7", result);
+        Assert.Equal("body,disposed|fulfilled:7", result);
         Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(),
             static record => record.Message.Contains(
                 "unified-bytecode-production-fast-path func=disposeAsyncLater",
                 StringComparison.Ordinal));
         Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-resumable-async-fast-path func=disposeAsyncLater argc=1",
+                StringComparison.Ordinal));
+        Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(),
             static record => record.Message.Contains(
                 "classified-async-function-declined-body-runner-residue",
                 StringComparison.Ordinal));

@@ -4745,13 +4745,27 @@ public sealed class JsEnvironment : IRentable
         }
 
         _disposableResources ??= [];
-        _disposableResources.Add(new DisposableStackRecord(disposeMethod, value, []));
+        _disposableResources.Add(new DisposableStackRecord(disposeMethod, value, [], preferAsync));
     }
 
     /// <summary>
     /// Returns true if this environment has any disposable resources registered.
     /// </summary>
     internal bool HasDisposableResources => _disposableResources is { Count: > 0 };
+
+    internal bool TryPopDisposableResource(out DisposableStackRecord record)
+    {
+        if (_disposableResources is not { Count: > 0 })
+        {
+            record = default;
+            return false;
+        }
+
+        var index = _disposableResources.Count - 1;
+        record = _disposableResources[index];
+        _disposableResources.RemoveAt(index);
+        return true;
+    }
 
     /// <summary>
     /// Dispose all registered resources in LIFO order.

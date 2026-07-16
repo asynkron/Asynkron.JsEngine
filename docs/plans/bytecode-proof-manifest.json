@@ -209,6 +209,35 @@
       ]
     },
     {
+      "id": "A42",
+      "title": "Direct async function-body await using settles async disposers on the resumable route",
+      "status": "done",
+      "proofs": [
+        {
+          "id": "A42-resumable-async-await-using-settles-before-resolution",
+          "claim": "admitted",
+          "kind": "runtime",
+          "awaitResult": true,
+          "source": "var log = [];\nasync function run(resource) {\n  await Promise.resolve(0);\n  await using value = resource;\n  log.push('body');\n  return 'done';\n}\n\nvar final = '';\nrun({\n  [Symbol.asyncDispose]() {\n    log.push('dispose-start');\n    return Promise.resolve().then(() => log.push('dispose-done'));\n  }\n}).then(value => {\n  log.push('return:' + value);\n  final = log.join(',');\n});\nfinal;",
+          "expectedResult": "body,dispose-start,dispose-done,return:done",
+          "requiredLogs": [
+            "unified-bytecode-resumable-async-fast-path func=run argc=1"
+          ]
+        },
+        {
+          "id": "A42-resumable-async-await-using-dispose-rejection-rejects-function",
+          "claim": "admitted",
+          "kind": "runtime",
+          "awaitResult": true,
+          "source": "var log = [];\nasync function run(resource) {\n  await using value = resource;\n  log.push('body');\n  return 'done';\n}\n\nvar final = '';\nrun({\n  [Symbol.asyncDispose]() {\n    log.push('dispose-start');\n    return Promise.reject('dispose-fail');\n  }\n}).then(\n  value => { final = 'resolved:' + value; },\n  error => {\n    log.push('reject:' + error);\n    final = log.join(',');\n  });\nfinal;",
+          "expectedResult": "body,dispose-start,reject:dispose-fail",
+          "requiredLogs": [
+            "unified-bytecode-resumable-async-fast-path func=run argc=1"
+          ]
+        }
+      ]
+    },
+    {
       "id": "A7",
       "title": "Private-name class constructor activation is admitted",
       "status": "done",

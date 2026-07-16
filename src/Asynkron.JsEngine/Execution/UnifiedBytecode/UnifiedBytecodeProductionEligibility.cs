@@ -1425,15 +1425,16 @@ internal static class UnifiedBytecodeProductionEligibility
         UnifiedBytecodeProductionActivationDescriptor activation,
         out string declineReason)
     {
-        if (instruction is SimpleVariableDeclarationInstruction { VarKind: VariableKind.AwaitUsing } or
-            BindingVariableDeclarationInstruction { VarKind: VariableKind.AwaitUsing })
+        if (IsAwaitUsingDeclarationInstruction(instruction) &&
+            (!activation.IsAsyncLike || activation.IsGenerator))
         {
             declineReason =
-                "await using declarations require async-dispose settlement and are not eligible for resumable unified bytecode routing.";
+                "await using declarations are only eligible for resumable unified bytecode routing in direct async function bodies.";
             return false;
         }
 
-        if (instruction is SimpleVariableDeclarationInstruction { VarKind: VariableKind.Using } simpleUsing &&
+        if (instruction is SimpleVariableDeclarationInstruction
+                { VarKind: VariableKind.Using or VariableKind.AwaitUsing } simpleUsing &&
             !activationSlots.SlotMap.ContainsKey(simpleUsing.TargetSymbol))
         {
             declineReason =
@@ -1441,7 +1442,8 @@ internal static class UnifiedBytecodeProductionEligibility
             return false;
         }
 
-        if (instruction is BindingVariableDeclarationInstruction { VarKind: VariableKind.Using } bindingUsing &&
+        if (instruction is BindingVariableDeclarationInstruction
+                { VarKind: VariableKind.Using or VariableKind.AwaitUsing } bindingUsing &&
             !IsActivationScopeDeclarationBindingTarget(bindingUsing.TargetProgram, activationSlots))
         {
             declineReason =
@@ -2166,11 +2168,13 @@ internal static class UnifiedBytecodeProductionEligibility
         {
             switch (plan.Instructions[i])
             {
-                case SimpleVariableDeclarationInstruction { VarKind: VariableKind.Using } simpleUsing
+                case SimpleVariableDeclarationInstruction
+                    { VarKind: VariableKind.Using or VariableKind.AwaitUsing } simpleUsing
                     when activeScopeDepths[i] == 0 &&
                          activationSlots.SlotMap.ContainsKey(simpleUsing.TargetSymbol):
                     return true;
-                case BindingVariableDeclarationInstruction { VarKind: VariableKind.Using } bindingUsing
+                case BindingVariableDeclarationInstruction
+                    { VarKind: VariableKind.Using or VariableKind.AwaitUsing } bindingUsing
                     when activeScopeDepths[i] == 0 &&
                          IsActivationScopeDeclarationBindingTarget(bindingUsing.TargetProgram, activationSlots):
                     return true;
@@ -2183,6 +2187,10 @@ internal static class UnifiedBytecodeProductionEligibility
     private static bool IsUsingDeclarationInstruction(ExecutionInstruction instruction) =>
         instruction is SimpleVariableDeclarationInstruction { VarKind: VariableKind.Using or VariableKind.AwaitUsing } or
             BindingVariableDeclarationInstruction { VarKind: VariableKind.Using or VariableKind.AwaitUsing };
+
+    private static bool IsAwaitUsingDeclarationInstruction(ExecutionInstruction instruction) =>
+        instruction is SimpleVariableDeclarationInstruction { VarKind: VariableKind.AwaitUsing } or
+            BindingVariableDeclarationInstruction { VarKind: VariableKind.AwaitUsing };
 
     private static bool TryBuildActiveScopeDepths(
         ImmutableArray<ExecutionInstruction> instructions,
@@ -3287,13 +3295,14 @@ internal static class UnifiedBytecodeProductionEligibility
                 // (each evaluation yields a distinct RegExp with its own lastIndex) are preserved.
                 UnifiedBytecodeOpCode.LoadRegexLiteral or
                 UnifiedBytecodeOpCode.StoreSlot or
-                // Direct function-body `using` declarations inside resumable functions. The compiler emits
-                // DuplicateTop -> RegisterDisposable before InitializeSlot / ApplyDeclarationBindingTarget,
-                // so the resource is registered against the forced resumable function environment while the
-                // declaration value remains on the operand stack for binding storage. The invoker finalizes
-                // Completed/Throw steps through DisposeCompletedResumableStep, so sync disposers run on
-                // normal completion, return, and throw. Block-scope using stays declined by the instruction
-                // target-scope gate until ExecuteResumable owns a persisted environment stack.
+                // Direct function-body `using` / `await using` declarations inside resumable functions. The
+                // compiler emits DuplicateTop -> RegisterDisposable before InitializeSlot /
+                // ApplyDeclarationBindingTarget, so the resource is registered against the forced resumable
+                // function environment while the declaration value remains on the operand stack for binding
+                // storage. RegisterDisposable's operand marks async-dispose records; async-function completion
+                // drains those records through promise-aware settlement before resolving/rejecting the function
+                // promise. Block-scope using stays declined by the instruction target-scope gate until
+                // ExecuteResumable owns a persisted environment stack.
                 UnifiedBytecodeOpCode.RegisterDisposable or
                 // Slot increment / decrement (`x++`, `x--`, `++x`, `--x`). The opcode reads
                 // `slots[index]`, checks the resume state's const-slot bitmap, computes the numeric ++/--

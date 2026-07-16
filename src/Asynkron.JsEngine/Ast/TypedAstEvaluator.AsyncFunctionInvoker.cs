@@ -2,6 +2,7 @@ using System.Collections.Immutable;
 using System.Diagnostics;
 using Asynkron.JsEngine.Execution;
 using Asynkron.JsEngine.Execution.UnifiedBytecode;
+using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 using Microsoft.Extensions.Logging;
 
@@ -32,6 +33,7 @@ public static partial class TypedAstEvaluator
         private readonly RealmState _realmState = realmState;
         private readonly FunctionExecutionPlanSeed _planSeed = planSeed;
         private ExecutionPlanRunner? _inner;
+        private AsyncDisposalState? _pendingUnifiedAsyncDisposal;
         private UnifiedBytecodeResumeState? _unifiedState;
 
         /// <summary>
@@ -316,16 +318,12 @@ public static partial class TypedAstEvaluator
             var context = _realmState.CreateContext();
             try
             {
-                var step = UnifiedBytecodeVirtualMachine.DisposeCompletedResumableStep(
-                    _unifiedState!,
-                    UnifiedBytecodeVirtualMachine.ExecuteResumable(_unifiedState!, mode, argument, context));
+                var step = UnifiedBytecodeVirtualMachine.ExecuteResumable(_unifiedState!, mode, argument, context);
                 switch (step.Kind)
                 {
                     case UnifiedBytecodeStepKind.Completed:
-                        AsyncInvokeWithOneArg(resolve, step.Value);
-                        break;
                     case UnifiedBytecodeStepKind.Throw:
-                        AsyncInvokeWithOneArg(reject, step.Value);
+                        StartUnifiedBytecodeDisposal(step, resolve, reject);
                         break;
                     case UnifiedBytecodeStepKind.PendingAwait:
                         HandlePendingPromise(step.PendingPromise, resolve, reject);
@@ -352,6 +350,118 @@ public static partial class TypedAstEvaluator
             {
                 AsyncInvokeWithOneArg(reject, (JsValue)ex.Message);
             }
+        }
+
+        private void StartUnifiedBytecodeDisposal(
+            UnifiedBytecodeStepResult step,
+            IJsCallable resolve,
+            IJsCallable reject)
+        {
+            _pendingUnifiedAsyncDisposal =
+                new AsyncDisposalState(_unifiedState!.CallingEnvironment, step);
+            DriveUnifiedBytecodeDisposalToCompletion(resolve, reject);
+        }
+
+        private void ContinueUnifiedBytecodeDisposalToCompletion(
+            bool isRejection,
+            JsValue value,
+            IJsCallable resolve,
+            IJsCallable reject)
+        {
+            Debug.Assert(_pendingUnifiedAsyncDisposal is not null, "Async disposal continuation requires state.");
+            _pendingUnifiedAsyncDisposal!.RecordResume(isRejection, value, _realmState);
+            DriveUnifiedBytecodeDisposalToCompletion(resolve, reject);
+        }
+
+        private void DriveUnifiedBytecodeDisposalToCompletion(IJsCallable resolve, IJsCallable reject)
+        {
+            var context = _realmState.CreateContext();
+            try
+            {
+                var disposal = _pendingUnifiedAsyncDisposal!;
+                while (TryPopNextActiveFunctionResource(disposal, out var record))
+                {
+                    JsValue disposeResult;
+                    try
+                    {
+                        disposeResult = record.Invoke();
+                    }
+                    catch (ThrowSignal signal)
+                    {
+                        disposal.RecordDisposeError(signal, _realmState);
+                        continue;
+                    }
+
+                    if (!record.IsAsync)
+                    {
+                        continue;
+                    }
+
+                    var pendingPromise = JsValue.Undefined;
+                    if (!AwaitScheduler.TryResolvePromiseOrYield(
+                            disposeResult,
+                            asyncStepMode: true,
+                            ref pendingPromise,
+                            context,
+                            out _))
+                    {
+                        HandlePendingPromise(pendingPromise, resolve, reject);
+                        return;
+                    }
+
+                    if (context.IsThrow)
+                    {
+                        disposal.RecordDisposeError(new ThrowSignal(context.FlowValue), _realmState);
+                        context.Clear();
+                    }
+                }
+
+                _pendingUnifiedAsyncDisposal = null;
+                var finalStep = disposal.ToStepResult();
+                if (finalStep.Kind == UnifiedBytecodeStepKind.Throw)
+                {
+                    AsyncInvokeWithOneArg(reject, finalStep.Value);
+                    return;
+                }
+
+                AsyncInvokeWithOneArg(resolve, finalStep.Value);
+            }
+            catch (ThrowSignal signal)
+            {
+                _pendingUnifiedAsyncDisposal = null;
+                AsyncInvokeWithOneArg(reject, signal.ThrownValue);
+            }
+            catch (Exception ex)
+            {
+                _pendingUnifiedAsyncDisposal = null;
+                AsyncInvokeWithOneArg(reject, (JsValue)ex.Message);
+            }
+        }
+
+        private static bool TryPopNextActiveFunctionResource(
+            AsyncDisposalState disposal,
+            out DisposableStackRecord record)
+        {
+            var environment = disposal.CurrentEnvironment;
+            while (environment is not null)
+            {
+                if (environment.TryPopDisposableResource(out record))
+                {
+                    disposal.CurrentEnvironment = environment;
+                    return true;
+                }
+
+                var wasFunctionScope = environment.IsFunctionScope;
+                environment = environment.Enclosing;
+                disposal.CurrentEnvironment = environment;
+                if (wasFunctionScope)
+                {
+                    break;
+                }
+            }
+
+            record = default;
+            return false;
         }
 
         private void DriveToCompletion(
@@ -459,7 +569,15 @@ public static partial class TypedAstEvaluator
 
                 try
                 {
-                    if (executor._unifiedState is not null)
+                    if (executor._pendingUnifiedAsyncDisposal is not null)
+                    {
+                        executor.ContinueUnifiedBytecodeDisposalToCompletion(
+                            isRejection,
+                            value,
+                            resolve,
+                            reject);
+                    }
+                    else if (executor._unifiedState is not null)
                     {
                         executor.DriveUnifiedBytecodeToCompletion(
                             isRejection ? UnifiedBytecodeResumeMode.Throw : UnifiedBytecodeResumeMode.Next,
@@ -536,6 +654,41 @@ public static partial class TypedAstEvaluator
 
             [Conditional("DEBUG")]
             internal void AssertOwnership(string usage) => PoolDebug.AssertOwned(this, usage);
+        }
+
+        private sealed class AsyncDisposalState(JsEnvironment? currentEnvironment, UnifiedBytecodeStepResult step)
+        {
+            private readonly UnifiedBytecodeStepResult _step = step;
+            private ThrowSignal? _pendingError = step.Kind == UnifiedBytecodeStepKind.Throw
+                ? new ThrowSignal(step.Value)
+                : null;
+
+            public JsEnvironment? CurrentEnvironment { get; set; } = currentEnvironment;
+
+            public void RecordResume(bool isRejection, JsValue value, RealmState realmState)
+            {
+                if (isRejection)
+                {
+                    RecordDisposeError(new ThrowSignal(value), realmState);
+                }
+            }
+
+            public void RecordDisposeError(ThrowSignal disposeError, RealmState realmState)
+            {
+                _pendingError = _pendingError is null
+                    ? disposeError
+                    : JsEnvironment.CreateSuppressedError(disposeError, _pendingError, realmState);
+            }
+
+            public UnifiedBytecodeStepResult ToStepResult()
+            {
+                if (_pendingError is not null)
+                {
+                    return UnifiedBytecodeStepResult.Throw(_pendingError.ThrownValue);
+                }
+
+                return _step;
+            }
         }
     }
 }

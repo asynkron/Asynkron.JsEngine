@@ -1,0 +1,17 @@
+{
+  "schema_version": "main-verify.v2",
+  "name": "quality evidence",
+  "commands": [
+    "./tools/faktorial-quality-evidence"
+  ],
+  "timeout": "45m",
+  "evidence": [
+    {
+      "command": "./tools/faktorial-quality-evidence",
+      "producer_id": "internal-tests",
+      "kind": "test-results",
+      "payload_schema": "test-results.v1",
+      "required": true
+    }
+  ]
+}

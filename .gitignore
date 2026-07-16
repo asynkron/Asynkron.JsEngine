@@ -424,3 +424,7 @@ tools/.unicode-cache/
 
 # Faktorial local runtime state
 .faktorial/
+!.faktorial/
+.faktorial/*
+!.faktorial/main-verify.json
+faktorial-result-*.json

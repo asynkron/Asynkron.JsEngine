@@ -374,7 +374,30 @@ internal static class UnifiedBytecodeCompiler
             maxStackDepth = Math.Max(maxStackDepth, 4);
         }
 
+        if (RequiresPreparedCallTargetStack(expressionProgram))
+        {
+            maxStackDepth++;
+        }
+
         return maxStackDepth;
+    }
+
+    private static bool RequiresPreparedCallTargetStack(ExpressionProgram expressionProgram)
+    {
+        for (var operationIndex = 0; operationIndex < expressionProgram.OperationCount; operationIndex++)
+        {
+            if (expressionProgram.GetOperation(operationIndex).Kind is
+                ExpressionOpKind.LoadIdentifierCallTarget or
+                ExpressionOpKind.LoadNamedCallTarget or
+                ExpressionOpKind.LoadComputedCallTarget or
+                ExpressionOpKind.LoadNamedSuperCallTarget or
+                ExpressionOpKind.LoadComputedSuperCallTarget)
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static bool RequiresObjectLiteralFunctionMemberStack(ExpressionProgram expressionProgram)

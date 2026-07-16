@@ -2114,7 +2114,7 @@ internal static class UnifiedBytecodeVirtualMachine
                         break;
 
                     case UnifiedBytecodeOpCode.Continue:
-                        if (HandleAbruptCompletion(
+                        var handledContinue = HandleAbruptCompletion(
                                 program,
                                 AbruptKind.Continue,
                                 JsValue.Undefined,
@@ -2127,7 +2127,8 @@ internal static class UnifiedBytecodeVirtualMachine
                                 ref currentCallingEnvironment,
                                 slotEnvironments,
                                 ref environmentStack,
-                                ref environmentStackCount))
+                                ref environmentStackCount);
+                        if (handledContinue)
                         {
                             break;
                         }
@@ -3290,7 +3291,8 @@ internal static class UnifiedBytecodeVirtualMachine
 
             if ((descriptor.ContinueTarget >= 0 &&
                  IsSameLoopControlTarget(program, target, descriptor.ContinueTarget)) ||
-                IsControlTargetInsideDriverBody(program, target, descriptor))
+                (IsControlTargetInsideDriverBody(program, target, descriptor) &&
+                 !ContinueTargetEscapesDriverBodyBeforeReentry(program, target, descriptor)))
             {
                 return true;
             }
@@ -3298,6 +3300,59 @@ internal static class UnifiedBytecodeVirtualMachine
 
         return false;
     }
+
+    private static bool ContinueTargetEscapesDriverBodyBeforeReentry(
+        UnifiedBytecodeProgram program,
+        int target,
+        UnifiedBytecodeDriverDescriptor descriptor)
+    {
+        if (descriptor.NextTarget < 0 || descriptor.BreakTarget < 0)
+        {
+            return false;
+        }
+
+        var current = target;
+        var visited = 0;
+        while ((uint)current < (uint)program.Instructions.Length &&
+               visited++ < program.Instructions.Length)
+        {
+            if (current < descriptor.NextTarget || current >= descriptor.BreakTarget)
+            {
+                return true;
+            }
+
+            var instruction = program.Instructions[current];
+            if (instruction.OpCode == UnifiedBytecodeOpCode.Jump)
+            {
+                current = instruction.Operand;
+                continue;
+            }
+
+            if (!IsLinearContinueTargetStep(instruction.OpCode))
+            {
+                return false;
+            }
+
+            current++;
+        }
+
+        return false;
+    }
+
+    private static bool IsLinearContinueTargetStep(UnifiedBytecodeOpCode opCode) =>
+        opCode is UnifiedBytecodeOpCode.LoadLiteral or
+            UnifiedBytecodeOpCode.LoadSlot or
+            UnifiedBytecodeOpCode.LoadDynamicIdentifier or
+            UnifiedBytecodeOpCode.ResolveDynamicIdentifierReference or
+            UnifiedBytecodeOpCode.Binary or
+            UnifiedBytecodeOpCode.StoreSlot or
+            UnifiedBytecodeOpCode.StoreDynamicIdentifierReference or
+            UnifiedBytecodeOpCode.UpdateSlot or
+            UnifiedBytecodeOpCode.UpdateDynamicIdentifier or
+            UnifiedBytecodeOpCode.Pop or
+            UnifiedBytecodeOpCode.PopDynamicIdentifierReference or
+            UnifiedBytecodeOpCode.PopEnvironment or
+            UnifiedBytecodeOpCode.LeaveWith;
 
     private static bool IsSameDriverBreakTarget(
         UnifiedBytecodeProgram program,

@@ -273,7 +273,7 @@ public sealed class AsyncGeneratorTests(ITestOutputHelper output) : InternalTest
     }
 
     [Fact(Timeout = 2000)]
-    public async Task AsyncGenerator_ForLoopWithYieldFailsExplicitlyAfterUnifiedDecline()
+    public async Task AsyncGenerator_ForLoopWithYield_IteratesViaUnifiedBytecode()
     {
         await using var engine = CreateEngine();
 
@@ -305,7 +305,7 @@ public sealed class AsyncGeneratorTests(ITestOutputHelper output) : InternalTest
 
         var message = result?.ToString();
         Assert.NotNull(message);
-        Assert.StartsWith("error:Async-generator body 'counter' is not eligible for unified bytecode execution:", message, StringComparison.Ordinal);
+        Assert.Equal("loop:0|value:0|loop:1|value:1|loop:2|value:2", message);
     }
 
     [Fact(Timeout = 2000)]
@@ -444,7 +444,7 @@ public sealed class AsyncGeneratorTests(ITestOutputHelper output) : InternalTest
     }
 
     [Fact(Timeout = 2000)]
-    public async Task AsyncGenerator_TryFinallyWithYieldInFinally()
+    public async Task AsyncGenerator_TryFinallyWithYieldInFinally_RunsCleanupYields()
     {
         await using var engine = CreateEngine();
 
@@ -481,7 +481,7 @@ public sealed class AsyncGeneratorTests(ITestOutputHelper output) : InternalTest
 
         var message = result?.ToString();
         Assert.NotNull(message);
-        Assert.StartsWith("unsupported:Async-generator body 'gen' is not eligible for unified bytecode execution:", message, StringComparison.Ordinal);
+        Assert.Equal("try-start|value:body|try-end|finally-start|value:cleanup|finally-end", message);
     }
 
     [Fact(Timeout = 2000)]

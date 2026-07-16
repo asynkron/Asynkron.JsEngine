@@ -234,6 +234,56 @@ public sealed class ModuleTests(ITestOutputHelper output) : InternalTestBase(out
     }
 
     [Fact(Timeout = 2000)]
+    public async Task ReExportedDefaultAliasReadsLiveBindingThroughNamespace()
+    {
+        await using var engine = CreateEngine();
+
+        engine.SetModuleLoader(modulePath =>
+        {
+            return modulePath switch
+            {
+                "source.js" => """
+
+                               let counter = 1;
+                               export { counter as default, counter as named };
+                               counter = 7;
+
+                               """,
+                "barrel.js" => """
+
+                               export { default as aliasDefault, named } from "source.js";
+
+                               """,
+                _ => throw new FileNotFoundException($"Module not found: {modulePath}")
+            };
+        });
+
+        var result = await engine.EvaluateModule("""
+
+                                                 import * as ns from "barrel.js";
+                                                 `${ns.aliasDefault}:${ns.named}`;
+
+                                                 """);
+
+        Assert.Equal("7:7", result);
+    }
+
+    [Fact]
+    public void SourceGate_ModuleExportStorage_StaysJsValueNative()
+    {
+        var repositoryRoot = FindRepositoryRoot();
+        var jsEnginePath = Path.Combine(repositoryRoot.FullName, "src", "Asynkron.JsEngine", "JsEngine.cs");
+        var jsEngineSource = File.ReadAllText(jsEnginePath);
+
+        Assert.DoesNotContain("exports[", jsEngineSource, StringComparison.Ordinal);
+        Assert.Contains("entry.Exports.TryGetJsValue(name, out var value)", jsEngineSource, StringComparison.Ordinal);
+        Assert.Contains("value.TryGetObject<LiveExportBinding>(out var liveBinding)", jsEngineSource,
+            StringComparison.Ordinal);
+        Assert.Contains("exports.SetJsValue(exportName, CreateLiveBinding(getter));", jsEngineSource,
+            StringComparison.Ordinal);
+    }
+
+    [Fact(Timeout = 2000)]
     public async Task SelfReExportedNamespaceBindingStaysInTdzForNamespaceInternals()
     {
         await using var engine = CreateEngine();
@@ -1514,5 +1564,21 @@ export default function() { return 23; };
                                                  """, "main.js");
 
         Assert.Equal("Symbol(Symbol.toStringTag)", result);
+    }
+
+    private static DirectoryInfo FindRepositoryRoot()
+    {
+        var current = new DirectoryInfo(AppContext.BaseDirectory);
+        while (current is not null)
+        {
+            if (File.Exists(Path.Combine(current.FullName, "Asynkron.JsEngine.sln")))
+            {
+                return current;
+            }
+
+            current = current.Parent;
+        }
+
+        throw new InvalidOperationException("Could not locate repository root from test output directory.");
     }
 }

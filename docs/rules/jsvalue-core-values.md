@@ -821,6 +821,16 @@ completion boundaries. Future typed module cleanup should treat object-shaped
 module last-value storage as a regression, not as deferred work. Related ADR:
 `docs/adrs/0212-keep-typed-module-execution-helper-jsvalue-native.md`.
 
+Issue `agentmanual1780943196527007000` selected module export storage. The
+module `exports` object is a `JsObject`, whose public indexer is an
+`IDictionary<string, object?>` compatibility boundary even though its internal
+storage is `JsValue`. Future module export work should write private export
+binding values with `SetJsValue(...)`, read them with `TryGetJsValue(...)`, and
+unwrap `LiveExportBinding` only through typed `JsValue` extraction. Do not route
+live export binding storage or module namespace lookup through the public
+object indexer just because `JsObject` exposes that API. Related ADR:
+`docs/adrs/0212-keep-typed-module-execution-helper-jsvalue-native.md`.
+
 Issue #2263 / PR #2264 showed why the execution-wrapper scan must include
 repo-internal harnesses, not just production runtime files. After
 `TypedAstEvaluator.EvaluateProgram(object?)` became error-level obsolete, the
